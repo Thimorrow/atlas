@@ -62,7 +62,7 @@ export default function SettingsPage() {
                     key={t.key}
                     onClick={() => setTheme(t.key)}
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-colors active:scale-[0.98]",
+                      "flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-[color,background-color,border-color,transform] active:scale-[0.96]",
                       selected
                         ? "border-primary bg-accent font-medium"
                         : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
