@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   CalendarDays,
   MessagesSquare,
@@ -12,11 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  Sun,
-  Moon,
-  Monitor,
   LogOut,
-  Check,
 } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
 import {
@@ -38,28 +34,23 @@ const MODULES: Mod[] = [
   { label: "Hermes", icon: Sparkles, soon: true },
 ];
 
-const THEMES = [
-  { key: "light", label: "Hell", icon: Sun },
-  { key: "dark", label: "Dunkel", icon: Moon },
-  { key: "system", label: "System", icon: Monitor },
-] as const;
-
 const EXPANDED = 248;
 const COLLAPSED = 56;
 
 export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
-
-  useEffect(() => setMounted(true), []);
+  const logoSpin = useAnimationControls();
 
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
     document.cookie = `atlas-sidebar=${next ? "1" : "0"}; path=/; max-age=${60 * 60 * 24 * 365}`;
   };
+
+  // Logo-Spielerei: einmal von oben nach unten durchdrehen, landet wieder gleich.
+  const flipLogo = () =>
+    logoSpin.start({ rotateX: [0, 360] }, { duration: 1.6, ease: [0.4, 0, 0.2, 1] });
 
   // Gemeinsame Zeilen-Optik. Icon sitzt zentriert in der Icon-Leiste, Label faded weg.
   const row = "group mx-2 flex h-10 items-center rounded-lg text-sm transition-colors";
@@ -77,36 +68,61 @@ export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: bo
     >
       {/* Innen feste Breite -> kein Reflow, nur Clipping = flüssig */}
       <div className="flex h-full flex-col" style={{ width: EXPANDED }}>
-        {/* Kopf: Wortmarke + Toggle. Eingeklappt nur der Ausklapp-Button in der Leiste. */}
-        <div className="flex h-16 items-center pl-2 pr-2">
-          {collapsed ? (
+        {/* Kopf: Wortmarke + Toggle. Crossfade statt Hard-Swap -> kein Pop, swipet mit. */}
+        <div className="relative flex h-16 items-center pl-2 pr-2">
+          {/* Ausgeklappt: Logo links + Einklapp-Button rechts. Faded weg beim Einklappen. */}
+          <div
+            className={cn(
+              "flex w-full items-center transition-opacity duration-200",
+              collapsed && "pointer-events-none opacity-0",
+            )}
+          >
+            <div className={iconBox}>
+              <button
+                type="button"
+                onClick={flipLogo}
+                title="Atlas"
+                aria-label="Atlas"
+                style={{ perspective: 500 }}
+                className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground active:scale-[0.96]"
+              >
+                <motion.span
+                  animate={logoSpin}
+                  style={{ transformStyle: "preserve-3d" }}
+                  className="flex items-center justify-center"
+                >
+                  <AtlasLogo className="size-[20px]" />
+                </motion.span>
+              </button>
+            </div>
+            <button
+              onClick={toggle}
+              title="Einklappen"
+              aria-label="Sidebar einklappen"
+              className="ml-auto flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.96]"
+            >
+              <PanelLeftClose className="size-[18px]" />
+            </button>
+          </div>
+
+          {/* Eingeklappt: Ausklapp-Button am selben linken Slot. Faded ein, kein horizontaler Sprung. */}
+          <div
+            className={cn(
+              "absolute left-2 top-1/2 -translate-y-1/2 transition-opacity duration-200",
+              !collapsed && "pointer-events-none opacity-0",
+            )}
+          >
             <div className={iconBox}>
               <button
                 onClick={toggle}
                 title="Ausklappen"
                 aria-label="Sidebar ausklappen"
-                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.94]"
+                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.96]"
               >
                 <PanelLeftOpen className="size-[19px]" />
               </button>
             </div>
-          ) : (
-            <>
-              <div className={iconBox}>
-                <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                  <AtlasLogo className="size-[20px]" />
-                </div>
-              </div>
-              <button
-                onClick={toggle}
-                title="Einklappen"
-                aria-label="Sidebar einklappen"
-                className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.94]"
-              >
-                <PanelLeftClose className="size-[18px]" />
-              </button>
-            </>
-          )}
+          </div>
         </div>
 
         {/* Module */}
@@ -185,17 +201,6 @@ export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: bo
                   Einstellungen
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Erscheinungsbild
-              </DropdownMenuLabel>
-              {THEMES.map((t) => (
-                <DropdownMenuItem key={t.key} onSelect={() => setTheme(t.key)}>
-                  <t.icon />
-                  <span className="flex-1">{t.label}</span>
-                  {mounted && theme === t.key && <Check className="!text-foreground" />}
-                </DropdownMenuItem>
-              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled>
                 <LogOut />

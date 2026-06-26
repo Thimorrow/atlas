@@ -8,6 +8,7 @@ import {
   type ManualEvent,
   type Routine,
 } from "@/lib/db/schema";
+import { normalizeSubject } from "@/lib/untis/adapter";
 
 // Eine konkrete Event-Instanz an einem Tag (aus Untis-Stunde, Routine oder
 // manuellem Event abgeleitet). Zeiten als HH:MM.
@@ -93,7 +94,7 @@ function schoolToEvent(b: SchoolBlock): CalendarEvent {
     date: b.date,
     startTime: hm(b.startTime)!,
     endTime: hm(b.endTime),
-    title: b.subject,
+    title: normalizeSubject(b.subject),
     color: null,
     status: b.status,
     room: b.room,

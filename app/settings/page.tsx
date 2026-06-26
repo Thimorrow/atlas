@@ -18,7 +18,7 @@ export default function SettingsPage() {
   useEffect(() => setMounted(true), []);
 
   return (
-    <main className="px-6 py-6 lg:px-8">
+    <main className="h-full overflow-y-auto px-6 py-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
         {/* Kopf */}
         <div className="mb-6">

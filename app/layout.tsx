@@ -26,9 +26,9 @@ export default async function RootLayout({
     >
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <div className="flex min-h-screen">
+          <div className="flex h-screen overflow-hidden">
             <AppSidebar defaultCollapsed={collapsed} />
-            <div className="min-w-0 flex-1">{children}</div>
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
           </div>
         </ThemeProvider>
       </body>

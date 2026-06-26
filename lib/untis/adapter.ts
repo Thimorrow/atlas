@@ -30,6 +30,22 @@ function mapStatus(code?: string): NewSchoolBlock["status"] {
   return "regular";
 }
 
+// Untis-Langnamen sind sperrig / inkonsistent. Auf saubere Anzeigenamen mappen.
+// Erste passende Regel gewinnt (case-insensitive Teilstring); sonst Original.
+const SUBJECT_RULES: [needle: string, clean: string][] = [
+  ["lateinisch", "Latein"],
+  ["informatorische", "Deutsch"],
+  ["informatik", "Informatik"], // deckt "Informatik / angewandte Mathe" ab
+];
+
+export function normalizeSubject(raw: string): string {
+  const s = raw.toLowerCase();
+  for (const [needle, clean] of SUBJECT_RULES) {
+    if (s.includes(needle)) return clean;
+  }
+  return raw;
+}
+
 // Untis-Lesson -> Atlas SchoolBlock. Untis-Feldnamen leben NUR hier
 // (duenner Adapter, austauschbar gegen kuenftige API).
 export function lessonToSchoolBlock(l: UntisLesson): NewSchoolBlock {
@@ -38,7 +54,7 @@ export function lessonToSchoolBlock(l: UntisLesson): NewSchoolBlock {
     date: untisDateToISO(l.date),
     startTime: untisTimeToHM(l.startTime),
     endTime: untisTimeToHM(l.endTime),
-    subject: l.su?.[0]?.longname ?? l.su?.[0]?.name ?? "?",
+    subject: normalizeSubject(l.su?.[0]?.longname ?? l.su?.[0]?.name ?? "?"),
     room: l.ro?.[0]?.name ?? null,
     teacher: l.te?.[0]?.name ?? null,
     status: mapStatus(l.code),

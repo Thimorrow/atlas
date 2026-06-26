@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lessonToSchoolBlock, type UntisLesson } from "./adapter";
+import { lessonToSchoolBlock, normalizeSubject, type UntisLesson } from "./adapter";
 
 const base: UntisLesson = {
   id: 42,
@@ -18,7 +18,7 @@ describe("lessonToSchoolBlock", () => {
     expect(b.date).toBe("2026-06-19");
     expect(b.startTime).toBe("07:50");
     expect(b.endTime).toBe("08:35");
-    expect(b.subject).toBe("E");
+    expect(b.subject).toBe("Englisch");
     expect(b.room).toBe("A120");
     expect(b.teacher).toBe("Mu");
   });
@@ -44,5 +44,17 @@ describe("lessonToSchoolBlock", () => {
     const b = lessonToSchoolBlock({ ...base, ro: [], te: [] });
     expect(b.room).toBeNull();
     expect(b.teacher).toBeNull();
+  });
+
+  it("normalisiert sperrige Fach-Langnamen", () => {
+    expect(normalizeSubject("Lateinisch")).toBe("Latein");
+    expect(normalizeSubject("Informatik / angewandte Mathe")).toBe("Informatik");
+    expect(normalizeSubject("Informatorische Bildung")).toBe("Deutsch");
+    expect(normalizeSubject("Englisch")).toBe("Englisch"); // unveraendert
+  });
+
+  it("lessonToSchoolBlock wendet Normalisierung an", () => {
+    const b = lessonToSchoolBlock({ ...base, su: [{ name: "L", longname: "Lateinisch" }] });
+    expect(b.subject).toBe("Latein");
   });
 });

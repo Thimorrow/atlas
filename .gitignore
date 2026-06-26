@@ -29,3 +29,9 @@ yarn-error.log*
 coverage/
 .idea/
 .vscode/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Design-/Motion-Audit-Reports (generiert)
+motion-audits/
