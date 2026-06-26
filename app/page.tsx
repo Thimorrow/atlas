@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,9 @@ const TOTAL_H = (DAY_END - DAY_START) * HOUR_H;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i);
+
+// Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 const SRC: Record<Ev["source"], string> = {
   school: "border-l-blue-500 bg-blue-50 dark:bg-blue-500/15",
@@ -168,7 +171,7 @@ type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
   | { kind: "free"; s: number; e: number; free: Free };
 
-function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]; nowMin: number }) {
+function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goals: Goal[]; nowMin: number; stagger: boolean }) {
   if (!day) {
     return <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>;
   }
@@ -199,7 +202,9 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
   if (next && ongoing) {
     kicker = (
       <span className="inline-flex items-center gap-1.5 text-red-500">
-        <span className="size-1.5 animate-pulse rounded-full bg-red-500" /> Jetzt · {next.ev.title}
+        {/* I3: solider Punkt statt endlosem animate-pulse (AI-Slop-Tell + nervt
+            dauerhaft). Die rote Farbe + "Jetzt"-Text tragen die Aussage. */}
+        <span className="size-1.5 rounded-full bg-red-500" /> Jetzt · {next.ev.title}
       </span>
     );
   } else if (next && isToday) {
@@ -224,9 +229,9 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
     <div className="mx-auto w-full max-w-xl pb-10">
       {/* Status-Kopf */}
       <motion.div
-        initial={{ opacity: 0, y: 6 }}
+        initial={stagger ? { opacity: 0, y: 6 } : false}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22 }}
+        transition={{ duration: 0.22, ease: EASE }}
         className="mb-5 flex items-center justify-between gap-3 text-[15px] font-medium"
       >
         <div>{kicker}</div>
@@ -238,15 +243,17 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
         <ul className="space-y-1.5">
           {agenda.map((it, i) => {
             const past = isToday && it.e <= nowMin;
-            const delay = Math.min(0.05 + i * 0.025, 0.4);
+            // C2: Stagger nur beim ersten Aufbau. Bei Tageswechsel/Re-Render kein
+            // erneutes Treppen-Einblenden -> der Container-Crossfade traegt es.
+            const delay = stagger ? Math.min(0.05 + i * 0.025, 0.4) : 0;
 
             if (it.kind === "free") {
               return (
                 <motion.li
                   key={`free-${it.s}`}
-                  initial={{ opacity: 0, y: 4 }}
+                  initial={stagger ? { opacity: 0, y: 4 } : false}
                   animate={{ opacity: past ? 0.4 : 1, y: 0 }}
-                  transition={{ duration: 0.2, delay }}
+                  transition={{ duration: 0.2, delay, ease: EASE }}
                   className="grid grid-cols-[52px_1fr] items-center gap-3"
                 >
                   <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.free.startTime)}</span>
@@ -267,9 +274,9 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: past ? 0.45 : 1, y: 0 }}
-                transition={{ duration: 0.2, delay }}
+                initial={stagger ? { opacity: 0, y: 4, filter: "blur(4px)" } : false}
+                animate={{ opacity: past ? 0.45 : 1, y: 0, filter: "blur(0px)" }}
+                transition={{ duration: 0.2, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
                 <span className="pt-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
@@ -297,9 +304,14 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
                         </span>
                       )}
                       {it.ev.status === "substituted" && (
-                        <span className="inline-flex rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                        <motion.span
+                          initial={stagger ? { opacity: 0, scale: 0.8, filter: "blur(2px)" } : false}
+                          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                          transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
+                          className="inline-flex rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                        >
                           Vertretung
-                        </span>
+                        </motion.span>
                       )}
                     </div>
                   )}
@@ -309,9 +321,17 @@ function TodayView({ day, goals, nowMin }: { day: Day | undefined; goals: Goal[]
           })}
         </ul>
       ) : (
-        <div className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
+        // O8: seltener, ruhiger Moment -> ein kleiner Reveal + Icon ist hier
+        // willkommen statt nacktem Text.
+        <motion.div
+          initial={stagger ? { opacity: 0, y: 6 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: EASE }}
+          className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
+        >
+          <CalendarCheck className="size-6 text-muted-foreground/50" />
           {isToday ? "Heute keine Termine." : "Keine Termine an diesem Tag."}
-        </div>
+        </motion.div>
       )}
 
       {/* Offene flexible Ziele der Woche */}
@@ -343,6 +363,9 @@ export default function Home() {
   const [data, setData] = useState<RangeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState<{ date: string; min: number } | null>(null);
+  // true nur bis der erste Datensatz steht. Danach: kein Stagger mehr bei
+  // Navigation, nur noch ein ruhiger Container-Crossfade (C2).
+  const firstPaint = useRef(true);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -377,6 +400,11 @@ export default function Home() {
       alive = false;
     };
   }, [anchor]);
+
+  // Nach dem ersten erfolgreichen Aufbau Stagger abschalten.
+  useEffect(() => {
+    if (data) firstPaint.current = false;
+  }, [data]);
 
   const label = data ? formatRange(data.start, data.end) : "";
   const todayISO = now?.date ?? localISO(new Date());
@@ -420,6 +448,8 @@ export default function Home() {
                 setMode("today");
                 setAnchor(localISO(new Date()));
                 localStorage.setItem("atlas:calMode", "today");
+                // O5: bewusster "Heute"-Sprung -> Logo dreht kurz als Feedback.
+                window.dispatchEvent(new CustomEvent("atlas:focus-today"));
               }}
             >
               Heute
@@ -470,22 +500,47 @@ export default function Home() {
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
       <div className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
+      {/* I1: Woche <-> Heute kreuzblenden statt hart umschalten. initial={false}
+          unterdrueckt die Blende beim allerersten Mount (sonst Doppel-Animation). */}
+      <AnimatePresence mode="wait" initial={false}>
       {mode === "today" ? (
-        <div className="h-full overflow-y-auto pt-1">
+        <motion.div
+          key="today"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: EASE }}
+          className="h-full overflow-y-auto pt-1"
+        >
           {loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} />
+            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} stagger={firstPaint.current} />
           )}
-        </div>
+        </motion.div>
       ) : (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+      <motion.div
+        key="week"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18, ease: EASE }}
+        className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+      >
         {loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
         ) : !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>
         ) : (
-          <Fragment key={data.start}>
+          // C2: Wochenwechsel blendet das ganze Grid ruhig durch (key=data.start),
+          // die Einzel-Items stagger nur noch beim First-Paint.
+          <motion.div
+            key={data.start}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="flex h-full min-h-0 flex-col"
+          >
             {/* Spaltenkoepfe -- fix, scrollen NICHT mit */}
             <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
               <div className="border-r" />
@@ -496,9 +551,9 @@ export default function Home() {
                   <motion.div
                     key={day.date}
                     className="border-r px-3 py-2 last:border-r-0"
-                    initial={{ opacity: 0, y: -4 }}
+                    initial={firstPaint.current ? { opacity: 0, y: -4 } : false}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.22, delay: 0.025 * i }}
+                    transition={{ duration: 0.22, delay: firstPaint.current ? 0.025 * i : 0, ease: EASE }}
                   >
                     <div className={cn("text-[11px] font-medium uppercase tracking-wide", weekend ? "text-muted-foreground/70" : "text-muted-foreground")}>
                       {DAY_NAMES[day.weekday]}
@@ -588,9 +643,9 @@ export default function Home() {
                             cancelled ? "border-border/70 border-l-muted-foreground/40 bg-muted/50" : SRC[p.ev.source],
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane }}
-                          initial={{ opacity: 0, y: 3 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2, delay: Math.min(0.12 + i * 0.01 + di * 0.012, 0.4) }}
+                          initial={firstPaint.current ? { opacity: 0, y: 3, filter: "blur(4px)" } : false}
+                          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                          transition={{ duration: 0.2, delay: firstPaint.current ? Math.min(0.12 + i * 0.01 + di * 0.012, 0.4) : 0, ease: EASE }}
                         >
                           <span className={cn("truncate text-[12.5px] font-medium leading-tight", cancelled && "text-muted-foreground/80 line-through decoration-muted-foreground/50")}>
                             {p.ev.title}
@@ -605,18 +660,39 @@ export default function Home() {
                             </span>
                           )}
                           {p.ev.status === "substituted" && (
-                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            <motion.span
+                              initial={firstPaint.current ? { opacity: 0, scale: 0.8, filter: "blur(2px)" } : false}
+                              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                              transition={{ duration: 0.25, delay: 0.2, ease: EASE }}
+                              className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                            >
                               Vertretung
-                            </span>
+                            </motion.span>
                           )}
                         </motion.div>
                       );
                     })}
 
-                    {/* Jetzt-Linie */}
+                    {/* Jetzt-Linie -- O3: zeichnet sich beim Erscheinen einmal von
+                        links ein und gleitet danach sanft mit der Zeit (statt
+                        instant zu springen). */}
                     {showNow && (
-                      <div className="absolute inset-x-0 z-10 h-px bg-red-500" style={{ top: ((now!.min - DAY_START * 60) / 60) * HOUR_H }}>
-                        <span className="absolute -left-1 -top-[3px] size-[7px] rounded-full bg-red-500" />
+                      <div
+                        className="absolute inset-x-0 z-10 transition-[top] duration-700 ease-out"
+                        style={{ top: ((now!.min - DAY_START * 60) / 60) * HOUR_H }}
+                      >
+                        <motion.div
+                          className="h-px origin-left bg-red-500"
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ duration: 0.5, ease: EASE }}
+                        />
+                        <motion.span
+                          className="absolute -left-1 -top-[3px] size-[7px] rounded-full bg-red-500"
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.3, delay: 0.15, ease: EASE }}
+                        />
                       </div>
                     )}
                   </div>
@@ -624,10 +700,11 @@ export default function Home() {
               })}
             </div>
             </div>
-          </Fragment>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
       )}
+      </AnimatePresence>
       </div>
     </main>
   );

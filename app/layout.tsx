@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "@/components/theme-provider";
+import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import "./globals.css";
 
@@ -26,10 +27,12 @@ export default async function RootLayout({
     >
       <body className="font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <div className="flex h-screen overflow-hidden">
-            <AppSidebar defaultCollapsed={collapsed} />
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
-          </div>
+          <MotionProvider>
+            <div className="flex h-screen overflow-hidden">
+              <AppSidebar defaultCollapsed={collapsed} />
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+            </div>
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>

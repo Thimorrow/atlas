@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,6 +37,9 @@ const MODULES: Mod[] = [
 const EXPANDED = 248;
 const COLLAPSED = 56;
 
+// Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
+const EASE = [0.22, 1, 0.36, 1] as const;
+
 export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const pathname = usePathname();
@@ -49,8 +52,20 @@ export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: bo
   };
 
   // Logo-Spielerei: einmal von oben nach unten durchdrehen, landet wieder gleich.
+  // Rar + bewusst ausgeloest -> Delight erlaubt. 600ms statt 1600ms: ein Flourish,
+  // kein Warten. Reduced-Motion-Gate kommt ueber <MotionConfig>.
   const flipLogo = () =>
-    logoSpin.start({ rotateX: [0, 360] }, { duration: 1.6, ease: [0.4, 0, 0.2, 1] });
+    logoSpin.start({ rotateX: [0, 360] }, { duration: 0.6, ease: EASE });
+
+  // O5: Beim bewussten "Heute"-Sprung dreht das Logo kurz mit -> Delight wird
+  // Feedback statt Gimmick. Nur dieser eine, seltene Moment (nicht jeder Wochen-
+  // wechsel) -> respektiert Emils Frequency-Gate.
+  useEffect(() => {
+    const onFocusToday = () => flipLogo();
+    window.addEventListener("atlas:focus-today", onFocusToday);
+    return () => window.removeEventListener("atlas:focus-today", onFocusToday);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Gemeinsame Zeilen-Optik. Icon sitzt zentriert in der Icon-Leiste, Label faded weg.
   const row = "group mx-2 flex h-10 items-center rounded-lg text-sm transition-colors";
@@ -63,7 +78,7 @@ export function AppSidebar({ defaultCollapsed = false }: { defaultCollapsed?: bo
       className="sticky top-0 hidden h-screen shrink-0 overflow-hidden border-r bg-card/40 md:block"
       style={{
         width: collapsed ? COLLAPSED : EXPANDED,
-        transition: "width 280ms cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "width 280ms var(--ease-atlas)",
       }}
     >
       {/* Innen feste Breite -> kein Reflow, nur Clipping = flüssig */}

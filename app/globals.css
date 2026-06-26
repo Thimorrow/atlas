@@ -5,6 +5,9 @@
 
 :root {
   --radius: 0.625rem;
+  /* Atlas-Signaturkurve: sanft, mit etwas Schwung am Ende. Loest Material-Default
+     (0.4,0,0.2,1) ab -> Bewegung hat Charakter statt "lacking strength". */
+  --ease-atlas: cubic-bezier(0.22, 1, 0.36, 1);
   --background: oklch(0.995 0.001 95);
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
@@ -91,5 +94,19 @@
   }
   p {
     text-wrap: pretty;
+  }
+
+  /* Barrierefreiheit: respektiert die OS-Einstellung "Bewegung reduzieren".
+     Neutralisiert CSS-Transitions/Animations global; Framer-Motion wird zusaetzlich
+     ueber <MotionConfig reducedMotion="user"> gegated. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

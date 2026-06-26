@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ChevronLeft, Sun, Moon, Monitor, LogOut } from "lucide-react";
@@ -62,12 +63,21 @@ export default function SettingsPage() {
                     key={t.key}
                     onClick={() => setTheme(t.key)}
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-[color,background-color,border-color,transform] active:scale-[0.96]",
+                      "relative flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-[color,transform] active:scale-[0.96]",
                       selected
-                        ? "border-primary bg-accent font-medium"
+                        ? "border-transparent font-medium text-foreground"
                         : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
+                    {/* O4: ein einziger Indikator gleitet zwischen den drei Karten,
+                        statt dass jede nur ihre Farbe umschaltet. */}
+                    {selected && (
+                      <motion.span
+                        layoutId="theme-active"
+                        className="absolute inset-0 -z-10 rounded-lg border border-primary bg-accent"
+                        transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                      />
+                    )}
                     <t.icon className="size-5" />
                     {t.label}
                   </button>
