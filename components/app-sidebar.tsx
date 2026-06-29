@@ -242,7 +242,16 @@ export function AppSidebar({
         <div className="border-t p-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center rounded-lg py-1 text-left transition-colors hover:bg-accent/50 data-[state=open]:bg-accent">
+              <button
+                className={cn(
+                  // Eingeklappt: Button auf Avatar-Breite begrenzen. Sonst behaelt
+                  // er die volle (geclippte) Innenbreite -> Radix verankert das
+                  // Dropdown an der unsichtbaren rechten Kante (~248px) und es
+                  // klappt "wo die Sidebar waere" auf statt neben dem Avatar.
+                  "flex items-center rounded-lg py-1 text-left transition-colors hover:bg-accent/50 data-[state=open]:bg-accent",
+                  collapsed ? "w-10" : "w-full",
+                )}
+              >
                 <span className={iconBox}>
                   <span className="flex size-9 items-center justify-center rounded-full border bg-muted text-[12px] font-semibold text-foreground">
                     TZ
