@@ -63,11 +63,13 @@ export const routines = pgTable("routines", {
   title: text("title").notNull(),
   type: routineType("type").notNull(),
   color: text("color"),
+  location: text("location"),
   // fixed-Felder:
   weekday: integer("weekday"), // 0 = Montag ... 6 = Sonntag
   startTime: time("start_time"),
   endTime: time("end_time"),
   openEnded: boolean("open_ended").notNull().default(false),
+  allDay: boolean("all_day").notNull().default(false),
   // flexible_goal-Feld:
   targetPerWeek: integer("target_per_week"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -84,6 +86,9 @@ export const manualEvents = pgTable("manual_events", {
   date: date("date").notNull(),
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
+  color: text("color"),
+  location: text("location"),
+  allDay: boolean("all_day").notNull().default(false),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

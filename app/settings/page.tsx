@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ChevronLeft, Sun, Moon, Monitor, LogOut } from "lucide-react";
+import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
 import { cn } from "@/lib/utils";
 
 const THEMES = [
@@ -20,9 +21,9 @@ export default function SettingsPage() {
 
   return (
     <main className="h-full overflow-y-auto px-6 py-6 lg:px-8">
-      <div className="mx-auto max-w-2xl">
+      <Stagger className="mx-auto max-w-2xl space-y-5">
         {/* Kopf */}
-        <div className="mb-6">
+        <StaggerItem className="mb-1">
           <Link
             href="/"
             className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -30,15 +31,17 @@ export default function SettingsPage() {
             <ChevronLeft className="size-4" />
             Zurück zum Kalender
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight">Einstellungen</h1>
-          <p className="text-sm text-muted-foreground">Profil und Erscheinungsbild von Atlas.</p>
-        </div>
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
+            <SplitText text="Einstellungen" />
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Profil und Erscheinungsbild von Atlas.</p>
+        </StaggerItem>
 
-        <div className="space-y-5">
-          {/* Profil */}
+        {/* Profil */}
+        <StaggerItem>
           <section className="rounded-xl border bg-card p-5 shadow-sm">
             <h2 className="text-sm font-semibold">Profil</h2>
-            <p className="mb-4 text-[13px] text-muted-foreground">Deine Kontodaten.</p>
+            <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">Deine Kontodaten.</p>
             <div className="flex items-center gap-4">
               <div className="flex size-14 items-center justify-center rounded-full border bg-muted text-lg font-semibold">
                 TZ
@@ -50,11 +53,13 @@ export default function SettingsPage() {
               </div>
             </div>
           </section>
+        </StaggerItem>
 
-          {/* Erscheinungsbild */}
+        {/* Erscheinungsbild */}
+        <StaggerItem>
           <section className="rounded-xl border bg-card p-5 shadow-sm">
             <h2 className="text-sm font-semibold">Erscheinungsbild</h2>
-            <p className="mb-4 text-[13px] text-muted-foreground">Hell, dunkel oder dem System folgen.</p>
+            <p className="mt-0.5 mb-4 text-[13px] text-muted-foreground">Hell, dunkel oder dem System folgen.</p>
             <div className="grid grid-cols-3 gap-2">
               {THEMES.map((t) => {
                 const selected = mounted && theme === t.key;
@@ -63,10 +68,14 @@ export default function SettingsPage() {
                     key={t.key}
                     onClick={() => setTheme(t.key)}
                     className={cn(
-                      "relative flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-[color,transform] active:scale-[0.96]",
+                      // F18: aktives Tile soll im Light klar dominieren (Ring + Fill
+                      //      ueber den Indikator), inaktive Border zuruecknehmen.
+                      //      `isolate` = eigener Stacking-Context, sonst verschwindet
+                      //      der `-z-10`-Indikator hinter der opaken bg-card.
+                      "relative isolate flex flex-col items-center gap-2 rounded-lg border p-3 text-sm transition-[color,transform] active:scale-[0.96]",
                       selected
                         ? "border-transparent font-medium text-foreground"
-                        : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        : "border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
                     {/* O4: ein einziger Indikator gleitet zwischen den drei Karten,
@@ -74,8 +83,9 @@ export default function SettingsPage() {
                     {selected && (
                       <motion.span
                         layoutId="theme-active"
-                        className="absolute inset-0 -z-10 rounded-lg border border-primary bg-accent"
-                        transition={{ type: "spring", stiffness: 500, damping: 38 }}
+                        className="absolute inset-0 -z-10 rounded-lg border-2 border-primary bg-primary/10"
+                        // F26: kritisch gedaempft (damping 46 statt 38) -> kein Overshoot.
+                        transition={{ type: "spring", stiffness: 500, damping: 46 }}
                       />
                     )}
                     <t.icon className="size-5" />
@@ -85,13 +95,15 @@ export default function SettingsPage() {
               })}
             </div>
           </section>
+        </StaggerItem>
 
-          {/* Konto */}
+        {/* Konto */}
+        <StaggerItem>
           <section className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-sm font-semibold">Konto</h2>
-                <p className="text-[13px] text-muted-foreground">Abmelden kommt mit dem Login (Mehrnutzer).</p>
+                <p className="mt-0.5 text-[13px] text-muted-foreground">Abmelden kommt mit dem Login (Mehrnutzer).</p>
               </div>
               <button
                 disabled
@@ -103,8 +115,8 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
-        </div>
-      </div>
+        </StaggerItem>
+      </Stagger>
     </main>
   );
 }

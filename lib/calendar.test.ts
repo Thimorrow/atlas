@@ -68,12 +68,16 @@ const WD = (new Date(`${D}T00:00:00Z`).getUTCDay() + 6) % 7; // 0=Mo
 let routineId = "";
 let flexId = "";
 let manualId = "";
+let coloredId = "";
+let allDayId = "";
 
 async function cleanup() {
   await db.delete(schoolBlocks).where(eq(schoolBlocks.date, D));
   if (routineId) await deleteRoutine(routineId).catch(() => {});
   if (flexId) await deleteRoutine(flexId).catch(() => {});
   if (manualId) await deleteManualEvent(manualId).catch(() => {});
+  if (coloredId) await deleteManualEvent(coloredId).catch(() => {});
+  if (allDayId) await deleteManualEvent(allDayId).catch(() => {});
 }
 
 describe("Wochen-Expansion + FreeSlots (Integration, Neon)", () => {
@@ -92,6 +96,10 @@ describe("Wochen-Expansion + FreeSlots (Integration, Neon)", () => {
     flexId = f.id;
     const m = await createManualEvent({ title: "TST-Zahnarzt", date: D, startTime: "12:00", endTime: "12:30" });
     manualId = m.id;
+    const c = await createManualEvent({ title: "TST-Kirche", date: D, startTime: "14:00", endTime: "15:00", color: "#7c3aed", location: "St.-Marien" });
+    coloredId = c.id;
+    const a = await createManualEvent({ title: "TST-Geburtstag", date: D, startTime: "00:00", endTime: "23:59", allDay: true });
+    allDayId = a.id;
   });
 
   afterAll(cleanup);
@@ -111,6 +119,26 @@ describe("Wochen-Expansion + FreeSlots (Integration, Neon)", () => {
     // flexible_goal liegt separat, nicht auf der Timeline
     expect(range.flexibleGoals.some((g) => g.routineId === flexId)).toBe(true);
     expect(day!.events.some((e) => e.refId === flexId)).toBe(false);
+  });
+
+  it("manuelles Event traegt eigene Farbe + Ort durch die Expansion", async () => {
+    const range = attachFreeSlots(await expandWeek(D));
+    const day = range.days.find((d) => d.date === D)!;
+    const colored = day.events.find((e) => e.refId === coloredId);
+    expect(colored).toBeDefined();
+    expect(colored!.color).toBe("#7c3aed");
+    expect(colored!.location).toBe("St.-Marien");
+  });
+
+  it("Ganztag-Event: allDay=true und blockiert keine freie Luecke", async () => {
+    const range = attachFreeSlots(await expandWeek(D));
+    const day = range.days.find((d) => d.date === D)!;
+    const allDay = day.events.find((e) => e.refId === allDayId);
+    expect(allDay).toBeDefined();
+    expect(allDay!.allDay).toBe(true);
+    // 00:00-23:59 wuerde sonst den ganzen Tag belegen -> es muss trotzdem freie
+    // Luecken geben (z.B. am spaeten Nachmittag, nichts liegt nach 18:00).
+    expect(day.freeSlots.some((f) => f.startTime >= "18:00")).toBe(true);
   });
 
   it("Entfall erzeugt eine freie Luecke, die regulaere Stunde nicht", async () => {

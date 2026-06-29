@@ -39,6 +39,8 @@ function toHHMM(min: number): string {
 // Belegt der Event die Timeline? cancelled-Schulstunden NICHT (= freie Luecke).
 function isBusy(e: CalendarEvent): boolean {
   if (e.source === "school" && e.status === "cancelled") return false;
+  // Ganztags-Events liegen nicht auf der Timeline -> blockieren keine Luecke.
+  if (e.allDay) return false;
   return true;
 }
 

@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
+import { EventSheet, type EditTarget } from "@/components/event-sheet";
+import { evVar } from "@/lib/event-colors";
 import { cn } from "@/lib/utils";
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
@@ -15,6 +18,10 @@ type Ev = {
   startTime: string;
   endTime: string | null;
   title: string;
+  color?: string | null;
+  location?: string | null;
+  allDay?: boolean;
+  notes?: string | null;
   status?: "regular" | "cancelled" | "substituted";
   room?: string | null;
   teacher?: string | null;
@@ -37,11 +44,44 @@ const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_STAR
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+// --- Block-Stile ------------------------------------------------------------
+// Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
+// Hintergrund ab. Farbe codiert die Quelle (Schule/Routine/Manuell).
 const SRC: Record<Ev["source"], string> = {
-  school: "border-l-blue-500 bg-blue-50 dark:bg-blue-500/15",
-  routine: "border-l-amber-500 bg-amber-50 dark:bg-amber-500/15",
-  manual: "border-l-emerald-500 bg-emerald-50 dark:bg-emerald-500/15",
+  school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 dark:bg-blue-500/20",
+  routine: "border-l-[6px] border-l-amber-500 bg-amber-100/80 dark:bg-amber-500/20",
+  manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 dark:bg-emerald-500/20",
 };
+
+// Entfall: rot, abgeblasst (statt grau). Statt Titel-Durchstrich eine
+// diagonale Linie quer ueber das ganze Block-Feld.
+// F19 (Rot entlasten): Entfall ist neutral-entsaettigt -- Rot bleibt der
+// "Jetzt"-Linie vorbehalten. Der Entfall-Charakter traegt sich ueber den
+// (verstaerkten) Diagonalstrich + das kleine rote "Entfall"-Tag im Block.
+const CANCELLED_BLOCK =
+  "border-border border-l-muted-foreground/40 bg-muted/50 dark:bg-muted/25";
+
+// Diagonale Entfall-Linie -- exakt von Ecke zu Ecke, unabhaengig vom
+// Seitenverhaeltnis (preserveAspectRatio="none" + non-scaling-stroke).
+function CancelStrike() {
+  return (
+    <svg
+      aria-hidden
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+    >
+      <line
+        x1="0"
+        y1="100%"
+        x2="100%"
+        y2="0"
+        vectorEffect="non-scaling-stroke"
+        className="stroke-red-500/60"
+        strokeWidth="2.2"
+      />
+    </svg>
+  );
+}
 
 // --- Helfer -----------------------------------------------------------------
 
@@ -66,6 +106,39 @@ function formatRange(start: string, end: string) {
   return sm
     ? `${dayNum(start)}.–${dayNum(end)}. ${MONTHS[monthOf(end)]} ${end.slice(0, 4)}`
     : `${dayNum(start)}. ${MONTHS[monthOf(start)]} – ${dayNum(end)}. ${MONTHS[monthOf(end)]} ${end.slice(0, 4)}`;
+}
+
+// 0 = Montag ... 6 = Sonntag (lokal).
+function weekdayOf(iso: string) {
+  return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
+}
+
+// Block-Look: Entfall -> rot; eigene Farbe (manuell/Routine) -> ev-tint via --ev;
+// sonst Quellen-Default (Schule blau, Routine ohne Farbe gelb, manuell gruen).
+function blockLook(ev: Ev, cancelled: boolean): { className: string; style?: CSSProperties } {
+  if (cancelled) return { className: CANCELLED_BLOCK };
+  if (ev.color && ev.source !== "school") return { className: "border-l-[6px] ev-tint", style: evVar(ev.color) };
+  return { className: SRC[ev.source] };
+}
+
+// Nur eigene Eintraege sind editierbar (Schulstunden kommen read-only aus Untis).
+const editable = (ev: Ev) => ev.source === "manual" || ev.source === "routine";
+
+// CalendarEvent -> Sheet-Vorbelegung.
+function toEdit(ev: Ev): EditTarget {
+  return {
+    source: ev.source as "manual" | "routine",
+    refId: ev.refId,
+    title: ev.title,
+    date: ev.date,
+    weekday: weekdayOf(ev.date),
+    startTime: ev.startTime,
+    endTime: ev.endTime,
+    color: ev.color ?? null,
+    location: ev.location ?? null,
+    notes: ev.notes ?? null,
+    allDay: ev.allDay,
+  };
 }
 
 type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
@@ -171,15 +244,22 @@ type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
   | { kind: "free"; s: number; e: number; free: Free };
 
-function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goals: Goal[]; nowMin: number; stagger: boolean }) {
+function TodayView({ day, goals, nowMin, dayPast, stagger, onEdit }: { day: Day | undefined; goals: Goal[]; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void }) {
+  // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
+  // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
+  const reduce = useReducedMotion();
+  const animate = stagger && !reduce;
   if (!day) {
     return <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>;
   }
 
   const isToday = nowMin >= 0;
 
+  // Ganztags-Eintraege liegen nicht auf der Zeitachse -> eigene Balken oben.
+  const allDayEvents = day.events.filter((e) => e.allDay);
+
   const evs = mergeSchool(day.events)
-    .filter((e) => e.startTime)
+    .filter((e) => e.startTime && !e.allDay)
     .map((ev) => ({ ev, s: toMin(ev.startTime), e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45 }))
     .sort((a, b) => a.s - b.s);
 
@@ -211,7 +291,7 @@ function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goal
     kicker = (
       <span className="text-foreground">
         Als Nächstes · <span className="font-semibold">{next.ev.title}</span>
-        <span className="text-muted-foreground"> · {relLabel(next.s - nowMin)}</span>
+        <span className="tabular-nums text-muted-foreground"> · {relLabel(next.s - nowMin)}</span>
       </span>
     );
   } else if (next) {
@@ -229,7 +309,7 @@ function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goal
     <div className="mx-auto w-full max-w-xl pb-10">
       {/* Status-Kopf */}
       <motion.div
-        initial={stagger ? { opacity: 0, y: 6 } : false}
+        initial={animate ? { opacity: 0, y: 6 } : false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
         className="mb-5 flex items-center justify-between gap-3 text-[15px] font-medium"
@@ -238,22 +318,48 @@ function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goal
         {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-500">noch {durLabel(next.e - nowMin)}</span>}
       </motion.div>
 
+      {/* Ganztags-Eintraege -- als Balken oben, klickbar zum Bearbeiten */}
+      {allDayEvents.length > 0 && (
+        <div className="mb-3 flex flex-col gap-1.5">
+          {allDayEvents.map((ev) => {
+            const look = blockLook(ev, false);
+            return (
+              <button
+                key={`${ev.source}-${ev.refId}`}
+                onClick={() => onEdit(ev)}
+                style={look.style}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border border-l-[6px] px-3 py-2 text-left transition-shadow hover:shadow-sm",
+                  look.className,
+                )}
+              >
+                <span className="flex-1 truncate text-[14px] font-semibold leading-tight">{ev.title}</span>
+                {ev.location && <span className="shrink-0 truncate text-[12px] text-muted-foreground">{ev.location}</span>}
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">Ganztags</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
       {agenda.length > 0 ? (
         <ul className="space-y-1.5">
           {agenda.map((it, i) => {
-            const past = isToday && it.e <= nowMin;
-            // C2: Stagger nur beim ersten Aufbau. Bei Tageswechsel/Re-Render kein
-            // erneutes Treppen-Einblenden -> der Container-Crossfade traegt es.
-            const delay = stagger ? Math.min(0.05 + i * 0.025, 0.4) : 0;
+            // Vergangener Tag (gestern & frueher) -> alles geblasst; heute nur
+            // das, was zeitlich schon vorbei ist; Zukunft -> nichts.
+            const past = dayPast || (isToday && it.e <= nowMin);
+            // Agenda cascadet beim Mount Item fuer Item klar nacheinander rein
+            // (groesserer Schritt + Basis-Delay -> spuerbar, nicht "alles auf einmal").
+            const delay = stagger ? 0.1 + Math.min(i * 0.07, 0.8) : 0;
 
             if (it.kind === "free") {
               return (
                 <motion.li
                   key={`free-${it.s}`}
-                  initial={stagger ? { opacity: 0, y: 4 } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0 }}
-                  transition={{ duration: 0.2, delay, ease: EASE }}
+                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
+                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.42, delay, ease: EASE }}
                   className="grid grid-cols-[52px_1fr] items-center gap-3"
                 >
                   <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.free.startTime)}</span>
@@ -271,41 +377,48 @@ function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goal
             const cancelled = it.ev.status === "cancelled";
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
+            const look = blockLook(it.ev, cancelled);
+            const canEdit = editable(it.ev);
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                initial={stagger ? { opacity: 0, y: 4, filter: "blur(4px)" } : false}
+                initial={stagger ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
                 animate={{ opacity: past ? 0.45 : 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.2, delay, ease: EASE }}
+                transition={{ duration: 0.42, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
                 <span className="pt-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
                 <div
+                  onClick={canEdit ? () => onEdit(it.ev) : undefined}
                   className={cn(
-                    "rounded-lg border border-l-[3px] px-3 py-2",
-                    cancelled ? "border-l-muted-foreground/40 bg-muted/40" : SRC[it.ev.source],
+                    "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
+                    look.className,
                     isNext && "ring-2 ring-primary/30",
+                    canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
                   )}
+                  style={look.style}
                 >
+                  {cancelled && <CancelStrike />}
                   <div className="flex items-baseline gap-2">
-                    <span className={cn("flex-1 truncate text-[14px] font-semibold leading-tight", cancelled && "text-muted-foreground/80 line-through decoration-muted-foreground/50")}>
+                    <span className={cn("flex-1 truncate text-[14px] font-semibold leading-tight", cancelled && "text-muted-foreground line-through decoration-red-500/40")}>
                       {it.ev.title}
                     </span>
                     <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
                       {hm(it.ev.startTime)}{it.ev.endTime ? `–${hm(it.ev.endTime)}` : ""}
                     </span>
                   </div>
-                  {(meta || cancelled || it.ev.status === "substituted") && (
-                    <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-muted-foreground">
+                  {(meta || cancelled || it.ev.status === "substituted" || (canEdit && it.ev.location)) && (
+                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
+                      {canEdit && it.ev.location && <span className="truncate">{it.ev.location}</span>}
                       {cancelled && (
-                        <span className="inline-flex items-center gap-1 font-medium">
-                          <span className="size-1.5 rounded-full bg-muted-foreground/50" /> Entfall
+                        <span className="inline-flex items-center gap-1 font-medium text-red-600/80 dark:text-red-400/80">
+                          <span className="size-1.5 rounded-full bg-red-500/60" /> Entfall
                         </span>
                       )}
                       {it.ev.status === "substituted" && (
                         <motion.span
-                          initial={stagger ? { opacity: 0, scale: 0.8, filter: "blur(2px)" } : false}
+                          initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
                           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                           transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
                           className="inline-flex rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
@@ -358,14 +471,33 @@ function TodayView({ day, goals, nowMin, stagger }: { day: Day | undefined; goal
 // --- Komponente -------------------------------------------------------------
 
 export default function Home() {
+  const reduce = useReducedMotion();
   const [anchor, setAnchor] = useState(() => localISO(new Date()));
   const [mode, setMode] = useState<"week" | "today">("week");
   const [data, setData] = useState<RangeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState<{ date: string; min: number } | null>(null);
-  // true nur bis der erste Datensatz steht. Danach: kein Stagger mehr bei
-  // Navigation, nur noch ein ruhiger Container-Crossfade (C2).
+  // Beim allerersten Load warten die Termine auf den Section-Auftritt der Card
+  // (groessere Basis-Verzoegerung). Danach (Wochenwechsel) cascaden sie sofort.
   const firstPaint = useRef(true);
+  // Nur der allererste View-Mount blurrt NICHT (da traegt der StaggerItem-Auftritt).
+  // Jeder spaetere Remount (Mode-Switch, Tageswechsel) blurrt als Block rein.
+  const firstView = useRef(true);
+
+  // Anlegen/Bearbeiten-Sheet + Reload-Trigger + Untis-Sync.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<EditTarget | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const openCreate = () => {
+    setEditing(null);
+    setSheetOpen(true);
+  };
+  const openEdit = (ev: Ev) => {
+    setEditing(toEdit(ev));
+    setSheetOpen(true);
+  };
+  const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -399,12 +531,17 @@ export default function Home() {
     return () => {
       alive = false;
     };
-  }, [anchor]);
+  }, [anchor, reloadKey]);
 
-  // Nach dem ersten erfolgreichen Aufbau Stagger abschalten.
+  // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
     if (data) firstPaint.current = false;
   }, [data]);
+
+  // Nach dem ersten Paint duerfen alle weiteren View-Remounts blurren.
+  useEffect(() => {
+    firstView.current = false;
+  }, []);
 
   const label = data ? formatRange(data.start, data.end) : "";
   const todayISO = now?.date ?? localISO(new Date());
@@ -412,17 +549,26 @@ export default function Home() {
   const dayLabel = focusDay
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
-  const packedDays = useMemo(() => (data ? data.days.map((d) => packDay(mergeSchool(d.events))) : []), [data]);
+  // Ganztags-Eintraege liegen nicht im Zeitraster -> vor dem Packen rauswerfen.
+  const packedDays = useMemo(
+    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay))) : []),
+    [data],
+  );
 
   return (
     <main className="flex h-full min-h-0 flex-col">
-      {/* Fixer Kopf: Modulname + Wochen-Navigation + Wochenziele */}
-      <div className="shrink-0 px-6 pt-6 lg:px-8">
-      {/* Content-Kopf: Modulname + Wochen-Navigation */}
+      {/* Split & Stagger (Jakub Krehel): die Page-Sections kommen beim Reload
+          gestaffelt mit blur + opacity + translateY rein -- Kopf, dann Wochenziele,
+          dann die Kalender-Card. Reduced-Motion-Gate global ueber MotionConfig. */}
+      <Stagger className="flex min-h-0 flex-1 flex-col">
+      {/* Kopf: Modulname + Wochen-Navigation */}
+      <StaggerItem className="shrink-0 px-6 pt-6 lg:px-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Kalender</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
+            <SplitText text="Kalender" />
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Schule, Routinen und Termine in einer Woche."}
           </p>
         </div>
@@ -433,7 +579,11 @@ export default function Home() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setAnchor((a) => addDays(a, mode === "today" ? -1 : -7))}
+            onClick={() => {
+              // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
+              // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
+              setAnchor((a) => addDays(a, mode === "today" ? -1 : -7));
+            }}
             aria-label={mode === "today" ? "Voriger Tag" : "Vorige Woche"}
           >
             <ChevronLeft />
@@ -448,7 +598,7 @@ export default function Home() {
                 setMode("today");
                 setAnchor(localISO(new Date()));
                 localStorage.setItem("atlas:calMode", "today");
-                // O5: bewusster "Heute"-Sprung -> Logo dreht kurz als Feedback.
+                // O5: bewusster "Heute"-Sprung -> Logo dreht voll durch als Feedback.
                 window.dispatchEvent(new CustomEvent("atlas:focus-today"));
               }}
             >
@@ -462,6 +612,7 @@ export default function Home() {
               onClick={() => {
                 setMode("week");
                 localStorage.setItem("atlas:calMode", "week");
+                // F08: kein Logo-Nudge mehr beim Woche-Wechsel.
               }}
             >
               Woche
@@ -471,16 +622,29 @@ export default function Home() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setAnchor((a) => addDays(a, mode === "today" ? 1 : 7))}
+            onClick={() => {
+              // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
+              // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
+              setAnchor((a) => addDays(a, mode === "today" ? 1 : 7));
+            }}
             aria-label={mode === "today" ? "Nächster Tag" : "Nächste Woche"}
           >
             <ChevronRight />
           </Button>
+
+          {/* Trenner -> "Neuer Termin" rechts abgesetzt */}
+          <span className="mx-1 h-6 w-px bg-border" />
+
+          <Button variant="outline" size="icon" onClick={openCreate} aria-label="Neuer Termin">
+            <CalendarPlus />
+          </Button>
         </div>
       </div>
+      </StaggerItem>
 
-      {/* Wochenziele */}
+      {/* Wochenziele -- eigene Section, staggert separat rein */}
       {data && data.flexibleGoals.length > 0 && (
+        <StaggerItem className="shrink-0 px-6 lg:px-8">
         <div className="mb-4 flex flex-wrap gap-2">
           {data.flexibleGoals.map((g) => (
             <span
@@ -495,39 +659,34 @@ export default function Home() {
             </span>
           ))}
         </div>
+        </StaggerItem>
       )}
-      </div>
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
-      <div className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
-      {/* I1: Woche <-> Heute kreuzblenden statt hart umschalten. initial={false}
-          unterdrueckt die Blende beim allerersten Mount (sonst Doppel-Animation). */}
-      <AnimatePresence mode="wait" initial={false}>
-      {mode === "today" ? (
-        <motion.div
-          key="today"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18, ease: EASE }}
-          className="h-full overflow-y-auto pt-1"
-        >
-          {loading && !data ? (
+      <StaggerItem className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
+      {/* Woche <-> Heute: beim Umschalten blurrt die neue View per keyed Remount
+          rein -- laeuft zuverlaessig bei JEDEM Klick durch (kein AnimatePresence-
+          Haenger durch den Minuten-Tick). Erster Mount aus (firstView) -> da
+          traegt der Section-Auftritt der StaggerItem. */}
+      <motion.div
+        // key wechselt bei Mode-Switch UND bei Tages-Navigation -> die View mountet
+        // frisch. Der Wrapper macht nur einen ruhigen Opacity-Fade (Blur auf so
+        // grossen Flaechen glitcht/repaintet unzuverlaessig). Der "mit blur,
+        // nacheinander"-Effekt liegt auf den KLEINEN Elementen drin: Heute-Agenda
+        // cascadet Item fuer Item, Woche cascadet die einzelnen Termine.
+        key={mode === "today" ? `today-${anchor}` : "week"}
+        initial={firstView.current ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.22, ease: EASE }}
+        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm"}
+      >
+        {mode === "today" ? (
+          loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} stagger={firstPaint.current} />
-          )}
-        </motion.div>
-      ) : (
-      <motion.div
-        key="week"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18, ease: EASE }}
-        className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
-      >
-        {loading && !data ? (
+            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onEdit={openEdit} />
+          )
+        ) : loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
         ) : !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>
@@ -544,16 +703,13 @@ export default function Home() {
             {/* Spaltenkoepfe -- fix, scrollen NICHT mit */}
             <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
               <div className="border-r" />
-              {data.days.map((day, i) => {
+              {data.days.map((day) => {
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
                 return (
-                  <motion.div
+                  <div
                     key={day.date}
                     className="border-r px-3 py-2 last:border-r-0"
-                    initial={firstPaint.current ? { opacity: 0, y: -4 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.22, delay: firstPaint.current ? 0.025 * i : 0, ease: EASE }}
                   >
                     <div className={cn("text-[11px] font-medium uppercase tracking-wide", weekend ? "text-muted-foreground/70" : "text-muted-foreground")}>
                       {DAY_NAMES[day.weekday]}
@@ -568,7 +724,34 @@ export default function Home() {
                         {dayNum(day.date)}
                       </span>
                     </div>
-                  </motion.div>
+
+                    {/* Ganztags-Eintraege -- kleine klickbare Balken unter dem Datum */}
+                    {(() => {
+                      const ad = day.events.filter((e) => e.allDay);
+                      if (ad.length === 0) return null;
+                      return (
+                        <div className="mt-1 flex flex-col gap-1">
+                          {ad.slice(0, 2).map((ev) => {
+                            const look = blockLook(ev, false);
+                            return (
+                              <button
+                                key={ev.refId}
+                                onClick={() => openEdit(ev)}
+                                style={look.style}
+                                className={cn(
+                                  "truncate rounded border px-1.5 py-0.5 text-left text-[10px] font-medium leading-tight transition-shadow hover:shadow-sm",
+                                  look.className,
+                                )}
+                              >
+                                {ev.title}
+                              </button>
+                            );
+                          })}
+                          {ad.length > 2 && <span className="px-1 text-[10px] text-muted-foreground">+{ad.length - 2} mehr</span>}
+                        </div>
+                      );
+                    })()}
+                  </div>
                 );
               })}
             </div>
@@ -635,39 +818,47 @@ export default function Home() {
                         p.ev.source === "school"
                           ? (p.ev.room ?? "")
                           : `${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)}` : ""}`;
+                      const look = blockLook(p.ev, cancelled);
+                      const canEdit = editable(p.ev);
                       return (
                         <motion.div
                           key={`${p.ev.source}-${p.ev.refId}-${i}`}
+                          onClick={canEdit ? () => openEdit(p.ev) : undefined}
                           className={cn(
-                            "absolute flex flex-col gap-0.5 overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
-                            cancelled ? "border-border/70 border-l-muted-foreground/40 bg-muted/50" : SRC[p.ev.source],
+                            "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
+                            look.className,
+                            canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
                           )}
-                          style={{ top, height, left, width, zIndex: 2 + p.lane }}
-                          initial={firstPaint.current ? { opacity: 0, y: 3, filter: "blur(4px)" } : false}
-                          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                          transition={{ duration: 0.2, delay: firstPaint.current ? Math.min(0.12 + i * 0.01 + di * 0.012, 0.4) : 0, ease: EASE }}
+                          style={{ top, height, left, width, zIndex: 2 + p.lane, ...look.style }}
+                          // Termine loaden einzeln rein -- erst wenn die Card-Section
+                          // steht (kurzer Basis-Delay beim ersten Load), dann gestaffelt
+                          // ueber Tage + Stunden. F02: kein Blur (Lesbarkeit + GPU),
+                          // F05: knapperes Timing, F10: Reduced-Motion -> sofort.
+                          initial={reduce ? false : { opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.32,
+                            delay: (firstPaint.current ? 0.12 : 0.06) + Math.min(di * 0.05 + i * 0.025, 0.3),
+                            ease: EASE,
+                          }}
                         >
-                          <span className={cn("truncate text-[12.5px] font-medium leading-tight", cancelled && "text-muted-foreground/80 line-through decoration-muted-foreground/50")}>
+                          {cancelled && <CancelStrike />}
+                          <span className={cn("truncate text-[12px] font-medium leading-tight", cancelled && "text-muted-foreground line-through decoration-red-500/40")}>
                             {p.ev.title}
                           </span>
                           {height > 30 && meta && !cancelled && (
-                            <span className="truncate font-mono text-[10.5px] tabular-nums text-muted-foreground">{meta}</span>
+                            <span className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{meta}</span>
                           )}
                           {cancelled && (
-                            <span className="mt-0.5 inline-flex w-fit items-center gap-1 text-[10px] font-medium text-muted-foreground">
-                              <span className="size-1.5 rounded-full bg-muted-foreground/50" />
+                            <span className="mt-0.5 inline-flex w-fit items-center gap-1 text-[10px] font-medium text-red-600/80 dark:text-red-400/80">
+                              <span className="size-1.5 rounded-full bg-red-500/60" />
                               Entfall
                             </span>
                           )}
                           {p.ev.status === "substituted" && (
-                            <motion.span
-                              initial={firstPaint.current ? { opacity: 0, scale: 0.8, filter: "blur(2px)" } : false}
-                              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                              transition={{ duration: 0.25, delay: 0.2, ease: EASE }}
-                              className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
-                            >
+                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               Vertretung
-                            </motion.span>
+                            </span>
                           )}
                         </motion.div>
                       );
@@ -703,9 +894,16 @@ export default function Home() {
           </motion.div>
         )}
       </motion.div>
-      )}
-      </AnimatePresence>
-      </div>
+      </StaggerItem>
+      </Stagger>
+
+      <EventSheet
+        open={sheetOpen}
+        editing={editing}
+        defaultDate={anchor}
+        onClose={() => setSheetOpen(false)}
+        onSaved={reload}
+      />
     </main>
   );
 }

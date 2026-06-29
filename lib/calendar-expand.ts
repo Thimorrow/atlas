@@ -20,6 +20,8 @@ export type CalendarEvent = {
   endTime: string | null; // null = offenes Ende (Routine)
   title: string;
   color: string | null;
+  location?: string | null;
+  allDay?: boolean;
   status?: SchoolBlock["status"]; // nur source=school
   openEnded?: boolean; // nur source=routine
   room?: string | null;
@@ -110,7 +112,9 @@ function manualToEvent(e: ManualEvent): CalendarEvent {
     startTime: hm(e.startTime)!,
     endTime: hm(e.endTime),
     title: e.title,
-    color: null,
+    color: e.color,
+    location: e.location,
+    allDay: e.allDay,
     notes: e.notes,
   };
 }
@@ -124,6 +128,8 @@ function routineToEvent(r: Routine, date: string): CalendarEvent {
     endTime: r.openEnded ? null : hm(r.endTime),
     title: r.title,
     color: r.color,
+    location: r.location,
+    allDay: r.allDay,
     openEnded: r.openEnded,
   };
 }

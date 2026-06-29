@@ -1,24 +1,24 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-06-26T17:45:00Z
+last_updated: 2026-06-27T19:02:27Z
 current_milestone: M001
 active_slice: S03
-active_task: T02
+active_task: T04_pending_visual_acceptance
 ---
 
 # State
 
-**Status:** M001 / S03 in Arbeit (1/4). S01 + S02 komplett. S03-T01 done: Wochenkalender
-(Zeit-Raster, Dark/Light-Theme, framer-motion + lucide-react, Aesthetik Himmels-Almanach)
--- build gruen, / liefert 200, headless verifiziert. VISUELLE ABNAHME durch User offen
-(localhost:3000). Atlas laeuft auf localhost:3000.
+**Status:** M001 / S03 / T03 planned -- ready to execute. S01 + S02 komplett, S03-T01
+(Wochenkalender) + T02 (Today/Now-Agenda) done. T03 erweitert Datenmodell/API um eigene
+Farbe (manuelle Events), Ort + Ganztag. Slice neu gesplittet: T03 (Daten/API), T04
+(Sheet-UI Anlegen/Bearbeiten + Plus + Time-Wheel + Palette), T05 (Deploy Vercel).
 
 ## Next action
 
-S03-T02: Today/Now-Ansicht -- "naechste Stunde/Event", "freie Luecken heute", offene
-flexible Ziele der Woche. Danach T03 (Formulare zum Anlegen/Bearbeiten + Untis-Refresh-
-Button) und T04 (Deploy Vercel, Account Thimorrow). Hinweis: HOUR_H (page.tsx) <-> --hour-h
+S03-T03: Datenmodell + API -- manual_events.color/location/all_day + routines.location/
+all_day, Migration, Store-Validierung, expand-Mapping (manualToEvent.color durchreichen).
+Danach T04 (Sheet-UI) und T05 (Deploy). Hinweis: HOUR_H (page.tsx) <-> --hour-h
 (globals.css) konsistent halten.
 
 ## Open decisions

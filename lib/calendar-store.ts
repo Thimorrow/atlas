@@ -85,6 +85,11 @@ export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/; // HH:MM oder HH:MM:SS
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
 
+// Ganztags-Events haben keine echte Uhrzeit. Da start/end in der DB notNull sind,
+// stecken wir Platzhalter rein; Rendering + FreeSlots ignorieren allDay-Events.
+const ALL_DAY_START = "00:00";
+const ALL_DAY_END = "23:59";
+
 function isObj(b: unknown): b is Record<string, unknown> {
   return typeof b === "object" && b !== null && !Array.isArray(b);
 }
@@ -104,19 +109,28 @@ export function parseNewRoutine(body: unknown): Parsed<NewRoutine> {
     if (!nonEmptyStr(body.color)) return { ok: false, error: "color must be a string" };
     value.color = body.color;
   }
+  if (body.location !== undefined) value.location = body.location === null ? null : String(body.location);
 
   if (body.type === "fixed") {
     if (!Number.isInteger(body.weekday) || (body.weekday as number) < 0 || (body.weekday as number) > 6)
       return { ok: false, error: "weekday must be an integer 0..6 (0=Mon)" };
-    if (!nonEmptyStr(body.startTime) || !TIME_RE.test(body.startTime))
-      return { ok: false, error: "startTime must be HH:MM" };
-    const openEnded = body.openEnded === true;
-    if (!openEnded && (!nonEmptyStr(body.endTime) || !TIME_RE.test(body.endTime)))
-      return { ok: false, error: "endTime must be HH:MM (or set openEnded:true)" };
+    const allDay = body.allDay === true;
     value.weekday = body.weekday as number;
-    value.startTime = body.startTime;
-    value.endTime = openEnded ? null : (body.endTime as string);
-    value.openEnded = openEnded;
+    value.allDay = allDay;
+    if (allDay) {
+      value.startTime = ALL_DAY_START;
+      value.endTime = ALL_DAY_END;
+      value.openEnded = false;
+    } else {
+      if (!nonEmptyStr(body.startTime) || !TIME_RE.test(body.startTime))
+        return { ok: false, error: "startTime must be HH:MM (or set allDay:true)" };
+      const openEnded = body.openEnded === true;
+      if (!openEnded && (!nonEmptyStr(body.endTime) || !TIME_RE.test(body.endTime)))
+        return { ok: false, error: "endTime must be HH:MM (or set openEnded:true)" };
+      value.startTime = body.startTime;
+      value.endTime = openEnded ? null : (body.endTime as string);
+      value.openEnded = openEnded;
+    }
   } else {
     if (!Number.isInteger(body.targetPerWeek) || (body.targetPerWeek as number) < 1)
       return { ok: false, error: "targetPerWeek must be an integer >= 1" };
@@ -135,6 +149,16 @@ export function parseRoutinePatch(body: unknown): Parsed<Partial<NewRoutine>> {
     patch.title = body.title.trim();
   }
   if (body.color !== undefined) patch.color = body.color === null ? null : String(body.color);
+  if (body.location !== undefined) patch.location = body.location === null ? null : String(body.location);
+  if (body.allDay !== undefined) {
+    if (typeof body.allDay !== "boolean") return { ok: false, error: "allDay must be boolean" };
+    patch.allDay = body.allDay;
+    if (body.allDay) {
+      patch.startTime = ALL_DAY_START;
+      patch.endTime = ALL_DAY_END;
+      patch.openEnded = false;
+    }
+  }
   if (body.weekday !== undefined) {
     if (!Number.isInteger(body.weekday) || (body.weekday as number) < 0 || (body.weekday as number) > 6)
       return { ok: false, error: "weekday must be an integer 0..6" };
@@ -168,17 +192,24 @@ export function parseNewManualEvent(body: unknown): Parsed<NewManualEvent> {
   if (!nonEmptyStr(body.title)) return { ok: false, error: "title is required" };
   if (!nonEmptyStr(body.date) || !DATE_RE.test(body.date))
     return { ok: false, error: "date must be YYYY-MM-DD" };
-  if (!nonEmptyStr(body.startTime) || !TIME_RE.test(body.startTime))
-    return { ok: false, error: "startTime must be HH:MM" };
-  if (!nonEmptyStr(body.endTime) || !TIME_RE.test(body.endTime))
-    return { ok: false, error: "endTime must be HH:MM" };
+
+  const allDay = body.allDay === true;
+  if (!allDay) {
+    if (!nonEmptyStr(body.startTime) || !TIME_RE.test(body.startTime))
+      return { ok: false, error: "startTime must be HH:MM (or set allDay:true)" };
+    if (!nonEmptyStr(body.endTime) || !TIME_RE.test(body.endTime))
+      return { ok: false, error: "endTime must be HH:MM (or set allDay:true)" };
+  }
 
   const value: NewManualEvent = {
     title: body.title.trim(),
     date: body.date,
-    startTime: body.startTime,
-    endTime: body.endTime,
+    startTime: allDay ? ALL_DAY_START : (body.startTime as string),
+    endTime: allDay ? ALL_DAY_END : (body.endTime as string),
+    allDay,
   };
+  if (body.color !== undefined) value.color = body.color === null ? null : String(body.color);
+  if (body.location !== undefined) value.location = body.location === null ? null : String(body.location);
   if (body.notes !== undefined) value.notes = body.notes === null ? null : String(body.notes);
   return { ok: true, value };
 }
@@ -206,6 +237,16 @@ export function parseManualEventPatch(body: unknown): Parsed<Partial<NewManualEv
       return { ok: false, error: "endTime must be HH:MM" };
     patch.endTime = body.endTime;
   }
+  if (body.allDay !== undefined) {
+    if (typeof body.allDay !== "boolean") return { ok: false, error: "allDay must be boolean" };
+    patch.allDay = body.allDay;
+    if (body.allDay) {
+      patch.startTime = ALL_DAY_START;
+      patch.endTime = ALL_DAY_END;
+    }
+  }
+  if (body.color !== undefined) patch.color = body.color === null ? null : String(body.color);
+  if (body.location !== undefined) patch.location = body.location === null ? null : String(body.location);
   if (body.notes !== undefined) patch.notes = body.notes === null ? null : String(body.notes);
 
   return { ok: true, value: patch };

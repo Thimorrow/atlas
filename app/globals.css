@@ -8,6 +8,9 @@
   /* Atlas-Signaturkurve: sanft, mit etwas Schwung am Ende. Loest Material-Default
      (0.4,0,0.2,1) ab -> Bewegung hat Charakter statt "lacking strength". */
   --ease-atlas: cubic-bezier(0.22, 1, 0.36, 1);
+  /* F27: Slider-Elevation als Token -- im Light ein dunkler Schatten, im Dark
+     (s. .dark) ein heller Glow, sonst verschwinden schwarze Drop-Shadows. */
+  --slider-shadow: rgba(0, 0, 0, 0.22);
   --background: oklch(0.995 0.001 95);
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
@@ -26,9 +29,15 @@
   --border: oklch(0.92 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /* Brand-Akzent = neutrales Primary (schwarz/weiss). Theme bleibt monochrom;
+     CTA + Time-Dial nutzen denselben Ton wie der Rest, kein Farbstich. */
+  --brand: var(--primary);
+  --brand-foreground: var(--primary-foreground);
 }
 
 .dark {
+  /* F27: im Dark traegt die Tiefe ein heller Glow statt eines schwarzen Schattens. */
+  --slider-shadow: rgba(190, 200, 255, 0.4);
   --background: oklch(0.165 0 0);
   --foreground: oklch(0.97 0 0);
   --card: oklch(0.205 0 0);
@@ -47,6 +56,8 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --brand: var(--primary);
+  --brand-foreground: var(--primary-foreground);
 }
 
 @theme inline {
@@ -68,6 +79,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -94,6 +107,67 @@
   }
   p {
     text-wrap: pretty;
+  }
+
+  /* Textauswahl/Kopieren ist app-weit deaktiviert (select-none am <body>).
+     Echte Eingabefelder bleiben bewusst selektierbar, damit man dort
+     Text markieren/korrigieren kann. */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* Eigene Event-Farbe: --ev traegt die gewaehlte oklch-Farbe. Der Block bekommt
+     einen satten Farbrand (border-l) + dezente Fuellung ueber der Card; im Dark-Mode
+     etwas kraeftiger, damit der Farbcharakter traegt. */
+  .ev-tint {
+    border-left-color: var(--ev);
+    /* F20: im Light kraeftiger (17% statt 11%) -- sonst wirken eigene Farben
+       wie eine Drag-Selektion statt wie ein Termin. */
+    background-color: color-mix(in oklab, var(--ev) 17%, var(--card));
+  }
+  .dark .ev-tint {
+    background-color: color-mix(in oklab, var(--ev) 22%, var(--card));
+  }
+
+  /* OKLCH-Slider (eigener Color Picker): die Spur traegt den Live-Gradienten
+     (inline gesetzt), hier nur Form + Daumen. Inset-Hairline, damit die helle
+     Spur auf der Card sichtbar bleibt. Daumen: weisser Kreis mit Rand/Schatten. */
+  .oklch-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 14px;
+    border-radius: 9999px;
+    outline: none;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
+  .oklch-slider:focus-visible {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12), 0 0 0 3px var(--ring);
+  }
+  .oklch-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: #fff;
+    border: 2px solid rgba(0, 0, 0, 0.18);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+    transition: transform 0.12s ease;
+  }
+  .oklch-slider::-webkit-slider-thumb:active {
+    transform: scale(1.18);
+  }
+  .oklch-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    background: #fff;
+    border: 2px solid rgba(0, 0, 0, 0.18);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   }
 
   /* Barrierefreiheit: respektiert die OS-Einstellung "Bewegung reduzieren".
