@@ -34,9 +34,11 @@ type RangeData = { start: string; end: string; days: Day[]; flexibleGoals: Goal[
 // --- Konstanten -------------------------------------------------------------
 
 const DAY_START = 6;
-const DAY_END = 22;
+const DAY_END = 23;
 const HOUR_H = 56;
-const TOTAL_H = (DAY_END - DAY_START) * HOUR_H;
+// Kurze Termine (z.B. 30-min-Klavier) nie zur flachen Pille quetschen -- jeder
+// Block ist mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
+const MIN_EVENT_H = 44;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i);
@@ -212,6 +214,60 @@ function packDay(events: Ev[]): Packed[] {
   }
   flush();
   return items;
+}
+
+// Wochen-Zeitachse: alle 7 Tage teilen sich EINE Y-Achse. "Anker" = volle Höhe
+// bekommt nur, wo ein WERKTAGS-Termin (Mo-Fr) KÜRZER als 3 h liegt. Alles andere
+// staucht: leere Zeit (Pausen, Morgen, Abend), Wochenend-Termine und lange Blöcke
+// (>= 3 h) dürfen kürzer aussehen. So gibt die Woche den Takt vor und der Tag
+// bleibt kompakt. Geteilte Achse: ein Anker an einer Minute hält ALLE Tage auf.
+const BREAK_SCALE = 0.3;
+const LONG_EVENT_MIN = 180; // ab 3 h gilt ein Termin als "lang" -> nicht ankern
+
+type Seg = { s: number; e: number; anchored: boolean };
+type TimeScale = { yOf: (min: number) => number; total: number };
+
+// Zerlegt den Tag in Segmente mit Anker-Flag. Die Pixel-Verteilung passiert
+// spaeter hoehenabhaengig (fitScale), damit kurze Termine eine Mindesthoehe IN
+// DER ACHSE bekommen -> der Block endet exakt zu seiner echten Uhrzeit.
+function buildSegments(packedDays: Packed[][], days: Day[]): Seg[] {
+  const DS = DAY_START * 60;
+  const DE = DAY_END * 60;
+  const clamp = (m: number) => Math.max(DS, Math.min(DE, m));
+
+  // Anker-Intervalle: Werktags-Termine (weekday < 5) unter 3 h.
+  const ivs: [number, number][] = [];
+  packedDays.forEach((day, i) => {
+    if (!days[i] || days[i].weekday >= 5) return;
+    for (const p of day) {
+      if (p.e - p.s >= LONG_EVENT_MIN) continue;
+      ivs.push([clamp(p.s), clamp(p.e)]);
+    }
+  });
+
+  if (ivs.length === 0) return [{ s: DS, e: DE, anchored: false }];
+
+  ivs.sort((a, b) => a[0] - b[0]);
+  const anchors: [number, number][] = [];
+  for (const iv of ivs) {
+    const last = anchors[anchors.length - 1];
+    if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+    else anchors.push([iv[0], iv[1]]);
+  }
+  const isAnchored = (s: number, e: number) => anchors.some(([a, b]) => s >= a && e <= b);
+
+  const pts = new Set<number>([DS, DE]);
+  for (const [a, b] of anchors) {
+    pts.add(a);
+    pts.add(b);
+  }
+  const bounds = [...pts].filter((x) => x >= DS && x <= DE).sort((a, b) => a - b);
+
+  const segs: Seg[] = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    segs.push({ s: bounds[i], e: bounds[i + 1], anchored: isAnchored(bounds[i], bounds[i + 1]) });
+  }
+  return segs;
 }
 
 // "in 25 min" / "in 1 h 10 min" / "läuft" -- relativ zu jetzt.
@@ -484,6 +540,11 @@ export default function Home() {
   // Jeder spaetere Remount (Mode-Switch, Tageswechsel) blurrt als Block rein.
   const firstView = useRef(true);
 
+  // Sichtbare Hoehe des Wochen-Scrollbereichs -- damit das (durch Stauchung
+  // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const [viewH, setViewH] = useState(0);
+
   // Anlegen/Bearbeiten-Sheet + Reload-Trigger + Untis-Sync.
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<EditTarget | null>(null);
@@ -554,6 +615,70 @@ export default function Home() {
     () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay))) : []),
     [data],
   );
+  // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
+  const segments = useMemo(() => buildSegments(packedDays, data?.days ?? []), [packedDays, data]);
+
+  // Scrollbereich messen (mode/data -> Raster gerade gemountet bzw. neu befuellt).
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const measure = () => setViewH(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mode, data]);
+
+  // Pixel-Verteilung: der ganze Tag (06-23 Uhr) fuellt EXAKT die sichtbare Hoehe
+  // ohne Scrollen. Oben/unten ein Polster, damit 06- und 23-Uhr-Label voll
+  // sichtbar bleiben. Anker bekommen Gewicht nach Dauer, leere Zeit gestaucht
+  // (BREAK_SCALE). Danach: jeder Anker-Abschnitt, der kuerzer als MIN_EVENT_H
+  // waere, wird auf MIN_EVENT_H gehoben -- der fehlende Platz kommt aus der leeren
+  // Zeit. So ist ein 30-min-Klavier eine lesbare Karte UND endet exakt bei 16:45.
+  const fitScale = useMemo<TimeScale>(() => {
+    const DS = DAY_START * 60;
+    const DE = DAY_END * 60;
+    const ppm = HOUR_H / 60;
+    const PAD_TOP = 12;
+    const PAD_BOTTOM = 16;
+    const clamp = (m: number) => Math.max(DS, Math.min(DE, m));
+
+    const items = segments.map((sg) => {
+      const mins = sg.e - sg.s;
+      return { ...sg, mins, weight: sg.anchored ? mins : mins * BREAK_SCALE, px: 0, y0: 0 };
+    });
+    const totalWeight = items.reduce((a, x) => a + x.weight, 0) || 1;
+
+    const usable = viewH > 0 ? Math.max(viewH - PAD_TOP - PAD_BOTTOM, 1) : (DE - DS) * ppm;
+    items.forEach((x) => (x.px = (x.weight / totalWeight) * usable));
+
+    // Kurze Anker-Abschnitte auf MIN_EVENT_H heben, Defizit aus leerer Zeit ziehen.
+    const bumped = items.filter((x) => x.anchored && x.px < MIN_EVENT_H);
+    const deficit = bumped.reduce((a, x) => a + (MIN_EVENT_H - x.px), 0);
+    const emptyItems = items.filter((x) => !x.anchored);
+    const emptyPx = emptyItems.reduce((a, x) => a + x.px, 0);
+    if (deficit > 0 && emptyPx - deficit > 0) {
+      const factor = (emptyPx - deficit) / emptyPx;
+      bumped.forEach((x) => (x.px = MIN_EVENT_H));
+      emptyItems.forEach((x) => (x.px *= factor));
+    }
+
+    let y = PAD_TOP;
+    items.forEach((x) => {
+      x.y0 = y;
+      y += x.px;
+    });
+
+    const total = viewH > 0 ? viewH : y + PAD_BOTTOM;
+    const yOf = (min: number) => {
+      const c = clamp(min);
+      for (const x of items) {
+        if (c <= x.e) return x.y0 + ((c - x.s) / (x.mins || 1)) * x.px;
+      }
+      return y;
+    };
+    return { yOf, total };
+  }, [segments, viewH]);
 
   return (
     <main className="flex h-full min-h-0 flex-col">
@@ -756,17 +881,17 @@ export default function Home() {
               })}
             </div>
 
-            {/* Scrollbereich -- nur das Stunden-Raster scrollt */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            {/* Raster fittet exakt in die Hoehe -- kein Scrollen noetig. */}
+            <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-hidden">
             {/* Raster */}
             <div className="grid" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
               {/* Zeitachse */}
-              <div className="relative border-r" style={{ height: TOTAL_H }}>
+              <div className="relative border-r" style={{ height: fitScale.total }}>
                 {HOURS.map((h) => (
                   <span
                     key={h}
                     className="absolute right-2 -translate-y-1/2 font-mono text-[11px] tabular-nums text-muted-foreground"
-                    style={{ top: h === DAY_START ? 6 : (h - DAY_START) * HOUR_H }}
+                    style={{ top: fitScale.yOf(h * 60) }}
                   >
                     {String(h).padStart(2, "0")}
                   </span>
@@ -785,16 +910,16 @@ export default function Home() {
                       today && "bg-primary/[0.035]",
                       weekend && "bg-muted/30",
                     )}
-                    style={{ height: TOTAL_H }}
+                    style={{ height: fitScale.total }}
                   >
                     {HOURS.filter((h) => h > DAY_START).map((h) => (
-                      <div key={h} className="absolute inset-x-0 border-t border-border/60" style={{ top: (h - DAY_START) * HOUR_H }} />
+                      <div key={h} className="absolute inset-x-0 border-t border-border/60" style={{ top: fitScale.yOf(h * 60) }} />
                     ))}
 
                     {/* Freie Lücken -- dezent */}
                     {day.freeSlots.map((f, i) => {
-                      const top = ((toMin(f.startTime) - DAY_START * 60) / 60) * HOUR_H;
-                      const height = (f.minutes / 60) * HOUR_H;
+                      const top = fitScale.yOf(toMin(f.startTime));
+                      const height = fitScale.yOf(toMin(f.endTime)) - top;
                       if (height < 22) return null;
                       return (
                         <div
@@ -807,8 +932,10 @@ export default function Home() {
 
                     {/* Events */}
                     {packedDays[di].map((p, i) => {
-                      const top = ((p.s - DAY_START * 60) / 60) * HOUR_H;
-                      const height = Math.max(((p.e - p.s) / 60) * HOUR_H - 2, 20);
+                      const top = fitScale.yOf(p.s);
+                      // Mindesthoehe steckt schon in der Achse -> Block endet
+                      // exakt zur echten Uhrzeit; hier nur ein kleiner Sicherheitsfloor.
+                      const height = Math.max(fitScale.yOf(p.e) - fitScale.yOf(p.s) - 2, 18);
                       const left = `calc(${(p.lane / p.lanes) * 100}% + 2px)`;
                       const width = `calc(${100 / p.lanes}% - 4px)`;
                       const cancelled = p.ev.status === "cancelled";
@@ -870,7 +997,7 @@ export default function Home() {
                     {showNow && (
                       <div
                         className="absolute inset-x-0 z-10 transition-[top] duration-700 ease-out"
-                        style={{ top: ((now!.min - DAY_START * 60) / 60) * HOUR_H }}
+                        style={{ top: fitScale.yOf(now!.min) }}
                       >
                         <motion.div
                           className="h-px origin-left bg-red-500"

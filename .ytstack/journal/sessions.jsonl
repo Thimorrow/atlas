@@ -26,3 +26,9 @@
 {"timestamp":"2026-06-29T12:15:21Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"9e17cdea-93b1-4757-bd0d-e17476e85835"}
 {"timestamp":"2026-06-29T13:00:01Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"c364851b-32f9-4027-bcd6-198585bcb67e"}
 {"timestamp":"2026-06-29T13:34:22Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"f7fd686c-96c5-4d4f-b99a-8cbdb4f45d69"}
+{"timestamp":"2026-06-29T14:09:09Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"360f2c19-4315-4a72-a078-511d01722234"}
+{"timestamp":"2026-06-29T14:37:27Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"4da9486c-e60a-4182-9eac-85f9dd078c50"}
+{"timestamp":"2026-06-29T15:03:10Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"1eb47fc8-c56d-4ec6-9a3c-f200dccdb698"}
+{"timestamp":"2026-06-29T15:24:15Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"35c8545a-6f23-4a8b-907c-89d55c3269d5"}
+{"timestamp":"2026-06-29T15:28:01Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"30edd954-0dde-4805-8b80-cf0a900c0208"}
+{"timestamp":"2026-06-29T15:32:31Z","event":"session-end","milestone":"M001","slice":"S03","task":"T04_pending_visual_acceptance","session_id":"a4a1c5ac-c59f-4636-b06f-050259b1b9e2"}

@@ -28,10 +28,10 @@ describe("freeSlotsForDay", () => {
       ev({ source: "school", startTime: "10:00", endTime: "11:00", status: "cancelled" }),
     ];
     const slots = freeSlotsForDay(events, "2026-01-01");
-    // busy nur 08:00-09:00 -> frei 06:00-08:00 und 09:00-22:00 (cancelled mittendrin)
+    // busy nur 08:00-09:00 -> frei 06:00-08:00 und 09:00-23:00 (cancelled mittendrin)
     expect(slots).toHaveLength(2);
     expect(slots[0]).toMatchObject({ startTime: "06:00", endTime: "08:00", minutes: 120 });
-    expect(slots[1]).toMatchObject({ startTime: "09:00", endTime: "22:00" });
+    expect(slots[1]).toMatchObject({ startTime: "09:00", endTime: "23:00" });
     const coversCancelled = slots.some((s) => s.startTime <= "10:00" && s.endTime >= "11:00");
     expect(coversCancelled).toBe(true);
   });
@@ -39,7 +39,7 @@ describe("freeSlotsForDay", () => {
   it("min-Filter wirft zu kurze Luecken weg", () => {
     const events: CalendarEvent[] = [
       ev({ source: "school", startTime: "06:00", endTime: "07:55", status: "regular" }),
-      ev({ source: "school", startTime: "08:00", endTime: "22:00", status: "regular" }),
+      ev({ source: "school", startTime: "08:00", endTime: "23:00", status: "regular" }),
     ];
     // Luecke 07:55-08:00 = 5 min < 15 -> kein Slot
     expect(freeSlotsForDay(events, "2026-01-01")).toHaveLength(0);

@@ -16,7 +16,7 @@ export type FreeSlotOptions = {
 
 export const DEFAULT_FREE_SLOT_OPTIONS: FreeSlotOptions = {
   dayStart: "06:00",
-  dayEnd: "22:00",
+  dayEnd: "23:00",
   minMinutes: 15,
 };
 
