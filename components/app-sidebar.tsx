@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  ListChecks,
   MessagesSquare,
   Inbox,
   Sparkles,
@@ -30,6 +31,7 @@ type Mod = { label: string; icon: typeof CalendarDays; href?: string; soon?: boo
 
 const MODULES: Mod[] = [
   { label: "Kalender", icon: CalendarDays, href: "/" },
+  { label: "To-Dos", icon: ListChecks, href: "/todos" },
   { label: "Nachrichten", icon: MessagesSquare, soon: true },
   { label: "Inbox", icon: Inbox, soon: true },
   { label: "Hermes", icon: Sparkles, soon: true },

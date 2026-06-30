@@ -26,6 +26,7 @@
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "rrule": "^2.8.1",
     "tailwind-merge": "^3.6.0",
     "webuntis": "^2.2.1"
   },

@@ -1,25 +1,30 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-06-27T19:02:27Z
-current_milestone: M001
-active_slice: S03
-active_task: T04_pending_visual_acceptance
+last_updated: 2026-06-30T00:00:00Z
+current_milestone: M002
+active_slice: S04
+active_task: T01
 ---
 
 # State
 
-**Status:** M001 / S03 / T03 planned -- ready to execute. S01 + S02 komplett, S03-T01
-(Wochenkalender) + T02 (Today/Now-Agenda) done. T03 erweitert Datenmodell/API um eigene
-Farbe (manuelle Events), Ort + Ganztag. Slice neu gesplittet: T03 (Daten/API), T04
-(Sheet-UI Anlegen/Bearbeiten + Plus + Time-Wheel + Palette), T05 (Deploy Vercel).
+**Status:** M002 Backend fertig & verifiziert (S01: `todos`+`todo_completions` auf Neon,
+RRULE-Expansion, CRUD + Completion-Toggle, "Heute"-API, Streak-Logik). **Frontend bewusst
+geloescht** -- erste Design-Umsetzung (Hero-Ring/Karten) gefiel dem User nicht, wird neu
+gedacht. Geloescht: `app/todos/`, `components/todo-sheet.tsx`, `components/ui/badge.tsx`,
+Sidebar-Eintrag. **Behalten** (Backend + reine Logik): `lib/todo-store.ts`,
+`lib/todo-expand.ts`, `lib/todo-recurrence.ts`, `app/api/todos/**`, `lib/todo.test.ts`
+(42/42 gruen). M001 (Kalender) funktional fertig bis auf zurueckgestellten Vercel-Deploy.
 
 ## Next action
 
-S03-T03: Datenmodell + API -- manual_events.color/location/all_day + routines.location/
-all_day, Migration, Store-Validierung, expand-Mapping (manualToEvent.color durchreichen).
-Danach T04 (Sheet-UI) und T05 (Deploy). Hinweis: HOUR_H (page.tsx) <-> --hour-h
-(globals.css) konsistent halten.
+**S04 (neu): Todos subtil im Kalender.** User-Wunsch: Aufgaben sollen im Kalender (M001)
+auftauchen, aber SUBTIL -- "nicht als KOMPLETT eigener Eintrag ... echt subtil". Plan:
+`M002-S04-T01-PLAN.md` (Range-Endpoint + Einweb in Heute-Agenda als schlanke Checkbox-Zeile
++ dezente Punkte im Wochen-Raster; nur konkret terminierte Aufgaben). S02-Frontend
+(`app/todos/`) wurde inzwischen neu gebaut und liegt vor. Backend-API steht:
+`GET /api/todos/today?date=`, `POST/PATCH/DELETE /api/todos`, `POST/DELETE /api/todos/[id]/complete`.
 
 ## Open decisions
 

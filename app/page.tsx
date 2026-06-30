@@ -1,13 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
 import { EventSheet, type EditTarget } from "@/components/event-sheet";
+import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
+import { AutoplanSheet } from "@/components/autoplan-sheet";
+import { planWeek, type PlanSuggestion } from "@/lib/todo-autoplan";
+import { decideSync } from "@/lib/untis/sync-policy";
 import { evVar } from "@/lib/event-colors";
+import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
 import { cn } from "@/lib/utils";
+
+// Aufgaben pro Tag (Wochen-Raster): key = YYYY-MM-DD. Lokaler Typ, damit der
+// Client nicht das Server-Modul (lib/todo-expand -> DB) ziehen muss.
+type TodoRange = Record<string, TodoInstance[]>;
+
+// Optimistisches Abhaken/Enthaken einer Aufgabe in der Heute-Todo-Ansicht:
+// verschiebt die Instanz zwischen den Sektionen und flippt `done`. Ein Reload
+// korrigiert spaeter exakt.
+function toggleTodoView(v: TodoView, inst: TodoInstance, currentlyDone: boolean): TodoView {
+  const id = inst.todoId;
+  if (!currentlyDone) {
+    return {
+      ...v,
+      overdue: v.overdue.filter((x) => x.todoId !== id),
+      today: v.today.filter((x) => x.todoId !== id),
+      completed: [...v.completed, { ...inst, done: true, overdue: false }],
+    };
+  }
+  return {
+    ...v,
+    completed: v.completed.filter((x) => x.todoId !== id),
+    today: [...v.today, { ...inst, done: false }],
+  };
+}
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
@@ -298,9 +327,10 @@ function eventMeta(ev: Ev) {
 
 type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
-  | { kind: "free"; s: number; e: number; free: Free };
+  | { kind: "free"; s: number; e: number; free: Free }
+  | { kind: "todo"; s: number; e: number; inst: TodoInstance };
 
-function TodayView({ day, goals, nowMin, dayPast, stagger, onEdit }: { day: Day | undefined; goals: Goal[]; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void }) {
+function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onToggleTodo }: { day: Day | undefined; goals: Goal[]; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
   // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
   // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
   const reduce = useReducedMotion();
@@ -325,12 +355,24 @@ function TodayView({ day, goals, nowMin, dayPast, stagger, onEdit }: { day: Day 
   const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
   const openGoals = goals.filter((g) => g.done < g.targetPerWeek);
 
-  // Events + freie Lücken zu EINER chronologischen Agenda verweben.
+  // Aufgaben (subtil): terminierte (mit Uhrzeit) weben sich in die Zeitachse,
+  // der Rest (ohne Uhrzeit) + Ueberfaelliges liegt als ruhige Zeile darunter.
+  const tToday = todos?.today ?? [];
+  const tCompleted = todos?.completed ?? [];
+  const tOverdue = todos?.overdue ?? [];
+  const scheduledTodos = [...tToday, ...tCompleted].filter((t) => t.scheduledTime);
+  const looseTodos = tToday.filter((t) => !t.scheduledTime);
+
+  // Events + freie Lücken + terminierte Aufgaben zu EINER chronologischen Agenda.
   const agenda: AgendaItem[] = [
     ...evs.map((x): AgendaItem => ({ kind: "ev", s: x.s, e: x.e, ev: x.ev })),
     ...day.freeSlots
       .filter((f) => f.minutes >= 30)
       .map((f): AgendaItem => ({ kind: "free", s: toMin(f.startTime), e: toMin(f.endTime), free: f })),
+    ...scheduledTodos.map((inst): AgendaItem => {
+      const s = toMin(inst.scheduledTime!);
+      return { kind: "todo", s, e: s + (inst.estMinutes ?? 0), inst };
+    }),
   ].sort((a, b) => a.s - b.s || a.e - b.e);
 
   // Status-Kopfzeile
@@ -430,6 +472,21 @@ function TodayView({ day, goals, nowMin, dayPast, stagger, onEdit }: { day: Day 
               );
             }
 
+            if (it.kind === "todo") {
+              return (
+                <motion.li
+                  key={`todo-${it.inst.todoId}`}
+                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
+                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.42, delay, ease: EASE }}
+                  className="grid grid-cols-[52px_1fr] items-center gap-3"
+                >
+                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.inst.scheduledTime!)}</span>
+                  <AgendaTodoRow inst={it.inst} onToggle={onToggleTodo} />
+                </motion.li>
+              );
+            }
+
             const cancelled = it.ev.status === "cancelled";
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
@@ -503,6 +560,9 @@ function TodayView({ day, goals, nowMin, dayPast, stagger, onEdit }: { day: Day 
         </motion.div>
       )}
 
+      {/* Aufgaben ohne Uhrzeit + Ueberfaelliges -- ruhig unter der Agenda */}
+      <LooseTodos open={looseTodos} overdue={tOverdue} onToggle={onToggleTodo} stagger={stagger} />
+
       {/* Offene flexible Ziele der Woche */}
       {openGoals.length > 0 && (
         <section className="mt-6">
@@ -550,6 +610,66 @@ export default function Home() {
   const [editing, setEditing] = useState<EditTarget | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Aufgaben subtil im Kalender: Heute-Ansicht zieht die Tagesliste, Wochen-
+  // Ansicht die konkret terminierten Aufgaben pro Tag (fuer die Punkte).
+  const [dayTodos, setDayTodos] = useState<TodoView | null>(null);
+  const [weekTodos, setWeekTodos] = useState<TodoRange>({});
+
+  // Auto-Planer: Vorschlaege + bestaetigen (nichts wird ohne Zutun geschrieben).
+  const [planOpen, setPlanOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<PlanSuggestion[]>([]);
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
+
+  const toggleTodo = useCallback(
+    (inst: TodoInstance, currentlyDone: boolean) => {
+      setDayTodos((v) => (v ? toggleTodoView(v, inst, currentlyDone) : v));
+      fetch(`/api/todos/${inst.todoId}/complete`, {
+        method: currentlyDone ? "DELETE" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ date: anchor }),
+      }).catch(() => setReloadKey((k) => k + 1));
+    },
+    [anchor],
+  );
+
+  // Atlas plant die Woche: offene, un-terminierte Aufgaben in die freien Luecken.
+  const openPlan = () => {
+    if (!data) return;
+    const freeByDay = Object.fromEntries(data.days.map((d) => [d.date, d.freeSlots]));
+    const onToday = now && data.days.some((d) => d.date === now.date);
+    const sugg = planWeek(weekTodos, freeByDay, {
+      minStartISO: now?.date,
+      minStartMin: onToday ? now!.min : 0,
+    });
+    setSuggestions(sugg);
+    setAcceptedIds(new Set());
+    setPlanOpen(true);
+  };
+
+  const patchTime = (id: string, time: string) =>
+    fetch(`/api/todos/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scheduledTime: time }),
+    });
+
+  const acceptOne = (s: PlanSuggestion) => {
+    setAcceptedIds((prev) => new Set(prev).add(s.todoId));
+    patchTime(s.todoId, s.startTime).catch(() => {});
+  };
+
+  const acceptAll = () => {
+    const pending = suggestions.filter((s) => !acceptedIds.has(s.todoId));
+    setAcceptedIds(new Set(suggestions.map((s) => s.todoId)));
+    Promise.all(pending.map((s) => patchTime(s.todoId, s.startTime))).catch(() => {});
+  };
+
+  // Beim Schliessen die Ansicht aktualisieren, damit angenommene Zeiten erscheinen.
+  const closePlan = () => {
+    setPlanOpen(false);
+    if (acceptedIds.size > 0) setReloadKey((k) => k + 1);
+  };
+
   const openCreate = () => {
     setEditing(null);
     setSheetOpen(true);
@@ -582,6 +702,48 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
+  // Untis-Sync nach Tageszeit-Politik (lib/untis/sync-policy):
+  // - beim Laden/Reload: synct, wenn der letzte Sync fuer die aktuelle Uhrzeit zu alt ist
+  // - 60s-Tick: synct nur in aktiven Poll-Fenstern (morgens 06:30–07:15 alle 2 min)
+  // lastSync wird geraetelokal in localStorage gemerkt. Nach Erfolg -> reloadKey++,
+  // damit der Kalender die frischen DB-Daten still nachzieht (kein Spinner, data bleibt).
+  useEffect(() => {
+    const KEY = "atlas:untisLastSync";
+    let alive = true;
+    let busy = false;
+
+    const readLast = (): number | null => {
+      const v = Number(localStorage.getItem(KEY));
+      return Number.isFinite(v) && v > 0 ? v : null;
+    };
+
+    const runSync = async (reason: "load" | "tick") => {
+      if (busy) return;
+      const { shouldSync, pollMin } = decideSync(new Date(), readLast());
+      if (!shouldSync) return;
+      if (reason === "tick" && pollMin == null) return; // Ticks nur in Poll-Fenstern
+      busy = true;
+      try {
+        const res = await fetch("/api/sync/untis", { method: "POST" });
+        if (res.ok && alive) {
+          localStorage.setItem(KEY, String(Date.now()));
+          setReloadKey((k) => k + 1);
+        }
+      } catch {
+        // Netzfehler ignorieren — der naechste Tick/Reload versucht es erneut.
+      } finally {
+        busy = false;
+      }
+    };
+
+    runSync("load");
+    const id = setInterval(() => runSync("tick"), 60_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -593,6 +755,27 @@ export default function Home() {
       alive = false;
     };
   }, [anchor, reloadKey]);
+
+  // Aufgaben laden -- je nach Ansicht der Tag (Heute) bzw. die Woche (Punkte).
+  useEffect(() => {
+    let alive = true;
+    if (mode === "today") {
+      fetch(`/api/todos/today?date=${anchor}`)
+        .then((r) => r.json())
+        .then((d: { view: TodoView }) => alive && setDayTodos(d.view))
+        .catch(() => {});
+    } else {
+      const start = addDays(anchor, -weekdayOf(anchor));
+      const end = addDays(start, 6);
+      fetch(`/api/todos/range?start=${start}&end=${end}`)
+        .then((r) => r.json())
+        .then((d: { days: TodoRange }) => alive && setWeekTodos(d.days ?? {}))
+        .catch(() => {});
+    }
+    return () => {
+      alive = false;
+    };
+  }, [anchor, mode, reloadKey]);
 
   // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
@@ -757,6 +940,14 @@ export default function Home() {
             <ChevronRight />
           </Button>
 
+          {/* Auto-Planer -- nur in der Wochenansicht (braucht die freien Luecken) */}
+          {mode === "week" && (
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={openPlan} aria-label="Woche automatisch planen">
+              <Sparkles className="size-4" />
+              Planen
+            </Button>
+          )}
+
           {/* Trenner -> "Neuer Termin" rechts abgesetzt */}
           <span className="mx-1 h-6 w-px bg-border" />
 
@@ -809,7 +1000,7 @@ export default function Home() {
           loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onEdit={openEdit} />
+            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} todos={dayTodos} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onEdit={openEdit} onToggleTodo={toggleTodo} />
           )
         ) : loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
@@ -876,6 +1067,9 @@ export default function Home() {
                         </div>
                       );
                     })()}
+
+                    {/* Aufgaben des Tags -- dezente Punkte, kein Text/Block */}
+                    <DayTodoDots todos={weekTodos[day.date] ?? []} />
                   </div>
                 );
               })}
@@ -1030,6 +1224,15 @@ export default function Home() {
         defaultDate={anchor}
         onClose={() => setSheetOpen(false)}
         onSaved={reload}
+      />
+
+      <AutoplanSheet
+        open={planOpen}
+        suggestions={suggestions}
+        acceptedIds={acceptedIds}
+        onAccept={acceptOne}
+        onAcceptAll={acceptAll}
+        onClose={closePlan}
       />
     </main>
   );
