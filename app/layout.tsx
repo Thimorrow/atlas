@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
+import { Toaster } from "@/components/toaster";
 import { InterfaceKit } from "interface-kit/react";
 import "./globals.css";
 
@@ -38,6 +39,7 @@ export default async function RootLayout({
             </div>
             {process.env.NODE_ENV === "development" && <InterfaceKit />}
           </MotionProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

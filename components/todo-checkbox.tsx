@@ -1,9 +1,12 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+// Weiche Decel-Kurve fuer den Radiate-Ring: schnell raus, sanft aus.
+const BURST_EASE = [0.16, 1, 0.3, 1] as const;
 
 // Die Seele der To-Do-Liste: ein custom Kreis statt nacktem <input>. Ruhezustand
 // = duenner Ring; abgehakt = fuellt sich mit --primary (monochrom, kein Farbstich),
@@ -26,6 +29,16 @@ export function TodoCheckbox({
   ariaLabel?: string;
 }) {
   const reduce = useReducedMotion();
+  // Ein-Schuss-Trigger: nur wenn waehrend der Sitzung wirklich abgehakt wird
+  // (false -> true). Schon erledigte Items, die spaeter mounten (z.B. die
+  // "Erledigt"-Liste oder ein Tageswechsel), duerfen NICHT mitpulsen.
+  const prev = useRef(checked);
+  const [burst, setBurst] = useState(0);
+  useEffect(() => {
+    if (checked && !prev.current) setBurst((b) => b + 1);
+    prev.current = checked;
+  }, [checked]);
+
   return (
     <button
       type="button"
@@ -51,7 +64,25 @@ export function TodoCheckbox({
         animate={{ opacity: checked ? 0 : 1, borderColor: tint || "color-mix(in oklab, var(--foreground) 34%, transparent)" }}
         transition={{ opacity: { duration: 0.18, ease: EASE }, borderColor: { duration: 0.3, ease: EASE } }}
       />
-      {/* Fuellung -- skaliert beim Abhaken auf */}
+      {/* Radiate-Ring -- pulst beim Abhaken EINMAL nach aussen und fadet aus.
+          Die "Tick"-Befriedigung; monochrom (--primary), kein Konfetti. Nur per
+          burst-Trigger, damit er bei schon-erledigt mountenden Items still bleibt. */}
+      {!reduce && (
+        <AnimatePresence>
+          {burst > 0 && (
+            <motion.span
+              key={burst}
+              aria-hidden
+              className="absolute inset-0 rounded-full border-2 border-primary"
+              initial={{ scale: 0.55, opacity: 0.55 }}
+              animate={{ scale: 2.1, opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: BURST_EASE }}
+            />
+          )}
+        </AnimatePresence>
+      )}
+      {/* Fuellung -- ploppt beim Abhaken mit Ueberschwung auf */}
       <motion.span
         aria-hidden
         className="absolute inset-0 rounded-full bg-primary"
@@ -60,16 +91,19 @@ export function TodoCheckbox({
         transition={
           reduce
             ? { duration: 0 }
-            : { type: "spring", duration: 0.32, bounce: 0.28 }
+            : { type: "spring", duration: 0.34, bounce: 0.5 }
         }
       />
-      {/* Haken -- zeichnet sich beim Abhaken ein */}
-      <svg
+      {/* Haken -- zeichnet sich beim Abhaken ein und ploppt dabei minimal mit. */}
+      <motion.svg
         aria-hidden
         viewBox="0 0 24 24"
         fill="none"
         className="relative"
         style={{ width: size * 0.62, height: size * 0.62 }}
+        initial={false}
+        animate={{ scale: checked ? 1 : 0.6 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", duration: 0.36, bounce: 0.45, delay: checked ? 0.04 : 0 }}
       >
         <motion.path
           d="M5 12.5l4.2 4.3L19 7"
@@ -82,10 +116,10 @@ export function TodoCheckbox({
           transition={
             reduce
               ? { duration: 0 }
-              : { pathLength: { duration: 0.28, ease: EASE, delay: checked ? 0.06 : 0 }, opacity: { duration: 0.12 } }
+              : { pathLength: { duration: 0.28, ease: EASE, delay: checked ? 0.08 : 0 }, opacity: { duration: 0.12 } }
           }
         />
-      </svg>
+      </motion.svg>
     </button>
   );
 }

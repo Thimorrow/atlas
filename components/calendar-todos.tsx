@@ -104,20 +104,36 @@ export function LooseTodos({
 const MAX_DOTS = 4;
 
 export function DayTodoDots({ todos }: { todos: TodoInstance[] }) {
+  const reduce = useReducedMotion();
   const open = todos.filter((t) => !t.done);
   if (open.length === 0) return null;
   const shown = open.slice(0, MAX_DOTS);
   const extra = open.length - shown.length;
   return (
     <div className="mt-1 flex items-center gap-1" aria-label={`${open.length} offene Aufgaben`}>
-      {shown.map((t) => (
-        <span
+      {/* Die Aufgaben kommen per eigenem Range-Fetch (nach den Terminen) rein --
+          die Punkte ploppen sonst verspaetet auf. Darum derselbe ruhige Auftritt
+          wie die Termine: leiser Scale-/Fade-In, leicht versetzt. */}
+      {shown.map((t, i) => (
+        <motion.span
           key={t.todoId}
           className="size-1.5 rounded-full"
           style={{ backgroundColor: t.color ?? "color-mix(in oklab, var(--foreground) 40%, transparent)" }}
+          initial={reduce ? false : { opacity: 0, scale: 0.4 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.28, delay: i * 0.04, ease: EASE }}
         />
       ))}
-      {extra > 0 && <span className="text-[9px] font-medium tabular-nums text-muted-foreground/70">+{extra}</span>}
+      {extra > 0 && (
+        <motion.span
+          className="text-[9px] font-medium tabular-nums text-muted-foreground/70"
+          initial={reduce ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.28, delay: shown.length * 0.04, ease: EASE }}
+        >
+          +{extra}
+        </motion.span>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { EventSheet, type EditTarget } from "@/components/event-sheet";
 import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
 import { AutoplanSheet } from "@/components/autoplan-sheet";
 import { planWeek, type PlanSuggestion } from "@/lib/todo-autoplan";
+import { persistWrite, persistBatch } from "@/lib/persist";
 import { decideSync } from "@/lib/untis/sync-policy";
 import { evVar } from "@/lib/event-colors";
 import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
@@ -74,6 +75,59 @@ const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_STAR
 
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
+const BURST_EASE = [0.16, 1, 0.3, 1] as const;
+
+// Mini-Aufgabe auf der Wochen-Zeitachse. Erledigt -> fadet auf 0.5; beim echten
+// Abhaken (false -> true) ploppt der Punkt einmal kurz (eigener Trigger, damit
+// schon-erledigt mountende Tage still bleiben).
+function WeekTodoChip({
+  title,
+  done,
+  accent,
+  top,
+  delay,
+  reduce,
+  onClick,
+}: {
+  title: string;
+  done: boolean;
+  accent: string;
+  top: number;
+  delay: number;
+  reduce: boolean;
+  onClick: () => void;
+}) {
+  const prev = useRef(done);
+  const [pop, setPop] = useState(0);
+  useEffect(() => {
+    if (done && !prev.current) setPop((p) => p + 1);
+    prev.current = done;
+  }, [done]);
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      title={done ? `${title} als offen markieren` : `${title} abhaken`}
+      className="absolute inset-x-1 z-[1] flex items-center gap-1 rounded border border-l-2 border-border/60 bg-muted/50 px-1 py-px text-left transition-colors duration-150 hover:bg-muted/80"
+      style={{ top, borderLeftColor: accent }}
+      initial={reduce ? false : { opacity: 0, y: 6 }}
+      animate={{ opacity: done ? 0.5 : 1, y: 0 }}
+      transition={{ duration: 0.3, delay, ease: EASE }}
+    >
+      <motion.span
+        key={pop}
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: accent }}
+        initial={pop > 0 && !reduce ? { scale: 1 } : false}
+        animate={pop > 0 && !reduce ? { scale: [1, 1.9, 1] } : {}}
+        transition={{ duration: 0.42, ease: BURST_EASE }}
+      />
+      <span className={cn("truncate text-[9px] font-medium leading-tight text-foreground/80", done && "text-muted-foreground line-through")}>
+        {title}
+      </span>
+    </motion.button>
+  );
+}
 
 // --- Block-Stile ------------------------------------------------------------
 // Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
@@ -84,34 +138,27 @@ const SRC: Record<Ev["source"], string> = {
   manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 dark:bg-emerald-500/20",
 };
 
-// Entfall: rot, abgeblasst (statt grau). Statt Titel-Durchstrich eine
-// diagonale Linie quer ueber das ganze Block-Feld.
-// F19 (Rot entlasten): Entfall ist neutral-entsaettigt -- Rot bleibt der
-// "Jetzt"-Linie vorbehalten. Der Entfall-Charakter traegt sich ueber den
-// (verstaerkten) Diagonalstrich + das kleine rote "Entfall"-Tag im Block.
-const CANCELLED_BLOCK =
-  "border-border border-l-muted-foreground/40 bg-muted/50 dark:bg-muted/25";
-
-// Diagonale Entfall-Linie -- exakt von Ecke zu Ecke, unabhaengig vom
-// Seitenverhaeltnis (preserveAspectRatio="none" + non-scaling-stroke).
-function CancelStrike() {
+// Entfall (V3): entfallene Schulstunden werden NICHT als eigener Block gezeigt,
+// sondern als leiser Chip an der ECHTEN Startzeit der Stunde. So bleibt die
+// freigewordene Zeit (und dort geplante Aufgaben) klar lesbar, die Info "faellt
+// aus" geht aber nicht verloren -- statt Doppelung "Frei" + "Entfall"-Block.
+// Leiser Entfall-Chip fuer die Heute-Liste.
+function CancelChip({ title }: { title: string }) {
   return (
-    <svg
-      aria-hidden
-      preserveAspectRatio="none"
-      className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-    >
-      <line
-        x1="0"
-        y1="100%"
-        x2="100%"
-        y2="0"
-        vectorEffect="non-scaling-stroke"
-        className="stroke-red-500/60"
-        strokeWidth="2.2"
-      />
-    </svg>
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground/90">
+      <span className="size-1 rounded-full bg-red-500/45" />
+      {title} entfällt
+    </span>
   );
+}
+
+// Ein terminiertes Todo bekommt nur dann eine Spur auf der Wochen-Zeitachse,
+// wenn seine Uhrzeit an DEM Tag wirklich frei ist -- sonst laege es ueber einer
+// Stunde (haesslich). Greift v. a. bei taeglichen Aufgaben mit fixer Uhrzeit.
+function todoFitsTimeline(t: TodoInstance, freeSlots: Free[]): boolean {
+  if (!t.scheduledTime || t.done) return false;
+  const m = toMin(t.scheduledTime);
+  return freeSlots.some((f) => toMin(f.startTime) <= m && m < toMin(f.endTime));
 }
 
 // --- Helfer -----------------------------------------------------------------
@@ -144,10 +191,10 @@ function weekdayOf(iso: string) {
   return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
 }
 
-// Block-Look: Entfall -> rot; eigene Farbe (manuell/Routine) -> ev-tint via --ev;
-// sonst Quellen-Default (Schule blau, Routine ohne Farbe gelb, manuell gruen).
-function blockLook(ev: Ev, cancelled: boolean): { className: string; style?: CSSProperties } {
-  if (cancelled) return { className: CANCELLED_BLOCK };
+// Block-Look: eigene Farbe (manuell/Routine) -> ev-tint via --ev; sonst
+// Quellen-Default (Schule blau, Routine ohne Farbe gelb, manuell gruen).
+// Entfall rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
+function blockLook(ev: Ev): { className: string; style?: CSSProperties } {
   if (ev.color && ev.source !== "school") return { className: "border-l-[6px] ev-tint", style: evVar(ev.color) };
   return { className: SRC[ev.source] };
 }
@@ -328,6 +375,7 @@ function eventMeta(ev: Ev) {
 type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
   | { kind: "free"; s: number; e: number; free: Free }
+  | { kind: "cancel"; s: number; e: number; ev: Ev }
   | { kind: "todo"; s: number; e: number; inst: TodoInstance };
 
 function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onToggleTodo }: { day: Day | undefined; goals: Goal[]; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
@@ -344,12 +392,16 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
   // Ganztags-Eintraege liegen nicht auf der Zeitachse -> eigene Balken oben.
   const allDayEvents = day.events.filter((e) => e.allDay);
 
-  const evs = mergeSchool(day.events)
-    .filter((e) => e.startTime && !e.allDay)
+  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime && !e.allDay);
+  // Entfall (V3): nicht als Block, sondern als leiser Chip -- an der ECHTEN
+  // Startzeit der Stunde (eigene schlanke Agenda-Zeile), nicht am Frei-Anfang.
+  const cancelledEvs = onTimeline.filter((e) => e.status === "cancelled");
+  const evs = onTimeline
+    .filter((e) => e.status !== "cancelled")
     .map((ev) => ({ ev, s: toMin(ev.startTime), e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45 }))
     .sort((a, b) => a.s - b.s);
 
-  const upcoming = evs.filter((x) => x.e > nowMin && x.ev.status !== "cancelled");
+  const upcoming = evs.filter((x) => x.e > nowMin);
   const next = upcoming[0];
   const ongoing = isToday && next ? next.s <= nowMin : false;
   const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
@@ -369,6 +421,12 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
     ...day.freeSlots
       .filter((f) => f.minutes >= 30)
       .map((f): AgendaItem => ({ kind: "free", s: toMin(f.startTime), e: toMin(f.endTime), free: f })),
+    ...cancelledEvs.map((ev): AgendaItem => ({
+      kind: "cancel",
+      s: toMin(ev.startTime),
+      e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45,
+      ev,
+    })),
     ...scheduledTodos.map((inst): AgendaItem => {
       const s = toMin(inst.scheduledTime!);
       return { kind: "todo", s, e: s + (inst.estMinutes ?? 0), inst };
@@ -420,7 +478,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
       {allDayEvents.length > 0 && (
         <div className="mb-3 flex flex-col gap-1.5">
           {allDayEvents.map((ev) => {
-            const look = blockLook(ev, false);
+            const look = blockLook(ev);
             return (
               <button
                 key={`${ev.source}-${ev.refId}`}
@@ -463,10 +521,24 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                   <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.free.startTime)}</span>
                   <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 px-3 py-1.5 text-[12px] text-muted-foreground">
                     <span>Frei</span>
-                    <span className="font-mono tabular-nums">{durLabel(it.free.minutes)}</span>
-                    <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground/70">
-                      {hm(it.free.startTime)}–{hm(it.free.endTime)}
-                    </span>
+                    <span className="ml-auto font-mono tabular-nums text-muted-foreground/70">{durLabel(it.free.minutes)}</span>
+                  </div>
+                </motion.li>
+              );
+            }
+
+            if (it.kind === "cancel") {
+              return (
+                <motion.li
+                  key={`cancel-${it.ev.source}-${it.ev.refId}-${it.s}`}
+                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
+                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
+                  transition={{ duration: 0.42, delay, ease: EASE }}
+                  className="grid grid-cols-[52px_1fr] items-center gap-3"
+                >
+                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
+                  <div className="flex items-center">
+                    <CancelChip title={it.ev.title} />
                   </div>
                 </motion.li>
               );
@@ -487,10 +559,9 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
               );
             }
 
-            const cancelled = it.ev.status === "cancelled";
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
-            const look = blockLook(it.ev, cancelled);
+            const look = blockLook(it.ev);
             const canEdit = editable(it.ev);
             return (
               <motion.li
@@ -500,7 +571,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                 transition={{ duration: 0.42, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
-                <span className="pt-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
+                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
                 <div
                   onClick={canEdit ? () => onEdit(it.ev) : undefined}
                   className={cn(
@@ -511,24 +582,20 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                   )}
                   style={look.style}
                 >
-                  {cancelled && <CancelStrike />}
                   <div className="flex items-baseline gap-2">
-                    <span className={cn("flex-1 truncate text-[14px] font-semibold leading-tight", cancelled && "text-muted-foreground line-through decoration-red-500/40")}>
+                    <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
                       {it.ev.title}
                     </span>
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
-                      {hm(it.ev.startTime)}{it.ev.endTime ? `–${hm(it.ev.endTime)}` : ""}
-                    </span>
+                    {it.ev.endTime && (
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                        {durLabel(it.e - it.s)}
+                      </span>
+                    )}
                   </div>
-                  {(meta || cancelled || it.ev.status === "substituted" || (canEdit && it.ev.location)) && (
+                  {(meta || it.ev.status === "substituted" || (canEdit && it.ev.location)) && (
                     <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
                       {canEdit && it.ev.location && <span className="truncate">{it.ev.location}</span>}
-                      {cancelled && (
-                        <span className="inline-flex items-center gap-1 font-medium text-red-600/80 dark:text-red-400/80">
-                          <span className="size-1.5 rounded-full bg-red-500/60" /> Entfall
-                        </span>
-                      )}
                       {it.ev.status === "substituted" && (
                         <motion.span
                           initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
@@ -623,11 +690,49 @@ export default function Home() {
   const toggleTodo = useCallback(
     (inst: TodoInstance, currentlyDone: boolean) => {
       setDayTodos((v) => (v ? toggleTodoView(v, inst, currentlyDone) : v));
-      fetch(`/api/todos/${inst.todoId}/complete`, {
-        method: currentlyDone ? "DELETE" : "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ date: anchor }),
-      }).catch(() => setReloadKey((k) => k + 1));
+      persistWrite(
+        () =>
+          fetch(`/api/todos/${inst.todoId}/complete`, {
+            method: currentlyDone ? "DELETE" : "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ date: anchor }),
+          }),
+        {
+          message: currentlyDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
+          onFail: () => setReloadKey((k) => k + 1),
+          retry: () => toggleTodo(inst, currentlyDone),
+        },
+      );
+    },
+    [anchor],
+  );
+
+  // Abhaken direkt aus dem Wochen-Raster: jede Spur traegt ihren eigenen Tag
+  // (inst.date), abgehakt wird also fuer genau diesen Tag -- nicht fuer "anchor".
+  const toggleWeekTodo = useCallback(
+    (inst: TodoInstance) => {
+      const date = inst.date;
+      const wasDone = inst.done;
+      setWeekTodos((prev) => {
+        const day = prev[date];
+        if (!day) return prev;
+        return { ...prev, [date]: day.map((t) => (t.todoId === inst.todoId ? { ...t, done: !wasDone } : t)) };
+      });
+      // Wenn derselbe Tag gerade auch als Heute-Detail offen ist: dort spiegeln.
+      if (date === anchor) setDayTodos((v) => (v ? toggleTodoView(v, inst, wasDone) : v));
+      persistWrite(
+        () =>
+          fetch(`/api/todos/${inst.todoId}/complete`, {
+            method: wasDone ? "DELETE" : "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ date }),
+          }),
+        {
+          message: wasDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
+          onFail: () => setReloadKey((k) => k + 1),
+          retry: () => toggleWeekTodo(inst),
+        },
+      );
     },
     [anchor],
   );
@@ -655,13 +760,35 @@ export default function Home() {
 
   const acceptOne = (s: PlanSuggestion) => {
     setAcceptedIds((prev) => new Set(prev).add(s.todoId));
-    patchTime(s.todoId, s.startTime).catch(() => {});
+    persistWrite(() => patchTime(s.todoId, s.startTime), {
+      message: "Konnte den Vorschlag nicht einplanen.",
+      onFail: () =>
+        setAcceptedIds((prev) => {
+          const n = new Set(prev);
+          n.delete(s.todoId);
+          return n;
+        }),
+      retry: () => acceptOne(s),
+    });
   };
 
   const acceptAll = () => {
     const pending = suggestions.filter((s) => !acceptedIds.has(s.todoId));
+    if (pending.length === 0) return;
     setAcceptedIds(new Set(suggestions.map((s) => s.todoId)));
-    Promise.all(pending.map((s) => patchTime(s.todoId, s.startTime))).catch(() => {});
+    persistBatch(
+      pending.map((s) => () => patchTime(s.todoId, s.startTime)),
+      {
+        message: "Einige Vorschläge konnten nicht eingeplant werden.",
+        onFail: () =>
+          setAcceptedIds((prev) => {
+            const n = new Set(prev);
+            pending.forEach((s) => n.delete(s.todoId));
+            return n;
+          }),
+        retry: () => acceptAll(),
+      },
+    );
   };
 
   // Beim Schliessen die Ansicht aktualisieren, damit angenommene Zeiten erscheinen.
@@ -794,8 +921,14 @@ export default function Home() {
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
   // Ganztags-Eintraege liegen nicht im Zeitraster -> vor dem Packen rauswerfen.
+  // Entfall (V3) ebenfalls nicht als Block -> raus aus dem Packen, getrennt
+  // gehalten fuer die Chips in den freien Luecken.
   const packedDays = useMemo(
-    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay))) : []),
+    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay && e.status !== "cancelled"))) : []),
+    [data],
+  );
+  const cancelledByDay = useMemo(
+    () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => !e.allDay && e.status === "cancelled")) : []),
     [data],
   );
   // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
@@ -1025,7 +1158,7 @@ export default function Home() {
                 return (
                   <div
                     key={day.date}
-                    className="border-r px-3 py-2 last:border-r-0"
+                    className="border-r px-3 pb-2 pt-1.5 last:border-r-0"
                   >
                     <div className={cn("text-[11px] font-medium uppercase tracking-wide", weekend ? "text-muted-foreground/70" : "text-muted-foreground")}>
                       {DAY_NAMES[day.weekday]}
@@ -1048,7 +1181,7 @@ export default function Home() {
                       return (
                         <div className="mt-1 flex flex-col gap-1">
                           {ad.slice(0, 2).map((ev) => {
-                            const look = blockLook(ev, false);
+                            const look = blockLook(ev);
                             return (
                               <button
                                 key={ev.refId}
@@ -1068,8 +1201,10 @@ export default function Home() {
                       );
                     })()}
 
-                    {/* Aufgaben des Tags -- dezente Punkte, kein Text/Block */}
-                    <DayTodoDots todos={weekTodos[day.date] ?? []} />
+                    {/* Aufgaben des Tags -- dezente Punkte fuer alles, was NICHT als
+                        eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder Uhrzeit
+                        an dem Tag belegt). */}
+                    <DayTodoDots todos={(weekTodos[day.date] ?? []).filter((t) => !todoFitsTimeline(t, day.freeSlots))} />
                   </div>
                 );
               })}
@@ -1124,6 +1259,44 @@ export default function Home() {
                       );
                     })}
 
+                    {/* Entfall -- leiser Chip an der ECHTEN Startzeit der Stunde. */}
+                    {(cancelledByDay[di] ?? []).map((e, i) => (
+                      <div
+                        key={`c${i}`}
+                        className="absolute inset-x-1 z-[1] flex"
+                        style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), DAY_START * 60)) + 1 }}
+                      >
+                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[9px] font-medium text-muted-foreground/80">
+                          <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
+                          <span className="truncate">{e.title} entfällt</span>
+                        </span>
+                      </div>
+                    ))}
+
+                    {/* Terminierte Aufgaben -- dezente Spur auf der Zeitachse,
+                        aber nur wo die Uhrzeit an dem Tag frei ist. */}
+                    {(weekTodos[day.date] ?? [])
+                      .filter((t) => todoFitsTimeline(t, day.freeSlots))
+                      .map((t, ti) => {
+                        const accent = t.color ?? "color-mix(in oklab, var(--foreground) 35%, transparent)";
+                        return (
+                          // Aufgaben kommen per eigenem Fetch (asynchron, nach den
+                          // Terminen) -- darum die GLEICHE Einblendung wie die Events:
+                          // sie gleiten beim Mounten ruhig rein statt zu poppen.
+                          // Erledigen -> kurzer Punkt-Pop (siehe WeekTodoChip).
+                          <WeekTodoChip
+                            key={`wt${t.todoId}`}
+                            title={t.title}
+                            done={t.done}
+                            accent={accent}
+                            top={fitScale.yOf(toMin(t.scheduledTime!))}
+                            delay={Math.min(di * 0.05 + ti * 0.03, 0.32)}
+                            reduce={!!reduce}
+                            onClick={() => toggleWeekTodo(t)}
+                          />
+                        );
+                      })}
+
                     {/* Events */}
                     {packedDays[di].map((p, i) => {
                       const top = fitScale.yOf(p.s);
@@ -1132,14 +1305,13 @@ export default function Home() {
                       const height = Math.max(fitScale.yOf(p.e) - fitScale.yOf(p.s) - 2, 18);
                       const left = `calc(${(p.lane / p.lanes) * 100}% + 2px)`;
                       const width = `calc(${100 / p.lanes}% - 4px)`;
-                      const cancelled = p.ev.status === "cancelled";
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
                       const meta =
                         p.ev.source === "school"
                           ? (p.ev.room ?? "")
                           : `${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)}` : ""}`;
-                      const look = blockLook(p.ev, cancelled);
+                      const look = blockLook(p.ev);
                       const canEdit = editable(p.ev);
                       return (
                         <motion.div
@@ -1163,18 +1335,11 @@ export default function Home() {
                             ease: EASE,
                           }}
                         >
-                          {cancelled && <CancelStrike />}
-                          <span className={cn("truncate text-[12px] font-medium leading-tight", cancelled && "text-muted-foreground line-through decoration-red-500/40")}>
+                          <span className="truncate text-[12px] font-medium leading-tight">
                             {p.ev.title}
                           </span>
-                          {height > 30 && meta && !cancelled && (
+                          {height > 30 && meta && (
                             <span className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{meta}</span>
-                          )}
-                          {cancelled && (
-                            <span className="mt-0.5 inline-flex w-fit items-center gap-1 text-[10px] font-medium text-red-600/80 dark:text-red-400/80">
-                              <span className="size-1.5 rounded-full bg-red-500/60" />
-                              Entfall
-                            </span>
                           )}
                           {p.ev.status === "substituted" && (
                             <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">

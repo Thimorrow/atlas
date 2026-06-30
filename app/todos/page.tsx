@@ -26,9 +26,12 @@ import {
   byTime,
 } from "@/lib/todos-view";
 import { rruleToLabel } from "@/lib/todo-recurrence";
+import { persistWrite } from "@/lib/persist";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+// Weiche In-Out-Kurve nur fuers Zuklappen: kein Yank am Anfang, sanft am Ende.
+const EXIT_EASE = [0.4, 0, 0.2, 1] as const;
 
 // Amber-Ring fuer den aktiven (obersten) Task -- der einzige Farbakzent, der den
 // "das ist als Naechstes dran"-Fokus traegt. Sonst bleibt die Liste monochrom.
@@ -45,8 +48,9 @@ const MOTION = {
   beatMs: 350,
   row: {
     enterSpring: { type: "spring" as const, stiffness: 440, damping: 34 },
-    reflow: { type: "spring" as const, stiffness: 380, damping: 34 },
-    exitDur: 0.18,
+    // Bounce 0 = kein Nachschnappen; ueber die Dauer gleiten die Zeilen weich nach.
+    reflow: { type: "spring" as const, duration: 0.5, bounce: 0 },
+    exitDur: 0.34,
   },
   bar: { duration: 0.5 },
 };
@@ -128,7 +132,11 @@ export default function TodosPage() {
           }
         : v,
     );
-    fetch(`/api/todos/${id}`, { method: "DELETE" }).catch(reload);
+    persistWrite(() => fetch(`/api/todos/${id}`, { method: "DELETE" }), {
+      message: "Konnte die Aufgabe nicht löschen.",
+      onFail: reload,
+      retry: () => remove(inst),
+    });
   }, []);
 
   // Abhaken/Enthaken -- optimistic, mit "Beat" vor dem Wandern in Erledigt.
@@ -162,11 +170,15 @@ export default function TodosPage() {
           },
           reduce ? 0 : BEAT_MS,
         );
-        fetch(`/api/todos/${id}/complete`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ date: anchor }),
-        }).catch(reload);
+        persistWrite(
+          () =>
+            fetch(`/api/todos/${id}/complete`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ date: anchor }),
+            }),
+          { message: "Konnte nicht abhaken.", onFail: reload, retry: () => toggle(inst, currentlyDone) },
+        );
       } else {
         setView((v) => {
           if (!v) return v;
@@ -177,11 +189,15 @@ export default function TodosPage() {
           const todayArr = where === "today" ? [...v.today, back].sort(byTime) : v.today;
           return { ...v, overdue, today: todayArr, completed };
         });
-        fetch(`/api/todos/${id}/complete`, {
-          method: "DELETE",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ date: anchor }),
-        }).catch(reload);
+        persistWrite(
+          () =>
+            fetch(`/api/todos/${id}/complete`, {
+              method: "DELETE",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ date: anchor }),
+            }),
+          { message: "Konnte nicht als offen markieren.", onFail: reload, retry: () => toggle(inst, currentlyDone) },
+        );
       }
     },
     [view, anchor, isToday, reduce],
@@ -359,11 +375,11 @@ function TodoRow({ inst, checked, active, viewDate, onToggle, onEdit, onDelete, 
     <div
       onClick={() => onToggle(inst, checked)}
       className={cn(
-        "group flex cursor-pointer items-center gap-3.5 rounded-lg px-2.5 py-3 transition-[background-color,transform] hover:bg-accent/40 active:scale-[0.995]",
+        "group flex cursor-pointer items-start gap-3.5 rounded-lg px-2.5 py-3 transition-[background-color,transform] hover:bg-accent/40 active:scale-[0.995]",
         faded && "opacity-55",
       )}
     >
-      <TodoCheckbox checked={checked} tint={ring} size={24} ariaLabel={`${inst.title} ${checked ? "enthaken" : "abhaken"}`} onClick={() => onToggle(inst, checked)} />
+      <TodoCheckbox checked={checked} tint={ring} size={24} className="mt-0.5" ariaLabel={`${inst.title} ${checked ? "enthaken" : "abhaken"}`} onClick={() => onToggle(inst, checked)} />
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2.5">
@@ -380,8 +396,9 @@ function TodoRow({ inst, checked, active, viewDate, onToggle, onEdit, onDelete, 
 }
 
 // Zeilen-Auftritt wie im Kalender: gestaffelt mit blur(5px) + y, runter auf 0.
-// Der Exit bleibt knapp (eigene transition im exit-Objekt, ohne Stagger-Delay),
-// damit das Abhaken snappy bleibt. Layout-Reflow traegt die Lueckenschliessung.
+// EXIT = EINE Bewegung: die Zeile klappt ihre Hoehe synchron zum Wegfaden zu
+// (overflow-hidden klippt den Inhalt), sodass die Luecke WAEHREND des Fadens
+// kontinuierlich zugeht. Die Zeilen darunter tragen die Bewegung per layout-Feder mit.
 function Row({ children, instId, index = 0 }: { children: React.ReactNode; instId: string; index?: number }) {
   const reduce = useReducedMotion();
   const enterDelay = 0.1 + Math.min(index * 0.07, 0.8);
@@ -389,12 +406,24 @@ function Row({ children, instId, index = 0 }: { children: React.ReactNode; instI
     <motion.li
       layout={!reduce}
       key={instId}
+      style={{ overflow: "hidden" }}
       initial={reduce ? false : { opacity: 0, y: 8, filter: "blur(5px)" }}
       animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       exit={
         reduce
           ? { opacity: 0 }
-          : { opacity: 0, scale: 0.97, filter: "blur(2px)", transition: { duration: MOTION.row.exitDur, ease: EASE } }
+          : {
+              opacity: 0,
+              height: 0,
+              marginTop: 0,
+              filter: "blur(2px)",
+              transition: {
+                height: { duration: MOTION.row.exitDur, ease: EXIT_EASE },
+                marginTop: { duration: MOTION.row.exitDur, ease: EXIT_EASE },
+                opacity: { duration: MOTION.row.exitDur, ease: EXIT_EASE },
+                filter: { duration: MOTION.row.exitDur, ease: EXIT_EASE },
+              },
+            }
       }
       transition={{
         opacity: { duration: 0.42, delay: enterDelay, ease: EASE },
@@ -443,6 +472,7 @@ type ViewProps = {
 };
 
 function FocusView({ view, cleared, completing, onToggle, onEdit, onDelete, onCreate, isToday }: ViewProps) {
+  const reduce = useReducedMotion();
   const [showDone, setShowDone] = useState(false);
   const open = [...view.today, ...view.overdue]; // heute offen zuerst, dann ueberfaellig
   const done = view.completed.length;
@@ -477,26 +507,49 @@ function FocusView({ view, cleared, completing, onToggle, onEdit, onDelete, onCr
 
       {/* Offene Tasks -- eine flache Liste in einer Karte, die die To-Dos klar
           vom restlichen Raum abgrenzt. Der oberste ist aktiv (Amber-Ring). */}
-      {open.length > 0 ? (
-        <motion.ul layout className="space-y-0.5 rounded-2xl border bg-card p-1.5 shadow-sm">
-          <AnimatePresence>
-            {open.flatMap((inst, i) => {
-              const node = (
-                <Row key={inst.todoId} instId={inst.todoId} index={i}>
-                  <TodoRow inst={inst} checked={completing.has(inst.todoId)} active={i === 0} viewDate={view.date} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
-                </Row>
-              );
-              // Trenner genau vor der ersten ueberfaelligen Zeile (nur wenn oben
-              // auch offene Tasks stehen).
-              return view.today.length > 0 && view.overdue.length > 0 && i === view.today.length
-                ? [<OpenDivider key="open-divider" />, node]
-                : node;
-            })}
-          </AnimatePresence>
-        </motion.ul>
-      ) : (
-        <ClearedState isToday={isToday} hadAny={done > 0} cleared={cleared} onCreate={onCreate} />
-      )}
+      {/* EINE durchgehende Karte: beim "alles erledigt" kommt KEINE neue Karte
+          rein -- die bestehende waechst per layout-Feder in den Erledigt-Zustand.
+          Die Reihen poppen (popLayout) aus dem Fluss raus, der Erledigt-Block
+          rueckt sofort nach, und die Karten-Hoehe gleitet einmalig mit. */}
+      <motion.div
+        layout
+        transition={{ layout: MOTION.row.reflow }}
+        className="overflow-hidden rounded-2xl border bg-card p-1.5 shadow-sm"
+      >
+        <AnimatePresence mode="popLayout" initial={false}>
+          {open.length > 0 ? (
+            <motion.ul
+              key="open"
+              exit={reduce ? { opacity: 0 } : { opacity: 0, filter: "blur(4px)", transition: { duration: 0.22, ease: EXIT_EASE } }}
+              className="space-y-0.5"
+            >
+              <AnimatePresence>
+                {open.flatMap((inst, i) => {
+                  const node = (
+                    <Row key={inst.todoId} instId={inst.todoId} index={i}>
+                      <TodoRow inst={inst} checked={completing.has(inst.todoId)} active={i === 0} viewDate={view.date} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
+                    </Row>
+                  );
+                  // Trenner genau vor der ersten ueberfaelligen Zeile (nur wenn oben
+                  // auch offene Tasks stehen).
+                  return view.today.length > 0 && view.overdue.length > 0 && i === view.today.length
+                    ? [<OpenDivider key="open-divider" />, node]
+                    : node;
+                })}
+              </AnimatePresence>
+            </motion.ul>
+          ) : (
+            <motion.div
+              key="cleared"
+              initial={reduce ? false : { opacity: 0, filter: "blur(4px)" }}
+              animate={{ opacity: 1, filter: "blur(0px)" }}
+              transition={{ duration: 0.32, delay: reduce ? 0 : 0.06, ease: EASE }}
+            >
+              <ClearedState isToday={isToday} hadAny={done > 0} cleared={cleared} onCreate={onCreate} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
       {/* Erledigt */}
       {view.completed.length > 0 && (
@@ -543,7 +596,7 @@ function ClearableStatus({ text, cleared }: { text: string; cleared: boolean }) 
 
 function ClearedState({ isToday, hadAny, cleared, onCreate }: { isToday: boolean; hadAny: boolean; cleared: boolean; onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center">
+    <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
       <motion.div initial={cleared ? { scale: 0, rotate: -12 } : false} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", duration: 0.55, bounce: 0.4 }}>
         <CircleCheck className="size-8 text-foreground" strokeWidth={1.75} />
       </motion.div>
