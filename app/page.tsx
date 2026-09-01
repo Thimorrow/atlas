@@ -14,6 +14,7 @@ import { Stagger, StaggerItem } from "@/components/stagger";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
 import { useToast } from "@/components/toast";
+import { UntisSyncNotice } from "@/components/untis-sync-notice";
 import { decideSync } from "@/lib/untis/sync-policy";
 import type { AssignmentDTO, AssignmentType } from "@/lib/assignments-view";
 import { colorValue } from "@/lib/subject-colors";
@@ -59,6 +60,11 @@ const FALLBACK_DAY_END = 15;
 
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
+// Sperre nach einem fehlgeschlagenen Untis-Abgleich (automatische Versuche).
+const SYNC_RETRY_COOLDOWN_MS = 5 * 60_000;
+// Erst ab diesem Alter des letzten erfolgreichen Abgleichs ist ein Fehlschlag
+// ueberhaupt eine Meldung wert -- darunter ist der Stand noch brauchbar frisch.
+const SYNC_STALE_AFTER_MS = 2 * 60 * 60_000;
 
 // --- Block-Stile ------------------------------------------------------------
 // Fächer-Blöcke: Zurückhaltung (Design-Audit) -- vorher trugen sie gleichzeitig
@@ -613,6 +619,13 @@ export default function Home() {
 
   // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
+  // Zustand des Untis-Abgleichs. Schlaegt er fehl, laeuft die Seite auf dem alten
+  // Stand weiter -- ohne diese Felder waere das fuer den Nutzer unsichtbar.
+  const [syncFailed, setSyncFailed] = useState(false);
+  const [lastSyncOk, setLastSyncOk] = useState<number | null>(null);
+  const [syncRetrying, setSyncRetrying] = useState(false);
+  // Zugriff auf den Sync aus dem Knopf heraus, ohne den Effekt neu aufzubauen.
+  const syncRef = useRef<(reason: "load" | "tick" | "manual") => void>(() => {});
 
   // Aufgaben-Spur: offene Aufgaben und die Fächer (fuer Farbe + Vorbelegung).
   // Beides ist rein additiv -- schlaegt der Request fehl, bleiben die Listen
@@ -651,33 +664,68 @@ export default function Home() {
   // damit der Kalender die frischen DB-Daten still nachzieht (kein Spinner, data bleibt).
   useEffect(() => {
     const KEY = "atlas:untisLastSync";
+    // Der Fehlschlag muss den Reload ueberleben: die Sperre soll gerade das
+    // wiederholte Anklopfen bei jedem neuen Laden verhindern.
+    const FAIL_KEY = "atlas:untisLastFail";
     let alive = true;
     let busy = false;
 
-    const readLast = (): number | null => {
-      const v = Number(readLocal(KEY));
+    const readStamp = (key: string): number | null => {
+      const v = Number(readLocal(key));
       return Number.isFinite(v) && v > 0 ? v : null;
     };
+    const readLast = () => readStamp(KEY);
 
-    const runSync = async (reason: "load" | "tick") => {
+    setLastSyncOk(readLast());
+    // Ein Fehlschlag aus der letzten Sitzung ist noch der aktuelle Stand, solange
+    // die Sperre laeuft -- sonst behauptete die Seite nach jedem Reload kurz,
+    // alles sei in Ordnung.
+    const priorFail = readStamp(FAIL_KEY);
+    if (priorFail != null && Date.now() - priorFail < SYNC_RETRY_COOLDOWN_MS) setSyncFailed(true);
+
+    const runSync = async (reason: "load" | "tick" | "manual") => {
       if (busy) return;
-      const { shouldSync, pollMin } = decideSync(new Date(), readLast());
-      if (!shouldSync) return;
-      if (reason === "tick" && pollMin == null) return; // Ticks nur in Poll-Fenstern
+      if (reason !== "manual") {
+        const { shouldSync, pollMin } = decideSync(new Date(), readLast());
+        if (!shouldSync) return;
+        if (reason === "tick" && pollMin == null) return; // Ticks nur in Poll-Fenstern
+        // Antwortet Untis nicht, half es bisher nichts, es im Sekundentakt der
+        // Reloads erneut zu versuchen -- jeder Versuch erzeugte nur einen weiteren
+        // 500er. Automatisch also fruehestens nach der Sperre wieder; der Knopf
+        // im Hinweis geht als bewusste Nutzeraktion sofort durch.
+        const failedAt = readStamp(FAIL_KEY);
+        if (failedAt != null && Date.now() - failedAt < SYNC_RETRY_COOLDOWN_MS) return;
+      }
       busy = true;
+      if (reason === "manual") setSyncRetrying(true);
       try {
         const res = await fetch("/api/sync/untis", { method: "POST" });
-        if (res.ok && alive) {
-          writeLocal(KEY, String(Date.now()));
+        if (!alive) return;
+        if (res.ok) {
+          const at = Date.now();
+          writeLocal(KEY, String(at));
+          writeLocal(FAIL_KEY, "0");
+          setLastSyncOk(at);
+          setSyncFailed(false);
           setReloadKey((k) => k + 1);
+        } else {
+          writeLocal(FAIL_KEY, String(Date.now()));
+          setSyncFailed(true);
         }
       } catch {
-        // Netzfehler ignorieren — der naechste Tick/Reload versucht es erneut.
+        // Netzfehler zaehlt wie eine Fehlantwort: der Stand ist genauso alt, und
+        // der Nutzer soll das erfahren statt weiter auf alte Daten zu schauen.
+        if (alive) {
+          writeLocal(FAIL_KEY, String(Date.now()));
+          setSyncFailed(true);
+        }
       } finally {
         busy = false;
+        if (alive) setSyncRetrying(false);
       }
     };
 
+    syncRef.current = runSync;
     runSync("load");
     const id = setInterval(() => runSync("tick"), 60_000);
     return () => {
@@ -1000,6 +1048,17 @@ export default function Home() {
           </Button>
         </div>
       </div>
+
+      {/* Nur wenn der Stand wirklich zu altern beginnt. Ein einzelner Fehlschlag
+          auf frischen Daten ist keine Nachricht, sondern Rauschen. Der Minuten-
+          Tick (now) rechnet das Alter im Hintergrund weiter. */}
+      {syncFailed && (lastSyncOk == null || Date.now() - lastSyncOk > SYNC_STALE_AFTER_MS) ? (
+        <UntisSyncNotice
+          lastSyncOk={lastSyncOk}
+          retrying={syncRetrying}
+          onRetry={() => syncRef.current("manual")}
+        />
+      ) : null}
       </StaggerItem>
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
