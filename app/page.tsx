@@ -1024,6 +1024,11 @@ export default function Home() {
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
                       const meta = p.ev.room ?? "";
+                      // Der Vertretung-Badge braucht eine eigene Zeile unter Fach und
+                      // Raum. Passt die nicht mehr, tritt ein Punkt am Fachnamen an
+                      // seine Stelle (siehe unten).
+                      const vertretung = p.ev.status === "substituted";
+                      const badgePasst = height >= 58;
                       // A4 (Semantik): reine divs ohne Bedeutung -- ein Screenreader
                       // liest sonst nur den sichtbaren Titel vor, ohne Zeit/Raum/Status
                       // (die stecken nur in Position/Hoehe). role="group" (nicht
@@ -1064,15 +1069,26 @@ export default function Home() {
                             ease: EASE,
                           }}
                         >
-                          <span aria-hidden="true" className="truncate text-[12px] font-medium leading-tight">
-                            {p.ev.title}
+                          {/* Showcase-Befund: der Badge war das einzige Element ohne
+                              Hoehen-Guard und schob sich auf niedrigen Bloecken ueber den
+                              Fachnamen -- ausgerechnet bei der Stunde, die man lesen muss.
+                              Unterhalb der Badge-Hoehe markiert ein Punkt die Vertretung.
+                              Fach, Zeit, Raum und Vertretung stehen ohnehin vollstaendig
+                              in aria-label und title, es geht keine Information verloren. */}
+                          <span aria-hidden="true" className="flex items-center gap-1.5">
+                            {vertretung && !badgePasst && (
+                              <span className="size-1.5 shrink-0 rounded-full bg-amber-700 dark:bg-amber-400" />
+                            )}
+                            <span className="truncate text-[12px] font-medium leading-tight">
+                              {p.ev.title}
+                            </span>
                           </span>
                           {height > 30 && meta && (
                             // A2 (Kontrast): volle muted-foreground liegt auf der
                             // Block-Fuellung nur bei ~4:1 -- foreground/70 traegt sicher.
                             <span aria-hidden="true" className="truncate font-mono text-[10px] tabular-nums text-foreground/70">{meta}</span>
                           )}
-                          {p.ev.status === "substituted" && (
+                          {vertretung && badgePasst && (
                             <span
                               aria-hidden="true"
                               className="mt-0.5 inline-flex w-fit rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
