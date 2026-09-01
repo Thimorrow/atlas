@@ -32,7 +32,10 @@ export default async function RootLayout({
       <body className="select-none font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <MotionProvider>
-            <div className="flex h-screen overflow-hidden">
+            {/* A1 (iOS): dvh statt vh -- 100vh reicht unter Safaris einblendbarer
+                Adressleiste ueber den sichtbaren Bereich hinaus und schneidet
+                Inhalte ab. dvh folgt der tatsaechlich sichtbaren Hoehe. */}
+            <div className="flex h-dvh overflow-hidden">
               <AppSidebar defaultCollapsed={collapsed} defaultWidth={sidebarWidth} />
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <MobileHeader />

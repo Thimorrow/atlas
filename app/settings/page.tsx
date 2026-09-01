@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
@@ -77,6 +77,9 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sync, setSync] = useState<SyncState | null>(null);
+  // A3 (Reduced-Motion): globale <MotionConfig reducedMotion="user"> kappt nur
+  // transform -- die opacity+y-Animation der Sync-Meldung braucht ein eigenes Gate.
+  const reduce = useReducedMotion();
 
   useEffect(() => setMounted(true), []);
 
@@ -105,7 +108,7 @@ export default function SettingsPage() {
         <StaggerItem>
           <Link
             href="/"
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
             Zurück zum Kalender
@@ -132,7 +135,9 @@ export default function SettingsPage() {
                   thimofej@yesterday-ai.de
                 </div>
               </div>
-              <span className="ml-auto self-start rounded-md bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {/* A2 (Kontrast): muted-foreground auf solidem bg-muted liegt bei
+                  ~4.3:1 -- knapp unter AA fuer 10px-Text. foreground/70 traegt sicher. */}
+              <span className="ml-auto self-start rounded-md bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
                 bald bearbeitbar
               </span>
             </div>
@@ -154,7 +159,7 @@ export default function SettingsPage() {
                     className={cn(
                       // `isolate` = eigener Stacking-Context, sonst verschwindet der
                       // `-z-10`-Indikator hinter der opaken bg-card.
-                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm transition-[color,transform] active:scale-[0.97]",
+                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm transition-[color,transform] [touch-action:manipulation] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       selected
                         ? "border-transparent font-medium text-foreground"
                         : "border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -206,7 +211,7 @@ export default function SettingsPage() {
 
             {sync && (
               <motion.div
-                initial={{ opacity: 0, y: -4 }}
+                initial={reduce ? false : { opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, ease: EASE }}
                 className={cn(
@@ -247,7 +252,7 @@ export default function SettingsPage() {
             <Button disabled variant="outline" size="sm">
               <LogOut className="size-4" />
               Abmelden
-              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
                 bald
               </span>
             </Button>
@@ -256,7 +261,8 @@ export default function SettingsPage() {
 
         {/* Fuss */}
         <StaggerItem>
-          <p className="pt-1 text-center text-xs text-muted-foreground/70">
+          {/* A2 (Kontrast): /70 faellt auf dem Hintergrund unter 4.5:1. */}
+          <p className="pt-1 text-center text-xs text-muted-foreground">
             Atlas · Dein Alltag an einem Ort.
           </p>
         </StaggerItem>

@@ -7,7 +7,11 @@ const buttonVariants = cva(
   //      `scale-[0.96]` die eigenstaendige `scale`-Property (nicht `transform`),
   //      sonst snappt der Press instant.
   // F12: explizite Atlas-Kurve + Dauer statt der Material-Default-Kurve.
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,scale,opacity] duration-150 ease-[var(--ease-atlas)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  // A1 (Touch): `before` blaeht die Treffflaeche unsichtbar auf 44x44 auf, ohne die
+  // sichtbare Groesse zu aendern -- -4px auf jeder Seite reicht bei jeder Size hier
+  // (kleinste sichtbare Hoehe ist 36px). `touch-action: manipulation` unterdrueckt
+  // Doppeltipp-Zoom auf dem Button selbst.
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,scale,opacity] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] active:scale-[0.96] before:absolute before:-inset-1 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -17,9 +21,10 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
       },
       size: {
-        // F13: komfortable Tap-Targets -- default/icon auf 40px (>= 40x40-Minimum).
+        // A1 (Touch): reale Trefferflaeche liegt dank des `before`-Pseudo-Elements
+        // oben immer bei >= 44x44, auch wenn die sichtbare Groesse kleiner bleibt.
         default: "h-10 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-[13px]",
+        sm: "h-9 rounded-md px-3 text-[13px]",
         icon: "h-10 w-10",
       },
     },

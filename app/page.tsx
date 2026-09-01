@@ -52,7 +52,9 @@ const BLOCK_CLS =
 // Leiser Entfall-Chip fuer die Heute-Liste.
 function CancelChip({ title }: { title: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground/90">
+    // A2 (Kontrast): /90 auf bg-muted/40 lag im Hellmodus bei ~3.8:1 -- unter
+    // der AA-Mindestgrenze fuer 10px-Text. Volle muted-foreground erreicht 4.6:1.
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground">
       <span className="size-1 rounded-full bg-red-500/45" />
       {title} entfällt
     </span>
@@ -288,7 +290,10 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
   let kicker: ReactNode;
   if (next && ongoing) {
     kicker = (
-      <span className="inline-flex items-center gap-1.5 text-red-500">
+      // A2 (Kontrast): reines red-500 liegt auf hellem Grund bei ~3.8:1 -- unter
+      // AA fuer 15px-Text. red-600/red-400 (wie beim Vertretung-Tag) tragen in
+      // beiden Themes.
+      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
         {/* I3: solider Punkt statt endlosem animate-pulse (AI-Slop-Tell + nervt
             dauerhaft). Die rote Farbe + "Jetzt"-Text tragen die Aussage. */}
         <span className="size-1.5 rounded-full bg-red-500" /> Jetzt · {next.ev.title}
@@ -322,7 +327,7 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
         className="mb-5 flex items-center justify-between gap-3 text-[15px] font-medium"
       >
         <div>{kicker}</div>
-        {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-500">noch {durLabel(next.e - nowMin)}</span>}
+        {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-600 dark:text-red-400">noch {durLabel(next.e - nowMin)}</span>}
       </motion.div>
 
       {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
@@ -345,7 +350,9 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                   transition={{ duration: 0.42, delay, ease: EASE }}
                   className="grid grid-cols-[52px_1fr] items-center gap-3"
                 >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
+                  {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1 -- volle
+                      muted-foreground traegt in beiden Themes. */}
+                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
                   <div className="flex items-center">
                     <CancelChip title={it.ev.title} />
                   </div>
@@ -358,12 +365,15 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                initial={stagger ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
+                // A3 (Reduced-Motion): nutzte bislang nur `stagger`, nicht das lokal
+                // gegatete `animate` -- unter Reduced-Motion lief opacity+blur trotzdem.
+                initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
                 animate={{ opacity: past ? 0.45 : 1, y: 0, filter: "blur(0px)" }}
                 transition={{ duration: 0.42, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
-                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
+                {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
+                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
                 <div
                   className={cn(
                     "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
@@ -376,20 +386,26 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                       {it.ev.title}
                     </span>
                     {it.ev.endTime && (
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                      // A2 (Kontrast): volle muted-foreground liegt auf der
+                      // Fach-Block-Fuellung (blau) nur bei ~4:1 -- knapp unter AA.
+                      // foreground/70 traegt in beiden Themes deutlich (6:1+).
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/70">
                         {durLabel(it.e - it.s)}
                       </span>
                     )}
                   </div>
                   {(meta || it.ev.status === "substituted") && (
-                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-foreground/70">
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
                       {it.ev.status === "substituted" && (
                         <motion.span
                           initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
                           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                           transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
-                          className="inline-flex rounded bg-amber-500/15 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                          // A2 (Kontrast): amber-600 auf amber/15+Block-Blau lag im
+                          // Hellmodus bei ~2.5:1 -- praktisch unlesbar. amber-800 +
+                          // etwas kraeftigerer Fuellung traegt (~5:1); Dark blieb schon gut.
+                          className="inline-flex rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
                         >
                           Vertretung
                         </motion.span>
@@ -405,7 +421,9 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
         // O8: seltener, ruhiger Moment -> ein kleiner Reveal + Icon ist hier
         // willkommen statt nacktem Text.
         <motion.div
-          initial={stagger ? { opacity: 0, y: 6 } : false}
+          // A3 (Reduced-Motion): nutzte nur `stagger`, nicht `animate` -- lief
+          // unter Reduced-Motion trotzdem mit opacity+y an.
+          initial={animate ? { opacity: 0, y: 6 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: EASE }}
           className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
@@ -750,7 +768,9 @@ export default function Home() {
         // nacheinander"-Effekt liegt auf den KLEINEN Elementen drin: Heute-Agenda
         // cascadet Item fuer Item, Woche cascadet die einzelnen Termine.
         key={mode === "today" ? `today-${anchor}` : "week"}
-        initial={firstView.current ? false : { opacity: 0 }}
+        // A3 (Reduced-Motion): kein manuelles Gate hier -- die globale
+        // <MotionConfig reducedMotion="user"> kappt nur transform, opacity blieb an.
+        initial={firstView.current || reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: EASE }}
         className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"}
@@ -774,7 +794,8 @@ export default function Home() {
           // die Einzel-Items stagger nur noch beim First-Paint.
           <motion.div
             key={data.start}
-            initial={{ opacity: 0 }}
+            // A3 (Reduced-Motion): opacity-Fade war ungegatet.
+            initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: viewMeasured ? 1 : 0 }}
             transition={{ duration: 0.18, ease: EASE }}
             className="flex h-full min-h-0 flex-col"
@@ -791,7 +812,9 @@ export default function Home() {
                     key={day.date}
                     className="border-r px-3 pb-2 pt-1.5 last:border-r-0"
                   >
-                    <div className={cn("text-[11px] font-medium uppercase tracking-wide", weekend ? "text-muted-foreground/70" : "text-muted-foreground")}>
+                    {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1 -- volle
+                        muted-foreground traegt in beiden Themes. */}
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       {DAY_NAMES[day.weekday]}
                     </div>
                     <div className="mt-0.5 flex items-center">
@@ -802,6 +825,9 @@ export default function Home() {
                         )}
                       >
                         {dayNum(day.date)}
+                        {/* A2: "heute" wurde bislang allein ueber die Fuellfarbe
+                            transportiert -- fuer Screenreader per sr-only ergaenzt. */}
+                        {today && <span className="sr-only"> · Heute</span>}
                       </span>
                     </div>
                   </div>
@@ -813,8 +839,10 @@ export default function Home() {
             <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-hidden">
             {/* Raster */}
             <div className="grid" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
-              {/* Zeitachse */}
-              <div className="relative border-r" style={{ height: fitScale.total }}>
+              {/* Zeitachse -- rein visuelle Skala, jeder Termin traegt seine Zeit
+                  schon in seinem eigenen aria-label. Fuer AT ausgeblendet, damit
+                  niemand durch 15+ freistehende Stundenzahlen tabben/browsen muss. */}
+              <div className="relative border-r" aria-hidden="true" style={{ height: fitScale.total }}>
                 {HOURS.map((h) => (
                   <span
                     key={h}
@@ -832,8 +860,14 @@ export default function Home() {
                 const weekend = day.weekday >= 5;
                 const showNow = today && now && now.min >= dayBounds.start * 60 && now.min <= dayBounds.end * 60;
                 return (
+                  // A4 (Semantik): eine Tagesspalte im Wochenraster ist reiner Positions-
+                  // Container ohne Rolle. role="group" + aria-label geben ihr einen
+                  // Namen ("Montag, 3. Februar[, Heute]"), ohne sie in eine Grid/Table-
+                  // Rolle zu zwingen, die volle Keyboard-Grid-Navigation erwarten wuerde.
                   <div
                     key={day.date}
+                    role="group"
+                    aria-label={`${WEEKDAYS_LONG[day.weekday]}, ${dayNum(day.date)}. ${MONTHS[monthOf(day.date)]}${today ? ", Heute" : ""}`}
                     className={cn(
                       "relative border-r last:border-r-0",
                       today && "bg-primary/[0.035]",
@@ -852,7 +886,9 @@ export default function Home() {
                         className="absolute inset-x-1 z-[1] flex"
                         style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), dayBounds.start * 60)) + 1 }}
                       >
-                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[11px] font-medium text-muted-foreground/80">
+                        {/* A2 (Kontrast): bg-muted/60 + text/80 lag bei ~3.1:1 (hell) --
+                            unter AA. /50-Fuellung + volle muted-foreground traegt (4.5:1+). */}
+                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/50 px-1 text-[11px] font-medium text-muted-foreground">
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
                           <span className="truncate">{e.title} entfällt</span>
                         </span>
@@ -870,9 +906,17 @@ export default function Home() {
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
                       const meta = p.ev.room ?? "";
+                      // A4 (Semantik): reine divs ohne Bedeutung -- ein Screenreader
+                      // liest sonst nur den sichtbaren Titel vor, ohne Zeit/Raum/Status
+                      // (die stecken nur in Position/Hoehe). role="group" (nicht
+                      // "button", der Block ist nicht klickbar) + ein Label, das genau
+                      // das zusammenfasst, was das Auge aus Position + Text liest.
+                      const blockLabel = `${p.ev.title}, ${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)} Uhr` : " Uhr"}${p.ev.room ? `, ${p.ev.room}` : ""}${p.ev.status === "substituted" ? ", Vertretung" : ""}`;
                       return (
                         <motion.div
                           key={`${p.ev.source}-${p.ev.refId}-${i}`}
+                          role="group"
+                          aria-label={blockLabel}
                           className={cn(
                             "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
                             BLOCK_CLS,
@@ -890,14 +934,19 @@ export default function Home() {
                             ease: EASE,
                           }}
                         >
-                          <span className="truncate text-[12px] font-medium leading-tight">
+                          <span aria-hidden="true" className="truncate text-[12px] font-medium leading-tight">
                             {p.ev.title}
                           </span>
                           {height > 30 && meta && (
-                            <span className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{meta}</span>
+                            // A2 (Kontrast): volle muted-foreground liegt auf der
+                            // Block-Fuellung nur bei ~4:1 -- foreground/70 traegt sicher.
+                            <span aria-hidden="true" className="truncate font-mono text-[10px] tabular-nums text-foreground/70">{meta}</span>
                           )}
                           {p.ev.status === "substituted" && (
-                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            <span
+                              aria-hidden="true"
+                              className="mt-0.5 inline-flex w-fit rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
+                            >
                               Vertretung
                             </span>
                           )}
@@ -910,6 +959,7 @@ export default function Home() {
                         instant zu springen). */}
                     {showNow && (
                       <div
+                        aria-hidden="true"
                         className="absolute inset-x-0 z-10 transition-[top] duration-700 ease-out"
                         style={{ top: fitScale.yOf(now!.min) }}
                       >

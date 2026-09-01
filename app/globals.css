@@ -114,6 +114,14 @@
     -webkit-user-select: text;
   }
 
+  /* Touch: unterdrueckt den Doppeltipp-Zoom auf allen interaktiven Elementen
+     (iOS-Safari-Eigenheit). Custom-Gesten-Flaechen (Sidebar-Resize-Griff)
+     setzen ihr eigenes touch-action: none. */
+  button,
+  a {
+    touch-action: manipulation;
+  }
+
   /* Barrierefreiheit: respektiert die OS-Einstellung "Bewegung reduzieren".
      Neutralisiert CSS-Transitions/Animations global; Framer-Motion wird zusaetzlich
      ueber <MotionConfig reducedMotion="user"> gegated. */

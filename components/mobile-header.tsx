@@ -17,7 +17,7 @@ export function MobileHeader() {
       <Link
         href="/settings"
         aria-label="Einstellungen"
-        className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.96]"
+        className="flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors [touch-action:manipulation] hover:bg-accent hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <Settings className="size-[18px]" />
       </Link>
