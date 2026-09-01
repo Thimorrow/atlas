@@ -27,14 +27,14 @@ wissen muss, und benennt vor allem die Luecken.
 | GET/PATCH/DELETE | /api/subjects/{id} | Fach mit Notizen, Aufgaben, naechsten Stunden |
 | GET/POST | /api/subjects/{id}/notes | Notizen |
 | GET/PATCH/DELETE | /api/notes/{id} | eine Notiz |
-| GET/POST | /api/subjects/{id}/files | Dateiliste, Datei eintragen |
+| GET/POST | /api/subjects/{id}/files | Dateiliste; POST nimmt JSON oder multipart |
 | POST | /api/subjects/{id}/files/upload | Upload-Token fuer den Blob-Store |
 | GET/DELETE | /api/files/{id} | Datei herunterladen, loeschen |
 | GET/POST | /api/assignments | Aufgaben (`?completed=1`, `?subjectId=`) |
 | GET/PATCH/DELETE | /api/assignments/{id} | eine Aufgabe |
 | POST/DELETE | /api/assignments/{id}/complete | abhaken, Haken entfernen |
 | GET | /api/calendar?date=&view=week\|day | Stundenplan |
-| GET/POST | /api/sync/untis | Stand lesen, Abgleich anstossen (`{start,end}` optional) |
+| GET/POST | /api/sync/untis | GET liest den Stand, POST stoesst den Abgleich an (`{start,end}` optional) |
 
 Fehlerantworten haben immer die Form `{"error": "<deutscher Satz>"}`.
 Eine kaputte UUID im Pfad ergibt 404, nie 400.
@@ -65,10 +65,59 @@ Eine kaputte UUID im Pfad ergibt 404, nie 400.
 - Sortierungen kommen aus Postgres, nicht mit deutscher Locale. Umlaute koennen
   anders einsortiert sein als ein Kotlin-Collator.
 - Erlaubte Dateitypen: application/pdf, image/png, image/jpeg, image/webp,
-  image/heic. Hoechstens 10 MB.
+  image/heic. Hoechstens 10 MB, ueber den multipart-Weg aber nur 4 MB.
 - Der Download laeuft durch die Passwortsperre, ein DownloadManager ohne die
   Cookies der App bekommt 401 mit JSON statt der Datei.
 - `enabled: false` in der Dateiliste heisst nur, dass kein Blob-Token gesetzt ist.
+
+## Antwortformate der Client-Routen
+Diese fuenf Punkte sind ergaenzt worden, weil ein nativer Client sonst raten
+oder doppelt pflegen muesste.
+
+### `GET /api/session`
+`{"authenticated": true, "expiresAt": "<ISO>|null", "gateEnabled": true|false}`.
+Ein nicht angemeldeter Aufruf kommt gar nicht bis zur Route, den beantwortet
+`proxy.ts` mit 401. `expiresAt` steckt im Cookie und ist null, wenn kein
+Passwort gesetzt ist. Damit laesst sich die Anmeldung erneuern, bevor mitten in
+einer Aktion eine 401 hereinkommt.
+
+### `GET /api/home?date=JJJJ-MM-TT`
+`{"week": {...}, "assignments": [...], "subjects": [...], "sync": {...}}`.
+`week` ist Wort fuer Wort die Antwort von `/api/calendar?view=week`,
+`assignments` die von `/api/assignments` ohne erledigte, `subjects` die von
+`/api/subjects` mit den aktiven, `sync` die von `/api/sync/untis`. Ein Aufruf
+statt vier, die vier Abfragen laufen serverseitig parallel. Ohne `date` gilt
+das LOKALE Datum des Servers, nicht das UTC-Datum. Ungueltiges Datum: 400.
+
+### `GET /api/colors`
+`{"colors": [{"token","label","css","hexLight","hexDark","alpha"?}]}`.
+`css` ist der Ausdruck, den die Web-App benutzt; `hexLight`/`hexDark` sind
+`#rrggbb` fuer native Clients, aus OKLCH nach sRGB gerechnet
+(`lib/color-convert.ts`). Themeabhaengig ist nur `white` (hell `#cacaca`,
+dunkel `#ffffff`). Am Ende der Liste steht zusaetzlich der Pseudo-Token
+`neutral` fuer "Allgemein" und unbekannte Token; er traegt als einziger ein
+`alpha` (0.34), weil ein Hex-Wert keine Deckkraft ausdruecken kann.
+
+### `GET /api/sync/untis`
+`{"lastSyncedAt": "<ISO>|null", "blockCount": <Zahl>, "lastError": null}`.
+`lastSyncedAt` ist das groesste `updated_at` in `school_blocks`. `lastError`
+ist immer null, es gibt keine Fehlertabelle; das Feld steht nur schon im
+Vertrag. Lesen loest keinen Abgleich aus, dafuer bleibt der POST zustaendig.
+
+### `POST /api/subjects/{id}/files`, zwei Wege
+- `content-type: application/json` mit `{pathname, name}`: der Browser-Weg,
+  unveraendert. Die Datei liegt da schon im Store.
+- `content-type: multipart/form-data` mit dem Feld `file`: der Server nimmt die
+  Bytes selbst entgegen. Fuer Kotlin, das Vercels Blob-Token-Protokoll nicht
+  spricht.
+
+Beide antworten mit `{"file": FileDTO}` und 201.
+
+ACHTUNG bei multipart: Vercel laesst nur 4,5 MB pro Anfrage an eine Funktion
+durch. Die Grenze liegt deshalb bei 4 MB, nicht bei den 10 MB der Spec.
+Darueber kommt 413 mit einem deutschen Satz, der auf den Browser-Weg verweist.
+Ein Android-Client sollte also entweder klein bleiben oder das Blob-Protokoll
+nachbauen.
 
 ## Was noch fehlt, und was davon Absicht ist
 Diese Liste kommt aus einer Durchsicht des ganzen `app/`-Baums. Erledigte Punkte

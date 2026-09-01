@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { blobEnabled, isUuid, listFiles, registerFile, subjectExists } from "@/lib/subject-file-store";
+import {
+  blobEnabled,
+  isUuid,
+  listFiles,
+  registerFile,
+  storeUploadedFile,
+  subjectExists,
+} from "@/lib/subject-file-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +28,22 @@ export async function GET(_req: Request, { params }: Ctx) {
   return NextResponse.json({ enabled, files: enabled ? files : [] });
 }
 
-// POST /api/subjects/[id]/files -- JSON { pathname, name }.
+// POST /api/subjects/[id]/files -- zwei Wege, je nach content-type.
 //
-// Kein Datei-Upload mehr: die Datei liegt zu diesem Zeitpunkt schon im Store
-// (siehe ./upload). Hier entsteht nur die Zeile dazu, und registerFile prueft
-// Typ und Groesse noch einmal gegen den Store statt gegen die Angabe des
-// Browsers.
+// application/json { pathname, name }: der Browser-Weg. Die Datei liegt zu
+// diesem Zeitpunkt schon im Store (siehe ./upload), hier entsteht nur die
+// Zeile dazu. registerFile prueft Typ und Groesse noch einmal gegen den Store
+// statt gegen die Angabe des Browsers.
+//
+// multipart/form-data mit dem Feld "file": der Weg fuer native Clients. Die
+// Bytes kommen durch diese Funktion, weil ein Kotlin-Client das Token-
+// Protokoll des Blob-SDK nicht sprechen kann.
+//
+// WICHTIG: Vercel laesst nur 4,5 MB pro Anfrage an eine Funktion durch. Der
+// Multipart-Weg traegt deshalb nur Dateien bis 4 MB, nicht die 10 MB der Spec.
+// Wer daraufstoesst, bekommt hier eine 413 mit einem deutschen Satz, der den
+// Ausweg nennt -- ohne diese Pruefung waere es Vercels nackte englische
+// Fehlerseite, an der ein Client nichts ablesen kann.
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return NOT_FOUND();
@@ -38,6 +55,23 @@ export async function POST(req: Request, { params }: Ctx) {
     );
   }
   if (!(await subjectExists(id))) return NOT_FOUND();
+
+  if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
+    const form = await req.formData().catch(() => null);
+    const file = form?.get("file");
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "Es fehlt das Feld 'file' im Formular." },
+        { status: 400 },
+      );
+    }
+
+    const result = await storeUploadedFile(id, file);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    return NextResponse.json({ file: result }, { status: 201 });
+  }
 
   const body = (await req.json().catch(() => null)) as {
     pathname?: unknown;

@@ -11,8 +11,12 @@
 // beschraenktes Token aus (siehe api/subjects/[id]/files/upload) und traegt
 // die fertige Datei danach mit registerFile ein. Was der Browser dabei
 // behauptet, wird nicht geglaubt: die Groesse und der Typ kommen aus head().
+//
+// Native Clients koennen dieses Protokoll nicht sprechen und schicken die
+// Bytes selbst -- dafuer gibt es storeUploadedFile ganz unten, mit der
+// entsprechend kleineren Groessengrenze.
 
-import { del, get, head } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subjectFiles, subjects, type SubjectFile } from "@/lib/db/schema";
@@ -159,4 +163,62 @@ export async function deleteFile(id: string): Promise<boolean> {
 
   await db.delete(subjectFiles).where(eq(subjectFiles.id, id));
   return true;
+}
+
+// --- Multipart-Weg fuer native Clients ---------------------------------------
+
+// Vercel laesst pro Anfrage an eine Funktion nur 4,5 MB durch. Der Browser
+// umgeht das, indem er mit einem Token direkt in den Blob-Store laedt (siehe
+// api/subjects/[id]/files/upload) -- ein Kotlin-Client kann dieses Protokoll
+// nicht sprechen und schickt die Bytes stattdessen an uns. Damit traegt der
+// Multipart-Weg nur kleinere Dateien: die Grenze liegt hier bei 4 MB, mit
+// Abstand zu den 4,5 MB, weil Feldnamen, Grenzmarken und Header der
+// multipart-Nachricht mitzaehlen.
+//
+// Groesser als das geht ueber den Browser-Weg. Diese Grenze ist NICHT
+// MAX_SIZE: die 10 MB der Spec gelten weiterhin, nur eben nicht auf diesem Weg.
+export const MULTIPART_MAX_SIZE = 4 * 1024 * 1024;
+
+export const MULTIPART_MAX_SIZE_LABEL = "4 MB";
+
+// Nimmt die Bytes selbst entgegen und legt sie in den Store. Danach laeuft
+// alles wie beim Browser-Weg durch registerFile -- Groesse und Typ kommen also
+// auch hier aus head() und nicht aus der Behauptung des Clients.
+export async function storeUploadedFile(
+  subjectId: string,
+  file: File,
+): Promise<FileDTO | { error: string; status: number }> {
+  if (file.size === 0) {
+    return { error: "Die Datei ist leer.", status: 400 };
+  }
+  if (file.size > MULTIPART_MAX_SIZE) {
+    return {
+      error: `Ueber diesen Weg gehen hoechstens ${MULTIPART_MAX_SIZE_LABEL}, weil Vercel groessere Anfragen an eine Funktion gar nicht erst durchlaesst. Groessere Dateien bis ${MAX_SIZE_LABEL} laufen ueber den Upload direkt in den Dateispeicher.`,
+      status: 413,
+    };
+  }
+  if (!isAllowedContentType(file.type)) {
+    return { error: "Dieser Dateityp wird nicht angenommen.", status: 400 };
+  }
+
+  const name = (file.name || "Datei").trim().slice(0, 200);
+
+  // addRandomSuffix, damit zwei gleichnamige Dateien einander nicht
+  // ueberschreiben. access private wie beim Browser-Weg: heruntergeladen wird
+  // ausschliesslich ueber /api/files/[id], hinter der Passwortsperre.
+  const uploaded = await put(name, file, {
+    access: "private",
+    addRandomSuffix: true,
+    contentType: file.type,
+  }).catch((err) => {
+    console.error("[subject-files] Multipart-Upload fehlgeschlagen:", err);
+    return null;
+  });
+  if (!uploaded) {
+    return { error: "Die Datei konnte nicht gespeichert werden.", status: 502 };
+  }
+
+  const created = await registerFile(subjectId, uploaded.pathname, name);
+  if ("error" in created) return { ...created, status: 400 };
+  return created;
 }

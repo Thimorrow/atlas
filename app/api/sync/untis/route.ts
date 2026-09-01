@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import { syncUntis, defaultSyncWindow } from "@/lib/untis/sync";
+import { syncUntis, defaultSyncWindow, syncState } from "@/lib/untis/sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// GET /api/sync/untis -- nur lesen, stoesst nichts an.
+// Beantwortet die Frage "muss ich ueberhaupt abgleichen?", ohne dafuer einen
+// Abgleich auszuloesen. Der teure POST darunter bleibt unveraendert.
+export async function GET() {
+  return NextResponse.json(await syncState());
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
