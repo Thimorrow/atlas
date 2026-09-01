@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
 import { decideSync } from "@/lib/untis/sync-policy";
 import { cn } from "@/lib/utils";
+import { readLocal, writeLocal } from "@/lib/safe-storage";
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
@@ -27,8 +28,8 @@ type RangeData = { start: string; end: string; days: Day[] };
 // --- Konstanten -------------------------------------------------------------
 
 const HOUR_H = 56;
-// Kurze Termine (z.B. 30-min-Klavier) nie zur flachen Pille quetschen -- jeder
-// Block ist mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
+// Kurze Schulstunden nie zur flachen Pille quetschen -- jeder Block ist
+// mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
 const MIN_EVENT_H = 44;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
@@ -42,14 +43,12 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 // --- Block-Stile ------------------------------------------------------------
 // Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
 // Hintergrund ab.
-const SRC: Record<Ev["source"], string> = {
-  school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-blue-500/20 dark:ring-white/[0.08]",
-};
+const BLOCK_CLS =
+  "border-l-[6px] border-l-blue-500 bg-blue-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-blue-500/20 dark:ring-white/[0.08]";
 
-// Entfall (V3): entfallene Schulstunden werden NICHT als eigener Block gezeigt,
-// sondern als leiser Chip an der ECHTEN Startzeit der Stunde. So bleibt die
-// freigewordene Zeit (und dort geplante Aufgaben) klar lesbar, die Info "faellt
-// aus" geht aber nicht verloren -- statt Doppelung "Frei" + "Entfall"-Block.
+// Entfallene Schulstunden werden nicht als eigener Block gezeigt, sondern als
+// leiser Chip an der ECHTEN Startzeit der Stunde -- statt Doppelung "Frei" +
+// "Entfall"-Block.
 // Leiser Entfall-Chip fuer die Heute-Liste.
 function CancelChip({ title }: { title: string }) {
   return (
@@ -85,12 +84,6 @@ function formatRange(start: string, end: string) {
     : `${dayNum(start)}. ${MONTHS[monthOf(start)]} – ${dayNum(end)}. ${MONTHS[monthOf(end)]} ${end.slice(0, 4)}`;
 }
 
-// Block-Look: Schulstunden tragen die Quellen-Default-Farbe (blau). Entfall
-// rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
-function blockLook(ev: Ev): { className: string; style?: CSSProperties } {
-  return { className: SRC[ev.source] };
-}
-
 type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
 
 // Untis liefert Schulstunden teils als getrennte Perioden (z.B. 2x 45min mit
@@ -99,10 +92,7 @@ type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
 const GAP_MERGE_MIN = 25;
 
 function mergeSchool(events: Ev[]): Ev[] {
-  const school = events
-    .filter((e) => e.source === "school")
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const rest = events.filter((e) => e.source !== "school");
+  const school = [...events].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const merged: Ev[] = [];
   for (const ev of school) {
@@ -119,7 +109,7 @@ function mergeSchool(events: Ev[]): Ev[] {
       merged.push({ ...ev });
     }
   }
-  return [...merged, ...rest];
+  return merged;
 }
 
 function packDay(events: Ev[], dayStart: number, dayEnd: number): Packed[] {
@@ -239,6 +229,19 @@ function eventMeta(ev: Ev) {
   return [ev.room, ev.teacher].filter(Boolean).join(" · ");
 }
 
+// Ruhige Fehlermeldung bei fehlgeschlagenem Fetch -- klar unterscheidbar vom
+// leeren Zustand ("Keine Stunden an diesem Tag").
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-24 text-center text-sm text-muted-foreground">
+      <p>Der Stundenplan konnte nicht geladen werden.</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Erneut versuchen
+      </Button>
+    </div>
+  );
+}
+
 // --- Heute-Ansicht ----------------------------------------------------------
 
 type AgendaItem =
@@ -301,12 +304,12 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
   } else if (next) {
     kicker = (
       <span className="text-foreground">
-        Erster Termin · <span className="font-semibold">{next.ev.title}</span>
+        Erste Stunde · <span className="font-semibold">{next.ev.title}</span>
         <span className="font-mono tabular-nums text-muted-foreground"> · {hm(next.ev.startTime)}</span>
       </span>
     );
   } else {
-    kicker = <span className="text-muted-foreground">{isToday ? "Heute stehen keine Termine mehr an." : "Keine Termine an diesem Tag."}</span>;
+    kicker = <span className="text-muted-foreground">{isToday ? "Heute steht nichts mehr an." : "Keine Stunden an diesem Tag."}</span>;
   }
 
   return (
@@ -352,7 +355,6 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
 
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
-            const look = blockLook(it.ev);
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
@@ -365,10 +367,9 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                 <div
                   className={cn(
                     "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
-                    look.className,
+                    BLOCK_CLS,
                     isNext && "ring-2 ring-primary/30",
                   )}
-                  style={look.style}
                 >
                   <div className="flex items-baseline gap-2">
                     <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
@@ -410,7 +411,7 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
           className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
         >
           <CalendarCheck className="size-6 text-muted-foreground/50" />
-          {isToday ? "Heute keine Termine." : "Keine Termine an diesem Tag."}
+          {isToday ? "Heute keine Stunden." : "Keine Stunden an diesem Tag."}
         </motion.div>
       )}
     </div>
@@ -425,6 +426,7 @@ export default function Home() {
   const [mode, setMode] = useState<"week" | "today">("week");
   const [data, setData] = useState<RangeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [now, setNow] = useState<{ date: string; min: number } | null>(null);
   // Beim allerersten Load warten die Termine auf den Section-Auftritt der Card
   // (groessere Basis-Verzoegerung). Danach (Wochenwechsel) cascaden sie sofort.
@@ -437,6 +439,9 @@ export default function Home() {
   // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const [viewH, setViewH] = useState(0);
+  // Bleibt einmal true, sobald die erste echte Messung da ist -- verhindert den
+  // sichtbaren Sprung beim ersten Paint (Fallback-Hoehe -> gemessene Hoehe).
+  const [viewMeasured, setViewMeasured] = useState(false);
 
   // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
@@ -445,9 +450,9 @@ export default function Home() {
     const p = new URLSearchParams(window.location.search);
     const urlView = p.get("view");
     // URL-Parameter hat Vorrang, sonst gemerkten Modus aus localStorage nehmen.
-    if (urlView === "today" || (!urlView && localStorage.getItem("atlas:calMode") === "today")) {
+    if (urlView === "today" || (!urlView && readLocal("atlas:calMode") === "today")) {
       setMode("today");
-      if (urlView === "today") localStorage.setItem("atlas:calMode", "today");
+      if (urlView === "today") writeLocal("atlas:calMode", "today");
     }
     const d = p.get("date");
     if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setAnchor(d);
@@ -474,7 +479,7 @@ export default function Home() {
     let busy = false;
 
     const readLast = (): number | null => {
-      const v = Number(localStorage.getItem(KEY));
+      const v = Number(readLocal(KEY));
       return Number.isFinite(v) && v > 0 ? v : null;
     };
 
@@ -487,7 +492,7 @@ export default function Home() {
       try {
         const res = await fetch("/api/sync/untis", { method: "POST" });
         if (res.ok && alive) {
-          localStorage.setItem(KEY, String(Date.now()));
+          writeLocal(KEY, String(Date.now()));
           setReloadKey((k) => k + 1);
         }
       } catch {
@@ -508,10 +513,14 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setError(false);
     fetch(`/api/calendar?view=week&date=${anchor}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d: RangeData) => alive && (setData(d), setLoading(false)))
-      .catch(() => alive && setLoading(false));
+      .catch(() => alive && (setError(true), setLoading(false)));
     return () => {
       alive = false;
     };
@@ -556,8 +565,8 @@ export default function Home() {
     [dayBounds],
   );
 
-  // Entfall (V3) rendert nicht als Block -> raus aus dem Packen, getrennt
-  // gehalten fuer die Chips in den freien Luecken.
+  // Entfallene Stunden rendern nicht als Block -> raus aus dem Packen, getrennt
+  // gehalten fuer die Entfall-Chips im Raster.
   const packedDays = useMemo(
     () =>
       data
@@ -567,6 +576,13 @@ export default function Home() {
   );
   const cancelledByDay = useMemo(
     () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => e.status === "cancelled")) : []),
+    [data],
+  );
+  // Werktage immer zeigen, Samstag/Sonntag nur wenn dort tatsaechlich Stunden
+  // liegen. Original-Index (i) bleibt erhalten -> packedDays/cancelledByDay
+  // bleiben ueber i konsistent adressierbar, auch wenn Wochenend-Spalten fehlen.
+  const visibleDayIdx = useMemo(
+    () => (data ? data.days.map((_, i) => i).filter((i) => data.days[i].weekday < 5 || data.days[i].events.length > 0) : []),
     [data],
   );
   // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
@@ -579,19 +595,23 @@ export default function Home() {
   useEffect(() => {
     const el = gridScrollRef.current;
     if (!el) return;
-    const measure = () => setViewH(el.clientHeight);
+    const measure = () => {
+      setViewH(el.clientHeight);
+      setViewMeasured(true);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, [mode, data]);
 
-  // Pixel-Verteilung: der ganze Tag (06-23 Uhr) fuellt EXAKT die sichtbare Hoehe
-  // ohne Scrollen. Oben/unten ein Polster, damit 06- und 23-Uhr-Label voll
-  // sichtbar bleiben. Anker bekommen Gewicht nach Dauer, leere Zeit gestaucht
+  // Pixel-Verteilung: die dynamische Zeitachse (dayBounds) fuellt EXAKT die
+  // sichtbare Hoehe ohne Scrollen. Oben/unten ein Polster, damit die Rand-Labels
+  // voll sichtbar bleiben. Anker bekommen Gewicht nach Dauer, leere Zeit gestaucht
   // (BREAK_SCALE). Danach: jeder Anker-Abschnitt, der kuerzer als MIN_EVENT_H
   // waere, wird auf MIN_EVENT_H gehoben -- der fehlende Platz kommt aus der leeren
-  // Zeit. So ist ein 30-min-Klavier eine lesbare Karte UND endet exakt bei 16:45.
+  // Zeit. So bleibt auch eine kurze Schulstunde eine lesbare Karte UND endet
+  // exakt zur echten Uhrzeit.
   const fitScale = useMemo<TimeScale>(() => {
     const DS = dayBounds.start * 60;
     const DE = dayBounds.end * 60;
@@ -648,7 +668,7 @@ export default function Home() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
-            <SplitText text="Kalender" />
+            <SplitText text="Stundenplan" />
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Deine Schulwoche auf einen Blick."}
@@ -679,7 +699,7 @@ export default function Home() {
               onClick={() => {
                 setMode("today");
                 setAnchor(localISO(new Date()));
-                localStorage.setItem("atlas:calMode", "today");
+                writeLocal("atlas:calMode", "today");
                 // O5: bewusster "Heute"-Sprung -> Logo dreht voll durch als Feedback.
                 window.dispatchEvent(new CustomEvent("atlas:focus-today"));
               }}
@@ -693,7 +713,7 @@ export default function Home() {
               className="h-9"
               onClick={() => {
                 setMode("week");
-                localStorage.setItem("atlas:calMode", "week");
+                writeLocal("atlas:calMode", "week");
                 // F08: kein Logo-Nudge mehr beim Woche-Wechsel.
               }}
             >
@@ -736,11 +756,15 @@ export default function Home() {
         className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"}
       >
         {mode === "today" ? (
-          loading && !data ? (
+          error && !data ? (
+            <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+          ) : loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
             <TodayView day={focusDay} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger />
           )
+        ) : error && !data ? (
+          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
         ) : !data ? (
@@ -751,14 +775,15 @@ export default function Home() {
           <motion.div
             key={data.start}
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            animate={{ opacity: viewMeasured ? 1 : 0 }}
             transition={{ duration: 0.18, ease: EASE }}
             className="flex h-full min-h-0 flex-col"
           >
             {/* Spaltenkoepfe -- fix, scrollen NICHT mit */}
-            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
+            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
               <div className="border-r" />
-              {data.days.map((day) => {
+              {visibleDayIdx.map((di) => {
+                const day = data.days[di];
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
                 return (
@@ -787,7 +812,7 @@ export default function Home() {
             {/* Raster fittet exakt in die Hoehe -- kein Scrollen noetig. */}
             <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-hidden">
             {/* Raster */}
-            <div className="grid" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
               {/* Zeitachse */}
               <div className="relative border-r" style={{ height: fitScale.total }}>
                 {HOURS.map((h) => (
@@ -801,7 +826,8 @@ export default function Home() {
                 ))}
               </div>
 
-              {data.days.map((day, di) => {
+              {visibleDayIdx.map((di) => {
+                const day = data.days[di];
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
                 const showNow = today && now && now.min >= dayBounds.start * 60 && now.min <= dayBounds.end * 60;
@@ -844,15 +870,14 @@ export default function Home() {
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
                       const meta = p.ev.room ?? "";
-                      const look = blockLook(p.ev);
                       return (
                         <motion.div
                           key={`${p.ev.source}-${p.ev.refId}-${i}`}
                           className={cn(
                             "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
-                            look.className,
+                            BLOCK_CLS,
                           )}
-                          style={{ top, height, left, width, zIndex: 2 + p.lane, ...look.style }}
+                          style={{ top, height, left, width, zIndex: 2 + p.lane }}
                           // Termine loaden einzeln rein -- erst wenn die Card-Section
                           // steht (kurzer Basis-Delay beim ersten Load), dann gestaffelt
                           // ueber Tage + Stunden. F02: kein Blur (Lesbarkeit + GPU),

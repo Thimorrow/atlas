@@ -9,7 +9,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  LogOut,
   ChevronsUpDown,
 } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
@@ -22,6 +21,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { writeCookie } from "@/lib/safe-storage";
 
 type Mod = { label: string; icon: typeof CalendarDays; href: string };
 
@@ -55,7 +55,7 @@ export function AppSidebar({
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
-    document.cookie = `atlas-sidebar=${next ? "1" : "0"}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    writeCookie("atlas-sidebar", next ? "1" : "0", 60 * 60 * 24 * 365);
   };
 
   // Drag am rechten Rand -> Breite live anpassen. Pointer-Capture haelt das Ziehen
@@ -77,7 +77,7 @@ export function AppSidebar({
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       const finalW = clampW(startW + (ev.clientX - startX));
-      document.cookie = `atlas-sidebar-w=${finalW}; path=/; max-age=${60 * 60 * 24 * 365}`;
+      writeCookie("atlas-sidebar-w", String(finalW), 60 * 60 * 24 * 365);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -85,7 +85,7 @@ export function AppSidebar({
 
   const resetWidth = () => {
     setWidth(EXPANDED);
-    document.cookie = `atlas-sidebar-w=${EXPANDED}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    writeCookie("atlas-sidebar-w", String(EXPANDED), 60 * 60 * 24 * 365);
   };
 
   // Logo-Spielerei: einmal von oben nach unten durchdrehen, landet wieder gleich.
@@ -265,12 +265,6 @@ export function AppSidebar({
                   <Settings />
                   Einstellungen
                 </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
-                <LogOut />
-                Abmelden
-                <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">bald</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

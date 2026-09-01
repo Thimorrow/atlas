@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
+import { MobileHeader } from "@/components/mobile-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,7 +34,10 @@ export default async function RootLayout({
           <MotionProvider>
             <div className="flex h-screen overflow-hidden">
               <AppSidebar defaultCollapsed={collapsed} defaultWidth={sidebarWidth} />
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <MobileHeader />
+                <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+              </div>
             </div>
           </MotionProvider>
         </ThemeProvider>
