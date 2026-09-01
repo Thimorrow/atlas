@@ -1,39 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
-import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
-import { persistWrite } from "@/lib/persist";
 import { decideSync } from "@/lib/untis/sync-policy";
-import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
 import { cn } from "@/lib/utils";
-
-// Aufgaben pro Tag (Wochen-Raster): key = YYYY-MM-DD. Lokaler Typ, damit der
-// Client nicht das Server-Modul (lib/todo-expand -> DB) ziehen muss.
-type TodoRange = Record<string, TodoInstance[]>;
-
-// Optimistisches Abhaken/Enthaken einer Aufgabe in der Heute-Todo-Ansicht:
-// verschiebt die Instanz zwischen den Sektionen und flippt `done`. Ein Reload
-// korrigiert spaeter exakt.
-function toggleTodoView(v: TodoView, inst: TodoInstance, currentlyDone: boolean): TodoView {
-  const id = inst.todoId;
-  if (!currentlyDone) {
-    return {
-      ...v,
-      overdue: v.overdue.filter((x) => x.todoId !== id),
-      today: v.today.filter((x) => x.todoId !== id),
-      completed: [...v.completed, { ...inst, done: true, overdue: false }],
-    };
-  }
-  return {
-    ...v,
-    completed: v.completed.filter((x) => x.todoId !== id),
-    today: [...v.today, { ...inst, done: false }],
-  };
-}
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
@@ -53,71 +26,18 @@ type RangeData = { start: string; end: string; days: Day[] };
 
 // --- Konstanten -------------------------------------------------------------
 
-const DAY_START = 6;
-const DAY_END = 23;
 const HOUR_H = 56;
 // Kurze Termine (z.B. 30-min-Klavier) nie zur flachen Pille quetschen -- jeder
 // Block ist mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
 const MIN_EVENT_H = 44;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i);
+// Fallback-Zeitachse, wenn die Woche keine school_blocks hat (z.B. Ferien).
+const FALLBACK_DAY_START = 7;
+const FALLBACK_DAY_END = 15;
 
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
-const BURST_EASE = [0.16, 1, 0.3, 1] as const;
-
-// Mini-Aufgabe auf der Wochen-Zeitachse. Erledigt -> fadet auf 0.5; beim echten
-// Abhaken (false -> true) ploppt der Punkt einmal kurz (eigener Trigger, damit
-// schon-erledigt mountende Tage still bleiben).
-function WeekTodoChip({
-  title,
-  done,
-  accent,
-  top,
-  delay,
-  reduce,
-  onClick,
-}: {
-  title: string;
-  done: boolean;
-  accent: string;
-  top: number;
-  delay: number;
-  reduce: boolean;
-  onClick: () => void;
-}) {
-  const prev = useRef(done);
-  const [pop, setPop] = useState(0);
-  useEffect(() => {
-    if (done && !prev.current) setPop((p) => p + 1);
-    prev.current = done;
-  }, [done]);
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      title={done ? `${title} als offen markieren` : `${title} abhaken`}
-      className="absolute inset-x-1 z-[1] flex items-center gap-1 rounded border border-l-2 border-border/60 bg-muted/50 px-1 py-px text-left transition-colors duration-150 hover:bg-muted/80"
-      style={{ top, borderLeftColor: accent }}
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      animate={{ opacity: done ? 0.5 : 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease: EASE }}
-    >
-      <motion.span
-        key={pop}
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: accent }}
-        initial={pop > 0 && !reduce ? { scale: 1 } : false}
-        animate={pop > 0 && !reduce ? { scale: [1, 1.9, 1] } : {}}
-        transition={{ duration: 0.42, ease: BURST_EASE }}
-      />
-      <span className={cn("truncate text-[11px] font-medium leading-tight text-foreground/80", done && "text-muted-foreground line-through")}>
-        {title}
-      </span>
-    </motion.button>
-  );
-}
 
 // --- Block-Stile ------------------------------------------------------------
 // Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
@@ -165,11 +85,6 @@ function formatRange(start: string, end: string) {
     : `${dayNum(start)}. ${MONTHS[monthOf(start)]} – ${dayNum(end)}. ${MONTHS[monthOf(end)]} ${end.slice(0, 4)}`;
 }
 
-// 0 = Montag ... 6 = Sonntag (lokal).
-function weekdayOf(iso: string) {
-  return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
-}
-
 // Block-Look: Schulstunden tragen die Quellen-Default-Farbe (blau). Entfall
 // rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
 function blockLook(ev: Ev): { className: string; style?: CSSProperties } {
@@ -207,12 +122,12 @@ function mergeSchool(events: Ev[]): Ev[] {
   return [...merged, ...rest];
 }
 
-function packDay(events: Ev[]): Packed[] {
+function packDay(events: Ev[], dayStart: number, dayEnd: number): Packed[] {
   const items: Packed[] = events
     .map((ev) => {
-      const s = Math.max(toMin(ev.startTime), DAY_START * 60);
-      const raw = ev.endTime ? toMin(ev.endTime) : DAY_END * 60;
-      const e = Math.min(Math.max(raw, s + 5), DAY_END * 60);
+      const s = Math.max(toMin(ev.startTime), dayStart * 60);
+      const raw = ev.endTime ? toMin(ev.endTime) : dayEnd * 60;
+      const e = Math.min(Math.max(raw, s + 5), dayEnd * 60);
       return { ev, s, e, lane: 0, lanes: 1 };
     })
     .sort((a, b) => a.s - b.s || a.e - b.e);
@@ -263,9 +178,9 @@ type TimeScale = { yOf: (min: number) => number; total: number };
 // Zerlegt den Tag in Segmente mit Anker-Flag. Die Pixel-Verteilung passiert
 // spaeter hoehenabhaengig (fitScale), damit kurze Termine eine Mindesthoehe IN
 // DER ACHSE bekommen -> der Block endet exakt zu seiner echten Uhrzeit.
-function buildSegments(packedDays: Packed[][], days: Day[]): Seg[] {
-  const DS = DAY_START * 60;
-  const DE = DAY_END * 60;
+function buildSegments(packedDays: Packed[][], days: Day[], dayStart: number, dayEnd: number): Seg[] {
+  const DS = dayStart * 60;
+  const DE = dayEnd * 60;
   const clamp = (m: number) => Math.max(DS, Math.min(DE, m));
 
   // Anker-Intervalle: Werktags-Termine (weekday < 5) unter 3 h.
@@ -328,10 +243,9 @@ function eventMeta(ev: Ev) {
 
 type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
-  | { kind: "cancel"; s: number; e: number; ev: Ev }
-  | { kind: "todo"; s: number; e: number; inst: TodoInstance };
+  | { kind: "cancel"; s: number; e: number; ev: Ev };
 
-function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day: Day | undefined; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
+function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; nowMin: number; dayPast: boolean; stagger: boolean }) {
   // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
   // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
   const reduce = useReducedMotion();
@@ -356,15 +270,7 @@ function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day
   const ongoing = isToday && next ? next.s <= nowMin : false;
   const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
 
-  // Aufgaben (subtil): terminierte (mit Uhrzeit) weben sich in die Zeitachse,
-  // der Rest (ohne Uhrzeit) + Ueberfaelliges liegt als ruhige Zeile darunter.
-  const tToday = todos?.today ?? [];
-  const tCompleted = todos?.completed ?? [];
-  const tOverdue = todos?.overdue ?? [];
-  const scheduledTodos = [...tToday, ...tCompleted].filter((t) => t.scheduledTime);
-  const looseTodos = tToday.filter((t) => !t.scheduledTime);
-
-  // Events + terminierte Aufgaben zu EINER chronologischen Agenda.
+  // Events zu einer chronologischen Agenda.
   const agenda: AgendaItem[] = [
     ...evs.map((x): AgendaItem => ({ kind: "ev", s: x.s, e: x.e, ev: x.ev })),
     ...cancelledEvs.map((ev): AgendaItem => ({
@@ -373,10 +279,6 @@ function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day
       e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45,
       ev,
     })),
-    ...scheduledTodos.map((inst): AgendaItem => {
-      const s = toMin(inst.scheduledTime!);
-      return { kind: "todo", s, e: s + (inst.estMinutes ?? 0), inst };
-    }),
   ].sort((a, b) => a.s - b.s || a.e - b.e);
 
   // Status-Kopfzeile
@@ -448,21 +350,6 @@ function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day
               );
             }
 
-            if (it.kind === "todo") {
-              return (
-                <motion.li
-                  key={`todo-${it.inst.todoId}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.42, delay, ease: EASE }}
-                  className="grid grid-cols-[52px_1fr] items-center gap-3"
-                >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.inst.scheduledTime!)}</span>
-                  <AgendaTodoRow inst={it.inst} onToggle={onToggleTodo} />
-                </motion.li>
-              );
-            }
-
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
             const look = blockLook(it.ev);
@@ -526,9 +413,6 @@ function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day
           {isToday ? "Heute keine Termine." : "Keine Termine an diesem Tag."}
         </motion.div>
       )}
-
-      {/* Aufgaben ohne Uhrzeit + Ueberfaelliges -- ruhig unter der Agenda */}
-      <LooseTodos open={looseTodos} overdue={tOverdue} onToggle={onToggleTodo} stagger={stagger} />
     </div>
   );
 }
@@ -556,61 +440,6 @@ export default function Home() {
 
   // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
-
-  // Aufgaben subtil im Kalender: Heute-Ansicht zieht die Tagesliste, Wochen-
-  // Ansicht die konkret terminierten Aufgaben pro Tag (fuer die Punkte).
-  const [dayTodos, setDayTodos] = useState<TodoView | null>(null);
-  const [weekTodos, setWeekTodos] = useState<TodoRange>({});
-
-  const toggleTodo = useCallback(
-    (inst: TodoInstance, currentlyDone: boolean) => {
-      setDayTodos((v) => (v ? toggleTodoView(v, inst, currentlyDone) : v));
-      persistWrite(
-        () =>
-          fetch(`/api/todos/${inst.todoId}/complete`, {
-            method: currentlyDone ? "DELETE" : "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ date: anchor }),
-          }),
-        {
-          message: currentlyDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
-          onFail: () => setReloadKey((k) => k + 1),
-          retry: () => toggleTodo(inst, currentlyDone),
-        },
-      );
-    },
-    [anchor],
-  );
-
-  // Abhaken direkt aus dem Wochen-Raster: jede Spur traegt ihren eigenen Tag
-  // (inst.date), abgehakt wird also fuer genau diesen Tag -- nicht fuer "anchor".
-  const toggleWeekTodo = useCallback(
-    (inst: TodoInstance) => {
-      const date = inst.date;
-      const wasDone = inst.done;
-      setWeekTodos((prev) => {
-        const day = prev[date];
-        if (!day) return prev;
-        return { ...prev, [date]: day.map((t) => (t.todoId === inst.todoId ? { ...t, done: !wasDone } : t)) };
-      });
-      // Wenn derselbe Tag gerade auch als Heute-Detail offen ist: dort spiegeln.
-      if (date === anchor) setDayTodos((v) => (v ? toggleTodoView(v, inst, wasDone) : v));
-      persistWrite(
-        () =>
-          fetch(`/api/todos/${inst.todoId}/complete`, {
-            method: wasDone ? "DELETE" : "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ date }),
-          }),
-        {
-          message: wasDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
-          onFail: () => setReloadKey((k) => k + 1),
-          retry: () => toggleWeekTodo(inst),
-        },
-      );
-    },
-    [anchor],
-  );
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -688,27 +517,6 @@ export default function Home() {
     };
   }, [anchor, reloadKey]);
 
-  // Aufgaben laden -- je nach Ansicht der Tag (Heute) bzw. die Woche (Punkte).
-  useEffect(() => {
-    let alive = true;
-    if (mode === "today") {
-      fetch(`/api/todos/today?date=${anchor}`)
-        .then((r) => r.json())
-        .then((d: { view: TodoView }) => alive && setDayTodos(d.view))
-        .catch(() => {});
-    } else {
-      const start = addDays(anchor, -weekdayOf(anchor));
-      const end = addDays(start, 6);
-      fetch(`/api/todos/range?start=${start}&end=${end}`)
-        .then((r) => r.json())
-        .then((d: { days: TodoRange }) => alive && setWeekTodos(d.days ?? {}))
-        .catch(() => {});
-    }
-    return () => {
-      alive = false;
-    };
-  }, [anchor, mode, reloadKey]);
-
   // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
     if (data) firstPaint.current = false;
@@ -725,18 +533,47 @@ export default function Home() {
   const dayLabel = focusDay
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
+  // Zeitachse begrenzt auf den tatsaechlichen Schulbereich der Woche: fruehester
+  // Beginn / spaetestes Ende ueber alle school_blocks. Keine Bloecke (z.B. Ferien)
+  // -> Fallback-Spanne, damit das Raster nicht kollabiert.
+  const dayBounds = useMemo(() => {
+    if (!data) return { start: FALLBACK_DAY_START, end: FALLBACK_DAY_END };
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    for (const day of data.days) {
+      for (const ev of day.events) {
+        minStart = Math.min(minStart, toMin(ev.startTime));
+        maxEnd = Math.max(maxEnd, ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45);
+      }
+    }
+    if (!Number.isFinite(minStart) || !Number.isFinite(maxEnd)) {
+      return { start: FALLBACK_DAY_START, end: FALLBACK_DAY_END };
+    }
+    return { start: Math.floor(minStart / 60), end: Math.ceil(maxEnd / 60) };
+  }, [data]);
+  const HOURS = useMemo(
+    () => Array.from({ length: dayBounds.end - dayBounds.start + 1 }, (_, i) => dayBounds.start + i),
+    [dayBounds],
+  );
+
   // Entfall (V3) rendert nicht als Block -> raus aus dem Packen, getrennt
   // gehalten fuer die Chips in den freien Luecken.
   const packedDays = useMemo(
-    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => e.status !== "cancelled"))) : []),
-    [data],
+    () =>
+      data
+        ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => e.status !== "cancelled"), dayBounds.start, dayBounds.end))
+        : [],
+    [data, dayBounds],
   );
   const cancelledByDay = useMemo(
     () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => e.status === "cancelled")) : []),
     [data],
   );
   // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
-  const segments = useMemo(() => buildSegments(packedDays, data?.days ?? []), [packedDays, data]);
+  const segments = useMemo(
+    () => buildSegments(packedDays, data?.days ?? [], dayBounds.start, dayBounds.end),
+    [packedDays, data, dayBounds],
+  );
 
   // Scrollbereich messen (mode/data -> Raster gerade gemountet bzw. neu befuellt).
   useEffect(() => {
@@ -756,8 +593,8 @@ export default function Home() {
   // waere, wird auf MIN_EVENT_H gehoben -- der fehlende Platz kommt aus der leeren
   // Zeit. So ist ein 30-min-Klavier eine lesbare Karte UND endet exakt bei 16:45.
   const fitScale = useMemo<TimeScale>(() => {
-    const DS = DAY_START * 60;
-    const DE = DAY_END * 60;
+    const DS = dayBounds.start * 60;
+    const DE = dayBounds.end * 60;
     const ppm = HOUR_H / 60;
     const PAD_TOP = 12;
     const PAD_BOTTOM = 16;
@@ -798,7 +635,7 @@ export default function Home() {
       return y;
     };
     return { yOf, total };
-  }, [segments, viewH]);
+  }, [segments, viewH, dayBounds]);
 
   return (
     <main className="flex h-full min-h-0 flex-col">
@@ -902,7 +739,7 @@ export default function Home() {
           loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} todos={dayTodos} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onToggleTodo={toggleTodo} />
+            <TodayView day={focusDay} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger />
           )
         ) : loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
@@ -942,10 +779,6 @@ export default function Home() {
                         {dayNum(day.date)}
                       </span>
                     </div>
-
-                    {/* Aufgaben des Tags -- dezente Punkte fuer alles, was NICHT als
-                        eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder bereits erledigt). */}
-                    <DayTodoDots todos={(weekTodos[day.date] ?? []).filter((t) => !t.scheduledTime || t.done)} />
                   </div>
                 );
               })}
@@ -971,7 +804,7 @@ export default function Home() {
               {data.days.map((day, di) => {
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
-                const showNow = today && now && now.min >= DAY_START * 60 && now.min <= DAY_END * 60;
+                const showNow = today && now && now.min >= dayBounds.start * 60 && now.min <= dayBounds.end * 60;
                 return (
                   <div
                     key={day.date}
@@ -982,7 +815,7 @@ export default function Home() {
                     )}
                     style={{ height: fitScale.total }}
                   >
-                    {HOURS.filter((h) => h > DAY_START).map((h) => (
+                    {HOURS.filter((h) => h > dayBounds.start).map((h) => (
                       <div key={h} className="absolute inset-x-0 border-t border-border/60" style={{ top: fitScale.yOf(h * 60) }} />
                     ))}
 
@@ -991,7 +824,7 @@ export default function Home() {
                       <div
                         key={`c${i}`}
                         className="absolute inset-x-1 z-[1] flex"
-                        style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), DAY_START * 60)) + 1 }}
+                        style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), dayBounds.start * 60)) + 1 }}
                       >
                         <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[11px] font-medium text-muted-foreground/80">
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
@@ -999,29 +832,6 @@ export default function Home() {
                         </span>
                       </div>
                     ))}
-
-                    {/* Terminierte Aufgaben -- dezente Spur auf der Zeitachse. */}
-                    {(weekTodos[day.date] ?? [])
-                      .filter((t) => t.scheduledTime && !t.done)
-                      .map((t, ti) => {
-                        const accent = t.color ?? "color-mix(in oklab, var(--foreground) 35%, transparent)";
-                        return (
-                          // Aufgaben kommen per eigenem Fetch (asynchron, nach den
-                          // Terminen) -- darum die GLEICHE Einblendung wie die Events:
-                          // sie gleiten beim Mounten ruhig rein statt zu poppen.
-                          // Erledigen -> kurzer Punkt-Pop (siehe WeekTodoChip).
-                          <WeekTodoChip
-                            key={`wt${t.todoId}`}
-                            title={t.title}
-                            done={t.done}
-                            accent={accent}
-                            top={fitScale.yOf(toMin(t.scheduledTime!))}
-                            delay={Math.min(di * 0.05 + ti * 0.03, 0.32)}
-                            reduce={!!reduce}
-                            onClick={() => toggleWeekTodo(t)}
-                          />
-                        );
-                      })}
 
                     {/* Events */}
                     {packedDays[di].map((p, i) => {

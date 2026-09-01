@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
-  ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -27,8 +26,7 @@ import { cn } from "@/lib/utils";
 type Mod = { label: string; icon: typeof CalendarDays; href: string };
 
 const MODULES: Mod[] = [
-  { label: "Kalender", icon: CalendarDays, href: "/" },
-  { label: "To-Dos", icon: ListChecks, href: "/todos" },
+  { label: "Stundenplan", icon: CalendarDays, href: "/" },
 ];
 
 const EXPANDED = 248;
