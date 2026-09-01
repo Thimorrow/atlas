@@ -6,9 +6,24 @@ function env(name: string): string {
   return v;
 }
 
+export type Schoolyear = { name: string; start: string; end: string };
+
+export type TimetableResult = {
+  lessons: unknown[];
+  schoolyear: Schoolyear | null;
+  // Der tatsaechlich abgefragte Zeitraum, nachdem er ins Schuljahr geschoben
+  // wurde. Weicht er vom gewuenschten ab, soll das sichtbar sein.
+  window: { start: string; end: string } | null;
+  hinweis: string | null;
+};
+
+function isoTag(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // Server-only: loggt sich per Untis-Mobile-Secret ein, holt den Stundenplan
 // fuer einen Zeitraum, loggt wieder aus. Das Secret darf nie in den Client.
-export async function fetchTimetable(start: Date, end: Date) {
+export async function fetchTimetable(start: Date, end: Date): Promise<TimetableResult> {
   // Die webuntis-Typen verlangen einen 6. Argument (authenticator); zur Laufzeit
   // faellt die Lib auf ihr internes otplib zurueck (im Spike mit 5 Args verifiziert).
   // @ts-expect-error -- Laufzeit-Default fuer authenticator, siehe Kommentar oben.
@@ -42,10 +57,6 @@ export async function fetchTimetable(start: Date, end: Date) {
   const mitGrund = (satz: string, err: unknown) =>
     new Error(`${satz}: ${untisFehler ?? (err as Error).message}`);
 
-  // Zwei Schritte, zwei Fehlermeldungen. Die Lib wirft fuer beide dasselbe
-  // "Server didn't return any result", und dann steht man da und weiss nicht,
-  // ob die Zugangsdaten falsch sind oder ob Untis nur diesen einen Abruf
-  // verweigert. Der Unterschied entscheidet, wo man sucht.
   try {
     await untis.login();
   } catch (err) {
@@ -53,7 +64,51 @@ export async function fetchTimetable(start: Date, end: Date) {
   }
 
   try {
-    return await untis.getOwnTimetableForRange(start, end);
+    // Untis lehnt jeden Abruf ab, der ueber die Grenze eines Schuljahres geht
+    // ("startDate and endDate are not within a single school year", Code -8507),
+    // und ebenso jedes Datum ausserhalb ("no allowed date", Code -7004). Das
+    // Standardfenster von einer Woche zurueck bis drei Wochen voraus reisst
+    // beides regelmaessig, besonders im September. Deshalb wird der Zeitraum
+    // erst ins laufende Schuljahr geschoben und nur der Rest abgefragt.
+    let jahr: Schoolyear | null = null;
+    try {
+      const j = await untis.getCurrentSchoolyear();
+      jahr = { name: j.name, start: isoTag(j.startDate), end: isoTag(j.endDate) };
+    } catch {
+      // Ohne Schuljahr wird ungeschnitten abgefragt. Schlaegt das fehl, sagt
+      // die Fehlermeldung weiter unten warum.
+    }
+
+    let von = start;
+    let bis = end;
+    let hinweis: string | null = null;
+
+    if (jahr) {
+      const jahrVon = new Date(`${jahr.start}T00:00:00`);
+      const jahrBis = new Date(`${jahr.end}T00:00:00`);
+      if (von < jahrVon) von = jahrVon;
+      if (bis > jahrBis) bis = jahrBis;
+
+      if (bis < von) {
+        return {
+          lessons: [],
+          schoolyear: jahr,
+          window: null,
+          hinweis: `Der Zeitraum liegt ausserhalb des Schuljahres ${jahr.name} (${jahr.start} bis ${jahr.end}).`,
+        };
+      }
+      if (isoTag(von) !== isoTag(start) || isoTag(bis) !== isoTag(end)) {
+        hinweis = `Der Zeitraum wurde auf das Schuljahr ${jahr.name} beschnitten.`;
+      }
+    }
+
+    const lessons = await untis.getOwnTimetableForRange(von, bis);
+    return {
+      lessons: lessons as unknown[],
+      schoolyear: jahr,
+      window: { start: isoTag(von), end: isoTag(bis) },
+      hinweis,
+    };
   } catch (err) {
     throw mitGrund("Stundenplan konnte nicht geladen werden", err);
   } finally {

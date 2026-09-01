@@ -29,12 +29,14 @@ export async function upsertSchoolBlocks(rows: NewSchoolBlock[]): Promise<number
   return rows.length;
 }
 
-// Holt den Stundenplan fuer [start, end] und upsertet ihn idempotent.
+// Holt den Stundenplan fuer [start, end] und upsertet ihn idempotent. Der
+// tatsaechlich abgefragte Zeitraum kann enger sein als der gewuenschte, weil
+// Untis nicht ueber Schuljahresgrenzen hinweg antwortet.
 export async function syncUntis(start: Date, end: Date) {
-  const lessons = await fetchTimetable(start, end);
+  const { lessons, schoolyear, window, hinweis } = await fetchTimetable(start, end);
   const rows = lessons.map((l) => lessonToSchoolBlock(l as unknown as UntisLesson));
   const upserted = await upsertSchoolBlocks(rows);
-  return { fetched: lessons.length, upserted };
+  return { fetched: lessons.length, upserted, schoolyear, window, hinweis };
 }
 
 // Rollendes Default-Fenster: vergangene Woche bis 3 Wochen voraus.
@@ -44,4 +46,37 @@ export function defaultSyncWindow(): { start: Date; end: Date } {
   const end = new Date();
   end.setDate(end.getDate() + 21);
   return { start, end };
+}
+
+// Der Stand des letzten Abgleichs, aus der Datenbank statt aus dem Browser.
+//
+// Bisher merkte sich nur der Browser in localStorage, wann zuletzt abgeglichen
+// wurde. Ein zweites Geraet erfuhr davon nie und stiess den Abgleich unnoetig
+// erneut an. Das groesste updated_at in school_blocks weiss es dagegen fuer
+// alle.
+//
+// lastError ist immer null: es gibt keine Tabelle, in der ein gescheiterter
+// Abgleich festgehalten wuerde. Das Feld steht trotzdem im Vertrag, damit der
+// Client es heute schon lesen kann und spaeter nichts umgebaut werden muss.
+export type SyncState = {
+  lastSyncedAt: string | null;
+  blockCount: number;
+  lastError: null;
+};
+
+export async function syncState(): Promise<SyncState> {
+  const [row] = await db
+    .select({
+      last: sql<string | null>`max(${schoolBlocks.updatedAt})`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(schoolBlocks);
+
+  return {
+    // Postgres liefert den Zeitstempel als String zurueck, nicht als Date --
+    // deshalb der Umweg ueber new Date, damit hinten ein ISO-Wert mit Z steht.
+    lastSyncedAt: row?.last ? new Date(row.last).toISOString() : null,
+    blockCount: row?.count ?? 0,
+    lastError: null,
+  };
 }
