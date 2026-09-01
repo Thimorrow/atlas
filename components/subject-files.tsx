@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Download, FileText, Trash2, Upload } from "lucide-react";
+import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,8 @@ import type { FileDTO } from "@/lib/subject-file-store";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const ACCEPT = "application/pdf,image/png,image/jpeg,image/webp,image/heic";
+
+const MAX_SIZE = 10 * 1024 * 1024;
 
 // Menschenlesbar und deutsch: Dezimalkomma, und erst ab 10 Einheiten ohne
 // Nachkommastelle -- "9,4 MB" ist informativ, "9,43 MB" nur noch Rauschen.
@@ -69,20 +72,45 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
     };
   }, [subjectId, toast]);
 
-  const upload = useCallback(
+  // Der Browser laedt direkt in den Store hoch und meldet die fertige Datei
+  // danach an. Wuerde die Datei durch unsere Route wandern, waere bei 4,5 MB
+  // Schluss -- das ist Vercels Grenze fuer den Rumpf einer Anfrage, und sie
+  // liegt unter den 10 MB, die hier versprochen werden.
+  const send = useCallback(
     async (file: File) => {
       if (uploading) return;
+
+      // Vorab im Browser pruefen. Das Token und der Server halten dieselben
+      // Grenzen noch einmal; hier geht es nur darum, dem Nutzer den Weg durch
+      // einen langen Upload zu ersparen, der ohnehin abgewiesen wuerde.
+      if (!ACCEPT.split(",").includes(file.type)) {
+        toast("Dieser Dateityp wird nicht unterstützt. Erlaubt sind PDF, PNG, JPG, WEBP und HEIC.");
+        return;
+      }
+      if (file.size > MAX_SIZE) {
+        toast("Die Datei ist zu groß. Erlaubt sind höchstens 10 MB pro Datei.");
+        return;
+      }
+
       setUploading(true);
-      const body = new FormData();
-      body.append("file", file);
       try {
-        const res = await fetch(`/api/subjects/${subjectId}/files`, { method: "POST", body });
+        const blob = await upload(file.name, file, {
+          access: "private",
+          handleUploadUrl: `/api/subjects/${subjectId}/files/upload`,
+          contentType: file.type,
+        });
+
+        const res = await fetch(`/api/subjects/${subjectId}/files`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ pathname: blob.pathname, name: file.name }),
+        });
         const data = (await res.json().catch(() => null)) as
           | { file?: FileDTO; error?: string }
           | null;
         if (!res.ok || !data?.file) {
-          // Die Serverantwort nennt den Grund (Typ, Größe, fehlender Speicher)
-          // konkreter, als eine pauschale Meldung es könnte.
+          // Die Serverantwort nennt den Grund konkreter, als eine pauschale
+          // Meldung es könnte.
           toast(data?.error ?? "Die Datei konnte nicht hochgeladen werden.");
           return;
         }
@@ -150,7 +178,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
               dragDepth.current = 0;
               setDragging(false);
               const dropped = e.dataTransfer.files?.[0];
-              if (dropped) void upload(dropped);
+              if (dropped) void send(dropped);
             }}
             className={cn(
               "rounded-xl border border-dashed transition-colors duration-150 ease-[var(--ease-atlas)]",
@@ -171,7 +199,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                 const picked = e.target.files?.[0];
                 // Zuruecksetzen, damit dieselbe Datei erneut waehlbar bleibt.
                 e.target.value = "";
-                if (picked) void upload(picked);
+                if (picked) void send(picked);
               }}
             />
             <label

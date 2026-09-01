@@ -4,8 +4,15 @@
 // vollstaendig benutzbar, der Dateibereich zeigt nur einen Hinweis. Deshalb
 // wird der Token nie beim Import gelesen, sondern erst im Request -- und
 // listFiles laeuft auch ohne ihn, falls schon Metadaten in der DB liegen.
+//
+// Hochgeladen wird vom Browser direkt in den Store, nicht durch unsere Route:
+// Vercel laesst nur 4,5 MB pro Anfrage an eine Funktion durch, die Spec will
+// aber 10 MB. Der Server gibt dafuer ein kurzlebiges, auf Typ und Groesse
+// beschraenktes Token aus (siehe api/subjects/[id]/files/upload) und traegt
+// die fertige Datei danach mit registerFile ein. Was der Browser dabei
+// behauptet, wird nicht geglaubt: die Groesse und der Typ kommen aus head().
 
-import { del, get, put } from "@vercel/blob";
+import { del, get, head } from "@vercel/blob";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subjectFiles, subjects, type SubjectFile } from "@/lib/db/schema";
@@ -82,30 +89,33 @@ export async function listFiles(subjectId: string): Promise<FileDTO[]> {
   return rows.map(toFileDTO);
 }
 
-// Laedt die Datei in den Blob-Store und schreibt die Metadaten. Der Aufrufer
-// hat Token, Content-Type und Groesse vorher geprueft.
-export async function createFile(
+// Traegt eine bereits hochgeladene Datei ein. Der Pfad kommt vom Browser, die
+// Fakten dazu aber vom Store: Groesse und Typ liest head(), damit eine
+// falsche Angabe des Clients ins Leere laeuft.
+export async function registerFile(
   subjectId: string,
-  file: File,
-): Promise<FileDTO> {
-  const blob = await put(file.name, file, {
-    // Privat: die Datei ist ausschliesslich ueber Atlas erreichbar, also hinter
-    // dem Passwort aus proxy.ts. Eine oeffentliche Blob-URL waere sonst fuer
-    // jeden abrufbar, der sie kennt -- an der Anmeldung vorbei.
-    access: "private",
-    addRandomSuffix: true,
-    contentType: file.type,
-  });
+  pathname: string,
+  name: string,
+): Promise<FileDTO | { error: string }> {
+  const meta = await head(pathname).catch(() => null);
+  if (!meta) return { error: "Die hochgeladene Datei wurde nicht gefunden." };
+
+  if (!isAllowedContentType(meta.contentType) || meta.size > MAX_SIZE) {
+    // Sollte das Token schon verhindert haben. Passiert es doch, bleibt keine
+    // verwaiste Datei im Store zurueck.
+    await del(pathname).catch(() => {});
+    return { error: "Diese Datei wird nicht angenommen." };
+  }
 
   const [row] = await db
     .insert(subjectFiles)
     .values({
       subjectId,
-      name: file.name,
-      url: blob.url,
-      pathname: blob.pathname,
-      size: file.size,
-      contentType: file.type,
+      name,
+      url: meta.url,
+      pathname: meta.pathname,
+      size: meta.size,
+      contentType: meta.contentType,
     })
     .returning();
 

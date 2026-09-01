@@ -1,17 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  MAX_SIZE,
-  MAX_SIZE_LABEL,
-  blobEnabled,
-  createFile,
-  isAllowedContentType,
-  isUuid,
-  listFiles,
-  subjectExists,
-} from "@/lib/subject-file-store";
-
-// Was der Nutzer statt der MIME-Typen lesen soll.
-const TYPE_LABEL = "PDF, PNG, JPG, WEBP und HEIC";
+import { blobEnabled, isUuid, listFiles, registerFile, subjectExists } from "@/lib/subject-file-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +21,12 @@ export async function GET(_req: Request, { params }: Ctx) {
   return NextResponse.json({ enabled, files: enabled ? files : [] });
 }
 
-// POST /api/subjects/[id]/files -- multipart, Feld "file".
-// Reihenfolge der Pruefungen: Token, Datei, Typ, Groesse. Jeder Fall endet in
-// einer deutschen Meldung mit 400 bzw. 503, nie in einem 500.
+// POST /api/subjects/[id]/files -- JSON { pathname, name }.
+//
+// Kein Datei-Upload mehr: die Datei liegt zu diesem Zeitpunkt schon im Store
+// (siehe ./upload). Hier entsteht nur die Zeile dazu, und registerFile prueft
+// Typ und Groesse noch einmal gegen den Store statt gegen die Angabe des
+// Browsers.
 export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return NOT_FOUND();
@@ -46,31 +37,19 @@ export async function POST(req: Request, { params }: Ctx) {
       { status: 503 },
     );
   }
-
   if (!(await subjectExists(id))) return NOT_FOUND();
 
-  const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
-  if (!(file instanceof File) || file.size === 0) {
+  const body = (await req.json().catch(() => null)) as {
+    pathname?: unknown;
+    name?: unknown;
+  } | null;
+  const pathname = typeof body?.pathname === "string" ? body.pathname : "";
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (!pathname || !name) {
     return NextResponse.json({ error: "Keine Datei erhalten." }, { status: 400 });
   }
 
-  if (!isAllowedContentType(file.type)) {
-    return NextResponse.json(
-      {
-        error: `Dieser Dateityp wird nicht unterstützt. Erlaubt sind ${TYPE_LABEL}.`,
-      },
-      { status: 400 },
-    );
-  }
-
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json(
-      { error: `Die Datei ist zu groß. Erlaubt sind höchstens ${MAX_SIZE_LABEL} pro Datei.` },
-      { status: 400 },
-    );
-  }
-
-  const created = await createFile(id, file);
+  const created = await registerFile(id, pathname, name.slice(0, 200));
+  if ("error" in created) return NextResponse.json(created, { status: 400 });
   return NextResponse.json({ file: created }, { status: 201 });
 }
