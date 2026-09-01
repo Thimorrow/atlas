@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -395,7 +396,17 @@ private fun Stundenblock(
             Text(
                 text = ereignis.title,
                 style = MaterialTheme.typography.bodySmall,
-                fontSize = 12.sp,
+                // Fachnamen sind unterschiedlich lang, die Spalte ist es nicht.
+                // "Mathematik" endete als "Mathema…", obwohl es eine halbe
+                // Stufe kleiner ganz hineinpasst. Umbrechen hilft hier nicht,
+                // weil es ein einzelnes Wort ist, und eine kuerzere Form gibt
+                // Untis nicht her. Also darf die Schrift schrumpfen, aber nur
+                // bis 10sp, darunter waere sie kleiner als die Raumnummer.
+                autoSize = TextAutoSize.StepBased(
+                    minFontSize = 10.sp,
+                    maxFontSize = 12.sp,
+                    stepSize = 0.5.sp,
+                ),
                 lineHeight = 14.sp,
                 fontWeight = FontWeight.Medium,
                 textDecoration = if (entfaellt) TextDecoration.LineThrough else null,
@@ -434,10 +445,16 @@ private fun Stundenblock(
                 fontSize = 9.sp,
                 lineHeight = 11.sp,
                 fontWeight = FontWeight.SemiBold,
-                // Versalien brauchen mehr Laufweite, sonst kleben sie aneinander.
-                letterSpacing = 0.6.sp,
+                // Versalien brauchen Laufweite, sonst kleben sie aneinander.
+                // Bei 0.6sp passte das Wort auf einem 1080er Schirm um ein Haar
+                // nicht mehr in die Spalte und endete als "VERTRETUN": ohne
+                // overflow schneidet Compose mitten im Buchstaben ab, statt zu
+                // kuerzen. Weniger Laufweite schafft den Platz, das Ellipsis
+                // faengt schmalere Geraete ab.
+                letterSpacing = 0.2.sp,
                 color = vertretungFarbe(),
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clearAndSetSemantics { },
             )
         }

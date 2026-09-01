@@ -27,6 +27,13 @@ object Abstand {
  */
 object Hoehe {
     val bedienelement = 48.dp
+
+    /**
+     * Auswahlplaettchen. Material stellt sie 32dp hoch, das trifft sich in einer
+     * seitlich schiebbaren Reihe schlecht. 44dp ist der Kompromiss: sicher zu
+     * treffen, ohne dass drei Reihen davon das halbe Blatt fuellen.
+     */
+    val plaettchen = 44.dp
 }
 
 // --radius: 0.625rem = 10px, dazu die abgeleiteten Stufen aus @theme inline.

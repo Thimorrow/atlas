@@ -266,7 +266,11 @@ private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
             text = wann,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(88.dp),
+            // Feste Breite, damit die Uhrzeiten darunter eine Spalte bilden.
+            // 88dp waren zu knapp: "Mo., 7. September" wurde zu "Mo., 7. Septe…",
+            // obwohl rechts in der Zeile Platz frei stand. 112dp fasst den
+            // laengsten Wochentag mit dem laengsten Monat.
+            modifier = Modifier.width(112.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

@@ -23,8 +23,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Dauer
 import dev.atlas.schule.ui.theme.Hoehe
-import dev.atlas.schule.ui.theme.LocalFokusring
 import dev.atlas.schule.ui.theme.atlasTween
 
 /**
@@ -102,41 +99,22 @@ fun AnmeldeBildschirm(
             Kopf()
             Spacer(Modifier.height(Abstand.gross))
 
-            // Eine sichtbare Beschriftung ueber dem Feld, kein Platzhalter im
-            // Feld: der verschwindet genau dann, wenn man ihn braucht.
-            Text(
-                text = "Passwort",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.padding(bottom = Abstand.eng),
-            )
-
-            OutlinedTextField(
-                value = passwort,
-                onValueChange = { passwort = it },
-                singleLine = true,
-                isError = zustand.fehler != null,
-                enabled = !zustand.laeuft,
+            // Beschriftung ueber dem Feld, kein Platzhalter im Feld: der
+            // verschwindet genau dann, wenn man ihn braucht. Das Feld selbst
+            // kommt jetzt aus AtlasFeld.kt, damit es hier und im Blatt "Neue
+            // Aufgabe" denselben duennen Rahmen traegt.
+            AtlasTextfeld(
+                wert = passwort,
+                beimAendern = { passwort = it },
+                beschriftung = "Passwort",
+                aktiviert = !zustand.laeuft,
+                fehlerhaft = zustand.fehler != null,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
                     imeAction = ImeAction.Go,
                 ),
                 keyboardActions = KeyboardActions(onGo = { absenden() }),
-                textStyle = MaterialTheme.typography.bodyLarge,
-                shape = MaterialTheme.shapes.small,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    errorContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    // --ring. Der Fokus muss sichtbar sein, sonst weiss man bei
-                    // Tastaturbedienung nicht, wo man ist.
-                    focusedBorderColor = LocalFokusring.current,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(feldFokus),

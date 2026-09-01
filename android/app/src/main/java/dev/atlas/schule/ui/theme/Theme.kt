@@ -43,6 +43,26 @@ private val HellesSchema = lightColorScheme(
     onError = HellPrimaerVordergrund,
     outline = HellRand,
     outlineVariant = HellFeldrand,
+    // Die Container-Slots blieben frueher offen und trugen damit Materials
+    // Vorgabe, ein Flieder, den Atlas nirgends verwendet. Sichtbar wurde das an
+    // den Auswahlplaettchen im Blatt. Jeder Slot ist jetzt belegt, damit keine
+    // fremde Farbe mehr durchschlagen kann, egal welches Bauteil dazukommt.
+    secondaryContainer = HellGedaempft,
+    onSecondaryContainer = HellVordergrund,
+    tertiaryContainer = HellGedaempft,
+    onTertiaryContainer = HellVordergrund,
+    primaryContainer = HellVordergrund,
+    onPrimaryContainer = HellPrimaerVordergrund,
+    errorContainer = HellGedaempft,
+    onErrorContainer = HellZerstoerend,
+    inverseSurface = HellVordergrund,
+    inverseOnSurface = HellHintergrund,
+    inversePrimary = HellGedaempft,
+    // Material faerbt erhoehte Flaechen sonst mit primary ein. Primary ist hier
+    // fast schwarz, das wuerde jede Karte grau anlaufen lassen.
+    surfaceTint = Color.Transparent,
+    surfaceDim = HellGedaempft,
+    surfaceBright = HellKarte,
 )
 
 private val DunklesSchema = darkColorScheme(
@@ -69,6 +89,21 @@ private val DunklesSchema = darkColorScheme(
     onError = DunkelKarte,
     outline = DunkelRand,
     outlineVariant = DunkelFeldrand,
+    // Dieselbe Luecke wie oben, siehe Kommentar im hellen Schema.
+    secondaryContainer = DunkelGedaempft,
+    onSecondaryContainer = DunkelVordergrund,
+    tertiaryContainer = DunkelAkzent,
+    onTertiaryContainer = DunkelVordergrund,
+    primaryContainer = DunkelVordergrund,
+    onPrimaryContainer = DunkelKarte,
+    errorContainer = DunkelGedaempft,
+    onErrorContainer = DunkelZerstoerend,
+    inverseSurface = DunkelVordergrund,
+    inverseOnSurface = DunkelHintergrund,
+    inversePrimary = DunkelGedaempft,
+    surfaceTint = Color.Transparent,
+    surfaceDim = DunkelHintergrund,
+    surfaceBright = DunkelGedaempft,
 )
 
 /**

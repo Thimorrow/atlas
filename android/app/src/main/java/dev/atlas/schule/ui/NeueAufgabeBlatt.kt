@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -22,15 +23,14 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,8 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.atlas.schule.data.SubjectDTO
@@ -67,18 +66,20 @@ fun NeueAufgabeBlatt(
     beimSchliessen: () -> Unit,
     beimAnlegen: (String, String, LocalDate?, String?) -> Unit,
 ) {
-    val blattZustand = rememberModalBottomSheetState()
+    // Das Blatt kam sonst halb hoch und liess "Aufgabe anlegen" unter dem Rand
+    // stehen, obwohl das Formular ganz auf den Schirm passt. Wer eine Aufgabe
+    // anlegt, soll den Knopf sehen, ohne erst ziehen zu muessen.
+    val blattZustand = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var titel by remember { mutableStateOf("") }
     var typ by remember { mutableStateOf("homework") }
     var faellig by remember { mutableStateOf<LocalDate?>(heute.plusDays(1)) }
     var fachId by remember { mutableStateOf<String?>(null) }
     var kalenderOffen by remember { mutableStateOf(false) }
 
-    val feld = remember { FocusRequester() }
-    // Der Titel ist das einzige Pflichtfeld. Direkt hineinzuspringen spart den
-    // ersten Tipp; alles andere hat brauchbare Vorbelegungen.
-    LaunchedEffect(Unit) { feld.requestFocus() }
-
+    // Frueher sprang der Fokus beim Oeffnen in den Titel. Auf dem Telefon
+    // schiebt das die Tastatur hoch und drueckt "Aufgabe anlegen" aus dem Bild,
+    // bevor man das Blatt ueberhaupt gesehen hat. Wer tippen will, tippt ins
+    // Feld; wer nur das Fach wechselt, muss die Tastatur nicht erst wegwischen.
     val gueltig = titel.isNotBlank() && !blatt.laeuft
 
     fun absenden() {
@@ -93,7 +94,9 @@ fun NeueAufgabeBlatt(
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Abstand.gross)
+                // Der Seitenabstand sitzt jetzt an den einzelnen Zeilen statt
+                // hier, weil die Plaettchenreihen darunter bis an den
+                // Bildschirmrand scrollen sollen.
                 .padding(bottom = Abstand.gross)
                 .navigationBarsPadding()
                 .imePadding(),
@@ -103,75 +106,72 @@ fun NeueAufgabeBlatt(
                 text = "Neue Aufgabe",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(horizontal = Abstand.gross),
             )
 
-            OutlinedTextField(
-                value = titel,
-                onValueChange = { titel = it },
-                // Beschriftung ueber dem Feld, nicht als Platzhalter: der
-                // Platzhalter verschwindet genau dann, wenn man ihn braucht.
-                label = { Text("Titel") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge,
+            AtlasTextfeld(
+                wert = titel,
+                beimAendern = { titel = it },
+                beschriftung = "Titel",
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { absenden() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(feld),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Abstand.gross),
             )
 
             Chipreihe("Art") {
                 TYPEN.forEach { wert ->
-                    FilterChip(
-                        selected = typ == wert,
-                        onClick = { typ = wert },
-                        label = { Text(aufgabentypBezeichnung(wert)) },
+                    AtlasChip(
+                        ausgewaehlt = typ == wert,
+                        beimKlick = { typ = wert },
+                        beschriftung = aufgabentypBezeichnung(wert),
                     )
                 }
             }
 
             Chipreihe("Fällig") {
-                FilterChip(
-                    selected = faellig == heute,
-                    onClick = { faellig = heute },
-                    label = { Text("Heute") },
+                AtlasChip(
+                    ausgewaehlt = faellig == heute,
+                    beimKlick = { faellig = heute },
+                    beschriftung = "Heute",
                 )
-                FilterChip(
-                    selected = faellig == heute.plusDays(1),
-                    onClick = { faellig = heute.plusDays(1) },
-                    label = { Text("Morgen") },
+                AtlasChip(
+                    ausgewaehlt = faellig == heute.plusDays(1),
+                    beimKlick = { faellig = heute.plusDays(1) },
+                    beschriftung = "Morgen",
                 )
-                FilterChip(
-                    selected = faellig != null && faellig != heute && faellig != heute.plusDays(1),
-                    onClick = { kalenderOffen = true },
-                    label = {
-                        val eigenes = faellig != null && faellig != heute && faellig != heute.plusDays(1)
-                        Text(if (eigenes) faelligLabel(faellig, heute)!! else "Datum wählen")
-                    },
+                val eigenes = faellig != null && faellig != heute && faellig != heute.plusDays(1)
+                AtlasChip(
+                    ausgewaehlt = eigenes,
+                    beimKlick = { kalenderOffen = true },
+                    beschriftung = if (eigenes) faelligLabel(faellig, heute)!! else "Datum wählen",
                 )
-                FilterChip(
-                    selected = faellig == null,
-                    onClick = { faellig = null },
-                    label = { Text("Ohne Datum") },
+                AtlasChip(
+                    ausgewaehlt = faellig == null,
+                    beimKlick = { faellig = null },
+                    beschriftung = "Ohne Datum",
                 )
             }
 
             if (faecher.isNotEmpty()) {
                 Chipreihe("Fach") {
-                    FilterChip(
-                        selected = fachId == null,
-                        onClick = { fachId = null },
-                        label = { Text("Allgemein") },
+                    AtlasChip(
+                        ausgewaehlt = fachId == null,
+                        beimKlick = { fachId = null },
+                        beschriftung = "Allgemein",
                     )
                     faecher.forEach { fach ->
-                        FilterChip(
-                            selected = fachId == fach.id,
-                            onClick = { fachId = fach.id },
-                            leadingIcon = {
+                        AtlasChip(
+                            ausgewaehlt = fachId == fach.id,
+                            beimKlick = { fachId = fach.id },
+                            beschriftung = fach.name,
+                            symbol = {
                                 Spacer(
                                     Modifier.size(8.dp).clip(CircleShape)
                                         .background(fachfarbe(fach.color)),
                                 )
                             },
-                            label = { Text(fach.name) },
                         )
                     }
                 }
@@ -182,13 +182,17 @@ fun NeueAufgabeBlatt(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = Abstand.gross),
                 )
             }
 
             Button(
                 onClick = { absenden() },
                 enabled = gueltig,
-                modifier = Modifier.fillMaxWidth().height(Hoehe.bedienelement),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Abstand.gross)
+                    .height(Hoehe.bedienelement),
             ) {
                 if (blatt.laeuft) {
                     CircularProgressIndicator(
@@ -238,11 +242,60 @@ private fun Chipreihe(beschriftung: String, inhalt: @Composable () -> Unit) {
             text = beschriftung,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = Abstand.gross),
         )
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                // Der Abstand liegt hinter dem Scroll und wandert deshalb mit
+                // dem Inhalt. So laeuft das letzte Plaettchen bis an die
+                // Bildschirmkante: ein Schnitt am Rand liest sich als "geht
+                // weiter", ein Schnitt mitten in der Flaeche als Fehler.
+                .padding(horizontal = Abstand.gross),
             horizontalArrangement = Arrangement.spacedBy(Abstand.normal),
             verticalAlignment = Alignment.CenterVertically,
         ) { inhalt() }
     }
+}
+
+/**
+ * Auswahlplaettchen in der Sprache von Atlas. Material faerbt das gewaehlte
+ * Plaettchen sonst mit secondaryContainer ein, das war der Flieder. Gewaehlt
+ * heisst hier dasselbe wie in der unteren Leiste und beim Pluszeichen: die
+ * Flaeche kippt auf den Vordergrundton um.
+ */
+@Composable
+private fun AtlasChip(
+    ausgewaehlt: Boolean,
+    beimKlick: () -> Unit,
+    beschriftung: String,
+    symbol: (@Composable () -> Unit)? = null,
+) {
+    FilterChip(
+        selected = ausgewaehlt,
+        onClick = beimKlick,
+        label = { Text(beschriftung, style = MaterialTheme.typography.bodyMedium) },
+        leadingIcon = symbol,
+        shape = MaterialTheme.shapes.small,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Color.Transparent,
+            labelColor = MaterialTheme.colorScheme.onBackground,
+            iconColor = MaterialTheme.colorScheme.onBackground,
+            selectedContainerColor = MaterialTheme.colorScheme.primary,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = ausgewaehlt,
+            borderColor = MaterialTheme.colorScheme.outlineVariant,
+            // Das gewaehlte Plaettchen traegt seine Kante ueber die Fuellung,
+            // ein zusaetzlicher Rahmen wuerde sie nur verdoppeln.
+            selectedBorderColor = Color.Transparent,
+        ),
+        // Material stellt Plaettchen 32dp hoch. In einer Reihe, die man
+        // seitlich schiebt, ist das zu wenig zum Treffen.
+        modifier = Modifier.heightIn(min = Hoehe.plaettchen),
+    )
 }
