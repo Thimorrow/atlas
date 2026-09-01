@@ -7,9 +7,6 @@ import { usePathname } from "next/navigation";
 import {
   CalendarDays,
   ListChecks,
-  MessagesSquare,
-  Inbox,
-  Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -27,14 +24,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-type Mod = { label: string; icon: typeof CalendarDays; href?: string; soon?: boolean };
+type Mod = { label: string; icon: typeof CalendarDays; href: string };
 
 const MODULES: Mod[] = [
   { label: "Kalender", icon: CalendarDays, href: "/" },
   { label: "To-Dos", icon: ListChecks, href: "/todos" },
-  { label: "Nachrichten", icon: MessagesSquare, soon: true },
-  { label: "Inbox", icon: Inbox, soon: true },
-  { label: "Hermes", icon: Sparkles, soon: true },
 ];
 
 const EXPANDED = 248;
@@ -202,38 +196,19 @@ export function AppSidebar({
             Module
           </div>
           {MODULES.map((m) => {
-            const active = !!m.href && (m.href === "/" ? pathname === "/" : pathname.startsWith(m.href));
-            const inner = (
-              <>
-                <span className={iconBox}>
-                  <m.icon className="size-[18px]" />
-                </span>
-                <span className={labelCls()}>{m.label}</span>
-                {m.soon && (
-                  <span className={cn("mr-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
-                    bald
-                  </span>
-                )}
-              </>
-            );
-            return m.href && !m.soon ? (
+            const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
+            return (
               <Link
                 key={m.label}
                 href={m.href}
                 title={collapsed ? m.label : undefined}
                 className={cn(row, active ? "relative bg-accent font-medium text-foreground before:absolute before:inset-y-2 before:left-1 before:w-[3px] before:rounded-full before:bg-primary" : "text-muted-foreground/80 hover:bg-accent/40 hover:text-foreground")}
               >
-                {inner}
+                <span className={iconBox}>
+                  <m.icon className="size-[18px]" />
+                </span>
+                <span className={labelCls()}>{m.label}</span>
               </Link>
-            ) : (
-              <button
-                key={m.label}
-                disabled
-                title={collapsed ? `${m.label} (bald)` : undefined}
-                className={cn(row, "cursor-default text-muted-foreground/55")}
-              >
-                {inner}
-              </button>
             );
           })}
         </nav>

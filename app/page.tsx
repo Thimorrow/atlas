@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
 import { EventSheet, type EditTarget } from "@/components/event-sheet";
 import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
-import { AutoplanSheet } from "@/components/autoplan-sheet";
-import { planWeek, type PlanSuggestion } from "@/lib/todo-autoplan";
-import { persistWrite, persistBatch } from "@/lib/persist";
+import { persistWrite } from "@/lib/persist";
 import { decideSync } from "@/lib/untis/sync-policy";
 import { evVar } from "@/lib/event-colors";
 import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
@@ -56,8 +54,7 @@ type Ev = {
   room?: string | null;
   teacher?: string | null;
 };
-type Free = { date: string; startTime: string; endTime: string; minutes: number };
-type Day = { date: string; weekday: number; events: Ev[]; freeSlots: Free[] };
+type Day = { date: string; weekday: number; events: Ev[] };
 type Goal = { routineId: string; title: string; targetPerWeek: number; done: number };
 type RangeData = { start: string; end: string; days: Day[]; flexibleGoals: Goal[] };
 
@@ -150,15 +147,6 @@ function CancelChip({ title }: { title: string }) {
       {title} entfällt
     </span>
   );
-}
-
-// Ein terminiertes Todo bekommt nur dann eine Spur auf der Wochen-Zeitachse,
-// wenn seine Uhrzeit an DEM Tag wirklich frei ist -- sonst laege es ueber einer
-// Stunde (haesslich). Greift v. a. bei taeglichen Aufgaben mit fixer Uhrzeit.
-function todoFitsTimeline(t: TodoInstance, freeSlots: Free[]): boolean {
-  if (!t.scheduledTime || t.done) return false;
-  const m = toMin(t.scheduledTime);
-  return freeSlots.some((f) => toMin(f.startTime) <= m && m < toMin(f.endTime));
 }
 
 // --- Helfer -----------------------------------------------------------------
@@ -374,7 +362,6 @@ function eventMeta(ev: Ev) {
 
 type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
-  | { kind: "free"; s: number; e: number; free: Free }
   | { kind: "cancel"; s: number; e: number; ev: Ev }
   | { kind: "todo"; s: number; e: number; inst: TodoInstance };
 
@@ -415,12 +402,9 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
   const scheduledTodos = [...tToday, ...tCompleted].filter((t) => t.scheduledTime);
   const looseTodos = tToday.filter((t) => !t.scheduledTime);
 
-  // Events + freie Lücken + terminierte Aufgaben zu EINER chronologischen Agenda.
+  // Events + terminierte Aufgaben zu EINER chronologischen Agenda.
   const agenda: AgendaItem[] = [
     ...evs.map((x): AgendaItem => ({ kind: "ev", s: x.s, e: x.e, ev: x.ev })),
-    ...day.freeSlots
-      .filter((f) => f.minutes >= 30)
-      .map((f): AgendaItem => ({ kind: "free", s: toMin(f.startTime), e: toMin(f.endTime), free: f })),
     ...cancelledEvs.map((ev): AgendaItem => ({
       kind: "cancel",
       s: toMin(ev.startTime),
@@ -508,24 +492,6 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
             // Agenda cascadet beim Mount Item fuer Item klar nacheinander rein
             // (groesserer Schritt + Basis-Delay -> spuerbar, nicht "alles auf einmal").
             const delay = stagger ? 0.1 + Math.min(i * 0.07, 0.8) : 0;
-
-            if (it.kind === "free") {
-              return (
-                <motion.li
-                  key={`free-${it.s}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.42, delay, ease: EASE }}
-                  className="grid grid-cols-[52px_1fr] items-center gap-3"
-                >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.free.startTime)}</span>
-                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 px-3 py-1.5 text-[12px] text-muted-foreground">
-                    <span>Frei</span>
-                    <span className="ml-auto font-mono tabular-nums text-muted-foreground/70">{durLabel(it.free.minutes)}</span>
-                  </div>
-                </motion.li>
-              );
-            }
 
             if (it.kind === "cancel") {
               return (
@@ -682,11 +648,6 @@ export default function Home() {
   const [dayTodos, setDayTodos] = useState<TodoView | null>(null);
   const [weekTodos, setWeekTodos] = useState<TodoRange>({});
 
-  // Auto-Planer: Vorschlaege + bestaetigen (nichts wird ohne Zutun geschrieben).
-  const [planOpen, setPlanOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<PlanSuggestion[]>([]);
-  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
-
   const toggleTodo = useCallback(
     (inst: TodoInstance, currentlyDone: boolean) => {
       setDayTodos((v) => (v ? toggleTodoView(v, inst, currentlyDone) : v));
@@ -736,66 +697,6 @@ export default function Home() {
     },
     [anchor],
   );
-
-  // Atlas plant die Woche: offene, un-terminierte Aufgaben in die freien Luecken.
-  const openPlan = () => {
-    if (!data) return;
-    const freeByDay = Object.fromEntries(data.days.map((d) => [d.date, d.freeSlots]));
-    const onToday = now && data.days.some((d) => d.date === now.date);
-    const sugg = planWeek(weekTodos, freeByDay, {
-      minStartISO: now?.date,
-      minStartMin: onToday ? now!.min : 0,
-    });
-    setSuggestions(sugg);
-    setAcceptedIds(new Set());
-    setPlanOpen(true);
-  };
-
-  const patchTime = (id: string, time: string) =>
-    fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ scheduledTime: time }),
-    });
-
-  const acceptOne = (s: PlanSuggestion) => {
-    setAcceptedIds((prev) => new Set(prev).add(s.todoId));
-    persistWrite(() => patchTime(s.todoId, s.startTime), {
-      message: "Konnte den Vorschlag nicht einplanen.",
-      onFail: () =>
-        setAcceptedIds((prev) => {
-          const n = new Set(prev);
-          n.delete(s.todoId);
-          return n;
-        }),
-      retry: () => acceptOne(s),
-    });
-  };
-
-  const acceptAll = () => {
-    const pending = suggestions.filter((s) => !acceptedIds.has(s.todoId));
-    if (pending.length === 0) return;
-    setAcceptedIds(new Set(suggestions.map((s) => s.todoId)));
-    persistBatch(
-      pending.map((s) => () => patchTime(s.todoId, s.startTime)),
-      {
-        message: "Einige Vorschläge konnten nicht eingeplant werden.",
-        onFail: () =>
-          setAcceptedIds((prev) => {
-            const n = new Set(prev);
-            pending.forEach((s) => n.delete(s.todoId));
-            return n;
-          }),
-        retry: () => acceptAll(),
-      },
-    );
-  };
-
-  // Beim Schliessen die Ansicht aktualisieren, damit angenommene Zeiten erscheinen.
-  const closePlan = () => {
-    setPlanOpen(false);
-    if (acceptedIds.size > 0) setReloadKey((k) => k + 1);
-  };
 
   const openCreate = () => {
     setEditing(null);
@@ -1073,14 +974,6 @@ export default function Home() {
             <ChevronRight />
           </Button>
 
-          {/* Auto-Planer -- nur in der Wochenansicht (braucht die freien Luecken) */}
-          {mode === "week" && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={openPlan} aria-label="Woche automatisch planen">
-              <Sparkles className="size-4" />
-              Planen
-            </Button>
-          )}
-
           {/* Trenner -> "Neuer Termin" rechts abgesetzt */}
           <span className="mx-1 h-6 w-px bg-border" />
 
@@ -1202,9 +1095,8 @@ export default function Home() {
                     })()}
 
                     {/* Aufgaben des Tags -- dezente Punkte fuer alles, was NICHT als
-                        eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder Uhrzeit
-                        an dem Tag belegt). */}
-                    <DayTodoDots todos={(weekTodos[day.date] ?? []).filter((t) => !todoFitsTimeline(t, day.freeSlots))} />
+                        eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder bereits erledigt). */}
+                    <DayTodoDots todos={(weekTodos[day.date] ?? []).filter((t) => !t.scheduledTime || t.done)} />
                   </div>
                 );
               })}
@@ -1245,20 +1137,6 @@ export default function Home() {
                       <div key={h} className="absolute inset-x-0 border-t border-border/60" style={{ top: fitScale.yOf(h * 60) }} />
                     ))}
 
-                    {/* Freie Lücken -- dezent */}
-                    {day.freeSlots.map((f, i) => {
-                      const top = fitScale.yOf(toMin(f.startTime));
-                      const height = fitScale.yOf(toMin(f.endTime)) - top;
-                      if (height < 22) return null;
-                      return (
-                        <div
-                          key={`f${i}`}
-                          className="absolute inset-x-1 rounded-md bg-foreground/[0.025] dark:bg-foreground/[0.05]"
-                          style={{ top, height }}
-                        />
-                      );
-                    })}
-
                     {/* Entfall -- leiser Chip an der ECHTEN Startzeit der Stunde. */}
                     {(cancelledByDay[di] ?? []).map((e, i) => (
                       <div
@@ -1273,10 +1151,9 @@ export default function Home() {
                       </div>
                     ))}
 
-                    {/* Terminierte Aufgaben -- dezente Spur auf der Zeitachse,
-                        aber nur wo die Uhrzeit an dem Tag frei ist. */}
+                    {/* Terminierte Aufgaben -- dezente Spur auf der Zeitachse. */}
                     {(weekTodos[day.date] ?? [])
-                      .filter((t) => todoFitsTimeline(t, day.freeSlots))
+                      .filter((t) => t.scheduledTime && !t.done)
                       .map((t, ti) => {
                         const accent = t.color ?? "color-mix(in oklab, var(--foreground) 35%, transparent)";
                         return (
@@ -1389,15 +1266,6 @@ export default function Home() {
         defaultDate={anchor}
         onClose={() => setSheetOpen(false)}
         onSaved={reload}
-      />
-
-      <AutoplanSheet
-        open={planOpen}
-        suggestions={suggestions}
-        acceptedIds={acceptedIds}
-        onAccept={acceptOne}
-        onAcceptAll={acceptAll}
-        onClose={closePlan}
       />
     </main>
   );
