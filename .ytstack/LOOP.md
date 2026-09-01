@@ -74,3 +74,34 @@ Laeuft gerade:
 - Ein Durchgang Bedienbarkeit an der Android-App (Antippflaechen, TalkBack,
   grosse Systemschrift, reduzierte Bewegung).
 - Ein Durchgang Handy-Ansicht an der Web-App.
+
+## Stand 02:00, Nacht auf den 2. September
+
+Beide Durchgaenge sind committet und gepusht (4f6aa0e, 57e4cec, eef807e).
+
+Android, Bedienbarkeit:
+- Der Haken meldete Talkback seinen Zustand nicht (Role.Checkbox in clickable
+  erzeugt keinen checkable-Knoten), jetzt toggleable.
+- Zeilen zerfielen beim Vorlesen in Einzelteile, jede ist jetzt ein Halt.
+- Bei fontScale 2.0 war mehrfach etwas abgeschnitten: Reiterbeschriftung,
+  Tagesknopf zeigte "3" statt "31", "Lehrkraft" brach mitten im Wort.
+- Der Skelett-Puls lief bei abgeschalteten Systemanimationen weiter, jetzt aus.
+  50 gegen 5 Frames, gemessen mit dumpsys gfxinfo.
+- Offen und bewusst nicht behoben: Fachnamen im Wochenraster bleiben bei
+  fontScale 2.0 gekuerzt. Fuenf Spalten geben nicht mehr her, der volle Name
+  steht in der Vorlese-Beschreibung.
+
+Web, Handy:
+- Der Stundenplan startet unterhalb von md in der Tagesagenda. Im Wochenraster
+  blieb jede Spalte 53px breit und jedes Fach schrumpfte auf drei Buchstaben.
+- Vertretung-Badge hatte keinen Breiten-Guard und lief aus dem Block.
+- Kopfzeile lief ueber, Pfeile wurden auf 33px gequetscht. Der Titel kuerzt
+  sich jetzt zu "Mi, 2. Sept. · Heute" statt abgeschnitten zu werden.
+- Safe-Area war unverdrahtet, kein viewportFit und kein env() im Projekt.
+
+APK: ~/Desktop/Atlas.apk, 12,1 MB, aus Commit eef807e.
+Am Emulator von Hand durchgespielt: installieren, anmelden, echter
+Stundenplan aus der Produktion mit Farben, Vertretung und Ausfall.
+
+Korrektur zur Ehrlichkeit: die Commit-Nachricht von 4f6aa0e nennt 61
+Unit-Tests, es sind 48. Die Zahl war falsch, die Tests sind gruen.
