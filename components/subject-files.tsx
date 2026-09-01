@@ -216,8 +216,11 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                       </p>
                     </div>
                     {/* A1 (Touch): before blaeht beide Aktionen unsichtbar auf 44px auf. */}
+                    {/* Der Blob-Store ist privat, es gibt keine direkte
+                        Datei-URL. Der Server reicht die Datei hinter der
+                        Anmeldung durch. */}
                     <a
-                      href={f.url}
+                      href={`/api/files/${f.id}`}
                       download={f.name}
                       rel="noopener"
                       aria-label={`${f.name} herunterladen`}

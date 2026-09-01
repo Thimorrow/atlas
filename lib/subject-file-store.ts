@@ -5,17 +5,18 @@
 // wird der Token nie beim Import gelesen, sondern erst im Request -- und
 // listFiles laeuft auch ohne ihn, falls schon Metadaten in der DB liegen.
 
-import { del, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subjectFiles, subjects, type SubjectFile } from "@/lib/db/schema";
 
 // --- DTO ---------------------------------------------------------------------
 
+// Bewusst OHNE die Blob-URL: der Store ist privat, die URL waere fuer den
+// Browser ohnehin nicht abrufbar. Heruntergeladen wird ueber /api/files/[id].
 export type FileDTO = {
   id: string;
   name: string;
-  url: string;
   pathname: string;
   size: number;
   contentType: string;
@@ -56,7 +57,6 @@ function toFileDTO(row: SubjectFile): FileDTO {
   return {
     id: row.id,
     name: row.name,
-    url: row.url,
     pathname: row.pathname,
     size: row.size,
     contentType: row.contentType,
@@ -89,7 +89,10 @@ export async function createFile(
   file: File,
 ): Promise<FileDTO> {
   const blob = await put(file.name, file, {
-    access: "public",
+    // Privat: die Datei ist ausschliesslich ueber Atlas erreichbar, also hinter
+    // dem Passwort aus proxy.ts. Eine oeffentliche Blob-URL waere sonst fuer
+    // jeden abrufbar, der sie kennt -- an der Anmeldung vorbei.
+    access: "private",
     addRandomSuffix: true,
     contentType: file.type,
   });
@@ -107,6 +110,26 @@ export async function createFile(
     .returning();
 
   return toFileDTO(row);
+}
+
+// Holt den Inhalt aus dem privaten Store. Der Aufrufer streamt ihn weiter,
+// gepuffert wird nichts: eine 10-MB-Datei muss nicht durch den Speicher der
+// Funktion wandern.
+export async function readFile(
+  id: string,
+): Promise<{ row: SubjectFile; stream: ReadableStream<Uint8Array> } | null> {
+  const [row] = await db.select().from(subjectFiles).where(eq(subjectFiles.id, id)).limit(1);
+  if (!row || !blobEnabled()) return null;
+
+  const result = await get(row.pathname, { access: "private" }).catch((err) => {
+    console.error("[subject-files] Blob nicht lesbar:", row.pathname, err);
+    return null;
+  });
+  // statusCode 304 kann hier nicht auftreten, wir schicken kein ifNoneMatch --
+  // die Pruefung haelt den Typ trotzdem ehrlich.
+  if (!result || result.statusCode !== 200) return null;
+
+  return { row, stream: result.stream };
 }
 
 // Erst der Blob, dann die Zeile. Schlaegt das Blob-Loeschen fehl, verschwindet
