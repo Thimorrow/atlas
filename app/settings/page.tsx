@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useTheme } from "next-themes";
@@ -38,12 +38,35 @@ const PREVIEW: Record<string, { box: string; bar: string; barDim: string }> = {
 
 type SyncState =
   | { ok: true; fetched: number; upserted: number; window: { start: string; end: string } }
-  | { ok: false; error: string };
+  | { ok: false; error: string; kind: "network" | "server" };
 
 const fmtDay = (iso: string) => {
   const [, m, d] = iso.split("-");
   return `${d}.${m}.`;
 };
+
+// A4 (Verstaendlichkeit): Die rohe Server-/Netzwerk-Fehlermeldung (z.B. "fetch
+// failed", ein WebUntis-HTTP-Status) sagt einem Schueler nichts. An dieser
+// Schule ist WebUntis aktuell komplett abgeschaltet -- der Fehlschlag ist hier
+// der Normalfall, keine Ausnahme. Eine feste, verstaendliche Kernaussage vorn,
+// die Rohmeldung bleibt als technisches Detail sichtbar.
+// Uebersetzt den echten Fehler in einen Satz, der einem Schueler weiterhilft.
+// Bewusst NICHT pauschal "die Schule hat Untis abgeschaltet": das stimmt nur in
+// einem der Faelle, und sobald Untis wieder laeuft, wuerde eine feste Meldung
+// bei jedem anderen Problem in die Irre fuehren.
+function friendlySyncMessage(error: string, kind: "network" | "server"): string {
+  if (kind === "network") {
+    return "Keine Verbindung zum Server. Pruef dein WLAN und versuch es dann noch einmal.";
+  }
+  const e = error.toLowerCase();
+  if (/401|403|auth|credential|login|passwor|anmeld/.test(e)) {
+    return "WebUntis hat die Zugangsdaten abgelehnt. Server, Schule, Benutzer oder Passwort stimmen nicht.";
+  }
+  if (/econnrefused|etimedout|enotfound|fetch failed|timeout|502|503|504|unreachable/.test(e)) {
+    return "WebUntis antwortet nicht. Oft liegt das an der Schule, etwa weil der Dienst dort gerade abgeschaltet ist. Versuch es später erneut.";
+  }
+  return "Der Abgleich hat nicht geklappt. Versuch es später erneut.";
+}
 
 function Section({
   icon: Icon,
@@ -80,8 +103,24 @@ export default function SettingsPage() {
   // A3 (Reduced-Motion): globale <MotionConfig reducedMotion="user"> kappt nur
   // transform -- die opacity+y-Animation der Sync-Meldung braucht ein eigenes Gate.
   const reduce = useReducedMotion();
+  // A5 (Semantik): die Theme-Kacheln sind eine sich gegenseitig ausschliessende
+  // Auswahl -- also radiogroup/radio statt lose aria-pressed-Buttons, inklusive
+  // Pfeiltasten-Navigation (WAI-ARIA "Radio Group"-Pattern, roving tabindex).
+  const themeRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => setMounted(true), []);
+
+  function onThemeKeyDown(e: React.KeyboardEvent, idx: number) {
+    let next = idx;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % THEMES.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + THEMES.length) % THEMES.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = THEMES.length - 1;
+    else return;
+    e.preventDefault();
+    setTheme(THEMES[next].key);
+    themeRefs.current[next]?.focus();
+  }
 
   async function runSync() {
     setSyncing(true);
@@ -92,10 +131,13 @@ export default function SettingsPage() {
       setSync(
         data.ok
           ? { ok: true, fetched: data.fetched, upserted: data.upserted, window: data.window }
-          : { ok: false, error: data.error ?? "Unbekannter Fehler" },
+          : { ok: false, error: data.error ?? "Unbekannter Fehler", kind: "server" },
       );
     } catch (e) {
-      setSync({ ok: false, error: (e as Error).message });
+      // Netzwerkfehler (z.B. offline) laufen nie durch die API-Antwort oben,
+      // sondern landen hier. Als "network" markiert, damit die Meldung nicht
+      // faelschlich WebUntis beschuldigt, wenn schlicht das WLAN weg ist.
+      setSync({ ok: false, error: (e as Error).message, kind: "network" });
     } finally {
       setSyncing(false);
     }
@@ -124,6 +166,10 @@ export default function SettingsPage() {
         {/* Profil */}
         <StaggerItem>
           <Section icon={User} title="Profil" desc="Deine Kontodaten.">
+            {/* A6 (Platzhalter): "bald bearbeitbar" war ein Versprechen ohne
+                Funktion dahinter -- Bearbeiten braucht Mehrnutzer/Auth in der
+                Datenschicht, die hier nicht angefasst wird. Kein Platzhalter
+                statt einem, der nie einloest. */}
             <div className="flex items-center gap-4">
               <div className="flex size-16 shrink-0 items-center justify-center rounded-full border bg-muted text-xl font-semibold">
                 TZ
@@ -135,11 +181,6 @@ export default function SettingsPage() {
                   thimofej@yesterday-ai.de
                 </div>
               </div>
-              {/* A2 (Kontrast): muted-foreground auf solidem bg-muted liegt bei
-                  ~4.3:1 -- knapp unter AA fuer 10px-Text. foreground/70 traegt sicher. */}
-              <span className="ml-auto self-start rounded-md bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-foreground/70">
-                bald bearbeitbar
-              </span>
             </div>
           </Section>
         </StaggerItem>
@@ -147,15 +188,25 @@ export default function SettingsPage() {
         {/* Erscheinungsbild */}
         <StaggerItem>
           <Section icon={Palette} title="Erscheinungsbild" desc="Hell, dunkel oder dem System folgen.">
-            <div className="grid grid-cols-3 gap-3">
-              {THEMES.map((t) => {
+            <div role="radiogroup" aria-label="Erscheinungsbild" className="grid grid-cols-3 gap-3">
+              {THEMES.map((t, i) => {
                 const selected = mounted && theme === t.key;
+                // Solange next-themes noch nicht hydriert ist (mounted=false),
+                // muss trotzdem genau eine Kachel per Tab erreichbar sein.
+                const tabbable = mounted ? selected : i === 0;
                 const p = PREVIEW[t.key];
                 return (
                   <button
                     key={t.key}
+                    ref={(el) => {
+                      themeRefs.current[i] = el;
+                    }}
+                    type="button"
                     onClick={() => setTheme(t.key)}
-                    aria-pressed={selected}
+                    onKeyDown={(e) => onThemeKeyDown(e, i)}
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={tabbable ? 0 : -1}
                     className={cn(
                       // `isolate` = eigener Stacking-Context, sonst verschwindet der
                       // `-z-10`-Indikator hinter der opaken bg-card.
@@ -209,8 +260,12 @@ export default function SettingsPage() {
               </Button>
             </div>
 
+            {/* A4: role="status" + aria-live traegt das Ergebnis auch zu
+                Screenreader-Nutzern, die den Klick nicht visuell verfolgen. */}
             {sync && (
               <motion.div
+                role="status"
+                aria-live="polite"
                 initial={reduce ? false : { opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, ease: EASE }}
@@ -222,9 +277,9 @@ export default function SettingsPage() {
                 )}
               >
                 {sync.ok ? (
-                  <Check className="mt-px size-4 shrink-0" />
+                  <Check aria-hidden="true" className="mt-px size-4 shrink-0" />
                 ) : (
-                  <AlertTriangle className="mt-px size-4 shrink-0" />
+                  <AlertTriangle aria-hidden="true" className="mt-px size-4 shrink-0" />
                 )}
                 <span className="leading-snug">
                   {sync.ok ? (
@@ -236,8 +291,10 @@ export default function SettingsPage() {
                     </>
                   ) : (
                     <>
-                      <span className="font-medium">Sync fehlgeschlagen.</span>
-                      <span className="block break-words font-mono text-xs opacity-80">{sync.error}</span>
+                      <span className="font-medium">{friendlySyncMessage(sync.error, sync.kind)}</span>
+                      <span className="mt-1 block break-words font-mono text-xs opacity-70">
+                        Technisches Detail: {sync.error}
+                      </span>
                     </>
                   )}
                 </span>
@@ -248,14 +305,15 @@ export default function SettingsPage() {
 
         {/* Konto */}
         <StaggerItem>
-          <Section icon={LogOut} title="Konto" desc="Abmelden kommt mit dem Login (Mehrnutzer).">
-            <Button disabled variant="outline" size="sm">
-              <LogOut className="size-4" />
-              Abmelden
-              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
-                bald
-              </span>
-            </Button>
+          {/* A6 (Platzhalter): ein dauerhaft deaktivierter "Abmelden"-Button, der
+              nie aktiv wird, ist selbst der Befund (ui-review: totes Bedienelement).
+              Mehrnutzer/Login liegt in der Datenschicht, die hier nicht angefasst
+              wird -- also ehrlicher Fliesstext statt vorgetaeuschter Bedienbarkeit. */}
+          <Section icon={LogOut} title="Konto" desc="Ein Nutzer, keine Anmeldung nötig.">
+            <p className="text-[13px] text-muted-foreground">
+              Atlas läuft aktuell für ein einzelnes Konto ohne Login. Abmelden gibt es, sobald mehrere Nutzer
+              unterstützt werden.
+            </p>
           </Section>
         </StaggerItem>
 
