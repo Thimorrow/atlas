@@ -41,10 +41,13 @@ const FALLBACK_DAY_END = 15;
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 // --- Block-Stile ------------------------------------------------------------
-// Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
-// Hintergrund ab.
-const BLOCK_CLS =
-  "border-l-[6px] border-l-blue-500 bg-blue-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-blue-500/20 dark:ring-white/[0.08]";
+// Fächer-Blöcke: Zurückhaltung (Design-Audit) -- vorher trugen sie gleichzeitig
+// einen 6px-Farbrand links, eine getönte Füllung, einen inneren Ring UND einen
+// Hover-Ring. Vier Signale für dieselbe Aussage ("das ist eine Schulstunde").
+// Jetzt nur noch zwei im Ruhezustand: getönte Füllung + ein leiser, farblich
+// passender Rand. Der Ring bleibt allein dem Hover vorbehalten -- er markiert
+// dann wirklich einen Zustandswechsel statt nur mitzulaufen.
+const BLOCK_CLS = "border border-blue-500/20 bg-blue-100/80 dark:border-blue-400/20 dark:bg-blue-500/20";
 
 // Entfallene Schulstunden werden nicht als eigener Block gezeigt, sondern als
 // leiser Chip an der ECHTEN Startzeit der Stunde -- statt Doppelung "Frei" +
@@ -53,8 +56,11 @@ const BLOCK_CLS =
 function CancelChip({ title }: { title: string }) {
   return (
     // A2 (Kontrast): /90 auf bg-muted/40 lag im Hellmodus bei ~3.8:1 -- unter
-    // der AA-Mindestgrenze fuer 10px-Text. Volle muted-foreground erreicht 4.6:1.
-    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+    // der AA-Mindestgrenze fuer kleinen Text. Volle muted-foreground erreicht 4.6:1.
+    // Design-Audit: 10px auf 11px angehoben -- der Grid-Entfall-Chip (engerer
+    // Platz als hier in der Heute-Liste) lag bereits bei 11px, kleiner-bei-mehr-
+    // Platz war die falsche Richtung.
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
       <span className="size-1 rounded-full bg-red-500/45" />
       {title} entfällt
     </span>
@@ -353,7 +359,7 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
       </span>
     );
   } else {
-    kicker = <span className="text-muted-foreground">{isToday ? "Heute steht nichts mehr an." : "Keine Stunden an diesem Tag."}</span>;
+    kicker = <span className="text-muted-foreground">{isToday ? "Heute steht nichts mehr an." : "An diesem Tag stehen keine Stunden an."}</span>;
   }
 
   return (
@@ -423,7 +429,7 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                   // kopierbar bleiben.
                   title={`${it.ev.title}${meta ? `, ${meta}` : ""}`}
                   className={cn(
-                    "relative select-text overflow-hidden rounded-lg border border-l-[3px] px-3 py-2 transition-[background-color,box-shadow] duration-150 ease-out",
+                    "relative select-text overflow-hidden rounded-lg px-3 py-2 transition-[background-color,box-shadow] duration-150 ease-out",
                     BLOCK_CLS,
                     isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
                   )}
@@ -476,7 +482,7 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
           className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
         >
           <CalendarCheck className="size-6 text-muted-foreground/50" />
-          {isToday ? "Heute keine Stunden." : "Keine Stunden an diesem Tag."}
+          {isToday ? "Heute keine Stunden. Genieß den freien Tag!" : "An diesem Tag stehen keine Stunden an."}
         </motion.div>
       )}
     </div>
@@ -750,8 +756,13 @@ export default function Home() {
             {mode === "today" ? dayLabel : label}
           </h2>
 
+          {/* Design-Audit (Knopf-Rangfolge): alle vier Kopf-Buttons standen bislang
+              gleichrangig auf variant="outline". Die Pfeile sind reine Schritt-
+              Navigation (Struktur, nicht Entscheidung) und treten jetzt als ghost
+              zurueck -- Heute/Woche bleibt outline und ist damit sichtbar der
+              gewichtigere der drei Aktionen. */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
@@ -794,7 +805,7 @@ export default function Home() {
           )}
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
@@ -989,7 +1000,7 @@ export default function Home() {
                           // eine Klickbarkeit vorzutaeuschen, die es nicht gibt.
                           title={blockLabel}
                           className={cn(
-                            "absolute flex select-text flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1 transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16]",
+                            "absolute flex select-text flex-col gap-1 overflow-hidden rounded-md px-2 py-1 transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16]",
                             BLOCK_CLS,
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane }}

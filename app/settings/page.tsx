@@ -45,12 +45,9 @@ const fmtDay = (iso: string) => {
   return `${d}.${m}.`;
 };
 
-// A4 (Verstaendlichkeit): Die rohe Server-/Netzwerk-Fehlermeldung (z.B. "fetch
-// failed", ein WebUntis-HTTP-Status) sagt einem Schueler nichts. An dieser
-// Schule ist WebUntis aktuell komplett abgeschaltet -- der Fehlschlag ist hier
-// der Normalfall, keine Ausnahme. Eine feste, verstaendliche Kernaussage vorn,
-// die Rohmeldung bleibt als technisches Detail sichtbar.
-// Uebersetzt den echten Fehler in einen Satz, der einem Schueler weiterhilft.
+// A4 (Verstaendlichkeit): Die rohe Server- oder Netzwerkmeldung (etwa "fetch
+// failed" oder ein WebUntis-HTTP-Status) sagt einem Schueler nichts. Sie bleibt
+// als technisches Detail sichtbar, davor steht ein Satz, der weiterhilft.
 // Bewusst NICHT pauschal "die Schule hat Untis abgeschaltet": das stimmt nur in
 // einem der Faelle, und sobald Untis wieder laeuft, wuerde eine feste Meldung
 // bei jedem anderen Problem in die Irre fuehren.
@@ -144,7 +141,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="h-full overflow-y-auto px-6 py-8 lg:px-8">
+    // Design-Audit (Stimmigkeit): px-6 lg:px-8 wie app/page.tsx -- gleicher
+    // Randabstand auf beiden Seiten. pt-6 gleicht auch oben auf den Stundenplan-
+    // Kopf an, statt eines eigenen, groesseren Werts (py-8).
+    <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
       <Stagger className="mx-auto max-w-2xl space-y-6">
         {/* Kopf -- Back-Link nur auf Mobile (dort fehlt die Sidebar). */}
         <StaggerItem>
@@ -153,12 +153,15 @@ export default function SettingsPage() {
             className="mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
-            Zurück zum Kalender
+            Zurück zum Stundenplan
           </Link>
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight">
+          {/* Design-Audit (Stimmigkeit): text-xl + mt-0.5 wie der "Stundenplan"-
+              Titel auf der Hauptseite -- beide Seiten sollen als EINE App wirken,
+              nicht als zwei mit unterschiedlicher Titelgroesse. */}
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
             <SplitText text="Einstellungen" />
           </h1>
-          <p className="mt-1 text-[15px] text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Profil, Erscheinungsbild und Datenquellen von Atlas.
           </p>
         </StaggerItem>
@@ -247,12 +250,17 @@ export default function SettingsPage() {
           <Section
             icon={CalendarClock}
             title="Stundenplan"
-            desc="WebUntis-Stunden in deinen Kalender importieren."
+            desc="WebUntis-Stunden in deinen Stundenplan importieren."
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Wortwahl: "idempotent" war Entwicklersprache -- ein Schueler
+                  weiss nicht, was das bedeutet. Ersetzt durch den eigentlichen
+                  Nutzen: der Abgleich haelt die Stunden aktuell, ohne dass beim
+                  wiederholten Sync Duplikate entstehen. */}
               <p className="text-[13px] text-muted-foreground">
-                Lädt das Fenster <span className="font-medium text-foreground">letzte Woche bis +3 Wochen</span> und
-                gleicht es idempotent ab.
+                Lädt deine Stunden von{" "}
+                <span className="font-medium text-foreground">letzter Woche bis in drei Wochen</span> und hält sie
+                aktuell.
               </p>
               <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
                 <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
