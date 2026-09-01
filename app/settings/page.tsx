@@ -17,7 +17,7 @@ import {
   Check,
   AlertTriangle,
 } from "lucide-react";
-import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
+import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -159,7 +159,7 @@ export default function SettingsPage() {
               Titel auf der Hauptseite -- beide Seiten sollen als EINE App wirken,
               nicht als zwei mit unterschiedlicher Titelgroesse. */}
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
-            <SplitText text="Einstellungen" />
+            Einstellungen
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Profil, Erscheinungsbild und Datenquellen von Atlas.
@@ -213,9 +213,15 @@ export default function SettingsPage() {
                     className={cn(
                       // `isolate` = eigener Stacking-Context, sonst verschwindet der
                       // `-z-10`-Indikator hinter der opaken bg-card.
-                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm transition-[color,transform] [touch-action:manipulation] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      // ui-polish: font-medium bleibt IMMER gesetzt (nicht nur bei
+                      // selected) -- ein Schriftgewicht-Wechsel wuerde die Textbreite
+                      // aendern, Auswahl signalisiert stattdessen nur die Farbe.
+                      // `scale` statt `transform` in der Transition-Liste: wie in
+                      // button.tsx (F11) emittiert Tailwind v4 fuer `scale-[...]`
+                      // eine eigene `scale`-Property, "transform" faengt sie nicht.
+                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm font-medium transition-[color,background-color,scale] [touch-action:manipulation] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       selected
-                        ? "border-transparent font-medium text-foreground"
+                        ? "border-transparent text-foreground"
                         : "border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
@@ -264,7 +270,16 @@ export default function SettingsPage() {
               </p>
               <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
                 <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
-                {syncing ? "Synchronisiere…" : "Jetzt synchronisieren"}
+                {/* ui-polish: beide Labels liegen uebereinander in derselben Grid-
+                    Zelle -- die Breite reserviert sich am laengeren Text, der
+                    Button springt beim Wechsel "Jetzt synchronisieren" <->
+                    "Synchronisiere…" nicht mehr in der Breite. */}
+                <span className="relative inline-grid">
+                  <span className={cn("col-start-1 row-start-1", syncing && "invisible")}>
+                    Jetzt synchronisieren
+                  </span>
+                  <span className={cn("col-start-1 row-start-1", !syncing && "invisible")}>Synchronisiere…</span>
+                </span>
               </Button>
             </div>
 
@@ -289,7 +304,9 @@ export default function SettingsPage() {
                 ) : (
                   <AlertTriangle aria-hidden="true" className="mt-px size-4 shrink-0" />
                 )}
-                <span className="leading-snug">
+                {/* ui-polish: tabular-nums, damit die Ziffern (Anzahl, Datum) beim
+                    naechsten Sync nicht in der Breite zittern. */}
+                <span className="leading-snug tabular-nums">
                   {sync.ok ? (
                     <>
                       <span className="font-medium">{sync.fetched} Stunden geladen</span>, {sync.upserted} aktualisiert.

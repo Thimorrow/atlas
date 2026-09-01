@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
+import { Stagger, StaggerItem } from "@/components/stagger";
 import { decideSync } from "@/lib/untis/sync-policy";
 import { cn } from "@/lib/utils";
 import { readLocal, writeLocal } from "@/lib/safe-storage";
@@ -295,11 +295,27 @@ type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
   | { kind: "cancel"; s: number; e: number; ev: Ev };
 
-function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; nowMin: number; dayPast: boolean; stagger: boolean }) {
+function TodayView({
+  day,
+  nowMin,
+  dayPast,
+  stagger,
+  firstPaint,
+}: {
+  day: Day | undefined;
+  nowMin: number;
+  dayPast: boolean;
+  stagger: boolean;
+  // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
+  // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
+  // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
+  // erneuten Auftritt.
+  firstPaint: boolean;
+}) {
   // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
   // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
   const reduce = useReducedMotion();
-  const animate = stagger && !reduce;
+  const animate = stagger && !reduce && firstPaint;
   if (!day) {
     return <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>;
   }
@@ -387,14 +403,17 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
             // Polish: Deckel lag bei 0.8s -- bei einem vollen Schultag fuehlte sich
             // das letzte Item wie Warten an statt wie Kaskade. 0.35s haelt die
             // Bewegung sichtbar, ohne zu ziehen.
-            const delay = stagger ? 0.06 + Math.min(i * 0.04, 0.35) : 0;
+            const delay = animate ? 0.06 + Math.min(i * 0.04, 0.35) : 0;
 
             if (it.kind === "cancel") {
               return (
                 <motion.li
                   key={`cancel-${it.ev.source}-${it.ev.refId}-${it.s}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
+                  // Animations-Audit: filter:blur entfernt -- Skill-Prinzip 1
+                  // (nur transform/opacity animieren), Blur ist teuer und traegt
+                  // hier keine zusaetzliche Information gegenueber opacity+y.
+                  initial={animate ? { opacity: 0, y: 8 } : false}
+                  animate={{ opacity: past ? 0.4 : 1, y: 0 }}
                   transition={{ duration: 0.42, delay, ease: EASE }}
                   className="grid grid-cols-[52px_1fr] items-center gap-3"
                 >
@@ -413,10 +432,11 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                // A3 (Reduced-Motion): nutzte bislang nur `stagger`, nicht das lokal
-                // gegatete `animate` -- unter Reduced-Motion lief opacity+blur trotzdem.
-                initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                animate={{ opacity: past ? 0.45 : 1, y: 0, filter: "blur(0px)" }}
+                // Animations-Audit: filter:blur entfernt (Skill-Prinzip 1, nur
+                // transform/opacity). A3 (Reduced-Motion): `animate` gated bereits
+                // Reduced-Motion UND Erstauftritt.
+                initial={animate ? { opacity: 0, y: 8 } : false}
+                animate={{ opacity: past ? 0.45 : 1, y: 0 }}
                 transition={{ duration: 0.42, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
@@ -452,8 +472,10 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
                       {it.ev.status === "substituted" && (
                         <motion.span
-                          initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
-                          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                          // Animations-Audit: filter:blur entfernt, scale+opacity
+                          // reichen fuer den kleinen Badge (Skill-Prinzip 1).
+                          initial={animate ? { opacity: 0, scale: 0.9 } : false}
+                          animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
                           // A2 (Kontrast): amber-600 auf amber/15+Block-Blau lag im
                           // Hellmodus bei ~2.5:1 -- praktisch unlesbar. amber-800 +
@@ -505,6 +527,11 @@ export default function Home() {
   // Nur der allererste View-Mount blurrt NICHT (da traegt der StaggerItem-Auftritt).
   // Jeder spaetere Remount (Mode-Switch, Tageswechsel) blurrt als Block rein.
   const firstView = useRef(true);
+  // Animations-Audit: die Heute-Agenda cascadet nur, solange sie noch nie zu
+  // sehen war. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-Framework
+  // 1) -- ohne dieses Gate wuerde die ganze Liste bei JEDEM Pfeilklick erneut
+  // einfliegen.
+  const todayFirstPaint = useRef(true);
 
   // Sichtbare Hoehe des Wochen-Scrollbereichs -- damit das (durch Stauchung
   // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
@@ -613,6 +640,12 @@ export default function Home() {
   const dayLabel = focusDay
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
+
+  // Nach der ersten sichtbaren Heute-Agenda keine Cascade mehr -- Tages-Pfeile
+  // sind Hochfrequenz-Navigation.
+  useEffect(() => {
+    if (mode === "today" && focusDay) todayFirstPaint.current = false;
+  });
   // Zeitachse begrenzt auf den tatsaechlichen Schulbereich der Woche: fruehester
   // Beginn / spaetestes Ende ueber alle school_blocks. Keine Bloecke (z.B. Ferien)
   // -> Fallback-Spanne, damit das Raster nicht kollabiert.
@@ -738,8 +771,13 @@ export default function Home() {
       <StaggerItem className="shrink-0 px-6 pt-6 lg:px-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
+          {/* Animations-Audit: die Ueberschrift steht bei jedem Laden fest an
+              derselben Stelle -- ein Buchstabe-fuer-Buchstabe-Reveal beantwortet
+              keine Frage (kein Cause/Effect, keine Ortsveraenderung) und lief
+              obendrein bei JEDEM Aufruf erneut. Skill-Regel 8: Ruhezustand beim
+              Laden bekommt keinen Auftritt. */}
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
-            <SplitText text="Stundenplan" />
+            Stundenplan
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Deine Schulwoche auf einen Blick."}
@@ -846,7 +884,13 @@ export default function Home() {
           ) : loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger />
+            <TodayView
+              day={focusDay}
+              nowMin={anchor === todayISO ? (now?.min ?? 0) : -1}
+              dayPast={anchor < todayISO}
+              stagger
+              firstPaint={todayFirstPaint.current}
+            />
           )
         ) : error && !data ? (
           <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
@@ -1004,15 +1048,19 @@ export default function Home() {
                             BLOCK_CLS,
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane }}
-                          // Termine loaden einzeln rein -- erst wenn die Card-Section
-                          // steht (kurzer Basis-Delay beim ersten Load), dann gestaffelt
-                          // ueber Tage + Stunden. F02: kein Blur (Lesbarkeit + GPU),
-                          // F05: knapperes Timing, F10: Reduced-Motion -> sofort.
-                          initial={reduce ? false : { opacity: 0, y: 6 }}
+                          // Termine loaden einzeln rein -- ABER nur beim allerersten
+                          // Laden der Seite. Animations-Audit: das Wochenblaettern ist
+                          // eine Hochfrequenz-Aktion (Skill-Framework 1) -- vorher
+                          // cascadete jeder Block bei JEDEM Wochenwechsel erneut ein und
+                          // stand einem buchstaeblich im Weg. Ab der zweiten Woche stehen
+                          // die Bloecke sofort, der 180ms-Opacity-Fade der Karte (weiter
+                          // unten) traegt das Wechsel-Feedback allein.
+                          // F02: kein Blur (Lesbarkeit + GPU), F10: Reduced-Motion -> sofort.
+                          initial={!firstPaint.current || reduce ? false : { opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{
                             duration: 0.32,
-                            delay: (firstPaint.current ? 0.12 : 0.06) + Math.min(di * 0.05 + i * 0.025, 0.3),
+                            delay: firstPaint.current ? Math.min(0.12 + di * 0.05 + i * 0.025, 0.3) : 0,
                             ease: EASE,
                           }}
                         >
@@ -1038,12 +1086,18 @@ export default function Home() {
 
                     {/* Jetzt-Linie -- O3: zeichnet sich beim Erscheinen einmal von
                         links ein und gleitet danach sanft mit der Zeit (statt
-                        instant zu springen). */}
+                        instant zu springen). Animations-Audit: vorher wurde
+                        transition-[top] animiert -- eine Layout-Eigenschaft, die
+                        bei jedem Frame Reflow ausloest. transform: translateY
+                        laeuft auf dem Compositor. Die Linie bewegt sich bereits
+                        auf dem Bildschirm (Minutentick) -> ease-in-out statt
+                        ease-out (Skill-Regel: bewegen/verschieben = ease-in-out,
+                        nicht das Enter-ease-out eines neu erscheinenden Elements). */}
                     {showNow && (
                       <div
                         aria-hidden="true"
-                        className="absolute inset-x-0 z-10 transition-[top] duration-700 ease-out"
-                        style={{ top: fitScale.yOf(now!.min) }}
+                        className="absolute inset-x-0 top-0 z-10 transition-transform duration-700 ease-in-out"
+                        style={{ transform: `translateY(${fitScale.yOf(now!.min)}px)` }}
                       >
                         <motion.div
                           className="h-px origin-left bg-red-500"

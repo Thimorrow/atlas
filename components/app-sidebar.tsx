@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, useAnimationControls, useReducedMotion } from "framer-motion";
+import { motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -51,10 +51,6 @@ export function AppSidebar({
   const [resizing, setResizing] = useState(false);
   const pathname = usePathname();
   const logoSpin = useAnimationControls();
-  // A1: Mount-Animation kombiniert transform (x) MIT opacity + filter -- das
-  // globale <MotionConfig reducedMotion="user"> kappt nur transform, opacity
-  // und filter liefen unter Reduced-Motion sonst trotzdem weiter.
-  const reduce = useReducedMotion();
 
   const toggle = () => {
     const next = !collapsed;
@@ -147,13 +143,14 @@ export function AppSidebar({
     cn("flex-1 truncate text-left transition-opacity duration-200", collapsed && "pointer-events-none opacity-0", extra);
 
   return (
-    <motion.div
-      // Beim Reload slidet die Sidebar von links mit blur + opacity rein --
-      // gleicher Auftritt wie die Page-Sections (Split & Stagger), nur aus der
-      // Horizontalen. Reduced-Motion-Gate global ueber <MotionConfig>.
-      initial={reduce ? false : { opacity: 0, x: -28, filter: "blur(6px)" }}
-      animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-      transition={{ duration: 0.7, ease: EASE }}
+    // Animations-Audit: die Sidebar ist Navigations-Chrome, das bei JEDEM
+    // Seitenaufruf an derselben Stelle steht -- kein State-Wechsel, den der
+    // Nutzer ausgeloest hat (Skill-Regel 8: Ruhezustand beim Laden bekommt
+    // keinen Auftritt). Vorher liefen 700ms mit blur(6px) + translateX --
+    // deutlich ueber dem Rahmen fuer Seiten-Transitions (300-400ms) UND ein
+    // teurer Blur-Filter auf einer grossen Flaeche bei jedem Reload. Entfernt
+    // statt gekuerzt: die Sidebar braucht keinen Auftritt, sie ist einfach da.
+    <div
       className="sticky top-0 hidden h-dvh shrink-0 md:block"
       style={{
         width: collapsed ? COLLAPSED : width,
@@ -353,6 +350,6 @@ export function AppSidebar({
           />
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
