@@ -64,6 +64,31 @@ drizzle/                Migrationen
 .ytstack/               Projektzustand, Entscheidungen, Specs
 ```
 
+## Die Android-App
+
+Unter `android/` liegt eine native App in Kotlin mit Jetpack Compose. Sie
+spricht dieselbe HTTP-API wie die Weboberflaeche, siehe `.ytstack/API.md`.
+
+Bauen:
+
+```
+cd android
+./gradlew assembleDebug
+```
+
+Die fertige Datei liegt danach unter
+`android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Aufs Handy: die Datei uebertragen und antippen. Android fragt einmal, ob es
+Apps aus dieser Quelle installieren darf. Das ist eine Debug-Signatur, bewusst:
+sie liegt in `~/.android/debug.keystore` und bleibt stabil, spaetere Versionen
+lassen sich also ueber die vorhandene App installieren. Ein eigener
+Signaturschluessel waere nur ein zusaetzliches Stueck, das verloren gehen kann.
+
+Voraussetzungen sind das Android SDK mit Plattform 36 und ein JDK 21. Der Pfad
+zum JDK steht in `android/gradle.properties`, der zum SDK in
+`android/local.properties`, die nicht eingecheckt ist.
+
 ## Datenmodell
 
 `school_blocks` kommt aus Untis und wird per `(untis_lesson_id, date)`
