@@ -172,3 +172,57 @@
     }
   }
 }
+
+/* --- Stundenblöcke: Fachfarbe als Hauch, nicht als Fläche -------------------
+   Der Block trug bisher für JEDES Fach dasselbe Blassblau, obwohl der Nutzer
+   seinen Fächern eigene Farben gegeben hat. Ein Wochenraster in dreizehn
+   kräftigen Flächenfarben wäre allerdings ein Flickenteppich, deshalb trägt die
+   Farbe hier nur an zwei Stellen: als sehr schwache Tönung der Füllung und als
+   schmale, satte Kante links. Die Kante macht Blau und Violett auch dann noch
+   unterscheidbar, wenn die Tönung selbst kaum zu trennen ist.
+   Die Prozentsätze sind pro Erscheinungsbild verschieden: auf Weiß deckt eine
+   Farbe stärker als auf dem dunklen Karton, gleiche Werte würden im Dunkelmodus
+   verschwinden. Gesteuert wird über die Variable --fach, nicht über eine Klasse
+   pro Fach. */
+.fachblock {
+  /* Rückfallfarbe: exakt das bisherige Blau. Termine ohne passendes Fach sehen
+     damit aus wie vorher. */
+  --fach: oklch(0.58 0.16 255);
+  background-color: color-mix(in oklab, var(--fach) 13%, transparent);
+  border-color: color-mix(in oklab, var(--fach) 26%, transparent);
+  /* Ohne Fachtreffer bleibt die linke Kante so leise wie die übrigen Ränder --
+     kein Akzent, der eine Zuordnung behauptet, die es nicht gibt. */
+  border-left-color: color-mix(in oklab, var(--fach) 26%, transparent);
+}
+
+.dark .fachblock {
+  background-color: color-mix(in oklab, var(--fach) 14%, transparent);
+  border-color: color-mix(in oklab, var(--fach) 30%, transparent);
+  border-left-color: color-mix(in oklab, var(--fach) 30%, transparent);
+}
+
+/* Mit Fachtreffer: die Kante trägt die Farbe in voller Stärke. Sie ist 3px
+   schmal und damit auch bei dreizehn Fächern nebeneinander ruhig. */
+.fachblock-akzent,
+.dark .fachblock-akzent {
+  border-left-color: var(--fach);
+}
+
+/* Vertretung schlägt Fachfarbe: der Vertretung-Hinweis ist bernsteinfarben und
+   verschwämme auf einem orange oder bernstein getönten Fach. Deshalb bleibt die
+   Füllung hier neutral; die Zuordnung zum Fach trägt weiterhin die Kante. */
+/* Nur die drei uebrigen Kanten, nicht die Kurzform border-color: sonst
+   ueberschriebe sie die Fachkante links gleich mit. */
+.fachblock-vertretung {
+  background-color: color-mix(in oklab, var(--foreground) 6%, transparent);
+  border-top-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+  border-right-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+.dark .fachblock-vertretung {
+  background-color: color-mix(in oklab, var(--foreground) 10%, transparent);
+  border-top-color: color-mix(in oklab, var(--foreground) 16%, transparent);
+  border-right-color: color-mix(in oklab, var(--foreground) 16%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--foreground) 16%, transparent);
+}

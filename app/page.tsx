@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,16 @@ const SYNC_STALE_AFTER_MS = 2 * 60 * 60_000;
 // Jetzt nur noch zwei im Ruhezustand: getönte Füllung + ein leiser, farblich
 // passender Rand. Der Ring bleibt allein dem Hover vorbehalten -- er markiert
 // dann wirklich einen Zustandswechsel statt nur mitzulaufen.
-const BLOCK_CLS = "border border-blue-500/20 bg-blue-100/80 dark:border-blue-400/20 dark:bg-blue-500/20";
+// Die Farbwerte stehen in globals.css (.fachblock) und haengen an der Variable
+// --fach, damit hell und dunkel ueber dieselbe Klasse laufen statt ueber ein
+// halbes Dutzend dark:-Ausnahmen an jeder Aufrufstelle.
+const BLOCK_CLS = "fachblock border border-l-[3px]";
+
+// Setzt die Fachfarbe als Custom Property. Ohne Treffer bleibt --fach ungesetzt
+// und .fachblock faellt auf das bisherige Blau zurueck.
+function fachStyle(color: string | null): CSSProperties {
+  return color ? ({ "--fach": color } as CSSProperties) : {};
+}
 
 // Entfallene Schulstunden werden nicht als eigener Block gezeigt, sondern als
 // leiser Chip an der ECHTEN Startzeit der Stunde -- statt Doppelung "Frei" +
@@ -362,11 +371,15 @@ function TodayView({
   due,
   onToggleAssignment,
   onCreateAssignment,
+  fachFarbe,
 }: {
   day: Day | undefined;
   nowMin: number;
   dayPast: boolean;
   stagger: boolean;
+  // Fachfarbe zum Termintitel, null wenn kein Fach dazu passt. Die Zuordnung
+  // selbst kennt nur die Seite (sie haelt die Fachliste), nicht diese Ansicht.
+  fachFarbe: (title: string) => string | null;
   // Aufgaben mit Faelligkeit an diesem Tag -- leere Liste rendert nichts.
   due: AssignmentDTO[];
   onToggleAssignment: (a: AssignmentDTO) => void;
@@ -498,6 +511,8 @@ function TodayView({
 
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
+            const farbe = fachFarbe(it.ev.title);
+            const vertretung = it.ev.status === "substituted";
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
@@ -526,8 +541,11 @@ function TodayView({
                   className={cn(
                     "relative select-text overflow-hidden rounded-lg px-3 py-2 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     BLOCK_CLS,
+                    farbe && "fachblock-akzent",
+                    vertretung && "fachblock-vertretung",
                     isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
                   )}
+                  style={fachStyle(farbe)}
                 >
                   <div className="flex items-baseline gap-2">
                     <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
@@ -832,6 +850,14 @@ export default function Home() {
   const subjectFor = (title: string) =>
     subjects.find((s) => s.untisSubject === title) ?? subjects.find((s) => s.name === title) ?? null;
 
+  // Dieselbe Zuordnung traegt jetzt auch die Farbe in den Stundenplan. Ein Fach
+  // ohne gesetzte Farbe zaehlt als Nicht-Treffer -- colorValue wuerde sonst sein
+  // Neutralgrau liefern und der Block bekaeme einen Akzent ohne Aussage.
+  const fachFarbe = (title: string) => {
+    const s = subjectFor(title);
+    return s?.color ? colorValue(s.color) : null;
+  };
+
   // Datum der NAECHSTEN Stunde desselben Fachs nach dem angeklickten Tag, aus
   // den bereits geladenen Wochendaten. Keine gefunden -> Feld bleibt leer.
   const nextLessonDate = (title: string, afterISO: string) =>
@@ -1114,6 +1140,7 @@ export default function Home() {
               due={dueByDay.get(anchor) ?? []}
               onToggleAssignment={toggleAssignment}
               onCreateAssignment={openComposer}
+              fachFarbe={fachFarbe}
             />
           )
         ) : error && !data ? (
@@ -1259,6 +1286,7 @@ export default function Home() {
                       // Raum. Passt die nicht mehr, tritt ein Punkt am Fachnamen an
                       // seine Stelle (siehe unten).
                       const vertretung = p.ev.status === "substituted";
+                      const farbe = fachFarbe(p.ev.title);
                       const badgePasst = height >= 58;
                       // A4 (Semantik): reine divs ohne Bedeutung -- ein Screenreader
                       // liest sonst nur den sichtbaren Titel vor, ohne Zeit/Raum/Status
@@ -1286,8 +1314,10 @@ export default function Home() {
                           className={cn(
                             "absolute flex select-text flex-col gap-1 overflow-hidden rounded-md px-2 py-1 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                             BLOCK_CLS,
+                            farbe && "fachblock-akzent",
+                            vertretung && "fachblock-vertretung",
                           )}
-                          style={{ top, height, left, width, zIndex: 2 + p.lane }}
+                          style={{ top, height, left, width, zIndex: 2 + p.lane, ...fachStyle(farbe) }}
                           // Termine loaden einzeln rein -- ABER nur beim allerersten
                           // Laden der Seite. Animations-Audit: das Wochenblaettern ist
                           // eine Hochfrequenz-Aktion (Skill-Framework 1) -- vorher
