@@ -35,7 +35,22 @@ Faecher sind eingerichtet: 13 aktive Faecher mit Sids Wunschfarben,
 `Informatik/ang. Mathematik` archiviert. Die Farbzuordnung ist als Vorbelegung
 in `lib/subject-colors.ts` (`PRESETS`) hinterlegt, nicht fest verdrahtet.
 
-Offen: nichts committed. Ein Commit auf `schule-scope` steht aus.
+Live auf Vercel: https://atlas-ten-orpin.vercel.app (Projekt `atlas`, GitHub
+`Thimorrow/atlas`, oeffentlich). Zwei Stolpersteine dabei geloest:
+
+1. `lib/db/index.ts` rief `neon(process.env.DATABASE_URL!)` beim Modul-Laden
+   auf. `neon()` validiert sofort, deshalb scheiterte jeder Build ohne die
+   Variable. Jetzt ein Proxy, der die Verbindung erst bei der ersten Query
+   aufbaut -- belegt mit `env -u DATABASE_URL npx next build`.
+2. Die Bereitstellung war ohne jede Pruefung erreichbar, die Deploy-URLs stehen
+   ohne Login in der GitHub-Deployments-API. Vercel Authentication gibt es im
+   Hobby-Plan nicht fuer Production, daher `proxy.ts` + `lib/gate.ts`: ein
+   Passwort, danach ein HMAC-signiertes Cookie. Ohne `ATLAS_PASSWORD` bleibt
+   alles offen, das ist der lokale Fall.
+
+Env bei Vercel gesetzt (Production und Preview): DATABASE_URL, WEBUNTIS_*,
+ATLAS_PASSWORD, ATLAS_SESSION_SECRET. `BLOB_READ_WRITE_TOKEN` fehlt weiterhin,
+der Dateibereich laeuft im Hinweis-Zustand.
 
 ## Open decisions
 
