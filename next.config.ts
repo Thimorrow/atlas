@@ -15,8 +15,14 @@ const nextConfig: NextConfig = {
   // auch nicht: der Aufruf steht tief in webuntis und wird erst zur Laufzeit
   // aufgeloest. Ein Eintrag in package.json genuegte nicht, der Deploy blieb
   // bei derselben 500. Hier wird das Paket ausdruecklich mitgenommen.
+  // Aufgezaehlt statt geraten: das ist die vollstaendige Huelle von otplib.
+  // Der erste Versuch nahm nur otplib und @otplib mit, dann fehlte thirty-two.
   outputFileTracingIncludes: {
-    "/api/**": ["./node_modules/otplib/**/*", "./node_modules/@otplib/**/*"],
+    "/api/**": [
+      "./node_modules/otplib/**/*",
+      "./node_modules/@otplib/**/*",
+      "./node_modules/thirty-two/**/*",
+    ],
   },
 };
 

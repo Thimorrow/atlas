@@ -16,7 +16,9 @@
 // Laeuft in der Edge-Runtime des Proxy -> Web Crypto statt node:crypto.
 
 export const COOKIE_NAME = "atlas-gate";
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 Tage
+// Ein Jahr. Atlas ist eine Ein-Personen-App auf dem eigenen Handy; sich alle
+// paar Wochen neu anzumelden waere Reibung ohne Gegenwert.
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
 const enc = new TextEncoder();
 
