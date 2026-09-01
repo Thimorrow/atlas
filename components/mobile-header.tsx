@@ -8,7 +8,10 @@ import { AtlasLogo } from "@/components/atlas-logo";
 // ohne diese Leiste waere /settings vom Handy aus nicht erreichbar.
 export function MobileHeader() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b bg-card/40 px-2 md:hidden">
+    // Polish: bg-card/40 war ohne backdrop-blur -- beim Scrollen schien der
+    // Inhalt darunter durch und der Text der Leiste wurde unlesbar. blur statt
+    // voller Deckung, damit die gewollte Transluzenz bleibt.
+    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b bg-card/40 px-2 backdrop-blur-md md:hidden">
       <div className="flex size-11 items-center justify-center">
         <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <AtlasLogo className="size-[20px]" />

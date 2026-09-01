@@ -12,10 +12,13 @@ import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+// Polish: bei Seiten mit mehreren Sections (Settings: 6 StaggerItems) kam die
+// letzte Section erst nach ~0.8s an -- fuehlt sich wie Warten statt Kaskade an.
+// Engere Schritte + kuerzere Item-Dauer halten die Kaskade unter ~0.6s.
 const container = {
   hidden: {},
   visible: {
-    transition: { staggerChildren: 0.07, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.045, delayChildren: 0.05 },
   },
 };
 
@@ -25,7 +28,7 @@ const item = {
     opacity: 1,
     y: 0,
     filter: "blur(0px)",
-    transition: { duration: 0.4, ease: EASE },
+    transition: { duration: 0.32, ease: EASE },
   },
 };
 
@@ -51,9 +54,11 @@ export function StaggerItem({ children, ...props }: HTMLMotionProps<"div">) {
 // sie gestaffelt mit blur + opacity + translateY rein. Orchestriert sich selbst
 // (eigenes initial/animate), laeuft also unabhaengig beim Mount. a11y: das Wort
 // steht als aria-label am Container, die Buchstaben sind aria-hidden.
+// Polish: dieselbe Straffung wie beim Container -- ein 13-Buchstaben-Wort
+// ("Einstellungen") brauchte vorher bis zu ~0.8s, bis der letzte Buchstabe stand.
 const splitContainer = {
   hidden: {},
-  visible: { transition: { staggerChildren: 0.045, delayChildren: 0.12 } },
+  visible: { transition: { staggerChildren: 0.02, delayChildren: 0.06 } },
 };
 
 const splitChar = {
@@ -62,7 +67,7 @@ const splitChar = {
     opacity: 1,
     y: 0,
     filter: "blur(0px)",
-    transition: { duration: 0.55, ease: EASE },
+    transition: { duration: 0.35, ease: EASE },
   },
 };
 

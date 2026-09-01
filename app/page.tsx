@@ -244,6 +244,45 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+// Polish: "Lade Woche …" stand vorher als nackter Text mittig im leeren
+// Bereich -- ein Skelett, das die Form des Rasters (Spaltenkoepfe + Bloecke je
+// Werktag) vorwegnimmt, wirkt ruhiger als ein Textsprung. animate-pulse ist
+// eine reine CSS-Animation und faellt damit automatisch unter das globale
+// prefers-reduced-motion-Gate in globals.css.
+function WeekSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 flex-col" aria-hidden="true">
+      <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+        <div className="border-r" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="border-r px-3 pb-2 pt-1.5 last:border-r-0">
+            <div className="h-2.5 w-6 animate-pulse rounded bg-muted" />
+            <div className="mt-1.5 h-7 w-7 animate-pulse rounded-md bg-muted" />
+          </div>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="grid h-full gap-x-0" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+          <div />
+          {[
+            [10, 20, 45],
+            [16, 30],
+            [8, 20, 24],
+            [24, 30],
+            [12, 20, 16],
+          ].map((blocks, col) => (
+            <div key={col} className="flex flex-col gap-2 px-1.5 pt-3">
+              {blocks.map((h, i) => (
+                <div key={i} className="animate-pulse rounded-md bg-muted" style={{ height: h, opacity: 0.5 - i * 0.08 }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Heute-Ansicht ----------------------------------------------------------
 
 type AgendaItem =
@@ -339,7 +378,10 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
             const past = dayPast || (isToday && it.e <= nowMin);
             // Agenda cascadet beim Mount Item fuer Item klar nacheinander rein
             // (groesserer Schritt + Basis-Delay -> spuerbar, nicht "alles auf einmal").
-            const delay = stagger ? 0.1 + Math.min(i * 0.07, 0.8) : 0;
+            // Polish: Deckel lag bei 0.8s -- bei einem vollen Schultag fuehlte sich
+            // das letzte Item wie Warten an statt wie Kaskade. 0.35s haelt die
+            // Bewegung sichtbar, ohne zu ziehen.
+            const delay = stagger ? 0.06 + Math.min(i * 0.04, 0.35) : 0;
 
             if (it.kind === "cancel") {
               return (
@@ -375,10 +417,15 @@ function TodayView({ day, nowMin, dayPast, stagger }: { day: Day | undefined; no
                 {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
                 <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
                 <div
+                  // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
+                  // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
+                  // breiter), title schadet aber nicht und Raum/Lehrer sollen
+                  // kopierbar bleiben.
+                  title={`${it.ev.title}${meta ? `, ${meta}` : ""}`}
                   className={cn(
-                    "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
+                    "relative select-text overflow-hidden rounded-lg border border-l-[3px] px-3 py-2 transition-[background-color,box-shadow] duration-150 ease-out",
                     BLOCK_CLS,
-                    isNext && "ring-2 ring-primary/30",
+                    isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
                   )}
                 >
                   <div className="flex items-baseline gap-2">
@@ -694,7 +741,14 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
-          <h2 className="mr-1 text-[15px] font-medium tabular-nums text-foreground">{mode === "today" ? dayLabel : label}</h2>
+          {/* Polish: Text wechselt je nach Woche/Tag stark in der Laenge ("1.–7.
+              September 2026" vs. "29. September – 5. Oktober 2026") -- ohne
+              reservierte Breite ruckeln die Buttons rechts daneben beim Blaettern
+              mit. min-w + text-right haelt ihre Position fest, der Text waechst
+              nach links. */}
+          <h2 className="mr-1 min-w-[17ch] text-right text-[15px] font-medium tabular-nums text-foreground">
+            {mode === "today" ? dayLabel : label}
+          </h2>
 
           <Button
             variant="outline"
@@ -786,7 +840,7 @@ export default function Home() {
         ) : error && !data ? (
           <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : loading && !data ? (
-          <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
+          <WeekSkeleton />
         ) : !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>
         ) : (
@@ -868,8 +922,14 @@ export default function Home() {
                     key={day.date}
                     role="group"
                     aria-label={`${WEEKDAYS_LONG[day.weekday]}, ${dayNum(day.date)}. ${MONTHS[monthOf(day.date)]}${today ? ", Heute" : ""}`}
+                    // Polish (Stacking): isolate spannt hier eine eigene Stacking-
+                    // Context auf. Die drei handgesetzten z-Werte darin (Entfall-Chip
+                    // z-[1] < Termin-Bloecke 2+lane < Jetzt-Linie z-10) beschreiben nur
+                    // die Reihenfolge INNERHALB einer Tagesspalte -- isolate stellt
+                    // sicher, dass sie niemals mit der globalen Chrome-Ebene (Sidebar-
+                    // Resize-Griff z-20, Mobile-Header z-30) verrechnet werden koennen.
                     className={cn(
-                      "relative border-r last:border-r-0",
+                      "relative isolate border-r last:border-r-0",
                       today && "bg-primary/[0.035]",
                       weekend && "bg-muted/30",
                     )}
@@ -888,7 +948,10 @@ export default function Home() {
                       >
                         {/* A2 (Kontrast): bg-muted/60 + text/80 lag bei ~3.1:1 (hell) --
                             unter AA. /50-Fuellung + volle muted-foreground traegt (4.5:1+). */}
-                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/50 px-1 text-[11px] font-medium text-muted-foreground">
+                        <span
+                          title={`${e.title} entfällt`}
+                          className="flex max-w-full items-center gap-1 truncate rounded bg-muted/50 px-1 text-[11px] font-medium text-muted-foreground"
+                        >
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
                           <span className="truncate">{e.title} entfällt</span>
                         </span>
@@ -917,8 +980,16 @@ export default function Home() {
                           key={`${p.ev.source}-${p.ev.refId}-${i}`}
                           role="group"
                           aria-label={blockLabel}
+                          // Polish: Fachnamen werden im schmalen Block abgeschnitten --
+                          // title gibt Maus-Nutzern den vollen Namen als Tooltip (kostet
+                          // keine Dependency, ergaenzt das schon vorhandene aria-label
+                          // fuer Screenreader). select-text hebt das app-weite select-none
+                          // fuer den Blockinhalt auf -- Fach/Raum sollen kopierbar bleiben.
+                          // hover signalisiert, dass der Block reagiert (Tooltip), ohne
+                          // eine Klickbarkeit vorzutaeuschen, die es nicht gibt.
+                          title={blockLabel}
                           className={cn(
-                            "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
+                            "absolute flex select-text flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1 transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16]",
                             BLOCK_CLS,
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane }}
