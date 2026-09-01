@@ -2,10 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Stagger, StaggerItem } from "@/components/stagger";
+import { AssignmentComposer } from "@/components/assignment-composer";
+import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
+import { useToast } from "@/components/toast";
 import { decideSync } from "@/lib/untis/sync-policy";
+import type { AssignmentDTO, AssignmentType } from "@/lib/assignments-view";
+import { colorValue } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 import { readLocal, writeLocal } from "@/lib/safe-storage";
 
@@ -24,6 +35,15 @@ type Ev = {
 };
 type Day = { date: string; weekday: number; events: Ev[] };
 type RangeData = { start: string; end: string; days: Day[] };
+// Nur die Felder, die der Stundenplan fuer Farbe und Vorbelegung braucht.
+type SubjectOption = { id: string; name: string; untisSubject: string | null; color: string | null };
+// Vorbelegung des Composers, wenn er aus einer Schulstunde heraus geoeffnet wird.
+type ComposerSeed = {
+  type: AssignmentType;
+  subjectId: string | null;
+  untisSubject: string | null;
+  dueDate: string | null;
+};
 
 // --- Konstanten -------------------------------------------------------------
 
@@ -64,6 +84,38 @@ function CancelChip({ title }: { title: string }) {
       <span className="size-1 rounded-full bg-red-500/45" />
       {title} entfällt
     </span>
+  );
+}
+
+// Ein Klick auf eine Schulstunde legt eine Aufgabe fuer dieses Fach an. Das
+// Menue haengt per asChild AM Block selbst -- es kommt kein zusaetzliches
+// Element ins Layout, der Block behaelt Groesse und Position.
+// Der Block ist damit interaktiv: tabIndex macht ihn per Tastatur erreichbar,
+// Enter/Leertaste oeffnen das Menue (Radix-Trigger), der Fokusring sitzt an den
+// Aufrufstellen in der Block-Klasse.
+function LessonMenu({
+  ev,
+  dayISO,
+  onCreate,
+  children,
+}: {
+  ev: Ev;
+  dayISO: string;
+  onCreate: (ev: Ev, dayISO: string, type: AssignmentType) => void;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "homework")}>
+          <NotebookPen /> Hausaufgabe hinzufügen
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "exam")}>
+          <GraduationCap /> Klassenarbeit eintragen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -301,11 +353,18 @@ function TodayView({
   dayPast,
   stagger,
   firstPaint,
+  due,
+  onToggleAssignment,
+  onCreateAssignment,
 }: {
   day: Day | undefined;
   nowMin: number;
   dayPast: boolean;
   stagger: boolean;
+  // Aufgaben mit Faelligkeit an diesem Tag -- leere Liste rendert nichts.
+  due: AssignmentDTO[];
+  onToggleAssignment: (a: AssignmentDTO) => void;
+  onCreateAssignment: (ev: Ev, dayISO: string, type: AssignmentType) => void;
   // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
   // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
   // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
@@ -391,6 +450,10 @@ function TodayView({
         {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-600 dark:text-red-400">noch {durLabel(next.e - nowMin)}</span>}
       </motion.div>
 
+      {/* Fällige Aufgaben: schlanke Zeile unter dem Kopf. Ohne fällige Aufgabe
+          rendert DayDueRow null -- der Tag sieht dann aus wie vorher. */}
+      <DayDueRow items={due} onToggle={onToggleAssignment} />
+
       {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
       {agenda.length > 0 ? (
         <ul className="space-y-1.5">
@@ -442,14 +505,20 @@ function TodayView({
               >
                 {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
                 <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
+                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment}>
                 <div
                   // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
                   // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
                   // breiter), title schadet aber nicht und Raum/Lehrer sollen
                   // kopierbar bleiben.
                   title={`${it.ev.title}${meta ? `, ${meta}` : ""}`}
+                  // Der Block ist jetzt zugleich Menue-Trigger (Aufgabe anlegen):
+                  // tabIndex + Fokusring machen ihn per Tastatur bedienbar, ohne
+                  // Groesse oder Position zu veraendern.
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    "relative select-text overflow-hidden rounded-lg px-3 py-2 transition-[background-color,box-shadow] duration-150 ease-out",
+                    "relative select-text overflow-hidden rounded-lg px-3 py-2 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                     BLOCK_CLS,
                     isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
                   )}
@@ -488,6 +557,7 @@ function TodayView({
                     </div>
                   )}
                 </div>
+                </LessonMenu>
               </motion.li>
             );
           })}
@@ -543,6 +613,14 @@ export default function Home() {
 
   // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
+
+  // Aufgaben-Spur: offene Aufgaben und die Fächer (fuer Farbe + Vorbelegung).
+  // Beides ist rein additiv -- schlaegt der Request fehl, bleiben die Listen
+  // leer und der Stundenplan laeuft unveraendert weiter.
+  const toast = useToast();
+  const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [seed, setSeed] = useState<ComposerSeed | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -624,6 +702,23 @@ export default function Home() {
     };
   }, [anchor, reloadKey]);
 
+  // Aufgaben + Fächer nachladen. Bewusst OHNE loading/error-Zustand: die Spur
+  // ist Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/assignments")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { assignments?: AssignmentDTO[] }) => alive && setAssignments(d.assignments ?? []))
+      .catch(() => {});
+    fetch("/api/subjects")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { subjects?: SubjectOption[] }) => alive && setSubjects(d.subjects ?? []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
   // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
     if (data) firstPaint.current = false;
@@ -646,6 +741,55 @@ export default function Home() {
   useEffect(() => {
     if (mode === "today" && focusDay) todayFirstPaint.current = false;
   });
+
+  // Aufgaben nach Fälligkeitsdatum. Ohne dueDate taucht eine Aufgabe im
+  // Stundenplan nirgends auf.
+  const dueByDay = useMemo(() => {
+    const m = new Map<string, AssignmentDTO[]>();
+    for (const a of assignments) {
+      if (!a.dueDate) continue;
+      const list = m.get(a.dueDate);
+      if (list) list.push(a);
+      else m.set(a.dueDate, [a]);
+    }
+    return m;
+  }, [assignments]);
+
+  // Abhaken in der Tagesansicht: optimistic, mit Rücksprung + Toast bei Fehler.
+  const toggleAssignment = async (a: AssignmentDTO) => {
+    const done = Boolean(a.completedAt);
+    const next = done ? null : new Date().toISOString();
+    setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: next } : x)));
+    try {
+      const res = await fetch(`/api/assignments/${a.id}/complete`, { method: done ? "DELETE" : "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: a.completedAt } : x)));
+      toast("Die Aufgabe konnte nicht gespeichert werden.");
+    }
+  };
+
+  // Fach zur Stunde: erst der exakte Untis-Wert, sonst der Anzeigename. Findet
+  // sich keins, bleibt subjectId null -- der Server legt das Fach beim Speichern
+  // still ueber untisSubject an.
+  const subjectFor = (title: string) =>
+    subjects.find((s) => s.untisSubject === title) ?? subjects.find((s) => s.name === title) ?? null;
+
+  // Datum der NAECHSTEN Stunde desselben Fachs nach dem angeklickten Tag, aus
+  // den bereits geladenen Wochendaten. Keine gefunden -> Feld bleibt leer.
+  const nextLessonDate = (title: string, afterISO: string) =>
+    data?.days.find(
+      (d) => d.date > afterISO && d.events.some((e) => e.title === title && e.status !== "cancelled"),
+    )?.date ?? null;
+
+  const openComposer = (ev: Ev, dayISO: string, type: AssignmentType) => {
+    setSeed({
+      type,
+      subjectId: subjectFor(ev.title)?.id ?? null,
+      untisSubject: ev.title,
+      dueDate: nextLessonDate(ev.title, dayISO),
+    });
+  };
   // Zeitachse begrenzt auf den tatsaechlichen Schulbereich der Woche: fruehester
   // Beginn / spaetestes Ende ueber alle school_blocks. Keine Bloecke (z.B. Ferien)
   // -> Fallback-Spanne, damit das Raster nicht kollabiert.
@@ -890,6 +1034,9 @@ export default function Home() {
               dayPast={anchor < todayISO}
               stagger
               firstPaint={todayFirstPaint.current}
+              due={dueByDay.get(anchor) ?? []}
+              onToggleAssignment={toggleAssignment}
+              onCreateAssignment={openComposer}
             />
           )
         ) : error && !data ? (
@@ -939,6 +1086,13 @@ export default function Home() {
                         {today && <span className="sr-only"> · Heute</span>}
                       </span>
                     </div>
+                    {/* Aufgaben-Spur: Punkte unter der Tageszahl. Ohne fällige
+                        Aufgabe rendert WeekDayDots null, der Kopf bleibt dann
+                        exakt so hoch wie vorher. */}
+                    <WeekDayDots
+                      items={dueByDay.get(day.date) ?? []}
+                      colorOf={(a) => colorValue(a.subjectColor)}
+                    />
                   </div>
                 );
               })}
@@ -1034,11 +1188,15 @@ export default function Home() {
                       // (die stecken nur in Position/Hoehe). role="group" (nicht
                       // "button", der Block ist nicht klickbar) + ein Label, das genau
                       // das zusammenfasst, was das Auge aus Position + Text liest.
+                      // Nachtrag (Aufgaben-Modul): der Block IST inzwischen klickbar --
+                      // er oeffnet das Menue zum Anlegen einer Aufgabe. Deshalb jetzt
+                      // role="button" + tabIndex; das Label bleibt unveraendert.
                       const blockLabel = `${p.ev.title}, ${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)} Uhr` : " Uhr"}${p.ev.room ? `, ${p.ev.room}` : ""}${p.ev.status === "substituted" ? ", Vertretung" : ""}`;
                       return (
+                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer}>
                         <motion.div
-                          key={`${p.ev.source}-${p.ev.refId}-${i}`}
-                          role="group"
+                          role="button"
+                          tabIndex={0}
                           aria-label={blockLabel}
                           // Polish: Fachnamen werden im schmalen Block abgeschnitten --
                           // title gibt Maus-Nutzern den vollen Namen als Tooltip (kostet
@@ -1049,7 +1207,7 @@ export default function Home() {
                           // eine Klickbarkeit vorzutaeuschen, die es nicht gibt.
                           title={blockLabel}
                           className={cn(
-                            "absolute flex select-text flex-col gap-1 overflow-hidden rounded-md px-2 py-1 transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16]",
+                            "absolute flex select-text flex-col gap-1 overflow-hidden rounded-md px-2 py-1 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                             BLOCK_CLS,
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane }}
@@ -1097,6 +1255,7 @@ export default function Home() {
                             </span>
                           )}
                         </motion.div>
+                        </LessonMenu>
                       );
                     })}
 
@@ -1139,6 +1298,21 @@ export default function Home() {
       </motion.div>
       </StaggerItem>
       </Stagger>
+
+      {/* Aufgabe aus der Stunde heraus anlegen. Der Composer haengt ausserhalb
+          des Rasters und beeinflusst dessen Layout nicht. */}
+      <AssignmentComposer
+        open={seed !== null}
+        onOpenChange={(open) => {
+          if (!open) setSeed(null);
+        }}
+        subjects={subjects.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+        initial={seed ?? undefined}
+        onSaved={(a) => {
+          setAssignments((prev) => [...prev, a]);
+          setSeed(null);
+        }}
+      />
     </main>
   );
 }

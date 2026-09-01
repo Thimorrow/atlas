@@ -58,3 +58,5 @@
 {"timestamp":"2026-07-01T11:41:35Z","event":"session-end","milestone":"M002","slice":"S04","task":"T01","session_id":"a0878637-0a60-4910-b3a0-150b3e5ec003"}
 {"timestamp":"2026-07-01T11:41:46Z","event":"session-end","milestone":"M002","slice":"S04","task":"T01","session_id":"b5924f3a-e1ad-4a7f-88a9-68dcb923f551"}
 {"timestamp":"2026-07-01T20:23:33Z","event":"session-end","milestone":"M002","slice":"S04","task":"T01","session_id":"eb6174a5-ef12-4878-b391-bdbd7ba25b8b"}
+{"timestamp":"2026-09-01T17:50:39Z","event":"session-end","milestone":"M002","slice":"S04","task":"T01","session_id":"02f85c99-95bc-4d12-ac15-eea7556b82fc"}
+{"timestamp":"2026-09-01T18:05:43Z","event":"session-end","milestone":"M003","slice":"null","task":"null","session_id":"8df2d659-3d9c-4c66-bc4b-4b904092255a"}

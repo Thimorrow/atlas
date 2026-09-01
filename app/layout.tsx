@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileHeader } from "@/components/mobile-header";
+import { ToastProvider } from "@/components/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,6 +33,7 @@ export default async function RootLayout({
       <body className="select-none font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <MotionProvider>
+            <ToastProvider>
             {/* A1 (iOS): dvh statt vh -- 100vh reicht unter Safaris einblendbarer
                 Adressleiste ueber den sichtbaren Bereich hinaus und schneidet
                 Inhalte ab. dvh folgt der tatsaechlich sichtbaren Hoehe. */}
@@ -42,6 +44,7 @@ export default async function RootLayout({
                 <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
               </div>
             </div>
+            </ToastProvider>
           </MotionProvider>
         </ThemeProvider>
       </body>

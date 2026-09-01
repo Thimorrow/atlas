@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings } from "lucide-react";
+import { ListChecks, Library, Settings } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,29 @@ export function MobileHeader() {
           <AtlasLogo className="size-[20px]" />
         </span>
       </Link>
+      <nav className="flex items-center gap-0.5">
+      {[
+        { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
+        { href: "/faecher", label: "Fächer", icon: Library },
+      ].map((m) => {
+        const active = pathname.startsWith(m.href);
+        return (
+          <Link
+            key={m.href}
+            href={m.href}
+            aria-label={m.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              tap,
+              active
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            <m.icon className="size-[18px]" />
+          </Link>
+        );
+      })}
       <Link
         href="/settings"
         aria-label="Einstellungen"
@@ -40,6 +63,7 @@ export function MobileHeader() {
       >
         <Settings className="size-[18px]" />
       </Link>
+      </nav>
     </header>
   );
 }
