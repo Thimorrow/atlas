@@ -192,7 +192,9 @@ fun NeueAufgabeBlatt(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Abstand.gross)
-                    .height(Hoehe.bedienelement),
+                    // Waechst mit der Systemschrift, statt die Beschriftung
+                    // in feste 48dp zu zwingen.
+                    .heightIn(min = Hoehe.bedienelement),
             ) {
                 if (blatt.laeuft) {
                     CircularProgressIndicator(

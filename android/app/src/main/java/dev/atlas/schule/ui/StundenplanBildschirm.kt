@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -32,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -196,7 +198,10 @@ private fun Kopfzeile(tage: List<LocalDate>, heute: LocalDate) {
                 // waere auf einem hellen Bildschirm im Freien kaum zu sehen.
                 Box(
                     modifier = Modifier
-                        .size(26.dp)
+                        // sizeIn statt size: bei doppelter Systemschrift passte
+                        // "31" nicht mehr in die festen 26dp und stand als "3"
+                        // da. Der Kreis darf mitwachsen, der Tag nicht schrumpfen.
+                        .sizeIn(minWidth = 26.dp, minHeight = 26.dp)
                         .clip(CircleShape)
                         .background(
                             if (istHeute) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -228,11 +233,16 @@ private fun Raster(
     val (start, ende) = remember(tage) { tagesgrenzen(tage.flatMap { it.second }) }
     val stunden = ende - start
 
+    // Die Schrift in den Bloecken waechst mit der Systemschrift, die Zeilen
+    // muessen es also auch: sonst faellt bei doppelter Schrift zuerst der Raum
+    // und dann der Vertretungs-Hinweis aus dem Block heraus.
+    val schriftskala = LocalDensity.current.fontScale
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Passt die Woche in die Hoehe, wird sie eingepasst; passt sie nicht,
         // bekommt jede Stunde ihre Mindesthoehe und das Raster scrollt. Ein
         // gestauchtes Raster waere unlesbar, ein immer scrollendes laestig.
-        val stundenHoehe = maxOf(MINDEST_STUNDENHOEHE, maxHeight / stunden)
+        val stundenHoehe = maxOf(MINDEST_STUNDENHOEHE * schriftskala, maxHeight / stunden)
         val gesamt = stundenHoehe * stunden
 
         Row(
@@ -349,11 +359,14 @@ private fun Stundenblock(
     val ereignis = block.ereignis
     val entfaellt = ereignis.status == "cancelled"
     val vertretung = ereignis.status == "substituted"
+    // Die Schwellen sind an der Schriftgroesse gemessen, nicht an festen dp:
+    // bei doppelter Systemschrift braucht dieselbe Zeile doppelt so viel Platz.
+    val skala = LocalDensity.current.fontScale
     // Der Badge braucht eine eigene Zeile unter Fach und Raum. Passt sie nicht,
     // tritt ein Punkt am Fachnamen an seine Stelle; ohne diesen Wechsel schob
     // sich der Badge ausgerechnet auf niedrigen Bloecken ueber den Fachnamen.
-    val badgePasst = hoehe >= 58.dp
-    val echteHoehe = maxOf(hoehe, 18.dp)
+    val badgePasst = hoehe >= 58.dp * skala
+    val echteHoehe = maxOf(hoehe, 18.dp * skala)
 
     val ansage = buildString {
         append(ereignis.title)
@@ -418,7 +431,7 @@ private fun Stundenblock(
             )
         }
 
-        if (echteHoehe > 30.dp) {
+        if (echteHoehe > 30.dp * skala) {
             val zusatz = if (entfaellt) "entfällt" else ereignis.room.orEmpty()
             if (zusatz.isNotEmpty()) {
                 Text(

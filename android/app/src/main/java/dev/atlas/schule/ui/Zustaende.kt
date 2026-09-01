@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,16 +63,24 @@ sealed interface Ladung<out T> {
 @Composable
 fun Platzhalter(modifier: Modifier = Modifier, form: RoundedCornerShape = RoundedCornerShape(6.dp)) {
     val reduziert = LocalBewegungReduziert.current
-    val puls = rememberInfiniteTransition(label = "platzhalter")
-    val deckkraft by puls.animateFloat(
-        initialValue = 1f,
-        targetValue = if (reduziert) 1f else 0.45f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = AtlasEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "puls",
-    )
+    val deckkraft = if (reduziert) {
+        // Bei abgeschalteter Systemanimation laeuft gar keine Schleife mehr.
+        // Ein Puls von 1f nach 1f waere unsichtbar, aber wecken wuerde er das
+        // Geraet trotzdem jeden Frame.
+        1f
+    } else {
+        val puls = rememberInfiniteTransition(label = "platzhalter")
+        val wert by puls.animateFloat(
+            initialValue = 1f,
+            targetValue = 0.45f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = AtlasEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "puls",
+        )
+        wert
+    }
     Spacer(
         modifier
             .clip(form)
@@ -177,7 +186,9 @@ fun FehlerZustand(
         )
         OutlinedButton(
             onClick = beimErneutVersuchen,
-            modifier = Modifier.height(Hoehe.bedienelement),
+            // Waechst mit der Systemschrift, statt die Beschriftung in feste
+            // 48dp zu zwingen.
+            modifier = Modifier.heightIn(min = Hoehe.bedienelement),
         ) {
             Text("Erneut laden", style = MaterialTheme.typography.labelLarge)
         }

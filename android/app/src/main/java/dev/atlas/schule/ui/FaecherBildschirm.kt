@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,7 +115,13 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
     ) {
         Spacer(Modifier.size(10.dp).clip(CircleShape).background(farbe))
 
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Abstand.winzig)) {
+        Column(
+            // Die Zeile sagt oben schon alles am Stueck. Ohne das Leeren
+            // haelt Talkback hier ein zweites und drittes Mal an und liest
+            // den Fachnamen und die Zahl noch einmal einzeln.
+            Modifier.weight(1f).clearAndSetSemantics { },
+            verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
+        ) {
             Text(
                 text = fach.name,
                 style = MaterialTheme.typography.bodyMedium,
@@ -140,7 +147,8 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
                 Modifier
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = Abstand.normal, vertical = Abstand.winzig),
+                    .padding(horizontal = Abstand.normal, vertical = Abstand.winzig)
+                    .clearAndSetSemantics { },
             ) {
                 Text(
                     text = "$offen",

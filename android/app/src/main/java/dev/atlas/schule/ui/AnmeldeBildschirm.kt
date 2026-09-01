@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -146,7 +147,10 @@ fun AnmeldeBildschirm(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(Hoehe.bedienelement),
+                    // heightIn statt height: bei doppelter Systemschrift passte
+                    // "Einen Moment ..." nicht mehr in die festen 48dp und wurde
+                    // oben und unten abgeschnitten.
+                    .heightIn(min = Hoehe.bedienelement),
             ) {
                 Text(
                     // Sagt, was passiert, statt "Absenden".

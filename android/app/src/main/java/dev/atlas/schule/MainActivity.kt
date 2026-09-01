@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -153,7 +154,19 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                                 modifier = Modifier.size(22.dp),
                             )
                         },
-                        label = { Text(reiter.bezeichnung) },
+                        label = {
+                            Text(
+                                // Die Leiste ist 80dp hoch, egal wie gross die
+                                // Systemschrift steht. Ohne die eine Zeile
+                                // brach "Stundenplan" bei doppelter Schrift um
+                                // und das zweite Stueck stand unter dem Rand.
+                                // Talkback liest den ungekuerzten Text, das
+                                // Ellipsis kostet also nur Optik, keinen Namen.
+                                text = reiter.bezeichnung,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.onPrimary,
                             selectedTextColor = MaterialTheme.colorScheme.onBackground,

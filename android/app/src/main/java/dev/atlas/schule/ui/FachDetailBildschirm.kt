@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -229,15 +233,28 @@ private fun Abschnitt(
 
 @Composable
 private fun Angabe(beschriftung: String, wert: String?) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = Abstand.eng),
+    // Die Beschriftungsspalte waechst mit der Systemschrift, sonst brach
+    // "Lehrkraft" bei doppelter Schrift mitten im Wort auf zwei Zeilen um.
+    // FlowRow schiebt den Wert dann unter die Beschriftung, statt ihn zu
+    // quetschen; bei normaler Schrift bleibt beides in einer Zeile.
+    val spaltenbreite = 88.dp * LocalDensity.current.fontScale
+    FlowRow(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Abstand.eng)
+            // Beschriftung und Wert sind eine Aussage, kein Paar von zwei
+            // Halten: "Raum" allein vorgelesen sagt nichts.
+            .clearAndSetSemantics {
+                contentDescription = "$beschriftung: ${wert ?: "Nicht hinterlegt"}"
+            },
         horizontalArrangement = Arrangement.spacedBy(Abstand.weit),
+        verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
     ) {
         Text(
             text = beschriftung,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(88.dp),
+            modifier = Modifier.width(spaltenbreite),
         )
         Text(
             // Ein leeres Feld als leere Zeile zu zeigen liest sich wie ein
@@ -256,10 +273,29 @@ private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
     val vertretung = stunde.status == "substituted"
     val wann = faelligLabel(stunde.date, heute) ?: "${stunde.date.dayOfMonth}."
 
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = Abstand.eng),
+    val ansage = buildString {
+        append(wann).append(", ").append(stunde.startTime)
+        stunde.endTime?.let { append(" bis ").append(it) }
+        append(" Uhr")
+        when {
+            entfaellt -> append(", entfällt")
+            vertretung -> append(", ").append(stunde.substitutionText ?: "Vertretung")
+            else -> stunde.room?.let { append(", Raum ").append(it) }
+        }
+    }
+
+    // Drei Spalten passen bei doppelter Systemschrift nicht mehr nebeneinander:
+    // dort blieb von "Fr., 4. September" ein "Fr., 4. Se…" und vom Raum ein
+    // "B2…". FlowRow laesst die Zeile dann umbrechen, statt zu kuerzen.
+    FlowRow(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Abstand.eng)
+            // Datum, Uhrzeit und Raum gehoeren zu einer Stunde. Einzeln
+            // vorgelesen zerfaellt die Zeile in drei Bruchstuecke.
+            .clearAndSetSemantics { contentDescription = ansage },
         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
     ) {
         Text(
             text = wann,
@@ -268,8 +304,9 @@ private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
             // Feste Breite, damit die Uhrzeiten darunter eine Spalte bilden.
             // 88dp waren zu knapp: "Mo., 7. September" wurde zu "Mo., 7. Septe…",
             // obwohl rechts in der Zeile Platz frei stand. 112dp fasst den
-            // laengsten Wochentag mit dem laengsten Monat.
-            modifier = Modifier.width(112.dp),
+            // laengsten Wochentag mit dem laengsten Monat, und die Spalte
+            // waechst mit der Systemschrift mit.
+            modifier = Modifier.width(112.dp * LocalDensity.current.fontScale),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

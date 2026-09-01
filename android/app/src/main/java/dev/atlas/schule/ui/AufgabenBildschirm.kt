@@ -7,7 +7,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -201,10 +201,23 @@ fun Aufgabenzeile(
         Hakenfeld(
             farbe = farbe,
             ring = pruefung,
+            erledigt = aufgabe.completedAt != null,
             ansage = "„${aufgabe.title}“ abhaken",
             beimTippen = beimHaken,
         )
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Abstand.winzig)) {
+        Column(
+            // Titel und Zusatz sind ein Gedanke, kein Paar. Ohne das
+            // Zusammenfassen haelt Talkback zweimal an und liest erst
+            // "Vokabeln", dann "Biologie". clearAndSetSemantics fasst die
+            // beiden zu einem Halt zusammen, so wie es die Fachzeile und der
+            // Stundenblock schon tun.
+            Modifier.weight(1f).clearAndSetSemantics {
+                contentDescription = listOf(aufgabe.title, zusatz)
+                    .filter { it.isNotEmpty() }
+                    .joinToString(", ")
+            },
+            verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
+        ) {
             Text(
                 text = aufgabe.title,
                 style = MaterialTheme.typography.bodyMedium,
@@ -235,6 +248,7 @@ fun Aufgabenzeile(
 private fun Hakenfeld(
     farbe: Color,
     ring: Boolean,
+    erledigt: Boolean,
     ansage: String,
     beimTippen: () -> Unit,
 ) {
@@ -243,11 +257,15 @@ private fun Hakenfeld(
         modifier = Modifier
             .size(dev.atlas.schule.ui.theme.Hoehe.bedienelement)
             .clip(CircleShape)
-            .clickable(
+            // toggleable statt clickable: nur so meldet der Knoten neben der
+            // Rolle auch den Zustand, und Talkback sagt "nicht angehakt"
+            // statt nur den Namen.
+            .toggleable(
+                value = erledigt,
                 interactionSource = beruehrung,
                 indication = androidx.compose.material3.ripple(bounded = false),
                 role = Role.Checkbox,
-                onClick = beimTippen,
+                onValueChange = { beimTippen() },
             )
             .semantics { contentDescription = ansage },
         contentAlignment = Alignment.Center,
