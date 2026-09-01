@@ -39,6 +39,15 @@ function parseISO(dateISO: string): Date {
   return new Date(`${dateISO}T00:00:00Z`);
 }
 
+// Ob ein Datum wirklich existiert, nicht nur wie eines aussieht. JS nimmt den
+// 30. Februar klaglos an und macht daraus den 2. Maerz; beim 99. Tag des
+// 13. Monats wirft es dagegen erst beim spaeteren toISOString(). Beide Faelle
+// sollen frueh und gleich behandelt werden.
+export function isRealDate(dateISO: string): boolean {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === dateISO;
+}
+
 // 0 = Montag ... 6 = Sonntag (JS getUTCDay: 0=So -> verschieben).
 function weekdayOf(dateISO: string): number {
   return (parseISO(dateISO).getUTCDay() + 6) % 7;

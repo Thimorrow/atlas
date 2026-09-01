@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { expandDay, expandWeek } from "@/lib/calendar-expand";
+import { expandDay, expandWeek, isRealDate } from "@/lib/calendar-expand";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,11 +17,17 @@ export async function GET(req: Request) {
   const date = url.searchParams.get("date") ?? todayISO();
   const view = url.searchParams.get("view") ?? "week";
 
-  if (!DATE_RE.test(date)) {
-    return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
+  // Das Muster allein genuegt nicht. "2026-13-99" passt darauf und liess die
+  // Route danach mit einem ungefangenen RangeError und leerem Rumpf abstuerzen,
+  // "2026-02-30" rutschte still auf den 2. Maerz durch. Beides endet jetzt hier.
+  if (!DATE_RE.test(date) || !isRealDate(date)) {
+    return NextResponse.json(
+      { error: "date muss ein gueltiges Datum im Format JJJJ-MM-TT sein." },
+      { status: 400 },
+    );
   }
   if (view !== "week" && view !== "day") {
-    return NextResponse.json({ error: "view must be 'week' or 'day'" }, { status: 400 });
+    return NextResponse.json({ error: "view muss 'week' oder 'day' sein." }, { status: 400 });
   }
 
   const range = view === "day" ? await expandDay(date) : await expandWeek(date);
