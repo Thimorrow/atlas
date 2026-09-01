@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    minSdk ist 26, also kennt jedes Zielgeraet adaptive Icons. Gerasterte
+    Fassungen in mipmap-hdpi bis -xxxhdpi braeuchte nur API 25 und darunter;
+    sie waeren hier vier Dateien, die nie jemand laedt. Aus demselben Grund
+    steht der Ordner ohne den sonst ueblichen v26-Zusatz da.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

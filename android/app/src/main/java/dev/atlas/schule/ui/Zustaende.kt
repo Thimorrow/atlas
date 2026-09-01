@@ -1,0 +1,191 @@
+package dev.atlas.schule.ui
+
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import dev.atlas.schule.ui.theme.Abstand
+import dev.atlas.schule.ui.theme.AtlasEasing
+import dev.atlas.schule.ui.theme.Hoehe
+import dev.atlas.schule.ui.theme.LocalBewegungReduziert
+
+// Jeder Bildschirm hat dieselben drei ehrlichen Zustaende. Sie liegen hier
+// zusammen, damit "laedt" auf allen drei Bildschirmen gleich aussieht und
+// niemand versehentlich einen vierten erfindet.
+
+/**
+ * Was aus dem Netz kommt, kann drei Formen haben. Ein blosses "null heisst
+ * laedt" verwechselt einen leeren Erfolg mit einem laufenden Abruf, und genau
+ * daraus wird ein Kreisel, der sich ewig dreht.
+ */
+sealed interface Ladung<out T> {
+    data object Laedt : Ladung<Nothing>
+    data class Da<T>(val wert: T) : Ladung<T>
+    data class Fehler(val meldung: String) : Ladung<Nothing>
+}
+
+/**
+ * Pulsierende Platzhalterflaeche. Ein Skelett haelt die Form der Seite,
+ * waehrend ein Kreisel sie zusammenfallen laesst und beim Eintreffen der Daten
+ * einen Sprung erzeugt.
+ */
+@Composable
+fun Platzhalter(modifier: Modifier = Modifier, form: RoundedCornerShape = RoundedCornerShape(6.dp)) {
+    val reduziert = LocalBewegungReduziert.current
+    val puls = rememberInfiniteTransition(label = "platzhalter")
+    val deckkraft by puls.animateFloat(
+        initialValue = 1f,
+        targetValue = if (reduziert) 1f else 0.45f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = AtlasEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "puls",
+    )
+    Spacer(
+        modifier
+            .clip(form)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = deckkraft)),
+    )
+}
+
+/** Skelett fuer eine gruppierte Liste: zwei Gruppen, drei und zwei Zeilen. */
+@Composable
+fun ListenSkelett(modifier: Modifier = Modifier) {
+    Column(
+        // Das Skelett hat keine Bedeutung, es hat nur eine Form. Vorgelesen
+        // waere es eine Reihe namenloser Kaesten.
+        modifier = modifier.fillMaxWidth().clearAndSetSemantics { },
+        verticalArrangement = Arrangement.spacedBy(Abstand.gross),
+    ) {
+        listOf(3, 2).forEach { zeilen ->
+            Column(verticalArrangement = Arrangement.spacedBy(Abstand.normal)) {
+                Platzhalter(Modifier.padding(start = Abstand.klein).height(11.dp).width(72.dp))
+                repeat(zeilen) { i ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
+                        modifier = Modifier.height(Hoehe.bedienelement),
+                    ) {
+                        Platzhalter(Modifier.size(22.dp), CircleShape)
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(Abstand.eng),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Platzhalter(Modifier.height(13.dp).fillMaxWidth(0.62f - i * 0.09f))
+                            Platzhalter(Modifier.height(11.dp).width(96.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Leerer Zustand: sagt, warum nichts da ist, und was als Naechstes zu tun ist.
+ * "Keine Eintraege" allein laesst den Nutzer stehen.
+ */
+@Composable
+fun LeerZustand(
+    titel: String,
+    text: String,
+    modifier: Modifier = Modifier,
+    aktion: (@Composable () -> Unit)? = null,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(vertical = Abstand.sehrGross),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Abstand.normal),
+    ) {
+        Text(
+            text = titel,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        aktion?.let {
+            Spacer(Modifier.height(Abstand.klein))
+            it()
+        }
+    }
+}
+
+/**
+ * Fehlerzustand. Drei Signale statt nur Farbe: Zeichen, Satz und ein Weg
+ * heraus. Die Meldung kommt fertig aus der Netzwerkschicht, sie ist immer ein
+ * deutscher Satz.
+ */
+@Composable
+fun FehlerZustand(
+    meldung: String,
+    beimErneutVersuchen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(vertical = Abstand.sehrGross),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Abstand.mittel),
+    ) {
+        Icon(
+            imageVector = IkoneFehler,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = meldung,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        OutlinedButton(
+            onClick = beimErneutVersuchen,
+            modifier = Modifier.height(Hoehe.bedienelement),
+        ) {
+            Text("Erneut laden", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/** Fehler und Leere fuellen den ganzen Bildschirm, wenn sonst nichts da ist. */
+@Composable
+fun MittigerZustand(modifier: Modifier = Modifier, inhalt: @Composable () -> Unit) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(horizontal = Abstand.gross),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) { inhalt() }
+}

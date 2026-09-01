@@ -3,25 +3,66 @@ package dev.atlas.schule.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.atlas.schule.data.AssignmentDTO
 import dev.atlas.schule.data.AtlasApi
 import dev.atlas.schule.data.AtlasErgebnis
+import dev.atlas.schule.data.ExpandedRange
+import dev.atlas.schule.data.FachDetailAntwort
+import dev.atlas.schule.data.NeueAufgabeAnfrage
+import dev.atlas.schule.data.SubjectDTO
+import dev.atlas.schule.data.SyncDTO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
+import java.time.LocalDate
 
-/** Wo die App gerade steht. Mehr Bildschirme gibt es in dieser Runde nicht. */
+/** Die drei Ziele der unteren Leiste. Die Reihenfolge ist die Reihenfolge dort. */
+enum class Reiter(val bezeichnung: String) {
+    STUNDENPLAN("Stundenplan"),
+    AUFGABEN("Aufgaben"),
+    FAECHER("Fächer"),
+}
+
+/** Was /api/home ausser der Woche liefert. Die Woche liegt im Wochenspeicher. */
+data class Startdaten(
+    val aufgaben: List<AssignmentDTO>,
+    val faecher: List<SubjectDTO>,
+    val sync: SyncDTO?,
+)
+
+/** Das Blatt fuer eine neue Aufgabe, solange es offen ist. */
+data class BlattZustand(val laeuft: Boolean = false, val fehler: String? = null)
+
 sealed interface AtlasZustand {
     data class Anmeldung(
         val fehler: String? = null,
         val laeuft: Boolean = false,
     ) : AtlasZustand
 
-    data class Uebersicht(
-        val anzahlFaecher: Int? = null,
-        val fehler: String? = null,
+    data class App(
+        val heute: LocalDate,
+        val reiter: Reiter = Reiter.STUNDENPLAN,
+        val start: Ladung<Startdaten> = Ladung.Laedt,
+        /** Wochenraster, nach dem Montag der Woche abgelegt. Geblaetterte Wochen bleiben stehen. */
+        val wochen: Map<LocalDate, Ladung<ExpandedRange>> = emptyMap(),
+        val gezeigteWoche: LocalDate,
+        /** Laeuft ein Ziehen von oben. Getrennt von [start], damit die Liste dabei stehen bleibt. */
+        val aktualisiert: Boolean = false,
+        /** null heisst: kein Fachdetail offen. */
+        val detail: Ladung<FachDetailAntwort>? = null,
+        /** Steht auch dann, wenn das Detail im Fehler haengt -- sonst gaebe es kein "erneut laden". */
+        val detailFachId: String? = null,
+        val blatt: BlattZustand? = null,
+        /** Einzeiler ueber der Leiste, etwa wenn ein Haken nicht durchkam. */
+        val hinweis: String? = null,
     ) : AtlasZustand
 }
+
+/** Montag der Woche, in der [datum] liegt. Die Woche laeuft Montag bis Sonntag. */
+fun montagVon(datum: LocalDate): LocalDate = datum.with(DayOfWeek.MONDAY)
 
 class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     private val api = AtlasApi.fuer(anwendung)
@@ -32,13 +73,18 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     // Cookie noch akzeptiert, beantwortet der erste Abruf; ein 401 schickt den
     // Nutzer ueber den Abfangjaeger zurueck zur Anmeldung.
     private val _zustand = MutableStateFlow<AtlasZustand>(
-        if (api.hatGateCookie()) AtlasZustand.Uebersicht() else AtlasZustand.Anmeldung(),
+        if (api.hatGateCookie()) frischeApp() else AtlasZustand.Anmeldung(),
     )
     val zustand: StateFlow<AtlasZustand> = _zustand.asStateFlow()
 
+    private fun frischeApp(): AtlasZustand.App {
+        val heute = LocalDate.now()
+        return AtlasZustand.App(heute = heute, gezeigteWoche = montagVon(heute))
+    }
+
     init {
-        if (_zustand.value is AtlasZustand.Uebersicht) {
-            viewModelScope.launch { ladeFaecher() }
+        if (_zustand.value is AtlasZustand.App) {
+            viewModelScope.launch { ladeStart() }
         }
         // Ein 401 kann jederzeit kommen, etwa wenn das Passwort auf dem Server
         // gewechselt wurde. Dann zurueck vor die Tuer, egal wo man gerade war.
@@ -51,6 +97,13 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         }
     }
 
+    /** Kurzform fuer "aendere den App-Zustand, wenn wir ueberhaupt in der App sind". */
+    private inline fun aendere(block: (AtlasZustand.App) -> AtlasZustand.App) {
+        _zustand.update { if (it is AtlasZustand.App) block(it) else it }
+    }
+
+    private val app: AtlasZustand.App? get() = _zustand.value as? AtlasZustand.App
+
     fun anmelden(passwort: String) {
         val jetzt = _zustand.value
         if (jetzt !is AtlasZustand.Anmeldung || jetzt.laeuft) return
@@ -58,8 +111,8 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         viewModelScope.launch {
             when (val ergebnis = api.anmelden(passwort)) {
                 is AtlasErgebnis.Erfolg -> {
-                    _zustand.value = AtlasZustand.Uebersicht()
-                    ladeFaecher()
+                    _zustand.value = frischeApp()
+                    ladeStart()
                 }
                 // Der 401-Abfangjaeger hat hier schon einen Wechsel in die
                 // Anmeldung ausgeloest. Die Meldung des Servers ist genauer als
@@ -69,20 +122,199 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         }
     }
 
-    fun erneutLaden() {
-        if (_zustand.value !is AtlasZustand.Uebersicht) return
-        _zustand.value = AtlasZustand.Uebersicht()
-        viewModelScope.launch { ladeFaecher() }
+    /**
+     * Das Fachdetail geht mit. Es haengt an der Fachliste, und ueber dem
+     * Stundenplan stehenzubleiben waere ein Fenster ohne Bezug zu dem, was
+     * darunter liegt.
+     */
+    fun waehleReiter(reiter: Reiter) = aendere {
+        if (it.reiter == reiter) it else it.copy(reiter = reiter, detail = null, detailFachId = null)
     }
 
-    private suspend fun ladeFaecher() {
-        _zustand.value = when (val ergebnis = api.faecher()) {
-            is AtlasErgebnis.Erfolg -> AtlasZustand.Uebersicht(anzahlFaecher = ergebnis.wert.size)
-            is AtlasErgebnis.Fehler ->
+    fun hinweisGelesen() = aendere { it.copy(hinweis = null) }
+
+    /** Erster Abruf und "Erneut laden" aus dem Fehlerzustand. */
+    fun ladeNeu() {
+        aendere { it.copy(start = Ladung.Laedt) }
+        viewModelScope.launch { ladeStart() }
+    }
+
+    /** Ziehen von oben. Die vorhandene Liste bleibt sichtbar, es kommt nur ein Ring dazu. */
+    fun aktualisiere() {
+        val jetzt = app ?: return
+        if (jetzt.aktualisiert) return
+        aendere { it.copy(aktualisiert = true) }
+        viewModelScope.launch { ladeStart() }
+        // /api/home bringt nur die laufende Woche mit. Wer zwei Wochen weiter
+        // steht und von oben zieht, saehe sonst zu, wie sich nichts aendert.
+        if (jetzt.gezeigteWoche != montagVon(jetzt.heute)) ladeWoche(jetzt.gezeigteWoche)
+    }
+
+    private suspend fun ladeStart() {
+        // Das lokale Datum des Geraets, nicht das des Servers: sonst zeigt die
+        // App am Abend die Woche von morgen.
+        val heute = LocalDate.now()
+        when (val ergebnis = api.start(heute)) {
+            is AtlasErgebnis.Erfolg -> {
+                val antwort = ergebnis.wert
+                aendere { zustand ->
+                    zustand.copy(
+                        heute = heute,
+                        start = Ladung.Da(
+                            Startdaten(antwort.assignments, antwort.subjects, antwort.sync),
+                        ),
+                        // Nur die aktuelle Woche wird ersetzt; geblaetterte
+                        // Wochen bleiben gueltig und muessen nicht neu ueber
+                        // die Leitung.
+                        wochen = zustand.wochen + (montagVon(antwort.week.start) to Ladung.Da(antwort.week)),
+                        aktualisiert = false,
+                    )
+                }
+            }
+
+            is AtlasErgebnis.Fehler -> {
                 // Bei 401 hat der Abfangjaeger den Zustand schon gewechselt,
                 // den soll diese Zuweisung nicht wieder umbiegen.
-                if (_zustand.value is AtlasZustand.Anmeldung) return
-                else AtlasZustand.Uebersicht(fehler = ergebnis.meldung)
+                aendere { zustand ->
+                    zustand.copy(
+                        // Beim Ziehen bleibt die alte Liste stehen und der
+                        // Fehler kommt als Hinweis. Sie wegzuwerfen, nur weil
+                        // gerade das Netz weg war, waere ein Rueckschritt.
+                        start = if (zustand.start is Ladung.Da) zustand.start else Ladung.Fehler(ergebnis.meldung),
+                        aktualisiert = false,
+                        hinweis = if (zustand.start is Ladung.Da) ergebnis.meldung else null,
+                    )
+                }
+            }
         }
+    }
+
+    // --- Stundenplan ---------------------------------------------------------
+
+    /** Wischen wechselt die Woche. Die Woche wird erst geholt, wenn sie sichtbar wird. */
+    fun zeigeWoche(montag: LocalDate) {
+        val jetzt = app ?: return
+        aendere { it.copy(gezeigteWoche = montag) }
+        if (jetzt.wochen[montag] == null) ladeWoche(montag)
+    }
+
+    fun ladeWoche(montag: LocalDate) {
+        aendere { it.copy(wochen = it.wochen + (montag to Ladung.Laedt)) }
+        viewModelScope.launch {
+            val eintrag = when (val ergebnis = api.woche(montag)) {
+                is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
+                is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
+            }
+            aendere { it.copy(wochen = it.wochen + (montag to eintrag)) }
+        }
+    }
+
+    // --- Aufgaben ------------------------------------------------------------
+
+    /**
+     * Abhaken fuehlt sich sofort an: die Zeile verschwindet, bevor der Server
+     * geantwortet hat. Kommt ein Fehler zurueck, kehrt sie zurueck und ein
+     * Hinweis sagt warum. Alles andere hiesse, auf eine Mobilfunkantwort zu
+     * warten, um einen Haken zu setzen.
+     */
+    fun setzeHaken(aufgabe: AssignmentDTO, erledigt: Boolean) {
+        val vorher = app?.start as? Ladung.Da ?: return
+        aendere { zustand ->
+            zustand.copy(start = Ladung.Da(vorher.wert.mitHaken(aufgabe.id, erledigt)))
+        }
+        viewModelScope.launch {
+            when (val ergebnis = api.abhaken(aufgabe.id, erledigt)) {
+                is AtlasErgebnis.Erfolg -> ladeDetailNeuFallsOffen()
+                is AtlasErgebnis.Fehler -> aendere { zustand ->
+                    val heute = zustand.start
+                    zustand.copy(
+                        start = if (heute is Ladung.Da) {
+                            Ladung.Da(heute.wert.mitHaken(aufgabe.id, !erledigt))
+                        } else {
+                            heute
+                        },
+                        hinweis = ergebnis.meldung,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun Startdaten.mitHaken(id: String, erledigt: Boolean): Startdaten {
+        val neu = aufgaben.map {
+            // completedAt traegt hier nur "gesetzt oder nicht". Der echte
+            // Zeitstempel kommt mit dem naechsten Abruf vom Server.
+            if (it.id == id) it.copy(completedAt = if (erledigt) java.time.Instant.now() else null) else it
+        }
+        val offenJeFach = neu.filter { it.completedAt == null }.groupingBy { it.subjectId }.eachCount()
+        return copy(
+            aufgaben = neu,
+            faecher = faecher.map { it.copy(openAssignments = offenJeFach[it.id] ?: 0) },
+        )
+    }
+
+    fun oeffneBlatt() = aendere { it.copy(blatt = BlattZustand()) }
+
+    fun schliesseBlatt() = aendere { it.copy(blatt = null) }
+
+    fun legeAufgabeAn(titel: String, typ: String, faellig: LocalDate?, fachId: String?) {
+        if (app?.blatt?.laeuft == true) return
+        aendere { it.copy(blatt = BlattZustand(laeuft = true)) }
+        viewModelScope.launch {
+            val ergebnis = api.aufgabeAnlegen(
+                NeueAufgabeAnfrage(title = titel.trim(), type = typ, dueDate = faellig, subjectId = fachId),
+            )
+            when (ergebnis) {
+                is AtlasErgebnis.Erfolg -> {
+                    aendere { zustand ->
+                        val start = zustand.start
+                        zustand.copy(
+                            blatt = null,
+                            start = if (start is Ladung.Da) {
+                                Ladung.Da(start.wert.copy(aufgaben = start.wert.aufgaben + ergebnis.wert))
+                            } else {
+                                start
+                            },
+                        )
+                    }
+                    ladeDetailNeuFallsOffen()
+                }
+
+                is AtlasErgebnis.Fehler -> aendere {
+                    it.copy(blatt = BlattZustand(fehler = ergebnis.meldung))
+                }
+            }
+        }
+    }
+
+    // --- Faecher -------------------------------------------------------------
+
+    fun oeffneFach(id: String) {
+        aendere { it.copy(detail = Ladung.Laedt, detailFachId = id) }
+        viewModelScope.launch { holeDetail(id) }
+    }
+
+    fun schliesseFach() = aendere { it.copy(detail = null, detailFachId = null) }
+
+    fun ladeDetailNeu() {
+        val id = app?.detailFachId ?: return
+        aendere { it.copy(detail = Ladung.Laedt) }
+        viewModelScope.launch { holeDetail(id) }
+    }
+
+    private suspend fun holeDetail(id: String) {
+        val eintrag = when (val ergebnis = api.fachDetail(id)) {
+            is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
+            is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
+        }
+        // Wer zwischenzeitlich zurueckgegangen ist, soll das Detail nicht
+        // wieder aufklappen sehen.
+        aendere { if (it.detail == null) it else it.copy(detail = eintrag) }
+    }
+
+    /** Nach einem Haken oder einer neuen Aufgabe stimmt die Aufgabenliste im Detail nicht mehr. */
+    private fun ladeDetailNeuFallsOffen() {
+        val offen = app?.detailFachId ?: return
+        viewModelScope.launch { holeDetail(offen) }
     }
 }

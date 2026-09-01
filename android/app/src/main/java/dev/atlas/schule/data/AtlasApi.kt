@@ -14,6 +14,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 /**
@@ -100,6 +101,56 @@ class AtlasApi(
         anfrage(Request.Builder().url("$basisUrl/api/subjects").get().build()) { text ->
             json.decodeFromString<SubjectsAntwort>(text).subjects
         }
+
+    /**
+     * GET /api/home. Woche, offene Aufgaben, aktive Faecher und Sync-Stand in
+     * einem Aufruf. [datum] muss das lokale Datum des Geraets sein: ohne den
+     * Parameter nimmt der Server sein eigenes und zeigt am Abend die falsche
+     * Woche.
+     */
+    suspend fun start(datum: LocalDate): AtlasErgebnis<HomeAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/home?date=$datum").get().build()) { text ->
+            json.decodeFromString<HomeAntwort>(text)
+        }
+
+    /**
+     * GET /api/calendar?view=week. Fuer jede Woche ausser der aktuellen: die
+     * Aufgaben- und Faecherlisten aendern sich beim Blaettern nicht, nur das
+     * Raster. /api/home noch einmal zu holen waere dreimal so viel Antwort.
+     */
+    suspend fun woche(datum: LocalDate): AtlasErgebnis<ExpandedRange> =
+        anfrage(
+            Request.Builder().url("$basisUrl/api/calendar?view=week&date=$datum").get().build(),
+        ) { text -> json.decodeFromString<ExpandedRange>(text) }
+
+    /** GET /api/subjects/{id}. Fach mit Notizen, Aufgaben und naechsten Stunden. */
+    suspend fun fachDetail(id: String): AtlasErgebnis<FachDetailAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects/$id").get().build()) { text ->
+            json.decodeFromString<FachDetailAntwort>(text)
+        }
+
+    /**
+     * POST bzw. DELETE auf /api/assignments/{id}/complete. Der POST ist
+     * idempotent, ein zweiter Aufruf laesst completedAt stehen.
+     */
+    suspend fun abhaken(id: String, erledigt: Boolean): AtlasErgebnis<AssignmentDTO> {
+        val url = "$basisUrl/api/assignments/$id/complete"
+        val bauer = Request.Builder().url(url)
+        val request = if (erledigt) {
+            bauer.post(ByteArray(0).toRequestBody(null)).build()
+        } else {
+            bauer.delete().build()
+        }
+        return anfrage(request) { text -> json.decodeFromString<AssignmentAntwort>(text).assignment }
+    }
+
+    /** POST /api/assignments. Antwortet mit 201 und der angelegten Aufgabe. */
+    suspend fun aufgabeAnlegen(neu: NeueAufgabeAnfrage): AtlasErgebnis<AssignmentDTO> {
+        val rumpf = json.encodeToString(neu).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/assignments").post(rumpf).build()) { text ->
+            json.decodeFromString<AssignmentAntwort>(text).assignment
+        }
+    }
 
     /**
      * Der gemeinsame Weg jeder Anfrage: ausfuehren, Fehler in [AtlasErgebnis]

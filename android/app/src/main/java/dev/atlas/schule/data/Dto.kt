@@ -99,3 +99,60 @@ data class FehlerAntwort(val error: String? = null)
 
 @Serializable
 data class LoginAnfrage(val password: String)
+
+@Serializable
+data class LessonDTO(
+    val id: String,
+    @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
+    val startTime: String,
+    val endTime: String? = null,
+    val room: String? = null,
+    val teacher: String? = null,
+    /** regular, cancelled, substituted */
+    val status: String = "regular",
+    val substitutionText: String? = null,
+)
+
+@Serializable
+data class SyncDTO(
+    @Serializable(with = InstantSerialisierer::class) val lastSyncedAt: Instant? = null,
+    val blockCount: Int = 0,
+    val lastError: String? = null,
+)
+
+/**
+ * GET /api/home. Eine Antwort statt vier: im Mobilfunknetz sind vier
+ * Roundtrips vor dem ersten sichtbaren Inhalt zu viel.
+ */
+@Serializable
+data class HomeAntwort(
+    val week: ExpandedRange,
+    val assignments: List<AssignmentDTO> = emptyList(),
+    val subjects: List<SubjectDTO> = emptyList(),
+    val sync: SyncDTO? = null,
+)
+
+/** GET /api/subjects/{id}. */
+@Serializable
+data class FachDetailAntwort(
+    val subject: SubjectDTO,
+    val notes: List<NoteDTO> = emptyList(),
+    val assignments: List<AssignmentDTO> = emptyList(),
+    val upcoming: List<LessonDTO> = emptyList(),
+)
+
+@Serializable
+data class AssignmentAntwort(val assignment: AssignmentDTO)
+
+/**
+ * Rumpf fuer POST /api/assignments. Nur "title" ist Pflicht; die uebrigen
+ * Felder duerfen fehlen, deshalb sind sie nullbar und explicitNulls = false
+ * laesst sie im JSON weg statt sie als null zu senden.
+ */
+@Serializable
+data class NeueAufgabeAnfrage(
+    val title: String,
+    val type: String,
+    @Serializable(with = LocalDateSerialisierer::class) val dueDate: LocalDate? = null,
+    val subjectId: String? = null,
+)

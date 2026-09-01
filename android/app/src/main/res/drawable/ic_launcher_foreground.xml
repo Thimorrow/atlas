@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Das Atlas-Zeichen aus components/atlas-logo.tsx: eine gefaltete Pfeilspitze
+    aus zwei Facetten, die sich einen Mittelgrat teilen. Im Web kommen beide
+    Toene aus currentColor, hier steht das Weiss fest, weil ein Startsymbol
+    keinem Theme folgt.
+
+    Adaptive Icons zeichnen auf 108dp, davon sind nur die mittleren 72dp sicher
+    sichtbar. Das 24er-Feld des SVG liegt deshalb mit Faktor 2,4 zentriert
+    darin: 24 * 2,4 = 57,6, Rand also (108 - 57,6) / 2 = 25,2.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="2.4"
+        android:scaleY="2.4"
+        android:translateX="25.2"
+        android:translateY="25.2">
+        <!-- rechte Facette, Schattenseite -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.5"
+            android:pathData="M12,2.4 L20.6,21 L14.4,21 L12,14 Z" />
+        <!-- linke Facette, Lichtseite -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,2.4 L12,14 L9.6,21 L3.4,21 Z" />
+    </group>
+</vector>
