@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/toaster";
-import { InterfaceKit } from "interface-kit/react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,7 +36,6 @@ export default async function RootLayout({
               <AppSidebar defaultCollapsed={collapsed} defaultWidth={sidebarWidth} />
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
             </div>
-            {process.env.NODE_ENV === "development" && <InterfaceKit />}
           </MotionProvider>
           <Toaster />
         </ThemeProvider>

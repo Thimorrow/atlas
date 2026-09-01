@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
-import { EventSheet, type EditTarget } from "@/components/event-sheet";
 import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
 import { persistWrite } from "@/lib/persist";
 import { decideSync } from "@/lib/untis/sync-policy";
-import { evVar } from "@/lib/event-colors";
 import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
 import { cn } from "@/lib/utils";
 
@@ -40,23 +38,18 @@ function toggleTodoView(v: TodoView, inst: TodoInstance, currentlyDone: boolean)
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
 type Ev = {
-  source: "school" | "routine" | "manual";
+  source: "school";
   refId: string;
   date: string;
   startTime: string;
   endTime: string | null;
   title: string;
-  color?: string | null;
-  location?: string | null;
-  allDay?: boolean;
-  notes?: string | null;
   status?: "regular" | "cancelled" | "substituted";
   room?: string | null;
   teacher?: string | null;
 };
 type Day = { date: string; weekday: number; events: Ev[] };
-type Goal = { routineId: string; title: string; targetPerWeek: number; done: number };
-type RangeData = { start: string; end: string; days: Day[]; flexibleGoals: Goal[] };
+type RangeData = { start: string; end: string; days: Day[] };
 
 // --- Konstanten -------------------------------------------------------------
 
@@ -128,11 +121,9 @@ function WeekTodoChip({
 
 // --- Block-Stile ------------------------------------------------------------
 // Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
-// Hintergrund ab. Farbe codiert die Quelle (Schule/Routine/Manuell).
+// Hintergrund ab.
 const SRC: Record<Ev["source"], string> = {
   school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-blue-500/20 dark:ring-white/[0.08]",
-  routine: "border-l-[6px] border-l-amber-500 bg-amber-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-amber-500/20 dark:ring-white/[0.08]",
-  manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-emerald-500/20 dark:ring-white/[0.08]",
 };
 
 // Entfall (V3): entfallene Schulstunden werden NICHT als eigener Block gezeigt,
@@ -179,32 +170,10 @@ function weekdayOf(iso: string) {
   return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
 }
 
-// Block-Look: eigene Farbe (manuell/Routine) -> ev-tint via --ev; sonst
-// Quellen-Default (Schule blau, Routine ohne Farbe gelb, manuell gruen).
-// Entfall rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
+// Block-Look: Schulstunden tragen die Quellen-Default-Farbe (blau). Entfall
+// rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
 function blockLook(ev: Ev): { className: string; style?: CSSProperties } {
-  if (ev.color && ev.source !== "school") return { className: "border-l-[6px] ev-tint", style: evVar(ev.color) };
   return { className: SRC[ev.source] };
-}
-
-// Nur eigene Eintraege sind editierbar (Schulstunden kommen read-only aus Untis).
-const editable = (ev: Ev) => ev.source === "manual" || ev.source === "routine";
-
-// CalendarEvent -> Sheet-Vorbelegung.
-function toEdit(ev: Ev): EditTarget {
-  return {
-    source: ev.source as "manual" | "routine",
-    refId: ev.refId,
-    title: ev.title,
-    date: ev.date,
-    weekday: weekdayOf(ev.date),
-    startTime: ev.startTime,
-    endTime: ev.endTime,
-    color: ev.color ?? null,
-    location: ev.location ?? null,
-    notes: ev.notes ?? null,
-    allDay: ev.allDay,
-  };
 }
 
 type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
@@ -352,10 +321,7 @@ function durLabel(min: number) {
 const WEEKDAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 function eventMeta(ev: Ev) {
-  if (ev.source === "school") {
-    return [ev.room, ev.teacher].filter(Boolean).join(" · ");
-  }
-  return `${hm(ev.startTime)}${ev.endTime ? `–${hm(ev.endTime)}` : ""}`;
+  return [ev.room, ev.teacher].filter(Boolean).join(" · ");
 }
 
 // --- Heute-Ansicht ----------------------------------------------------------
@@ -365,7 +331,7 @@ type AgendaItem =
   | { kind: "cancel"; s: number; e: number; ev: Ev }
   | { kind: "todo"; s: number; e: number; inst: TodoInstance };
 
-function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onToggleTodo }: { day: Day | undefined; goals: Goal[]; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
+function TodayView({ day, todos, nowMin, dayPast, stagger, onToggleTodo }: { day: Day | undefined; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
   // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
   // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
   const reduce = useReducedMotion();
@@ -376,10 +342,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
 
   const isToday = nowMin >= 0;
 
-  // Ganztags-Eintraege liegen nicht auf der Zeitachse -> eigene Balken oben.
-  const allDayEvents = day.events.filter((e) => e.allDay);
-
-  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime && !e.allDay);
+  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime);
   // Entfall (V3): nicht als Block, sondern als leiser Chip -- an der ECHTEN
   // Startzeit der Stunde (eigene schlanke Agenda-Zeile), nicht am Frei-Anfang.
   const cancelledEvs = onTimeline.filter((e) => e.status === "cancelled");
@@ -392,7 +355,6 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
   const next = upcoming[0];
   const ongoing = isToday && next ? next.s <= nowMin : false;
   const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
-  const openGoals = goals.filter((g) => g.done < g.targetPerWeek);
 
   // Aufgaben (subtil): terminierte (mit Uhrzeit) weben sich in die Zeitachse,
   // der Rest (ohne Uhrzeit) + Ueberfaelliges liegt als ruhige Zeile darunter.
@@ -458,30 +420,6 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
         {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-500">noch {durLabel(next.e - nowMin)}</span>}
       </motion.div>
 
-      {/* Ganztags-Eintraege -- als Balken oben, klickbar zum Bearbeiten */}
-      {allDayEvents.length > 0 && (
-        <div className="mb-3 flex flex-col gap-1.5">
-          {allDayEvents.map((ev) => {
-            const look = blockLook(ev);
-            return (
-              <button
-                key={`${ev.source}-${ev.refId}`}
-                onClick={() => onEdit(ev)}
-                style={look.style}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border border-l-[6px] px-3 py-2 text-left transition-shadow hover:shadow-sm",
-                  look.className,
-                )}
-              >
-                <span className="flex-1 truncate text-[14px] font-semibold leading-tight">{ev.title}</span>
-                {ev.location && <span className="shrink-0 truncate text-[12px] text-muted-foreground">{ev.location}</span>}
-                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">Ganztags</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
       {agenda.length > 0 ? (
         <ul className="space-y-1.5">
@@ -528,7 +466,6 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
             const look = blockLook(it.ev);
-            const canEdit = editable(it.ev);
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
@@ -539,12 +476,10 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
               >
                 <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
                 <div
-                  onClick={canEdit ? () => onEdit(it.ev) : undefined}
                   className={cn(
                     "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
                     look.className,
                     isNext && "ring-2 ring-primary/30",
-                    canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
                   )}
                   style={look.style}
                 >
@@ -558,10 +493,9 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                       </span>
                     )}
                   </div>
-                  {(meta || it.ev.status === "substituted" || (canEdit && it.ev.location)) && (
+                  {(meta || it.ev.status === "substituted") && (
                     <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
-                      {canEdit && it.ev.location && <span className="truncate">{it.ev.location}</span>}
                       {it.ev.status === "substituted" && (
                         <motion.span
                           initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
@@ -595,24 +529,6 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
 
       {/* Aufgaben ohne Uhrzeit + Ueberfaelliges -- ruhig unter der Agenda */}
       <LooseTodos open={looseTodos} overdue={tOverdue} onToggle={onToggleTodo} stagger={stagger} />
-
-      {/* Offene flexible Ziele der Woche */}
-      {openGoals.length > 0 && (
-        <section className="mt-6">
-          <h4 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Offene Wochenziele</h4>
-          <div className="flex flex-wrap gap-2">
-            {openGoals.map((g) => (
-              <span key={g.routineId} className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                {g.title}
-                <span className="font-mono tabular-nums text-foreground">
-                  {g.done}/{g.targetPerWeek}
-                </span>
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -638,9 +554,7 @@ export default function Home() {
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const [viewH, setViewH] = useState(0);
 
-  // Anlegen/Bearbeiten-Sheet + Reload-Trigger + Untis-Sync.
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editing, setEditing] = useState<EditTarget | null>(null);
+  // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
 
   // Aufgaben subtil im Kalender: Heute-Ansicht zieht die Tagesliste, Wochen-
@@ -697,16 +611,6 @@ export default function Home() {
     },
     [anchor],
   );
-
-  const openCreate = () => {
-    setEditing(null);
-    setSheetOpen(true);
-  };
-  const openEdit = (ev: Ev) => {
-    setEditing(toEdit(ev));
-    setSheetOpen(true);
-  };
-  const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -821,15 +725,14 @@ export default function Home() {
   const dayLabel = focusDay
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
-  // Ganztags-Eintraege liegen nicht im Zeitraster -> vor dem Packen rauswerfen.
-  // Entfall (V3) ebenfalls nicht als Block -> raus aus dem Packen, getrennt
+  // Entfall (V3) rendert nicht als Block -> raus aus dem Packen, getrennt
   // gehalten fuer die Chips in den freien Luecken.
   const packedDays = useMemo(
-    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay && e.status !== "cancelled"))) : []),
+    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => e.status !== "cancelled"))) : []),
     [data],
   );
   const cancelledByDay = useMemo(
-    () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => !e.allDay && e.status === "cancelled")) : []),
+    () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => e.status === "cancelled")) : []),
     [data],
   );
   // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
@@ -900,8 +803,8 @@ export default function Home() {
   return (
     <main className="flex h-full min-h-0 flex-col">
       {/* Split & Stagger (Jakub Krehel): die Page-Sections kommen beim Reload
-          gestaffelt mit blur + opacity + translateY rein -- Kopf, dann Wochenziele,
-          dann die Kalender-Card. Reduced-Motion-Gate global ueber MotionConfig. */}
+          gestaffelt mit blur + opacity + translateY rein -- Kopf, dann die
+          Kalender-Card. Reduced-Motion-Gate global ueber MotionConfig. */}
       <Stagger className="flex min-h-0 flex-1 flex-col">
       {/* Kopf: Modulname + Wochen-Navigation */}
       <StaggerItem className="shrink-0 px-6 pt-6 lg:px-8">
@@ -911,7 +814,7 @@ export default function Home() {
             <SplitText text="Kalender" />
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Schule, Routinen und Termine in einer Woche."}
+            {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Deine Schulwoche auf einen Blick."}
           </p>
         </div>
 
@@ -973,36 +876,9 @@ export default function Home() {
           >
             <ChevronRight />
           </Button>
-
-          {/* Trenner -> "Neuer Termin" rechts abgesetzt */}
-          <span className="mx-1 h-6 w-px bg-border" />
-
-          <Button variant="outline" size="icon" onClick={openCreate} aria-label="Neuer Termin">
-            <CalendarPlus />
-          </Button>
         </div>
       </div>
       </StaggerItem>
-
-      {/* Wochenziele -- eigene Section, staggert separat rein */}
-      {data && data.flexibleGoals.length > 0 && (
-        <StaggerItem className="shrink-0 px-6 lg:px-8">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {data.flexibleGoals.map((g) => (
-            <span
-              key={g.routineId}
-              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground"
-            >
-              <span className="size-1.5 rounded-full bg-amber-500" />
-              {g.title}
-              <span className="font-mono tabular-nums text-foreground">
-                {g.done}/{g.targetPerWeek}
-              </span>
-            </span>
-          ))}
-        </div>
-        </StaggerItem>
-      )}
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
       <StaggerItem className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
@@ -1026,7 +902,7 @@ export default function Home() {
           loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} todos={dayTodos} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onEdit={openEdit} onToggleTodo={toggleTodo} />
+            <TodayView day={focusDay} todos={dayTodos} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onToggleTodo={toggleTodo} />
           )
         ) : loading && !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
@@ -1066,33 +942,6 @@ export default function Home() {
                         {dayNum(day.date)}
                       </span>
                     </div>
-
-                    {/* Ganztags-Eintraege -- kleine klickbare Balken unter dem Datum */}
-                    {(() => {
-                      const ad = day.events.filter((e) => e.allDay);
-                      if (ad.length === 0) return null;
-                      return (
-                        <div className="mt-1 flex flex-col gap-1">
-                          {ad.slice(0, 2).map((ev) => {
-                            const look = blockLook(ev);
-                            return (
-                              <button
-                                key={ev.refId}
-                                onClick={() => openEdit(ev)}
-                                style={look.style}
-                                className={cn(
-                                  "truncate rounded border px-1.5 py-0.5 text-left text-[10px] font-medium leading-tight transition-shadow hover:shadow-sm",
-                                  look.className,
-                                )}
-                              >
-                                {ev.title}
-                              </button>
-                            );
-                          })}
-                          {ad.length > 2 && <span className="px-1 text-[10px] text-muted-foreground">+{ad.length - 2} mehr</span>}
-                        </div>
-                      );
-                    })()}
 
                     {/* Aufgaben des Tags -- dezente Punkte fuer alles, was NICHT als
                         eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder bereits erledigt). */}
@@ -1184,20 +1033,14 @@ export default function Home() {
                       const width = `calc(${100 / p.lanes}% - 4px)`;
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
-                      const meta =
-                        p.ev.source === "school"
-                          ? (p.ev.room ?? "")
-                          : `${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)}` : ""}`;
+                      const meta = p.ev.room ?? "";
                       const look = blockLook(p.ev);
-                      const canEdit = editable(p.ev);
                       return (
                         <motion.div
                           key={`${p.ev.source}-${p.ev.refId}-${i}`}
-                          onClick={canEdit ? () => openEdit(p.ev) : undefined}
                           className={cn(
                             "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
                             look.className,
-                            canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
                           )}
                           style={{ top, height, left, width, zIndex: 2 + p.lane, ...look.style }}
                           // Termine loaden einzeln rein -- erst wenn die Card-Section
@@ -1259,14 +1102,6 @@ export default function Home() {
       </motion.div>
       </StaggerItem>
       </Stagger>
-
-      <EventSheet
-        open={sheetOpen}
-        editing={editing}
-        defaultDate={anchor}
-        onClose={() => setSheetOpen(false)}
-        onSaved={reload}
-      />
     </main>
   );
 }
