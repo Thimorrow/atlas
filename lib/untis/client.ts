@@ -41,12 +41,14 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
   // um zu wissen, ob ein Recht fehlt, die Sitzung abgelaufen ist oder der
   // Zeitraum ausserhalb des Schuljahres liegt.
   let untisFehler: string | null = null;
+  let untisCode: number | null = null;
   const mitAxios = untis as unknown as {
     axios: { interceptors: { response: { use: (f: (r: unknown) => unknown) => void } } };
   };
   mitAxios.axios.interceptors.response.use((res) => {
     const fehler = (res as { data?: { error?: { message?: string; code?: number } } })?.data?.error;
     if (fehler) {
+      untisCode = fehler.code ?? null;
       untisFehler = [fehler.message, fehler.code != null ? `Code ${fehler.code}` : null]
         .filter(Boolean)
         .join(", ");
@@ -102,7 +104,28 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
       }
     }
 
-    const lessons = await untis.getOwnTimetableForRange(von, bis);
+    let lessons: unknown[];
+    try {
+      lessons = (await untis.getOwnTimetableForRange(von, bis)) as unknown[];
+    } catch (err) {
+      // Nicht jede Absage von Untis ist ein Fehler auf unserer Seite. Fuer
+      // einen Zeitraum ohne Freigabe (-8509) oder ausserhalb des erlaubten
+      // Bereichs (-7004) gibt es schlicht nichts zu holen. Das als 500 zu
+      // melden waere falsch: es ist eine Auskunft, kein Defekt.
+      if (untisCode === -8509 || untisCode === -7004) {
+        return {
+          lessons: [],
+          schoolyear: jahr,
+          window: { start: isoTag(von), end: isoTag(bis) },
+          hinweis:
+            untisCode === -8509
+              ? "Untis gibt den Stundenplan fuer diesen Zeitraum noch nicht frei."
+              : "Untis nimmt diesen Zeitraum nicht an, er liegt ausserhalb des erlaubten Bereichs.",
+        };
+      }
+      throw err;
+    }
+
     return {
       lessons: lessons as unknown[],
       schoolyear: jahr,
