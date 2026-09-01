@@ -52,7 +52,18 @@ const HOUR_H = 56;
 // Kurze Schulstunden nie zur flachen Pille quetschen -- jeder Block ist
 // mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
 const MIN_EVENT_H = 44;
+// Breite der Zeitachse links im Wochenraster. Stand bisher dreimal als "52px"
+// in den gridTemplateColumns; der Badge-Guard braucht sie jetzt auch als Zahl.
+const TIME_COL_W = 52;
+// Ab dieser Spaltenbreite passt der Vertretung-Badge ("VERTRETUNG", ~87px)
+// samt der px-2-Polsterung des Blocks hinein. Darunter tritt der Punkt an.
+const BADGE_MIN_W = 104;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+// Kurzform fuer den Handy-Titel: "Mittwoch, 2. September · Heute" passt dort
+// nicht neben Pfeile und Woche-Knopf. Wochentag und Monat sind die beiden
+// Teile, die sich kuerzen lassen, ohne dass Bedeutung verloren geht; das
+// "· Heute" bleibt, denn es ist beim Blaettern die eigentliche Auskunft.
+const MONTHS_SHORT = ["Jan.", "Feb.", "März", "April", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 // Fallback-Zeitachse, wenn die Woche keine school_blocks hat (z.B. Ferien).
 const FALLBACK_DAY_START = 7;
@@ -325,7 +336,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function WeekSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col" aria-hidden="true">
-      <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+      <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(5, minmax(0,1fr))` }}>
         <div className="border-r" />
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="border-r px-3 pb-2 pt-1.5 last:border-r-0">
@@ -335,7 +346,7 @@ function WeekSkeleton() {
         ))}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        <div className="grid h-full gap-x-0" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+        <div className="grid h-full gap-x-0" style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(5, minmax(0,1fr))` }}>
           <div />
           {[
             [10, 20, 45],
@@ -631,6 +642,9 @@ export default function Home() {
   // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const [viewH, setViewH] = useState(0);
+  // Breite desselben Bereichs -- der Vertretung-Badge braucht sie, um zu wissen,
+  // ob er in eine Tagesspalte ueberhaupt hineinpasst (siehe badgePasst).
+  const [viewW, setViewW] = useState(0);
   // Bleibt einmal true, sobald die erste echte Messung da ist -- verhindert den
   // sichtbaren Sprung beim ersten Paint (Fallback-Hoehe -> gemessene Hoehe).
   const [viewMeasured, setViewMeasured] = useState(false);
@@ -660,8 +674,16 @@ export default function Home() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const urlView = p.get("view");
-    // URL-Parameter hat Vorrang, sonst gemerkten Modus aus localStorage nehmen.
-    if (urlView === "today" || (!urlView && readLocal("atlas:calMode") === "today")) {
+    const gemerkt = readLocal("atlas:calMode");
+    // Auf dem Handy ist das Wochenraster keine Option: fuenf Tagesspalten teilen
+    // sich dort rund 340px, jede Spalte bleibt ~53px breit und jeder Fachname
+    // schrumpft auf drei Buchstaben ("Mat…", "Deu…"). Die Tagesagenda zeigt
+    // dieselben Stunden mit vollem Namen, Raum und Lehrer. Sie ist deshalb die
+    // Startansicht unterhalb des md-Breakpoints -- aber nur, solange der Nutzer
+    // sich nicht selbst schon fuer eine Ansicht entschieden hat: URL-Parameter
+    // und gemerkte Wahl behalten Vorrang, "Woche" bleibt einen Tipp entfernt.
+    const schmal = window.matchMedia("(max-width: 767px)").matches;
+    if (urlView === "today" || (!urlView && (gemerkt === "today" || (!gemerkt && schmal)))) {
       setMode("today");
       if (urlView === "today") writeLocal("atlas:calMode", "today");
     }
@@ -807,8 +829,16 @@ export default function Home() {
   const label = data ? formatRange(data.start, data.end) : "";
   const todayISO = now?.date ?? localISO(new Date());
   const focusDay = data?.days.find((d) => d.date === anchor);
+  // Zwei Laengen desselben Datums. Auf dem Handy passt "Mittwoch, 2. September"
+  // nicht neben Pfeile und Woche-Knopf und endete als "Mittwoch, 2. Septemb...".
+  // Der Wochentag ist der Teil, der sich am billigsten kuerzen laesst: "Mi" sagt
+  // dasselbe. Ab sm steht wieder der ausgeschriebene Tag.
+  const heuteZusatz = anchor === todayISO ? " · Heute" : "";
   const dayLabel = focusDay
-    ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
+    ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${heuteZusatz}`
+    : "";
+  const dayLabelKurz = focusDay
+    ? `${DAY_NAMES[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS_SHORT[monthOf(anchor)]}${heuteZusatz}`
     : "";
 
   // Nach der ersten sichtbaren Heute-Agenda keine Cascade mehr -- Tages-Pfeile
@@ -928,6 +958,7 @@ export default function Home() {
     if (!el) return;
     const measure = () => {
       setViewH(el.clientHeight);
+      setViewW(el.clientWidth);
       setViewMeasured(true);
     };
     measure();
@@ -1011,14 +1042,31 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* min-w-0: ohne das kann die Zeile nicht unter ihre Inhaltsbreite
+            schrumpfen. Auf dem Handy lief sie nach rechts aus dem Container und
+            der "Naechste Woche"-Pfeil verschwand hinter dem overflow-hidden --
+            man kam nur noch rueckwaerts durch den Stundenplan. */}
+        <div className="flex min-w-0 items-center gap-2">
           {/* Polish: Text wechselt je nach Woche/Tag stark in der Laenge ("1.–7.
               September 2026" vs. "29. September – 5. Oktober 2026") -- ohne
               reservierte Breite ruckeln die Buttons rechts daneben beim Blaettern
               mit. min-w + text-right haelt ihre Position fest, der Text waechst
-              nach links. */}
-          <h2 className="mr-1 min-w-[17ch] text-right text-[15px] font-medium tabular-nums text-foreground">
-            {mode === "today" ? dayLabel : label}
+              nach links.
+              Handy: die 17ch (~186px) passten nicht mehr neben Pfeile und
+              Heute-Knopf. Die Zeile lief ueber, das Datum brach auf zwei Zeilen
+              um und die Pfeile wurden von 40px auf 33px zusammengequetscht --
+              unter der 44px-Trefferflaeche. Unterhalb von sm faellt die
+              reservierte Breite deshalb weg und der Titel darf schrumpfen
+              (min-w-0 + truncate); ab sm greift die feste Breite wie bisher. */}
+          <h2 className="mr-1 min-w-0 truncate text-right text-[15px] font-medium tabular-nums text-foreground sm:min-w-[17ch] sm:overflow-visible">
+            {mode === "today" ? (
+              <>
+                <span className="sm:hidden">{dayLabelKurz}</span>
+                <span className="hidden sm:inline">{dayLabel}</span>
+              </>
+            ) : (
+              label
+            )}
           </h2>
 
           {/* Design-Audit (Knopf-Rangfolge): alle vier Kopf-Buttons standen bislang
@@ -1026,9 +1074,14 @@ export default function Home() {
               Navigation (Struktur, nicht Entscheidung) und treten jetzt als ghost
               zurueck -- Heute/Woche bleibt outline und ist damit sichtbar der
               gewichtigere der drei Aktionen. */}
+          {/* shrink-0 auf allen dreien: ohne das gibt Flex bei knappem Platz
+              zuerst bei den Buttons nach -- auf dem Handy schrumpften die Pfeile
+              real auf 33px und fielen unter die 44px-Trefferflaeche. Nachgeben
+              soll der Titel, nicht die Bedienelemente. */}
           <Button
             variant="ghost"
             size="icon"
+            className="shrink-0"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
               // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
@@ -1043,7 +1096,7 @@ export default function Home() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
+              className="h-9 shrink-0"
               onClick={() => {
                 setMode("today");
                 setAnchor(localISO(new Date()));
@@ -1058,7 +1111,7 @@ export default function Home() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
+              className="h-9 shrink-0"
               onClick={() => {
                 setMode("week");
                 writeLocal("atlas:calMode", "week");
@@ -1072,6 +1125,7 @@ export default function Home() {
           <Button
             variant="ghost"
             size="icon"
+            className="shrink-0"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
               // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
@@ -1161,7 +1215,7 @@ export default function Home() {
             className="flex h-full min-h-0 flex-col"
           >
             {/* Spaltenkoepfe -- fix, scrollen NICHT mit */}
-            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
+            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
               <div className="border-r" />
               {visibleDayIdx.map((di) => {
                 const day = data.days[di];
@@ -1205,7 +1259,7 @@ export default function Home() {
             {/* Raster fittet exakt in die Hoehe -- kein Scrollen noetig. */}
             <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-hidden">
             {/* Raster */}
-            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
               {/* Zeitachse -- rein visuelle Skala, jeder Termin traegt seine Zeit
                   schon in seinem eigenen aria-label. Fuer AT ausgeblendet, damit
                   niemand durch 15+ freistehende Stundenzahlen tabben/browsen muss. */}
@@ -1287,7 +1341,19 @@ export default function Home() {
                       // seine Stelle (siehe unten).
                       const vertretung = p.ev.status === "substituted";
                       const farbe = fachFarbe(p.ev.title);
-                      const badgePasst = height >= 58;
+                      // Der Hoehen-Guard allein reichte nicht: das Wort
+                      // "VERTRETUNG" ist rund 87px breit, eine Tagesspalte auf
+                      // dem Handy nur ~53px. Der Badge lief um 35px aus dem
+                      // Block heraus und wurde vom overflow-hidden zu "VERTR"
+                      // abgeschnitten -- in jeder Spalte. Der Punkt am
+                      // Fachnamen, der schon bei zu flachen Bloecken einspringt,
+                      // uebernimmt jetzt auch bei zu schmalen. BADGE_MIN_W ist
+                      // die Badge-Breite plus die px-2-Polsterung des Blocks.
+                      const spaltenBreite =
+                        viewW > 0 && visibleDayIdx.length > 0
+                          ? (viewW - TIME_COL_W) / visibleDayIdx.length / p.lanes
+                          : Infinity;
+                      const badgePasst = height >= 58 && spaltenBreite >= BADGE_MIN_W;
                       // A4 (Semantik): reine divs ohne Bedeutung -- ein Screenreader
                       // liest sonst nur den sichtbaren Titel vor, ohne Zeit/Raum/Status
                       // (die stecken nur in Position/Hoehe). role="group" (nicht

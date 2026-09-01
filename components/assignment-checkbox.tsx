@@ -42,12 +42,14 @@ export function AssignmentCheckbox({
         e.stopPropagation();
         onClick();
       }}
-      style={{ width: size, height: size }}
+      // A1 (Touch): das before-Pseudo-Element blaeht die Trefferflaeche
+      // unsichtbar auf >= 44x44 auf, ohne die Optik oder das Layout der Zeile zu
+      // aendern. Der Ueberstand haengt an size: er war auf -11px festgenagelt
+      // und passte damit nur zur Standardgroesse 22. Die Stundenplan-Agenda
+      // rendert die Box mit size 18, dort kam so nur 40px heraus.
+      style={{ width: size, height: size, "--tap": `${Math.max((44 - size) / 2, 0)}px` } as React.CSSProperties}
       className={cn(
-        // A1 (Touch): das before-Pseudo-Element blaeht die Trefferflaeche
-        // unsichtbar auf >= 44x44 auf (22px sichtbar + 2 * 11px), ohne die
-        // Optik oder das Layout der Zeile zu aendern.
-        "relative grid shrink-0 place-items-center rounded-full outline-none transition-transform [touch-action:manipulation] before:absolute before:-inset-[11px] before:content-[''] active:scale-[0.9] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "relative grid shrink-0 place-items-center rounded-full outline-none transition-transform [touch-action:manipulation] before:absolute before:-inset-[var(--tap)] before:content-[''] active:scale-[0.9] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
     >

@@ -19,7 +19,11 @@ export function MobileHeader() {
     // Polish: bg-card/40 war ohne backdrop-blur -- beim Scrollen schien der
     // Inhalt darunter durch und der Text der Leiste wurde unlesbar. blur statt
     // voller Deckung, damit die gewollte Transluzenz bleibt.
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b bg-card/40 px-2 backdrop-blur-md md:hidden">
+    // Safe-Area: die Leiste sitzt ganz oben. Ohne das obere Inset schoebe sich
+    // ihr Inhalt im Standalone-Modus und im Querformat unter Statusleiste bzw.
+    // Notch. h-14 wird zur Mindesthoehe, damit das Polster oben draufkommt statt
+    // die 56px von innen aufzufressen.
+    <header className="sticky top-0 z-30 flex min-h-14 shrink-0 items-center justify-between border-b bg-card/40 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md md:hidden">
       {/* Das Logo ist der Heimweg: ohne Sidebar gaebe es auf dem Handy sonst
           keinen naheliegenden Weg von den Einstellungen zurueck. */}
       <Link href="/" aria-label="Zum Stundenplan" className={cn(tap, "hover:bg-accent")}>

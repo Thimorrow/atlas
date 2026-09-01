@@ -47,7 +47,30 @@ Wartet auf eine Freigabe des Nutzers:
   Danach `git merge onenote` und pushen.
 
 Offen:
-- Android: die drei Bildschirme, App-Icon.
-- Die fertige APK an einen Ort legen, an dem der Nutzer sie findet.
 - Untis: sobald die Schule den Plan freigibt, sollte der Abgleich von selbst
   wieder laufen. Nichts zu tun, nur zu beobachten.
+
+## Runde in der Nacht auf den 2. September, zweiter Teil
+
+Fertig und auf dem Geraet geprueft:
+- Die drei Bildschirme stehen: Wochenraster mit Fachfarben, Aufgaben nach
+  Faelligkeit gruppiert, Faecherliste mit Detailseite.
+- Adaptives App-Icon.
+- Ein Durchgang gegen den echten Emulator hat Fehler gefunden, die kein
+  Compiler sieht: fliederfarbene Material-Standardchips, ein Feld mit Kerbe,
+  "VERTRETUN" mitten im Zeichen abgeschnitten (maxLines ohne overflow),
+  beschnittene Chipreihen, ein Absendeknopf, den der Autofokus aus dem Bild
+  schob. Alle behoben.
+- Offline: die zuletzt erfolgreiche Antwort liegt als JSON auf der Platte. Beim
+  Start steht der Plan sofort, ohne Netz bleibt er stehen und bekommt darueber
+  die Zeile "Stand von HH:MM Uhr, keine Verbindung". Bei 401 und beim Abmelden
+  wird der Speicher geleert. Mit abgeschaltetem WLAN und Mobilfunk am Emulator
+  nachgestellt.
+- Notizen werden als Markdown gerendert, nach demselben Regelwerk wie
+  lib/markdown.ts. Links nur http, https, mailto.
+- 61 Unit-Tests, gruen.
+
+Laeuft gerade:
+- Ein Durchgang Bedienbarkeit an der Android-App (Antippflaechen, TalkBack,
+  grosse Systemschrift, reduzierte Bewegung).
+- Ein Durchgang Handy-Ansicht an der Web-App.
