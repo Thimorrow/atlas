@@ -34,6 +34,8 @@ private val JSON_TYP = "application/json".toMediaType()
 class AtlasApi(
     private val cookieSpeicher: CookieJar,
     private val basisUrl: String = ATLAS_BASIS_URL,
+    /** Null in Tests und ueberall dort, wo es keinen Android-Kontext gibt. */
+    private val speicher: AntwortSpeicher? = null,
 ) {
     private val _abgemeldet = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -67,6 +69,7 @@ class AtlasApi(
                 // angemeldeten Zustand starten lassen, nur um sofort wieder
                 // herauszufliegen.
                 (cookieSpeicher as? CookieSpeicher)?.leeren()
+                speicher?.leeren()
                 _abgemeldet.tryEmit(Unit)
             }
             return antwort
@@ -82,7 +85,10 @@ class AtlasApi(
     /** DELETE /api/login. Der Server entwertet das Cookie, die CookieJar raeumt danach auf. */
     suspend fun abmelden(): AtlasErgebnis<Unit> =
         anfrage(Request.Builder().url("$basisUrl/api/login").delete().build()) { }
-            .also { (cookieSpeicher as? CookieSpeicher)?.leeren() }
+            .also {
+                (cookieSpeicher as? CookieSpeicher)?.leeren()
+                speicher?.leeren()
+            }
 
     /**
      * Ob ueberhaupt ein gueltiges Gate-Cookie vorliegt. Das entscheidet nur,
@@ -109,9 +115,22 @@ class AtlasApi(
      * Woche.
      */
     suspend fun start(datum: LocalDate): AtlasErgebnis<HomeAntwort> =
-        anfrage(Request.Builder().url("$basisUrl/api/home?date=$datum").get().build()) { text ->
-            json.decodeFromString<HomeAntwort>(text)
-        }
+        anfrage(
+            Request.Builder().url("$basisUrl/api/home?date=$datum").get().build(),
+            merke = SCHLUESSEL_START,
+        ) { text -> json.decodeFromString<HomeAntwort>(text) }
+
+    /**
+     * Der zuletzt erfolgreich geladene Startbildschirm von der Platte. Er wird
+     * gezeigt, waehrend im Hintergrund neu geladen wird, damit die App im
+     * Schulgebaeude ohne Netz nicht leer dasteht.
+     *
+     * Das gespeicherte Datum wird nicht geprueft: ein Stundenplan von gestern
+     * ist mehr wert als ein leerer Bildschirm, und die Zeile mit dem Stand
+     * sagt dem Nutzer ohnehin, wie alt er ist.
+     */
+    suspend fun startGespeichert(): Zwischenstand<HomeAntwort>? =
+        gespeichert(SCHLUESSEL_START) { json.decodeFromString<HomeAntwort>(it) }
 
     /**
      * GET /api/calendar?view=week. Fuer jede Woche ausser der aktuellen: die
@@ -125,9 +144,27 @@ class AtlasApi(
 
     /** GET /api/subjects/{id}. Fach mit Notizen, Aufgaben und naechsten Stunden. */
     suspend fun fachDetail(id: String): AtlasErgebnis<FachDetailAntwort> =
-        anfrage(Request.Builder().url("$basisUrl/api/subjects/$id").get().build()) { text ->
-            json.decodeFromString<FachDetailAntwort>(text)
-        }
+        anfrage(
+            Request.Builder().url("$basisUrl/api/subjects/$id").get().build(),
+            merke = schluesselFach(id),
+        ) { text -> json.decodeFromString<FachDetailAntwort>(text) }
+
+    /** Das zuletzt erfolgreich geladene Fachdetail von der Platte. */
+    suspend fun fachDetailGespeichert(id: String): Zwischenstand<FachDetailAntwort>? =
+        gespeichert(schluesselFach(id)) { json.decodeFromString<FachDetailAntwort>(it) }
+
+    /**
+     * Gespeicherten Rumpf lesen und einlesen. Scheitert das Einlesen, weil die
+     * Datei aus einer aelteren App-Version stammt, gibt es eben nichts
+     * vorzuzeigen; der laufende Abruf ersetzt sie gleich.
+     */
+    private suspend fun <T> gespeichert(
+        schluessel: String,
+        lies: (String) -> T,
+    ): Zwischenstand<T>? = withContext(Dispatchers.IO) {
+        val roh = speicher?.lies(schluessel) ?: return@withContext null
+        runCatching { Zwischenstand(lies(roh.wert), roh.stand) }.getOrNull()
+    }
 
     /**
      * POST bzw. DELETE auf /api/assignments/{id}/complete. Der POST ist
@@ -159,6 +196,8 @@ class AtlasApi(
      */
     private suspend fun <T> anfrage(
         request: Request,
+        /** Gesetzt, wenn die Antwort fuer den netzlosen Start abgelegt werden soll. */
+        merke: String? = null,
         lies: (String) -> T,
     ): AtlasErgebnis<T> = withContext(Dispatchers.IO) {
         try {
@@ -167,7 +206,11 @@ class AtlasApi(
                 if (!antwort.isSuccessful) {
                     return@withContext AtlasErgebnis.Fehler(serverMeldung(text, antwort.code), antwort.code)
                 }
-                AtlasErgebnis.Erfolg(lies(text))
+                val wert = AtlasErgebnis.Erfolg(lies(text))
+                // Erst nach dem Einlesen ablegen: was die App nicht lesen
+                // kann, soll sie beim naechsten Start nicht vorzeigen.
+                merke?.let { speicher?.schreibe(it, text) }
+                wert
             }
         } catch (e: IOException) {
             AtlasErgebnis.Fehler("Keine Verbindung zum Server.")
@@ -203,7 +246,14 @@ class AtlasApi(
          * geteilt werden. Zwei Clients hiessen zwei Cookie-Staende.
          */
         fun fuer(context: Context): AtlasApi = instanz ?: synchronized(this) {
-            instanz ?: AtlasApi(CookieSpeicher(context)).also { instanz = it }
+            instanz ?: AtlasApi(
+                cookieSpeicher = CookieSpeicher(context),
+                speicher = AntwortSpeicher(context),
+            ).also { instanz = it }
         }
+
+        private const val SCHLUESSEL_START = "home"
+
+        private fun schluesselFach(id: String) = "fach-$id"
     }
 }

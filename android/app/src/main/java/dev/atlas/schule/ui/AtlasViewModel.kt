@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
 
 /** Die drei Ziele der unteren Leiste. Die Reihenfolge ist die Reihenfolge dort. */
@@ -33,6 +34,13 @@ data class Startdaten(
     val sync: SyncDTO?,
 )
 
+/**
+ * Wann die gezeigten Daten vom Server kamen und ob der letzte Abruf scheiterte.
+ * Nur wenn beides zusammenkommt, sieht der Nutzer eine Zeile darueber: solange
+ * frisch nachgeladen wird, ist das Alter der Daten keine Nachricht.
+ */
+data class Stand(val zeit: Instant, val veraltet: Boolean = false)
+
 /** Das Blatt fuer eine neue Aufgabe, solange es offen ist. */
 data class BlattZustand(val laeuft: Boolean = false, val fehler: String? = null)
 
@@ -46,6 +54,8 @@ sealed interface AtlasZustand {
         val heute: LocalDate,
         val reiter: Reiter = Reiter.STUNDENPLAN,
         val start: Ladung<Startdaten> = Ladung.Laedt,
+        /** Herkunft von [start], null solange nie etwas ankam. */
+        val startStand: Stand? = null,
         /** Wochenraster, nach dem Montag der Woche abgelegt. Geblaetterte Wochen bleiben stehen. */
         val wochen: Map<LocalDate, Ladung<ExpandedRange>> = emptyMap(),
         val gezeigteWoche: LocalDate,
@@ -53,6 +63,8 @@ sealed interface AtlasZustand {
         val aktualisiert: Boolean = false,
         /** null heisst: kein Fachdetail offen. */
         val detail: Ladung<FachDetailAntwort>? = null,
+        /** Herkunft von [detail]. */
+        val detailStand: Stand? = null,
         /** Steht auch dann, wenn das Detail im Fehler haengt -- sonst gaebe es kein "erneut laden". */
         val detailFachId: String? = null,
         val blatt: BlattZustand? = null,
@@ -84,7 +96,13 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     init {
         if (_zustand.value is AtlasZustand.App) {
-            viewModelScope.launch { ladeStart() }
+            viewModelScope.launch {
+                // Erst der gespeicherte Stand, dann der Abruf. So steht der
+                // Stundenplan schon da, waehrend das Netz noch sucht -- und im
+                // Schulgebaeude bleibt er stehen, wenn es nichts findet.
+                zeigeGespeichertenStart()
+                ladeStart()
+            }
         }
         // Ein 401 kann jederzeit kommen, etwa wenn das Passwort auf dem Server
         // gewechselt wurde. Dann zurueck vor die Tuer, egal wo man gerade war.
@@ -139,6 +157,27 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         viewModelScope.launch { ladeStart() }
     }
 
+    private suspend fun zeigeGespeichertenStart() {
+        val gespeichert = api.startGespeichert() ?: return
+        val antwort = gespeichert.wert
+        aendere { zustand ->
+            // Ein laufender Abruf kann schneller gewesen sein als die Platte.
+            // Frische Daten mit alten zu ueberschreiben waere ein Rueckschritt.
+            if (zustand.start is Ladung.Da) return@aendere zustand
+            zustand.copy(
+                start = Ladung.Da(Startdaten(antwort.assignments, antwort.subjects, antwort.sync)),
+                // Noch nicht veraltet: der Abruf laeuft ja gerade. Erst wenn er
+                // scheitert, wird das Alter zur Nachricht.
+                startStand = Stand(gespeichert.stand),
+                // Auch hier gilt: was schon vom Server kam, bleibt.
+                wochen = montagVon(antwort.week.start).let { montag ->
+                    if (zustand.wochen[montag] is Ladung.Da) zustand.wochen
+                    else zustand.wochen + (montag to Ladung.Da(antwort.week))
+                },
+            )
+        }
+    }
+
     /** Ziehen von oben. Die vorhandene Liste bleibt sichtbar, es kommt nur ein Ring dazu. */
     fun aktualisiere() {
         val jetzt = app ?: return
@@ -167,6 +206,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                         // Wochen bleiben gueltig und muessen nicht neu ueber
                         // die Leitung.
                         wochen = zustand.wochen + (montagVon(antwort.week.start) to Ladung.Da(antwort.week)),
+                        startStand = Stand(Instant.now()),
                         aktualisiert = false,
                     )
                 }
@@ -181,8 +221,14 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                         // Fehler kommt als Hinweis. Sie wegzuwerfen, nur weil
                         // gerade das Netz weg war, waere ein Rueckschritt.
                         start = if (zustand.start is Ladung.Da) zustand.start else Ladung.Fehler(ergebnis.meldung),
+                        // Jetzt ist das Alter der Daten eine Nachricht.
+                        startStand = zustand.startStand?.copy(veraltet = true),
                         aktualisiert = false,
-                        hinweis = if (zustand.start is Ladung.Da) ergebnis.meldung else null,
+                        // Beim ersten Aufschlagen mit gespeichertem Stand sagt
+                        // schon die Zeile darueber Bescheid, ein Schnipsel
+                        // obendrauf waere doppelt. Beim Ziehen von oben hat der
+                        // Nutzer selbst gefragt und will eine Antwort.
+                        hinweis = if (zustand.aktualisiert) ergebnis.meldung else null,
                     )
                 }
             }
@@ -199,13 +245,24 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     }
 
     fun ladeWoche(montag: LocalDate) {
-        aendere { it.copy(wochen = it.wochen + (montag to Ladung.Laedt)) }
+        // Eine schon vorhandene Woche bleibt waehrend des Ladens stehen.
+        aendere {
+            if (it.wochen[montag] is Ladung.Da) it else it.copy(wochen = it.wochen + (montag to Ladung.Laedt))
+        }
         viewModelScope.launch {
-            val eintrag = when (val ergebnis = api.woche(montag)) {
-                is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
-                is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
+            val ergebnis = api.woche(montag)
+            aendere { zustand ->
+                val eintrag = when (ergebnis) {
+                    is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
+                    // Der Pager fragt die laufende Woche schon an, bevor der
+                    // gespeicherte Stand von der Platte da ist. Ohne diese
+                    // Zeile ueberschriebe der Fehler den Plan, der gleich
+                    // danach eintrifft.
+                    is AtlasErgebnis.Fehler -> zustand.wochen[montag] as? Ladung.Da
+                        ?: Ladung.Fehler(ergebnis.meldung)
+                }
+                zustand.copy(wochen = zustand.wochen + (montag to eintrag))
             }
-            aendere { it.copy(wochen = it.wochen + (montag to eintrag)) }
         }
     }
 
@@ -290,26 +347,50 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     // --- Faecher -------------------------------------------------------------
 
     fun oeffneFach(id: String) {
-        aendere { it.copy(detail = Ladung.Laedt, detailFachId = id) }
-        viewModelScope.launch { holeDetail(id) }
+        aendere { it.copy(detail = Ladung.Laedt, detailStand = null, detailFachId = id) }
+        viewModelScope.launch {
+            zeigeGespeichertesDetail(id)
+            holeDetail(id)
+        }
+    }
+
+    private suspend fun zeigeGespeichertesDetail(id: String) {
+        val gespeichert = api.fachDetailGespeichert(id) ?: return
+        aendere { zustand ->
+            // Nur wenn noch immer dieses Fach offen ist und noch nichts Frisches da ist.
+            if (zustand.detailFachId != id || zustand.detail !is Ladung.Laedt) return@aendere zustand
+            zustand.copy(detail = Ladung.Da(gespeichert.wert), detailStand = Stand(gespeichert.stand))
+        }
     }
 
     fun schliesseFach() = aendere { it.copy(detail = null, detailFachId = null) }
 
     fun ladeDetailNeu() {
         val id = app?.detailFachId ?: return
-        aendere { it.copy(detail = Ladung.Laedt) }
+        aendere { it.copy(detail = Ladung.Laedt, detailStand = null) }
         viewModelScope.launch { holeDetail(id) }
     }
 
     private suspend fun holeDetail(id: String) {
-        val eintrag = when (val ergebnis = api.fachDetail(id)) {
-            is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
-            is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
-        }
+        val ergebnis = api.fachDetail(id)
         // Wer zwischenzeitlich zurueckgegangen ist, soll das Detail nicht
         // wieder aufklappen sehen.
-        aendere { if (it.detail == null) it else it.copy(detail = eintrag) }
+        aendere { zustand ->
+            if (zustand.detail == null) return@aendere zustand
+            when (ergebnis) {
+                is AtlasErgebnis.Erfolg -> zustand.copy(
+                    detail = Ladung.Da(ergebnis.wert),
+                    detailStand = Stand(Instant.now()),
+                )
+                // Ein gespeichertes Fach bleibt stehen statt durch einen
+                // Fehlerbildschirm ersetzt zu werden.
+                is AtlasErgebnis.Fehler -> if (zustand.detail is Ladung.Da) {
+                    zustand.copy(detailStand = zustand.detailStand?.copy(veraltet = true))
+                } else {
+                    zustand.copy(detail = Ladung.Fehler(ergebnis.meldung))
+                }
+            }
+        }
     }
 
     /** Nach einem Haken oder einer neuen Aufgabe stimmt die Aufgabenliste im Detail nicht mehr. */

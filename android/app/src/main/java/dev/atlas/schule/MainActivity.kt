@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -52,7 +53,9 @@ import dev.atlas.schule.ui.Ladung
 import dev.atlas.schule.ui.NeueAufgabeBlatt
 import dev.atlas.schule.ui.NeueAufgabeKnopf
 import dev.atlas.schule.ui.Reiter
+import dev.atlas.schule.ui.StandZeile
 import dev.atlas.schule.ui.StundenplanBildschirm
+import dev.atlas.schule.ui.standText
 import dev.atlas.schule.ui.theme.AtlasTheme
 import dev.atlas.schule.ui.theme.Dauer
 import dev.atlas.schule.ui.theme.atlasTween
@@ -169,37 +172,44 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
         val abgang = fadeOut(atlasTween(Dauer.SCHNELL))
 
         Box(Modifier.fillMaxSize().padding(polster)) {
-            PullToRefreshBox(
-                isRefreshing = zustand.aktualisiert,
-                onRefresh = ansichtsmodell::aktualisiere,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                // Die drei Reiter stehen nebeneinander, nicht hintereinander:
-                // ein Schieber wuerde eine Richtung behaupten und im
-                // Stundenplan mit dem Wochenwischen kollidieren.
-                AnimatedContent(
-                    targetState = zustand.reiter,
-                    transitionSpec = { auftritt togetherWith abgang },
-                    label = "reiter",
-                ) { reiter ->
-                    when (reiter) {
-                        Reiter.STUNDENPLAN -> StundenplanBildschirm(
-                            zustand = zustand,
-                            beimWochenwechsel = ansichtsmodell::zeigeWoche,
-                            beimWocheLaden = ansichtsmodell::ladeWoche,
-                        )
+            Column(Modifier.fillMaxSize()) {
+                // Steht ueber allen drei Reitern, weil der gespeicherte Stand
+                // fuer alle drei gilt: sie kommen aus derselben Antwort.
+                zustand.startStand?.takeIf { it.veraltet }?.let {
+                    StandZeile(standText(it.zeit, zustand.heute))
+                }
+                PullToRefreshBox(
+                    isRefreshing = zustand.aktualisiert,
+                    onRefresh = ansichtsmodell::aktualisiere,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    // Die drei Reiter stehen nebeneinander, nicht hintereinander:
+                    // ein Schieber wuerde eine Richtung behaupten und im
+                    // Stundenplan mit dem Wochenwischen kollidieren.
+                    AnimatedContent(
+                        targetState = zustand.reiter,
+                        transitionSpec = { auftritt togetherWith abgang },
+                        label = "reiter",
+                    ) { reiter ->
+                        when (reiter) {
+                            Reiter.STUNDENPLAN -> StundenplanBildschirm(
+                                zustand = zustand,
+                                beimWochenwechsel = ansichtsmodell::zeigeWoche,
+                                beimWocheLaden = ansichtsmodell::ladeWoche,
+                            )
 
-                        Reiter.AUFGABEN -> AufgabenBildschirm(
-                            zustand = zustand,
-                            beimHaken = ansichtsmodell::setzeHaken,
-                            beimErneutLaden = ansichtsmodell::ladeNeu,
-                        )
+                            Reiter.AUFGABEN -> AufgabenBildschirm(
+                                zustand = zustand,
+                                beimHaken = ansichtsmodell::setzeHaken,
+                                beimErneutLaden = ansichtsmodell::ladeNeu,
+                            )
 
-                        Reiter.FAECHER -> FaecherBildschirm(
-                            zustand = zustand,
-                            beimOeffnen = ansichtsmodell::oeffneFach,
-                            beimErneutLaden = ansichtsmodell::ladeNeu,
-                        )
+                            Reiter.FAECHER -> FaecherBildschirm(
+                                zustand = zustand,
+                                beimOeffnen = ansichtsmodell::oeffneFach,
+                                beimErneutLaden = ansichtsmodell::ladeNeu,
+                            )
+                        }
                     }
                 }
             }
@@ -218,6 +228,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                 val detail = zustand.detail ?: Ladung.Laedt
                 FachDetailBildschirm(
                     ladung = detail,
+                    stand = zustand.detailStand,
                     heute = zustand.heute,
                     beimZurueck = ansichtsmodell::schliesseFach,
                     beimHaken = ansichtsmodell::setzeHaken,

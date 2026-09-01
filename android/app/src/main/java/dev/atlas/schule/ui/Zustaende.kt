@@ -34,6 +34,10 @@ import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.AtlasEasing
 import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.LocalBewegungReduziert
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 // Jeder Bildschirm hat dieselben drei ehrlichen Zustaende. Sie liegen hier
 // zusammen, damit "laedt" auf allen drei Bildschirmen gleich aussieht und
@@ -188,4 +192,37 @@ fun MittigerZustand(modifier: Modifier = Modifier, inhalt: @Composable () -> Uni
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) { inhalt() }
+}
+
+/**
+ * "Stand von 14:32 Uhr" bzw. mit Datum, wenn der Stand nicht von heute ist.
+ * Die Uhrzeit steht in der Zeitzone des Geraets, nicht in UTC.
+ */
+fun standText(zeit: Instant, heute: LocalDate): String {
+    val lokal = LocalDateTime.ofInstant(zeit, ZoneId.systemDefault())
+    val uhr = "%02d:%02d".format(lokal.hour, lokal.minute)
+    return if (lokal.toLocalDate() == heute) {
+        "Stand von $uhr Uhr, keine Verbindung"
+    } else {
+        "Stand vom ${lokal.dayOfMonth}.${lokal.monthValue}., $uhr Uhr, keine Verbindung"
+    }
+}
+
+/**
+ * Die ruhige Zeile ueber veralteten Daten. Sie ersetzt keinen Fehlerbildschirm,
+ * sie erklaert nur, warum der Inhalt aelter sein koennte als erwartet. Deshalb
+ * kein Rot und kein Zeichen, das nach Stoerung aussieht.
+ */
+@Composable
+fun StandZeile(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(vertical = Abstand.eng, horizontal = Abstand.weit),
+    )
 }

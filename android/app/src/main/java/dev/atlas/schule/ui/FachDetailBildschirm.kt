@@ -39,15 +39,14 @@ import java.time.LocalDate
 /**
  * Fachdetail: Stammdaten, naechste Stunden, offene Aufgaben, Notizen.
  *
- * Die Notizen stehen bewusst als roher Markdown da. Ein Renderer mit denselben
- * Regeln wie lib/markdown.ts ist eine eigene Aufgabe; ihn hier nebenbei
- * halbfertig zu bauen hiesse, dass Telefon und Browser denselben Text
- * verschieden auszeichnen. Die Monospace-Schrift sagt dem Leser, dass er
- * Quelltext sieht, statt Sternchen als Fehler zu lesen.
+ * Die Notizen werden gerendert, nach denselben Regeln wie lib/markdown.ts im
+ * Web: siehe Markdown.kt und NotizText.kt.
  */
 @Composable
 fun FachDetailBildschirm(
     ladung: Ladung<FachDetailAntwort>,
+    /** Gesetzt, sobald etwas angezeigt wird; sagt, ob es noch aktuell ist. */
+    stand: Stand?,
     heute: LocalDate,
     beimZurueck: () -> Unit,
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
@@ -67,6 +66,11 @@ fun FachDetailBildschirm(
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+
+        stand?.takeIf { it.veraltet }?.let {
+            StandZeile(standText(it.zeit, heute))
+            Spacer(Modifier.height(Abstand.normal))
         }
 
         when (ladung) {
@@ -175,12 +179,7 @@ private fun Inhalt(
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onBackground,
                             )
-                            Text(
-                                text = notiz.body,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            NotizText(notiz.body)
                         }
                     }
                 }
