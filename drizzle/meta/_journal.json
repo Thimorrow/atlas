@@ -43,6 +43,13 @@
       "when": 1788286035342,
       "tag": "0005_deep_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788298510270,
+      "tag": "0006_special_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
       "./node_modules/@otplib/**/*",
       "./node_modules/thirty-two/**/*",
     ],
+    // Die Migrationsdateien selbst, damit /api/admin/migrate sie zur Laufzeit
+    // findet. Ohne diesen Eintrag liegt der Ordner nicht in der Funktion.
+    "/api/admin/migrate": ["./drizzle/**/*"],
   },
 };
 
