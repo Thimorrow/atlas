@@ -127,9 +127,13 @@
     /* F20: im Light kraeftiger (17% statt 11%) -- sonst wirken eigene Farben
        wie eine Drag-Selektion statt wie ein Termin. */
     background-color: color-mix(in oklab, var(--ev) 17%, var(--card));
+    /* L09: dezenter inset-Hairline aus der Event-Farbe -- sonst verschwindet die
+       Kante des getoenten Blocks (border oklch 0.92 traegt auf der Tuenung nicht). */
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ev) 30%, transparent);
   }
   .dark .ev-tint {
     background-color: color-mix(in oklab, var(--ev) 22%, var(--card));
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ev) 38%, transparent);
   }
 
   /* OKLCH-Slider (eigener Color Picker): die Spur traegt den Live-Gradienten

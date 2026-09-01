@@ -55,7 +55,7 @@ export function AutoplanSheet({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: EASE }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-[3px]"
           />
           <motion.div
             role="dialog"

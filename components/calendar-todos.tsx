@@ -126,7 +126,7 @@ export function DayTodoDots({ todos }: { todos: TodoInstance[] }) {
       ))}
       {extra > 0 && (
         <motion.span
-          className="text-[9px] font-medium tabular-nums text-muted-foreground/70"
+          className="text-[11px] font-medium tabular-nums text-muted-foreground/70"
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.28, delay: shown.length * 0.04, ease: EASE }}

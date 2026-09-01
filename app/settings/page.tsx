@@ -247,7 +247,7 @@ export default function SettingsPage() {
             <Button disabled variant="outline" size="sm">
               <LogOut className="size-4" />
               Abmelden
-              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 bald
               </span>
             </Button>

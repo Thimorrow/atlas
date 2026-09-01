@@ -210,7 +210,7 @@ export function AppSidebar({
                 </span>
                 <span className={labelCls()}>{m.label}</span>
                 {m.soon && (
-                  <span className={cn("mr-2 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
+                  <span className={cn("mr-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
                     bald
                   </span>
                 )}
@@ -297,7 +297,7 @@ export function AppSidebar({
               <DropdownMenuItem disabled>
                 <LogOut />
                 Abmelden
-                <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">bald</span>
+                <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide">bald</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

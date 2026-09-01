@@ -122,7 +122,7 @@ function WeekTodoChip({
         animate={pop > 0 && !reduce ? { scale: [1, 1.9, 1] } : {}}
         transition={{ duration: 0.42, ease: BURST_EASE }}
       />
-      <span className={cn("truncate text-[9px] font-medium leading-tight text-foreground/80", done && "text-muted-foreground line-through")}>
+      <span className={cn("truncate text-[11px] font-medium leading-tight text-foreground/80", done && "text-muted-foreground line-through")}>
         {title}
       </span>
     </motion.button>
@@ -133,9 +133,9 @@ function WeekTodoChip({
 // Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
 // Hintergrund ab. Farbe codiert die Quelle (Schule/Routine/Manuell).
 const SRC: Record<Ev["source"], string> = {
-  school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 dark:bg-blue-500/20",
-  routine: "border-l-[6px] border-l-amber-500 bg-amber-100/80 dark:bg-amber-500/20",
-  manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 dark:bg-emerald-500/20",
+  school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-blue-500/20 dark:ring-white/[0.08]",
+  routine: "border-l-[6px] border-l-amber-500 bg-amber-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-amber-500/20 dark:ring-white/[0.08]",
+  manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 ring-1 ring-inset ring-black/[0.06] dark:bg-emerald-500/20 dark:ring-white/[0.08]",
 };
 
 // Entfall (V3): entfallene Schulstunden werden NICHT als eigener Block gezeigt,
@@ -454,7 +454,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
     kicker = (
       <span className="text-foreground">
         Erster Termin · <span className="font-semibold">{next.ev.title}</span>
-        <span className="text-muted-foreground"> · {hm(next.ev.startTime)}</span>
+        <span className="font-mono tabular-nums text-muted-foreground"> · {hm(next.ev.startTime)}</span>
       </span>
     );
   } else {
@@ -601,7 +601,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                           initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
                           animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                           transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
-                          className="inline-flex rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                          className="inline-flex rounded bg-amber-500/15 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
                         >
                           Vertretung
                         </motion.span>
@@ -1127,7 +1127,7 @@ export default function Home() {
         initial={firstView.current ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm"}
+        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"}
       >
         {mode === "today" ? (
           loading && !data ? (
@@ -1266,7 +1266,7 @@ export default function Home() {
                         className="absolute inset-x-1 z-[1] flex"
                         style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), DAY_START * 60)) + 1 }}
                       >
-                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[9px] font-medium text-muted-foreground/80">
+                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[11px] font-medium text-muted-foreground/80">
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
                           <span className="truncate">{e.title} entfällt</span>
                         </span>
@@ -1342,7 +1342,7 @@ export default function Home() {
                             <span className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{meta}</span>
                           )}
                           {p.ev.status === "substituted" && (
-                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
                               Vertretung
                             </span>
                           )}

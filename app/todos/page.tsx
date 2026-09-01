@@ -375,7 +375,7 @@ function TodoRow({ inst, checked, active, viewDate, onToggle, onEdit, onDelete, 
     <div
       onClick={() => onToggle(inst, checked)}
       className={cn(
-        "group flex cursor-pointer items-start gap-3.5 rounded-lg px-2.5 py-3 transition-[background-color,transform] hover:bg-accent/40 active:scale-[0.995]",
+        "group flex cursor-pointer items-start gap-3.5 rounded-lg px-2.5 py-3 transition-[background-color,transform] hover:bg-accent/40 active:scale-[0.98] active:bg-accent/60",
         faded && "opacity-55",
       )}
     >
