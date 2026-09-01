@@ -53,6 +53,8 @@ export function AssignmentComposer({
   const uid = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
+  // Das Element, das den Dialog geoeffnet hat -- dorthin kehrt der Fokus zurueck.
+  const restoreRef = useRef<HTMLElement | null>(null);
 
   const [type, setType] = useState<AssignmentType>("homework");
   const [subjectId, setSubjectId] = useState("");
@@ -75,8 +77,20 @@ export function AssignmentComposer({
     setNotes(initial?.notes ?? "");
     setSaving(false);
     // Fokus landet im Titelfeld, dem einzigen Pflichtfeld.
+    restoreRef.current = document.activeElement as HTMLElement | null;
     const t = window.setTimeout(() => titleRef.current?.focus(), 20);
-    return () => window.clearTimeout(t);
+    // Die Seite hinter dem Overlay darf nicht mitscrollen: auf dem Handy liegt
+    // der Dialog als Blatt unten auf, und eine wischende Hand trifft sonst den
+    // Stundenplan dahinter statt das Formular.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.clearTimeout(t);
+      document.body.style.overflow = prevOverflow;
+      // Ohne das faellt der Fokus auf <body> und die Tastatur-Navigation faengt
+      // wieder ganz oben an.
+      restoreRef.current?.focus?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

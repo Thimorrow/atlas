@@ -42,8 +42,10 @@ type Payload = {
   upcoming: LessonDTO[];
 };
 
+// 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus in jedes Feld
+// darunter hinein und schiebt den halben Dialog aus dem Bild.
 const FIELD =
-  "h-11 w-full rounded-lg border bg-background px-3 text-[15px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "h-11 w-full rounded-lg border bg-background px-3 text-[16px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const hm = (t: string) => t.slice(0, 5);
 

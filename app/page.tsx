@@ -624,6 +624,10 @@ export default function Home() {
   const [syncFailed, setSyncFailed] = useState(false);
   const [lastSyncOk, setLastSyncOk] = useState<number | null>(null);
   const [syncRetrying, setSyncRetrying] = useState(false);
+  // Auskunft von Untis bei einem geglueckten Abgleich ohne Stunden (z.B. der
+  // Zeitraum ist noch nicht freigegeben). Ohne sie stuende der Nutzer vor einem
+  // leeren Stundenplan und wuesste nicht, dass daran nichts kaputt ist.
+  const [syncHinweis, setSyncHinweis] = useState<string | null>(null);
   // Zugriff auf den Sync aus dem Knopf heraus, ohne den Effekt neu aufzubauen.
   const syncRef = useRef<(reason: "load" | "tick" | "manual") => void>(() => {});
 
@@ -707,6 +711,11 @@ export default function Home() {
           writeLocal(FAIL_KEY, "0");
           setLastSyncOk(at);
           setSyncFailed(false);
+          // Ein Hinweis ist die Auskunft eines GEGLUECKTEN Abgleichs, kein
+          // Fehlschlag -- deshalb hier und nicht im else-Zweig. Fehlt er in der
+          // Antwort, raeumt null die vorige Auskunft wieder weg.
+          const body = (await res.json().catch(() => null)) as { hinweis?: string | null } | null;
+          if (alive) setSyncHinweis(body?.hinweis ?? null);
           setReloadKey((k) => k + 1);
         } else {
           writeLocal(FAIL_KEY, String(Date.now()));
@@ -1049,10 +1058,19 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Nur wenn der Stand wirklich zu altern beginnt. Ein einzelner Fehlschlag
-          auf frischen Daten ist keine Nachricht, sondern Rauschen. Der Minuten-
-          Tick (now) rechnet das Alter im Hintergrund weiter. */}
-      {syncFailed && (lastSyncOk == null || Date.now() - lastSyncOk > SYNC_STALE_AFTER_MS) ? (
+      {/* Fehlschlag nur, wenn der Stand wirklich zu altern beginnt: ein einzelner
+          Fehlschlag auf frischen Daten ist keine Nachricht, sondern Rauschen. Der
+          Minuten-Tick (now) rechnet das Alter im Hintergrund weiter.
+          Der Hinweis kennt diese Schwelle NICHT -- er erklaert einen leeren
+          Stundenplan, und der ist ab der ersten Sekunde erklaerungsbeduerftig. */}
+      {syncHinweis ? (
+        <UntisSyncNotice
+          hinweis={syncHinweis}
+          lastSyncOk={lastSyncOk}
+          retrying={syncRetrying}
+          onRetry={() => syncRef.current("manual")}
+        />
+      ) : syncFailed && (lastSyncOk == null || Date.now() - lastSyncOk > SYNC_STALE_AFTER_MS) ? (
         <UntisSyncNotice
           lastSyncOk={lastSyncOk}
           retrying={syncRetrying}

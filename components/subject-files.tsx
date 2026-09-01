@@ -51,6 +51,9 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
   const dragDepth = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  // Das Element, das den Bestaetigen-Dialog geoeffnet hat -- dorthin kehrt der
+  // Fokus beim Schliessen zurueck.
+  const restoreRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -141,11 +144,17 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
   }
 
   // Fokus in das Overlay ziehen, sonst bleibt er auf dem verschwundenen
-  // Löschen-Knopf der Zeile hängen.
+  // Löschen-Knopf der Zeile hängen. Beim Schließen geht er dorthin zurück, wo er
+  // herkam -- sonst faellt er auf <body> und die Tastatur-Navigation faengt von
+  // vorn an. Die Zeile kann nach dem Löschen weg sein, daher der optionale Aufruf.
   useEffect(() => {
     if (!pending) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
     const t = window.setTimeout(() => cancelRef.current?.focus(), 20);
-    return () => window.clearTimeout(t);
+    return () => {
+      window.clearTimeout(t);
+      restoreRef.current?.focus?.();
+    };
   }, [pending]);
 
   return (

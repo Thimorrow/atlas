@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { CloudOff } from "lucide-react";
+import { CloudOff, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -18,10 +18,15 @@ function ageInWords(ms: number): string {
 }
 
 export function UntisSyncNotice({
+  hinweis,
   lastSyncOk,
   retrying,
   onRetry,
 }: {
+  // Auskunft von Untis statt Fehlschlag: der Abgleich lief durch, es gab fuer
+  // den Zeitraum nur nichts zu holen. Ist sie gesetzt, hat sie Vorrang -- und
+  // der Wiederholen-Knopf entfaellt, weil es nichts zu wiederholen gibt.
+  hinweis?: string | null;
   // Zeitpunkt des letzten ERFOLGREICHEN Abgleichs, oder null wenn es auf diesem
   // Geraet noch nie einen gab.
   lastSyncOk: number | null;
@@ -43,17 +48,28 @@ export function UntisSyncNotice({
       transition={{ duration: 0.25, ease: EASE }}
       // Kein Alarm: der Stundenplan ist da, er ist nur aelter als gedacht. Ruhige
       // muted-Flaeche statt Warnfarbe, damit der Plan selbst der Hauptinhalt bleibt.
+      // Die Auskunft von Untis teilt sich diese Flaeche: sie ist noch weniger ein
+      // Problem als ein Fehlschlag, eine zweite Gestaltung waere lauter statt klarer.
       className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground"
       role="status"
       aria-live="polite"
     >
-      <CloudOff className="size-4 shrink-0" aria-hidden="true" />
-      <p className="min-w-0 flex-1">
-        Der Stundenplan kann gerade nicht mit Untis abgeglichen werden, {age}.
-      </p>
-      <Button variant="outline" size="sm" className="h-8" onClick={onRetry} disabled={retrying}>
-        {retrying ? "Wird versucht …" : "Erneut versuchen"}
-      </Button>
+      {hinweis ? (
+        <>
+          <Info className="size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">{hinweis}</p>
+        </>
+      ) : (
+        <>
+          <CloudOff className="size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
+            Der Stundenplan kann gerade nicht mit Untis abgeglichen werden, {age}.
+          </p>
+          <Button variant="outline" size="sm" className="h-8" onClick={onRetry} disabled={retrying}>
+            {retrying ? "Wird versucht …" : "Erneut versuchen"}
+          </Button>
+        </>
+      )}
     </motion.div>
   );
 }

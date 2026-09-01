@@ -394,7 +394,10 @@ export function SubjectNotes({ subjectId, initialNotes }: { subjectId: string; i
                 data-autofocus
                 onClick={() => void remove(confirmNote.id)}
                 disabled={busy}
-                className="bg-destructive text-white hover:bg-destructive/90"
+                // Es gibt kein --destructive-foreground-Token: text-background
+                // traegt in beiden Themes. Weiss waere im Dunkelmodus zu blass,
+                // dort ist --destructive ein helles Rot.
+                className="bg-destructive text-background hover:bg-destructive/90"
               >
                 {busy ? "Löscht…" : "Löschen"}
               </Button>
