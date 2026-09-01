@@ -30,6 +30,25 @@
      CTA + Time-Dial nutzen denselben Ton wie der Rest, kein Farbstich. */
   --brand: var(--primary);
   --brand-foreground: var(--primary-foreground);
+
+  /* Surfaces-Audit: Elevation-Regel fuer die ganze App --
+     Flaechenbuendiges Chrome (Sidebar, mobile Kopfleiste) klebt am Viewport-
+     Rand und traegt NUR einen Rand, keinen Schatten -- es grenzt ab, es
+     schwebt nicht. Nur was sichtbar UEBER dem Seiteninhalt liegt (Karte,
+     Popover) bekommt zusaetzlich einen Schatten-Token, gestaffelt nach Hoehe:
+     Karte (shadow-card) < Popover (shadow-popover), das als einzige Flaeche
+     wirklich ueber anderem Inhalt schwebt.
+     Im Dunkelmodus faellt ein schwarzer Schatten auf dunklem Grund weg
+     (unsichtbar) -- die Karte steigt dort stattdessen ueber Helligkeit (heller
+     als die Seite) plus den ohnehin vorhandenen Rand (--border: weiss/9%), der
+     schon als Ring wirkt. Das Popover bekommt zusaetzlich einen etwas
+     kraeftigeren Ring, weil es als schwebende Flaeche mehr Abgrenzung braucht
+     als die buendige Karte.
+  */
+  --shadow-card-value: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-popover-value:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
 .dark {
@@ -53,6 +72,13 @@
   --ring: oklch(0.556 0 0);
   --brand: var(--primary);
   --brand-foreground: var(--primary-foreground);
+
+  /* Dunkel: kein toter schwarzer Schatten mehr -- Karte traegt Tiefe schon
+     ueber Helligkeitsstufe + Rand. Popover bleibt ein sichtbarer, aber
+     ruhiger weisser Ring (1px), statt eines im Dunkeln unsichtbaren
+     shadow-lg-Schwarztons. */
+  --shadow-card-value: none;
+  --shadow-popover-value: 0 0 0 1px rgb(255 255 255 / 0.1), 0 16px 40px -8px rgb(0 0 0 / 0.55);
 }
 
 @theme inline {
@@ -80,6 +106,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --shadow-card: var(--shadow-card-value);
+  --shadow-popover: var(--shadow-popover-value);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }

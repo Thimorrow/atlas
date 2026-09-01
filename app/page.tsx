@@ -876,7 +876,7 @@ export default function Home() {
         initial={firstView.current || reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm"}
+        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-card"}
       >
         {mode === "today" ? (
           error && !data ? (

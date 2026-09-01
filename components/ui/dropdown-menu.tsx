@@ -17,7 +17,12 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-[13rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg",
+          // Surfaces-Audit: shadow-popover statt shadow-lg -- im Dunkeln faellt
+          // ein schwarzer Schatten auf dunklem Grund weg, die Karten-Elevation
+          // (shadow-card) wird dort zu "none". Das Popover schwebt als einzige
+          // Flaeche wirklich UEBER anderem Inhalt und behaelt deshalb dort einen
+          // eigenen, sichtbaren weissen Ring (siehe globals.css).
+          "z-50 min-w-[13rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-popover",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           "data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:slide-in-from-top-2",
           className,

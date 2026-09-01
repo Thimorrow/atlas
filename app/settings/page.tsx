@@ -77,7 +77,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-2xl border bg-card shadow-card">
       <header className="flex items-start gap-3 border-b bg-muted/30 px-5 py-4">
         <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground">
           <Icon className="size-[18px]" />
@@ -232,8 +232,13 @@ export default function SettingsPage() {
                         transition={{ type: "spring", stiffness: 500, damping: 46 }}
                       />
                     )}
-                    {/* Mini-Mock des jeweiligen Modes */}
-                    <span className={cn("flex h-11 w-full items-center gap-2 rounded-lg border p-2", p.box)}>
+                    {/* Mini-Mock des jeweiligen Modes -- Surfaces-Audit: die Kachel
+                        rundet mit rounded-xl (14px) bei p-3 (12px) Abstand, macht die
+                        Box hier also einen rechnerisch fast eckigen Innenradius (~2px)
+                        noetig. rounded-lg (10px) sass zu rund fuer den Abstand und
+                        pinchte sichtbar in der Ecke -- rounded-sm (6px) liegt naeher an
+                        der abgeleiteten Ecke, ohne komplett eckig zu wirken. */}
+                    <span className={cn("flex h-11 w-full items-center gap-2 rounded-sm border p-2", p.box)}>
                       <span className="size-4 shrink-0 rounded-full border border-black/10 bg-primary/70" />
                       <span className="flex-1 space-y-1.5">
                         <span className={cn("block h-1.5 w-4/5 rounded-full", p.bar)} />
