@@ -36,3 +36,12 @@ coverage/
 # Design-/Motion-Audit-Reports (generiert)
 motion-audits/
 .env*
+
+# Android (native App unter android/)
+android/build/
+android/*/build/
+android/.gradle/
+android/local.properties
+android/.cxx/
+*.keystore
+*.jks
