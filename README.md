@@ -31,6 +31,72 @@ npm run dev
 `BLOB_READ_WRITE_TOKEN` ist optional. Fehlt es, zeigt der Dateibereich einen
 ruhigen Hinweis und der Rest der App funktioniert unverändert weiter.
 
+## Microsoft 365 und OneNote
+
+Atlas kann eine Fach-Notiz als neue Seite in dein OneNote schreiben. Dafür
+brauchst du eine App-Registrierung in Azure. Das ist einmalig und kostet
+nichts. Ohne die drei Variablen unten bleibt die Anbindung einfach aus, Atlas
+zeigt dann nur einen Hinweis und funktioniert sonst unverändert.
+
+### Einmalig im Azure-Portal
+
+1. Geh auf [portal.azure.com](https://portal.azure.com) und melde dich mit
+   deinem Schulkonto an. Such oben nach **Microsoft Entra ID** und öffne es.
+2. Links im Menü auf **App-Registrierungen**, dann oben auf **Neue
+   Registrierung**.
+3. **Name:** `Atlas`. Bei **Unterstützte Kontotypen** wähl „Nur Konten in
+   diesem Organisationsverzeichnis".
+4. Bei **Umleitungs-URI** wähl als Plattform **Web** und trag genau das ein:
+   `http://localhost:3000/api/microsoft/callback`.
+   Läuft Atlas später unter einer echten Adresse, kommt dieselbe URI mit deiner
+   Domain dazu (`https://…/api/microsoft/callback`). Die Adresse muss auf das
+   Zeichen genau stimmen, sonst weist Microsoft die Anmeldung ab.
+5. Auf **Registrieren** klicken. Du landest auf der Übersichtsseite der App.
+6. Auf der Übersicht stehen zwei der drei Werte:
+   - **Anwendungs-ID (Client)** → `MICROSOFT_CLIENT_ID`
+   - **Verzeichnis-ID (Mandant)** → `MICROSOFT_TENANT_ID`
+7. Links auf **Zertifikate & Geheimnisse**, Reiter **Geheime
+   Clientschlüssel**, dann **Neuer geheimer Clientschlüssel**. Beschreibung
+   `Atlas`, Gültigkeit nach Wunsch. Nach dem Anlegen kopierst du die Spalte
+   **Wert** (nicht „Geheime Client-ID"). Dieser Wert ist **nur jetzt
+   sichtbar** → `MICROSOFT_CLIENT_SECRET`.
+8. Links auf **API-Berechtigungen**, dann **Berechtigung hinzufügen** →
+   **Microsoft Graph** → **Delegierte Berechtigungen**. Häk diese vier an und
+   klick **Berechtigungen hinzufügen**:
+   - `offline_access` (ohne das ist die Verbindung nach einer Stunde tot)
+   - `User.Read`
+   - `Notes.Read`
+   - `Notes.Create`
+
+   Steht dort danach „Administratorzustimmung erforderlich: Ja", muss ein
+   Administrator deiner Schule einmal auf **Administratorzustimmung für …
+   erteilen** klicken. Bei den vier Rechten oben ist das normalerweise nicht
+   nötig.
+
+### In Atlas eintragen
+
+```bash
+MICROSOFT_CLIENT_ID="…"       # Anwendungs-ID (Client)
+MICROSOFT_CLIENT_SECRET="…"   # Wert des geheimen Clientschlüssels
+MICROSOFT_TENANT_ID="…"       # Verzeichnis-ID (Mandant)
+```
+
+Danach `npm run dev` neu starten, in Atlas auf **Einstellungen → OneNote**
+gehen und auf **Mit Microsoft verbinden** klicken. Microsoft fragt einmal
+nach deiner Zustimmung, danach bist du zurück in den Einstellungen.
+
+### Benutzen
+
+Auf einer Fach-Seite unter **OneNote** wählst du einmal den Abschnitt, in dem
+die Notizen dieses Fachs landen sollen. Danach hat jede Notiz beim Öffnen den
+Knopf **An OneNote senden**, der sie als neue Seite in diesem Abschnitt
+anlegt. Es ist ein Einbahnweg: Atlas legt Seiten an und ändert nie eine
+bestehende.
+
+Die Zugriffstoken liegen mit AES-256-GCM verschlüsselt in der Datenbank. Den
+Schlüssel dafür bildet `ATLAS_SESSION_SECRET`; wechselt der, meldest du dich
+einmal neu bei Microsoft an.
+
 ## Skripte
 
 | Befehl | Zweck |
@@ -51,7 +117,7 @@ app/
   aufgaben/             Aufgaben-Modul
   faecher/              Fächer-Übersicht und Detailseite
   settings/             Einstellungen, Untis-Sync, Theme
-  api/                  calendar, sync/untis, subjects, notes, assignments, files
+  api/                  calendar, sync/untis, subjects, notes, assignments, files, microsoft
 components/             UI-Bausteine, alle im selben Stil
 lib/
   db/schema.ts          Drizzle-Schema
@@ -59,6 +125,7 @@ lib/
   assignments-view.ts   Gruppierung und Sortierung der Aufgaben (rein, getestet)
   subject-colors.ts     Fachfarben-Palette und Vorbelegung
   markdown.ts           Markdown für Notizen, escape-first
+  microsoft.ts          Entra-ID-Anmeldung (PKCE) und OneNote über Graph
   untis/                WebUntis-Client, Adapter, Sync-Policy
 drizzle/                Migrationen
 .ytstack/               Projektzustand, Entscheidungen, Specs
