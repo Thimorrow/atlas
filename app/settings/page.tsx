@@ -180,7 +180,12 @@ export default function SettingsPage() {
               <div className="min-w-0 space-y-1">
                 <div className="text-base font-medium leading-tight">Thimofej</div>
                 <div className="text-sm text-muted-foreground">Schüler</div>
-                <div className="truncate font-mono text-xs text-muted-foreground">
+                {/* title, weil truncate die Adresse auf schmalen Displays
+                    abschneidet -- so bleibt sie per Hover/Longpress lesbar. */}
+                <div
+                  className="truncate font-mono text-xs text-muted-foreground"
+                  title="thimofej@yesterday-ai.de"
+                >
                   thimofej@yesterday-ai.de
                 </div>
               </div>
