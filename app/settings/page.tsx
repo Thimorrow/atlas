@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import {
@@ -17,7 +17,7 @@ import {
   Check,
   AlertTriangle,
 } from "lucide-react";
-import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
+import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -38,12 +38,32 @@ const PREVIEW: Record<string, { box: string; bar: string; barDim: string }> = {
 
 type SyncState =
   | { ok: true; fetched: number; upserted: number; window: { start: string; end: string } }
-  | { ok: false; error: string };
+  | { ok: false; error: string; kind: "network" | "server" };
 
 const fmtDay = (iso: string) => {
   const [, m, d] = iso.split("-");
   return `${d}.${m}.`;
 };
+
+// A4 (Verstaendlichkeit): Die rohe Server- oder Netzwerkmeldung (etwa "fetch
+// failed" oder ein WebUntis-HTTP-Status) sagt einem Schueler nichts. Sie bleibt
+// als technisches Detail sichtbar, davor steht ein Satz, der weiterhilft.
+// Bewusst NICHT pauschal "die Schule hat Untis abgeschaltet": das stimmt nur in
+// einem der Faelle, und sobald Untis wieder laeuft, wuerde eine feste Meldung
+// bei jedem anderen Problem in die Irre fuehren.
+function friendlySyncMessage(error: string, kind: "network" | "server"): string {
+  if (kind === "network") {
+    return "Keine Verbindung zum Server. Pruef dein WLAN und versuch es dann noch einmal.";
+  }
+  const e = error.toLowerCase();
+  if (/401|403|auth|credential|login|passwor|anmeld/.test(e)) {
+    return "WebUntis hat die Zugangsdaten abgelehnt. Server, Schule, Benutzer oder Passwort stimmen nicht.";
+  }
+  if (/econnrefused|etimedout|enotfound|fetch failed|timeout|502|503|504|unreachable/.test(e)) {
+    return "WebUntis antwortet nicht. Oft liegt das an der Schule, etwa weil der Dienst dort gerade abgeschaltet ist. Versuch es später erneut.";
+  }
+  return "Der Abgleich hat nicht geklappt. Versuch es später erneut.";
+}
 
 function Section({
   icon: Icon,
@@ -57,7 +77,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-2xl border bg-card shadow-card">
       <header className="flex items-start gap-3 border-b bg-muted/30 px-5 py-4">
         <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground">
           <Icon className="size-[18px]" />
@@ -77,8 +97,27 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sync, setSync] = useState<SyncState | null>(null);
+  // A3 (Reduced-Motion): globale <MotionConfig reducedMotion="user"> kappt nur
+  // transform -- die opacity+y-Animation der Sync-Meldung braucht ein eigenes Gate.
+  const reduce = useReducedMotion();
+  // A5 (Semantik): die Theme-Kacheln sind eine sich gegenseitig ausschliessende
+  // Auswahl -- also radiogroup/radio statt lose aria-pressed-Buttons, inklusive
+  // Pfeiltasten-Navigation (WAI-ARIA "Radio Group"-Pattern, roving tabindex).
+  const themeRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => setMounted(true), []);
+
+  function onThemeKeyDown(e: React.KeyboardEvent, idx: number) {
+    let next = idx;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % THEMES.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + THEMES.length) % THEMES.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = THEMES.length - 1;
+    else return;
+    e.preventDefault();
+    setTheme(THEMES[next].key);
+    themeRefs.current[next]?.focus();
+  }
 
   async function runSync() {
     setSyncing(true);
@@ -89,31 +128,40 @@ export default function SettingsPage() {
       setSync(
         data.ok
           ? { ok: true, fetched: data.fetched, upserted: data.upserted, window: data.window }
-          : { ok: false, error: data.error ?? "Unbekannter Fehler" },
+          : { ok: false, error: data.error ?? "Unbekannter Fehler", kind: "server" },
       );
     } catch (e) {
-      setSync({ ok: false, error: (e as Error).message });
+      // Netzwerkfehler (z.B. offline) laufen nie durch die API-Antwort oben,
+      // sondern landen hier. Als "network" markiert, damit die Meldung nicht
+      // faelschlich WebUntis beschuldigt, wenn schlicht das WLAN weg ist.
+      setSync({ ok: false, error: (e as Error).message, kind: "network" });
     } finally {
       setSyncing(false);
     }
   }
 
   return (
-    <main className="h-full overflow-y-auto px-6 py-8 lg:px-8">
+    // Design-Audit (Stimmigkeit): px-6 lg:px-8 wie app/page.tsx -- gleicher
+    // Randabstand auf beiden Seiten. pt-6 gleicht auch oben auf den Stundenplan-
+    // Kopf an, statt eines eigenen, groesseren Werts (py-8).
+    <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
       <Stagger className="mx-auto max-w-2xl space-y-6">
         {/* Kopf -- Back-Link nur auf Mobile (dort fehlt die Sidebar). */}
         <StaggerItem>
           <Link
             href="/"
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground md:hidden"
+            className="mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
-            Zurück zum Kalender
+            Zurück zum Stundenplan
           </Link>
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight">
-            <SplitText text="Einstellungen" />
+          {/* Design-Audit (Stimmigkeit): text-xl + mt-0.5 wie der "Stundenplan"-
+              Titel auf der Hauptseite -- beide Seiten sollen als EINE App wirken,
+              nicht als zwei mit unterschiedlicher Titelgroesse. */}
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
+            Einstellungen
           </h1>
-          <p className="mt-1 text-[15px] text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Profil, Erscheinungsbild und Datenquellen von Atlas.
           </p>
         </StaggerItem>
@@ -121,6 +169,10 @@ export default function SettingsPage() {
         {/* Profil */}
         <StaggerItem>
           <Section icon={User} title="Profil" desc="Deine Kontodaten.">
+            {/* A6 (Platzhalter): "bald bearbeitbar" war ein Versprechen ohne
+                Funktion dahinter -- Bearbeiten braucht Mehrnutzer/Auth in der
+                Datenschicht, die hier nicht angefasst wird. Kein Platzhalter
+                statt einem, der nie einloest. */}
             <div className="flex items-center gap-4">
               <div className="flex size-16 shrink-0 items-center justify-center rounded-full border bg-muted text-xl font-semibold">
                 TZ
@@ -128,13 +180,15 @@ export default function SettingsPage() {
               <div className="min-w-0 space-y-1">
                 <div className="text-base font-medium leading-tight">Thimofej</div>
                 <div className="text-sm text-muted-foreground">Schüler</div>
-                <div className="truncate font-mono text-xs text-muted-foreground">
+                {/* title, weil truncate die Adresse auf schmalen Displays
+                    abschneidet -- so bleibt sie per Hover/Longpress lesbar. */}
+                <div
+                  className="truncate font-mono text-xs text-muted-foreground"
+                  title="thimofej@yesterday-ai.de"
+                >
                   thimofej@yesterday-ai.de
                 </div>
               </div>
-              <span className="ml-auto self-start rounded-md bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                bald bearbeitbar
-              </span>
             </div>
           </Section>
         </StaggerItem>
@@ -142,21 +196,37 @@ export default function SettingsPage() {
         {/* Erscheinungsbild */}
         <StaggerItem>
           <Section icon={Palette} title="Erscheinungsbild" desc="Hell, dunkel oder dem System folgen.">
-            <div className="grid grid-cols-3 gap-3">
-              {THEMES.map((t) => {
+            <div role="radiogroup" aria-label="Erscheinungsbild" className="grid grid-cols-3 gap-3">
+              {THEMES.map((t, i) => {
                 const selected = mounted && theme === t.key;
+                // Solange next-themes noch nicht hydriert ist (mounted=false),
+                // muss trotzdem genau eine Kachel per Tab erreichbar sein.
+                const tabbable = mounted ? selected : i === 0;
                 const p = PREVIEW[t.key];
                 return (
                   <button
                     key={t.key}
+                    ref={(el) => {
+                      themeRefs.current[i] = el;
+                    }}
+                    type="button"
                     onClick={() => setTheme(t.key)}
-                    aria-pressed={selected}
+                    onKeyDown={(e) => onThemeKeyDown(e, i)}
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={tabbable ? 0 : -1}
                     className={cn(
                       // `isolate` = eigener Stacking-Context, sonst verschwindet der
                       // `-z-10`-Indikator hinter der opaken bg-card.
-                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm transition-[color,transform] active:scale-[0.97]",
+                      // ui-polish: font-medium bleibt IMMER gesetzt (nicht nur bei
+                      // selected) -- ein Schriftgewicht-Wechsel wuerde die Textbreite
+                      // aendern, Auswahl signalisiert stattdessen nur die Farbe.
+                      // `scale` statt `transform` in der Transition-Liste: wie in
+                      // button.tsx (F11) emittiert Tailwind v4 fuer `scale-[...]`
+                      // eine eigene `scale`-Property, "transform" faengt sie nicht.
+                      "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm font-medium transition-[color,background-color,scale] [touch-action:manipulation] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       selected
-                        ? "border-transparent font-medium text-foreground"
+                        ? "border-transparent text-foreground"
                         : "border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     )}
                   >
@@ -167,8 +237,13 @@ export default function SettingsPage() {
                         transition={{ type: "spring", stiffness: 500, damping: 46 }}
                       />
                     )}
-                    {/* Mini-Mock des jeweiligen Modes */}
-                    <span className={cn("flex h-11 w-full items-center gap-2 rounded-lg border p-2", p.box)}>
+                    {/* Mini-Mock des jeweiligen Modes -- Surfaces-Audit: die Kachel
+                        rundet mit rounded-xl (14px) bei p-3 (12px) Abstand, macht die
+                        Box hier also einen rechnerisch fast eckigen Innenradius (~2px)
+                        noetig. rounded-lg (10px) sass zu rund fuer den Abstand und
+                        pinchte sichtbar in der Ecke -- rounded-sm (6px) liegt naeher an
+                        der abgeleiteten Ecke, ohne komplett eckig zu wirken. */}
+                    <span className={cn("flex h-11 w-full items-center gap-2 rounded-sm border p-2", p.box)}>
                       <span className="size-4 shrink-0 rounded-full border border-black/10 bg-primary/70" />
                       <span className="flex-1 space-y-1.5">
                         <span className={cn("block h-1.5 w-4/5 rounded-full", p.bar)} />
@@ -191,22 +266,40 @@ export default function SettingsPage() {
           <Section
             icon={CalendarClock}
             title="Stundenplan"
-            desc="WebUntis-Stunden in deinen Kalender importieren."
+            desc="WebUntis-Stunden in deinen Stundenplan importieren."
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Wortwahl: "idempotent" war Entwicklersprache -- ein Schueler
+                  weiss nicht, was das bedeutet. Ersetzt durch den eigentlichen
+                  Nutzen: der Abgleich haelt die Stunden aktuell, ohne dass beim
+                  wiederholten Sync Duplikate entstehen. */}
               <p className="text-[13px] text-muted-foreground">
-                Lädt das Fenster <span className="font-medium text-foreground">letzte Woche bis +3 Wochen</span> und
-                gleicht es idempotent ab.
+                Lädt deine Stunden von{" "}
+                <span className="font-medium text-foreground">letzter Woche bis in drei Wochen</span> und hält sie
+                aktuell.
               </p>
               <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
                 <RefreshCw className={cn("size-4", syncing && "animate-spin")} />
-                {syncing ? "Synchronisiere…" : "Jetzt synchronisieren"}
+                {/* ui-polish: beide Labels liegen uebereinander in derselben Grid-
+                    Zelle -- die Breite reserviert sich am laengeren Text, der
+                    Button springt beim Wechsel "Jetzt synchronisieren" <->
+                    "Synchronisiere…" nicht mehr in der Breite. */}
+                <span className="relative inline-grid">
+                  <span className={cn("col-start-1 row-start-1", syncing && "invisible")}>
+                    Jetzt synchronisieren
+                  </span>
+                  <span className={cn("col-start-1 row-start-1", !syncing && "invisible")}>Synchronisiere…</span>
+                </span>
               </Button>
             </div>
 
+            {/* A4: role="status" + aria-live traegt das Ergebnis auch zu
+                Screenreader-Nutzern, die den Klick nicht visuell verfolgen. */}
             {sync && (
               <motion.div
-                initial={{ opacity: 0, y: -4 }}
+                role="status"
+                aria-live="polite"
+                initial={reduce ? false : { opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, ease: EASE }}
                 className={cn(
@@ -217,11 +310,13 @@ export default function SettingsPage() {
                 )}
               >
                 {sync.ok ? (
-                  <Check className="mt-px size-4 shrink-0" />
+                  <Check aria-hidden="true" className="mt-px size-4 shrink-0" />
                 ) : (
-                  <AlertTriangle className="mt-px size-4 shrink-0" />
+                  <AlertTriangle aria-hidden="true" className="mt-px size-4 shrink-0" />
                 )}
-                <span className="leading-snug">
+                {/* ui-polish: tabular-nums, damit die Ziffern (Anzahl, Datum) beim
+                    naechsten Sync nicht in der Breite zittern. */}
+                <span className="leading-snug tabular-nums">
                   {sync.ok ? (
                     <>
                       <span className="font-medium">{sync.fetched} Stunden geladen</span>, {sync.upserted} aktualisiert.
@@ -231,8 +326,10 @@ export default function SettingsPage() {
                     </>
                   ) : (
                     <>
-                      <span className="font-medium">Sync fehlgeschlagen.</span>
-                      <span className="block break-words font-mono text-xs opacity-80">{sync.error}</span>
+                      <span className="font-medium">{friendlySyncMessage(sync.error, sync.kind)}</span>
+                      <span className="mt-1 block break-words font-mono text-xs opacity-70">
+                        Technisches Detail: {sync.error}
+                      </span>
                     </>
                   )}
                 </span>
@@ -243,20 +340,22 @@ export default function SettingsPage() {
 
         {/* Konto */}
         <StaggerItem>
-          <Section icon={LogOut} title="Konto" desc="Abmelden kommt mit dem Login (Mehrnutzer).">
-            <Button disabled variant="outline" size="sm">
-              <LogOut className="size-4" />
-              Abmelden
-              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
-                bald
-              </span>
-            </Button>
+          {/* A6 (Platzhalter): ein dauerhaft deaktivierter "Abmelden"-Button, der
+              nie aktiv wird, ist selbst der Befund (ui-review: totes Bedienelement).
+              Mehrnutzer/Login liegt in der Datenschicht, die hier nicht angefasst
+              wird -- also ehrlicher Fliesstext statt vorgetaeuschter Bedienbarkeit. */}
+          <Section icon={LogOut} title="Konto" desc="Ein Nutzer, keine Anmeldung nötig.">
+            <p className="text-[13px] text-muted-foreground">
+              Atlas läuft aktuell für ein einzelnes Konto ohne Login. Abmelden gibt es, sobald mehrere Nutzer
+              unterstützt werden.
+            </p>
           </Section>
         </StaggerItem>
 
         {/* Fuss */}
         <StaggerItem>
-          <p className="pt-1 text-center text-xs text-muted-foreground/70">
+          {/* A2 (Kontrast): /70 faellt auf dem Hintergrund unter 4.5:1. */}
+          <p className="pt-1 text-center text-xs text-muted-foreground">
             Atlas · Dein Alltag an einem Ort.
           </p>
         </StaggerItem>

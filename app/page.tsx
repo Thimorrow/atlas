@@ -1,164 +1,122 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, CalendarPlus, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Stagger, StaggerItem, SplitText } from "@/components/stagger";
-import { EventSheet, type EditTarget } from "@/components/event-sheet";
-import { AgendaTodoRow, LooseTodos, DayTodoDots } from "@/components/calendar-todos";
-import { AutoplanSheet } from "@/components/autoplan-sheet";
-import { planWeek, type PlanSuggestion } from "@/lib/todo-autoplan";
-import { persistWrite, persistBatch } from "@/lib/persist";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Stagger, StaggerItem } from "@/components/stagger";
+import { AssignmentComposer } from "@/components/assignment-composer";
+import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
+import { useToast } from "@/components/toast";
 import { decideSync } from "@/lib/untis/sync-policy";
-import { evVar } from "@/lib/event-colors";
-import type { TodoInstance, TodayView as TodoView } from "@/lib/todos-view";
+import type { AssignmentDTO, AssignmentType } from "@/lib/assignments-view";
+import { colorValue } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
-
-// Aufgaben pro Tag (Wochen-Raster): key = YYYY-MM-DD. Lokaler Typ, damit der
-// Client nicht das Server-Modul (lib/todo-expand -> DB) ziehen muss.
-type TodoRange = Record<string, TodoInstance[]>;
-
-// Optimistisches Abhaken/Enthaken einer Aufgabe in der Heute-Todo-Ansicht:
-// verschiebt die Instanz zwischen den Sektionen und flippt `done`. Ein Reload
-// korrigiert spaeter exakt.
-function toggleTodoView(v: TodoView, inst: TodoInstance, currentlyDone: boolean): TodoView {
-  const id = inst.todoId;
-  if (!currentlyDone) {
-    return {
-      ...v,
-      overdue: v.overdue.filter((x) => x.todoId !== id),
-      today: v.today.filter((x) => x.todoId !== id),
-      completed: [...v.completed, { ...inst, done: true, overdue: false }],
-    };
-  }
-  return {
-    ...v,
-    completed: v.completed.filter((x) => x.todoId !== id),
-    today: [...v.today, { ...inst, done: false }],
-  };
-}
+import { readLocal, writeLocal } from "@/lib/safe-storage";
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
 type Ev = {
-  source: "school" | "routine" | "manual";
+  source: "school";
   refId: string;
   date: string;
   startTime: string;
   endTime: string | null;
   title: string;
-  color?: string | null;
-  location?: string | null;
-  allDay?: boolean;
-  notes?: string | null;
   status?: "regular" | "cancelled" | "substituted";
   room?: string | null;
   teacher?: string | null;
 };
-type Free = { date: string; startTime: string; endTime: string; minutes: number };
-type Day = { date: string; weekday: number; events: Ev[]; freeSlots: Free[] };
-type Goal = { routineId: string; title: string; targetPerWeek: number; done: number };
-type RangeData = { start: string; end: string; days: Day[]; flexibleGoals: Goal[] };
+type Day = { date: string; weekday: number; events: Ev[] };
+type RangeData = { start: string; end: string; days: Day[] };
+// Nur die Felder, die der Stundenplan fuer Farbe und Vorbelegung braucht.
+type SubjectOption = { id: string; name: string; untisSubject: string | null; color: string | null };
+// Vorbelegung des Composers, wenn er aus einer Schulstunde heraus geoeffnet wird.
+type ComposerSeed = {
+  type: AssignmentType;
+  subjectId: string | null;
+  untisSubject: string | null;
+  dueDate: string | null;
+};
 
 // --- Konstanten -------------------------------------------------------------
 
-const DAY_START = 6;
-const DAY_END = 23;
 const HOUR_H = 56;
-// Kurze Termine (z.B. 30-min-Klavier) nie zur flachen Pille quetschen -- jeder
-// Block ist mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
+// Kurze Schulstunden nie zur flachen Pille quetschen -- jeder Block ist
+// mindestens so hoch, dass Titel + Uhrzeit als Karte lesbar sind.
 const MIN_EVENT_H = 44;
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-const HOURS = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i);
+// Fallback-Zeitachse, wenn die Woche keine school_blocks hat (z.B. Ferien).
+const FALLBACK_DAY_START = 7;
+const FALLBACK_DAY_END = 15;
 
 // Atlas-Signaturkurve (= --ease-atlas), als Array fuer Framer.
 const EASE = [0.22, 1, 0.36, 1] as const;
-const BURST_EASE = [0.16, 1, 0.3, 1] as const;
-
-// Mini-Aufgabe auf der Wochen-Zeitachse. Erledigt -> fadet auf 0.5; beim echten
-// Abhaken (false -> true) ploppt der Punkt einmal kurz (eigener Trigger, damit
-// schon-erledigt mountende Tage still bleiben).
-function WeekTodoChip({
-  title,
-  done,
-  accent,
-  top,
-  delay,
-  reduce,
-  onClick,
-}: {
-  title: string;
-  done: boolean;
-  accent: string;
-  top: number;
-  delay: number;
-  reduce: boolean;
-  onClick: () => void;
-}) {
-  const prev = useRef(done);
-  const [pop, setPop] = useState(0);
-  useEffect(() => {
-    if (done && !prev.current) setPop((p) => p + 1);
-    prev.current = done;
-  }, [done]);
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      title={done ? `${title} als offen markieren` : `${title} abhaken`}
-      className="absolute inset-x-1 z-[1] flex items-center gap-1 rounded border border-l-2 border-border/60 bg-muted/50 px-1 py-px text-left transition-colors duration-150 hover:bg-muted/80"
-      style={{ top, borderLeftColor: accent }}
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      animate={{ opacity: done ? 0.5 : 1, y: 0 }}
-      transition={{ duration: 0.3, delay, ease: EASE }}
-    >
-      <motion.span
-        key={pop}
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: accent }}
-        initial={pop > 0 && !reduce ? { scale: 1 } : false}
-        animate={pop > 0 && !reduce ? { scale: [1, 1.9, 1] } : {}}
-        transition={{ duration: 0.42, ease: BURST_EASE }}
-      />
-      <span className={cn("truncate text-[9px] font-medium leading-tight text-foreground/80", done && "text-muted-foreground line-through")}>
-        {title}
-      </span>
-    </motion.button>
-  );
-}
 
 // --- Block-Stile ------------------------------------------------------------
-// Fächer-Blöcke: dicker Farbrand (6px) + sattere Füllung -- hebt sie klar vom
-// Hintergrund ab. Farbe codiert die Quelle (Schule/Routine/Manuell).
-const SRC: Record<Ev["source"], string> = {
-  school: "border-l-[6px] border-l-blue-500 bg-blue-100/80 dark:bg-blue-500/20",
-  routine: "border-l-[6px] border-l-amber-500 bg-amber-100/80 dark:bg-amber-500/20",
-  manual: "border-l-[6px] border-l-emerald-500 bg-emerald-100/80 dark:bg-emerald-500/20",
-};
+// Fächer-Blöcke: Zurückhaltung (Design-Audit) -- vorher trugen sie gleichzeitig
+// einen 6px-Farbrand links, eine getönte Füllung, einen inneren Ring UND einen
+// Hover-Ring. Vier Signale für dieselbe Aussage ("das ist eine Schulstunde").
+// Jetzt nur noch zwei im Ruhezustand: getönte Füllung + ein leiser, farblich
+// passender Rand. Der Ring bleibt allein dem Hover vorbehalten -- er markiert
+// dann wirklich einen Zustandswechsel statt nur mitzulaufen.
+const BLOCK_CLS = "border border-blue-500/20 bg-blue-100/80 dark:border-blue-400/20 dark:bg-blue-500/20";
 
-// Entfall (V3): entfallene Schulstunden werden NICHT als eigener Block gezeigt,
-// sondern als leiser Chip an der ECHTEN Startzeit der Stunde. So bleibt die
-// freigewordene Zeit (und dort geplante Aufgaben) klar lesbar, die Info "faellt
-// aus" geht aber nicht verloren -- statt Doppelung "Frei" + "Entfall"-Block.
+// Entfallene Schulstunden werden nicht als eigener Block gezeigt, sondern als
+// leiser Chip an der ECHTEN Startzeit der Stunde -- statt Doppelung "Frei" +
+// "Entfall"-Block.
 // Leiser Entfall-Chip fuer die Heute-Liste.
 function CancelChip({ title }: { title: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[10px] font-medium text-muted-foreground/90">
+    // A2 (Kontrast): /90 auf bg-muted/40 lag im Hellmodus bei ~3.8:1 -- unter
+    // der AA-Mindestgrenze fuer kleinen Text. Volle muted-foreground erreicht 4.6:1.
+    // Design-Audit: 10px auf 11px angehoben -- der Grid-Entfall-Chip (engerer
+    // Platz als hier in der Heute-Liste) lag bereits bei 11px, kleiner-bei-mehr-
+    // Platz war die falsche Richtung.
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
       <span className="size-1 rounded-full bg-red-500/45" />
       {title} entfällt
     </span>
   );
 }
 
-// Ein terminiertes Todo bekommt nur dann eine Spur auf der Wochen-Zeitachse,
-// wenn seine Uhrzeit an DEM Tag wirklich frei ist -- sonst laege es ueber einer
-// Stunde (haesslich). Greift v. a. bei taeglichen Aufgaben mit fixer Uhrzeit.
-function todoFitsTimeline(t: TodoInstance, freeSlots: Free[]): boolean {
-  if (!t.scheduledTime || t.done) return false;
-  const m = toMin(t.scheduledTime);
-  return freeSlots.some((f) => toMin(f.startTime) <= m && m < toMin(f.endTime));
+// Ein Klick auf eine Schulstunde legt eine Aufgabe fuer dieses Fach an. Das
+// Menue haengt per asChild AM Block selbst -- es kommt kein zusaetzliches
+// Element ins Layout, der Block behaelt Groesse und Position.
+// Der Block ist damit interaktiv: tabIndex macht ihn per Tastatur erreichbar,
+// Enter/Leertaste oeffnen das Menue (Radix-Trigger), der Fokusring sitzt an den
+// Aufrufstellen in der Block-Klasse.
+function LessonMenu({
+  ev,
+  dayISO,
+  onCreate,
+  children,
+}: {
+  ev: Ev;
+  dayISO: string;
+  onCreate: (ev: Ev, dayISO: string, type: AssignmentType) => void;
+  children: ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "homework")}>
+          <NotebookPen /> Hausaufgabe hinzufügen
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "exam")}>
+          <GraduationCap /> Klassenarbeit eintragen
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 // --- Helfer -----------------------------------------------------------------
@@ -186,39 +144,6 @@ function formatRange(start: string, end: string) {
     : `${dayNum(start)}. ${MONTHS[monthOf(start)]} – ${dayNum(end)}. ${MONTHS[monthOf(end)]} ${end.slice(0, 4)}`;
 }
 
-// 0 = Montag ... 6 = Sonntag (lokal).
-function weekdayOf(iso: string) {
-  return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
-}
-
-// Block-Look: eigene Farbe (manuell/Routine) -> ev-tint via --ev; sonst
-// Quellen-Default (Schule blau, Routine ohne Farbe gelb, manuell gruen).
-// Entfall rendert nicht mehr als Block (s. CancelChip / Wochen-Entfall-Chip).
-function blockLook(ev: Ev): { className: string; style?: CSSProperties } {
-  if (ev.color && ev.source !== "school") return { className: "border-l-[6px] ev-tint", style: evVar(ev.color) };
-  return { className: SRC[ev.source] };
-}
-
-// Nur eigene Eintraege sind editierbar (Schulstunden kommen read-only aus Untis).
-const editable = (ev: Ev) => ev.source === "manual" || ev.source === "routine";
-
-// CalendarEvent -> Sheet-Vorbelegung.
-function toEdit(ev: Ev): EditTarget {
-  return {
-    source: ev.source as "manual" | "routine",
-    refId: ev.refId,
-    title: ev.title,
-    date: ev.date,
-    weekday: weekdayOf(ev.date),
-    startTime: ev.startTime,
-    endTime: ev.endTime,
-    color: ev.color ?? null,
-    location: ev.location ?? null,
-    notes: ev.notes ?? null,
-    allDay: ev.allDay,
-  };
-}
-
 type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
 
 // Untis liefert Schulstunden teils als getrennte Perioden (z.B. 2x 45min mit
@@ -227,10 +152,7 @@ type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
 const GAP_MERGE_MIN = 25;
 
 function mergeSchool(events: Ev[]): Ev[] {
-  const school = events
-    .filter((e) => e.source === "school")
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const rest = events.filter((e) => e.source !== "school");
+  const school = [...events].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const merged: Ev[] = [];
   for (const ev of school) {
@@ -247,15 +169,15 @@ function mergeSchool(events: Ev[]): Ev[] {
       merged.push({ ...ev });
     }
   }
-  return [...merged, ...rest];
+  return merged;
 }
 
-function packDay(events: Ev[]): Packed[] {
+function packDay(events: Ev[], dayStart: number, dayEnd: number): Packed[] {
   const items: Packed[] = events
     .map((ev) => {
-      const s = Math.max(toMin(ev.startTime), DAY_START * 60);
-      const raw = ev.endTime ? toMin(ev.endTime) : DAY_END * 60;
-      const e = Math.min(Math.max(raw, s + 5), DAY_END * 60);
+      const s = Math.max(toMin(ev.startTime), dayStart * 60);
+      const raw = ev.endTime ? toMin(ev.endTime) : dayEnd * 60;
+      const e = Math.min(Math.max(raw, s + 5), dayEnd * 60);
       return { ev, s, e, lane: 0, lanes: 1 };
     })
     .sort((a, b) => a.s - b.s || a.e - b.e);
@@ -306,9 +228,9 @@ type TimeScale = { yOf: (min: number) => number; total: number };
 // Zerlegt den Tag in Segmente mit Anker-Flag. Die Pixel-Verteilung passiert
 // spaeter hoehenabhaengig (fitScale), damit kurze Termine eine Mindesthoehe IN
 // DER ACHSE bekommen -> der Block endet exakt zu seiner echten Uhrzeit.
-function buildSegments(packedDays: Packed[][], days: Day[]): Seg[] {
-  const DS = DAY_START * 60;
-  const DE = DAY_END * 60;
+function buildSegments(packedDays: Packed[][], days: Day[], dayStart: number, dayEnd: number): Seg[] {
+  const DS = dayStart * 60;
+  const DE = dayEnd * 60;
   const clamp = (m: number) => Math.max(DS, Math.min(DE, m));
 
   // Anker-Intervalle: Werktags-Termine (weekday < 5) unter 3 h.
@@ -364,35 +286,102 @@ function durLabel(min: number) {
 const WEEKDAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
 function eventMeta(ev: Ev) {
-  if (ev.source === "school") {
-    return [ev.room, ev.teacher].filter(Boolean).join(" · ");
-  }
-  return `${hm(ev.startTime)}${ev.endTime ? `–${hm(ev.endTime)}` : ""}`;
+  return [ev.room, ev.teacher].filter(Boolean).join(" · ");
+}
+
+// Ruhige Fehlermeldung bei fehlgeschlagenem Fetch -- klar unterscheidbar vom
+// leeren Zustand ("Keine Stunden an diesem Tag").
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-24 text-center text-sm text-muted-foreground">
+      <p>Der Stundenplan konnte nicht geladen werden.</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Erneut versuchen
+      </Button>
+    </div>
+  );
+}
+
+// Polish: "Lade Woche …" stand vorher als nackter Text mittig im leeren
+// Bereich -- ein Skelett, das die Form des Rasters (Spaltenkoepfe + Bloecke je
+// Werktag) vorwegnimmt, wirkt ruhiger als ein Textsprung. animate-pulse ist
+// eine reine CSS-Animation und faellt damit automatisch unter das globale
+// prefers-reduced-motion-Gate in globals.css.
+function WeekSkeleton() {
+  return (
+    <div className="flex h-full min-h-0 flex-col" aria-hidden="true">
+      <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+        <div className="border-r" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="border-r px-3 pb-2 pt-1.5 last:border-r-0">
+            <div className="h-2.5 w-6 animate-pulse rounded bg-muted" />
+            <div className="mt-1.5 h-7 w-7 animate-pulse rounded-md bg-muted" />
+          </div>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="grid h-full gap-x-0" style={{ gridTemplateColumns: "52px repeat(5, minmax(0,1fr))" }}>
+          <div />
+          {[
+            [10, 20, 45],
+            [16, 30],
+            [8, 20, 24],
+            [24, 30],
+            [12, 20, 16],
+          ].map((blocks, col) => (
+            <div key={col} className="flex flex-col gap-2 px-1.5 pt-3">
+              {blocks.map((h, i) => (
+                <div key={i} className="animate-pulse rounded-md bg-muted" style={{ height: h, opacity: 0.5 - i * 0.08 }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // --- Heute-Ansicht ----------------------------------------------------------
 
 type AgendaItem =
   | { kind: "ev"; s: number; e: number; ev: Ev }
-  | { kind: "free"; s: number; e: number; free: Free }
-  | { kind: "cancel"; s: number; e: number; ev: Ev }
-  | { kind: "todo"; s: number; e: number; inst: TodoInstance };
+  | { kind: "cancel"; s: number; e: number; ev: Ev };
 
-function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onToggleTodo }: { day: Day | undefined; goals: Goal[]; todos: TodoView | null; nowMin: number; dayPast: boolean; stagger: boolean; onEdit: (ev: Ev) => void; onToggleTodo: (inst: TodoInstance, done: boolean) => void }) {
+function TodayView({
+  day,
+  nowMin,
+  dayPast,
+  stagger,
+  firstPaint,
+  due,
+  onToggleAssignment,
+  onCreateAssignment,
+}: {
+  day: Day | undefined;
+  nowMin: number;
+  dayPast: boolean;
+  stagger: boolean;
+  // Aufgaben mit Faelligkeit an diesem Tag -- leere Liste rendert nichts.
+  due: AssignmentDTO[];
+  onToggleAssignment: (a: AssignmentDTO) => void;
+  onCreateAssignment: (ev: Ev, dayISO: string, type: AssignmentType) => void;
+  // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
+  // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
+  // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
+  // erneuten Auftritt.
+  firstPaint: boolean;
+}) {
   // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
   // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
   const reduce = useReducedMotion();
-  const animate = stagger && !reduce;
+  const animate = stagger && !reduce && firstPaint;
   if (!day) {
     return <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>;
   }
 
   const isToday = nowMin >= 0;
 
-  // Ganztags-Eintraege liegen nicht auf der Zeitachse -> eigene Balken oben.
-  const allDayEvents = day.events.filter((e) => e.allDay);
-
-  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime && !e.allDay);
+  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime);
   // Entfall (V3): nicht als Block, sondern als leiser Chip -- an der ECHTEN
   // Startzeit der Stunde (eigene schlanke Agenda-Zeile), nicht am Frei-Anfang.
   const cancelledEvs = onTimeline.filter((e) => e.status === "cancelled");
@@ -405,39 +394,26 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
   const next = upcoming[0];
   const ongoing = isToday && next ? next.s <= nowMin : false;
   const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
-  const openGoals = goals.filter((g) => g.done < g.targetPerWeek);
 
-  // Aufgaben (subtil): terminierte (mit Uhrzeit) weben sich in die Zeitachse,
-  // der Rest (ohne Uhrzeit) + Ueberfaelliges liegt als ruhige Zeile darunter.
-  const tToday = todos?.today ?? [];
-  const tCompleted = todos?.completed ?? [];
-  const tOverdue = todos?.overdue ?? [];
-  const scheduledTodos = [...tToday, ...tCompleted].filter((t) => t.scheduledTime);
-  const looseTodos = tToday.filter((t) => !t.scheduledTime);
-
-  // Events + freie Lücken + terminierte Aufgaben zu EINER chronologischen Agenda.
+  // Events zu einer chronologischen Agenda.
   const agenda: AgendaItem[] = [
     ...evs.map((x): AgendaItem => ({ kind: "ev", s: x.s, e: x.e, ev: x.ev })),
-    ...day.freeSlots
-      .filter((f) => f.minutes >= 30)
-      .map((f): AgendaItem => ({ kind: "free", s: toMin(f.startTime), e: toMin(f.endTime), free: f })),
     ...cancelledEvs.map((ev): AgendaItem => ({
       kind: "cancel",
       s: toMin(ev.startTime),
       e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45,
       ev,
     })),
-    ...scheduledTodos.map((inst): AgendaItem => {
-      const s = toMin(inst.scheduledTime!);
-      return { kind: "todo", s, e: s + (inst.estMinutes ?? 0), inst };
-    }),
   ].sort((a, b) => a.s - b.s || a.e - b.e);
 
   // Status-Kopfzeile
   let kicker: ReactNode;
   if (next && ongoing) {
     kicker = (
-      <span className="inline-flex items-center gap-1.5 text-red-500">
+      // A2 (Kontrast): reines red-500 liegt auf hellem Grund bei ~3.8:1 -- unter
+      // AA fuer 15px-Text. red-600/red-400 (wie beim Vertretung-Tag) tragen in
+      // beiden Themes.
+      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
         {/* I3: solider Punkt statt endlosem animate-pulse (AI-Slop-Tell + nervt
             dauerhaft). Die rote Farbe + "Jetzt"-Text tragen die Aussage. */}
         <span className="size-1.5 rounded-full bg-red-500" /> Jetzt · {next.ev.title}
@@ -453,12 +429,12 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
   } else if (next) {
     kicker = (
       <span className="text-foreground">
-        Erster Termin · <span className="font-semibold">{next.ev.title}</span>
-        <span className="text-muted-foreground"> · {hm(next.ev.startTime)}</span>
+        Erste Stunde · <span className="font-semibold">{next.ev.title}</span>
+        <span className="font-mono tabular-nums text-muted-foreground"> · {hm(next.ev.startTime)}</span>
       </span>
     );
   } else {
-    kicker = <span className="text-muted-foreground">{isToday ? "Heute stehen keine Termine mehr an." : "Keine Termine an diesem Tag."}</span>;
+    kicker = <span className="text-muted-foreground">{isToday ? "Heute steht nichts mehr an." : "An diesem Tag stehen keine Stunden an."}</span>;
   }
 
   return (
@@ -471,32 +447,12 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
         className="mb-5 flex items-center justify-between gap-3 text-[15px] font-medium"
       >
         <div>{kicker}</div>
-        {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-500">noch {durLabel(next.e - nowMin)}</span>}
+        {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-600 dark:text-red-400">noch {durLabel(next.e - nowMin)}</span>}
       </motion.div>
 
-      {/* Ganztags-Eintraege -- als Balken oben, klickbar zum Bearbeiten */}
-      {allDayEvents.length > 0 && (
-        <div className="mb-3 flex flex-col gap-1.5">
-          {allDayEvents.map((ev) => {
-            const look = blockLook(ev);
-            return (
-              <button
-                key={`${ev.source}-${ev.refId}`}
-                onClick={() => onEdit(ev)}
-                style={look.style}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border border-l-[6px] px-3 py-2 text-left transition-shadow hover:shadow-sm",
-                  look.className,
-                )}
-              >
-                <span className="flex-1 truncate text-[14px] font-semibold leading-tight">{ev.title}</span>
-                {ev.location && <span className="shrink-0 truncate text-[12px] text-muted-foreground">{ev.location}</span>}
-                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">Ganztags</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Fällige Aufgaben: schlanke Zeile unter dem Kopf. Ohne fällige Aufgabe
+          rendert DayDueRow null -- der Tag sieht dann aus wie vorher. */}
+      <DayDueRow items={due} onToggle={onToggleAssignment} />
 
       {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
       {agenda.length > 0 ? (
@@ -507,36 +463,26 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
             const past = dayPast || (isToday && it.e <= nowMin);
             // Agenda cascadet beim Mount Item fuer Item klar nacheinander rein
             // (groesserer Schritt + Basis-Delay -> spuerbar, nicht "alles auf einmal").
-            const delay = stagger ? 0.1 + Math.min(i * 0.07, 0.8) : 0;
-
-            if (it.kind === "free") {
-              return (
-                <motion.li
-                  key={`free-${it.s}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.42, delay, ease: EASE }}
-                  className="grid grid-cols-[52px_1fr] items-center gap-3"
-                >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.free.startTime)}</span>
-                  <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 px-3 py-1.5 text-[12px] text-muted-foreground">
-                    <span>Frei</span>
-                    <span className="ml-auto font-mono tabular-nums text-muted-foreground/70">{durLabel(it.free.minutes)}</span>
-                  </div>
-                </motion.li>
-              );
-            }
+            // Polish: Deckel lag bei 0.8s -- bei einem vollen Schultag fuehlte sich
+            // das letzte Item wie Warten an statt wie Kaskade. 0.35s haelt die
+            // Bewegung sichtbar, ohne zu ziehen.
+            const delay = animate ? 0.06 + Math.min(i * 0.04, 0.35) : 0;
 
             if (it.kind === "cancel") {
               return (
                 <motion.li
                   key={`cancel-${it.ev.source}-${it.ev.refId}-${it.s}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
+                  // Animations-Audit: filter:blur entfernt -- Skill-Prinzip 1
+                  // (nur transform/opacity animieren), Blur ist teuer und traegt
+                  // hier keine zusaetzliche Information gegenueber opacity+y.
+                  initial={animate ? { opacity: 0, y: 8 } : false}
+                  animate={{ opacity: past ? 0.4 : 1, y: 0 }}
                   transition={{ duration: 0.42, delay, ease: EASE }}
                   className="grid grid-cols-[52px_1fr] items-center gap-3"
                 >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
+                  {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1 -- volle
+                      muted-foreground traegt in beiden Themes. */}
+                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
                   <div className="flex items-center">
                     <CancelChip title={it.ev.title} />
                   </div>
@@ -544,64 +490,66 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
               );
             }
 
-            if (it.kind === "todo") {
-              return (
-                <motion.li
-                  key={`todo-${it.inst.todoId}`}
-                  initial={animate ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0, filter: "blur(0px)" }}
-                  transition={{ duration: 0.42, delay, ease: EASE }}
-                  className="grid grid-cols-[52px_1fr] items-center gap-3"
-                >
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.inst.scheduledTime!)}</span>
-                  <AgendaTodoRow inst={it.inst} onToggle={onToggleTodo} />
-                </motion.li>
-              );
-            }
-
             const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
             const meta = eventMeta(it.ev);
-            const look = blockLook(it.ev);
-            const canEdit = editable(it.ev);
             return (
               <motion.li
                 key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                initial={stagger ? { opacity: 0, y: 8, filter: "blur(5px)" } : false}
-                animate={{ opacity: past ? 0.45 : 1, y: 0, filter: "blur(0px)" }}
+                // Animations-Audit: filter:blur entfernt (Skill-Prinzip 1, nur
+                // transform/opacity). A3 (Reduced-Motion): `animate` gated bereits
+                // Reduced-Motion UND Erstauftritt.
+                initial={animate ? { opacity: 0, y: 8 } : false}
+                animate={{ opacity: past ? 0.45 : 1, y: 0 }}
                 transition={{ duration: 0.42, delay, ease: EASE }}
                 className="grid grid-cols-[52px_1fr] items-stretch gap-3"
               >
-                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground/70">{hm(it.ev.startTime)}</span>
+                {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
+                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
+                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment}>
                 <div
-                  onClick={canEdit ? () => onEdit(it.ev) : undefined}
+                  // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
+                  // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
+                  // breiter), title schadet aber nicht und Raum/Lehrer sollen
+                  // kopierbar bleiben.
+                  title={`${it.ev.title}${meta ? `, ${meta}` : ""}`}
+                  // Der Block ist jetzt zugleich Menue-Trigger (Aufgabe anlegen):
+                  // tabIndex + Fokusring machen ihn per Tastatur bedienbar, ohne
+                  // Groesse oder Position zu veraendern.
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    "relative overflow-hidden rounded-lg border border-l-[3px] px-3 py-2",
-                    look.className,
-                    isNext && "ring-2 ring-primary/30",
-                    canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
+                    "relative select-text overflow-hidden rounded-lg px-3 py-2 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    BLOCK_CLS,
+                    isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
                   )}
-                  style={look.style}
                 >
                   <div className="flex items-baseline gap-2">
                     <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
                       {it.ev.title}
                     </span>
                     {it.ev.endTime && (
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                      // A2 (Kontrast): volle muted-foreground liegt auf der
+                      // Fach-Block-Fuellung (blau) nur bei ~4:1 -- knapp unter AA.
+                      // foreground/70 traegt in beiden Themes deutlich (6:1+).
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/70">
                         {durLabel(it.e - it.s)}
                       </span>
                     )}
                   </div>
-                  {(meta || it.ev.status === "substituted" || (canEdit && it.ev.location)) && (
-                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+                  {(meta || it.ev.status === "substituted") && (
+                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-foreground/70">
                       {it.ev.source === "school" && meta && <span>{meta}</span>}
-                      {canEdit && it.ev.location && <span className="truncate">{it.ev.location}</span>}
                       {it.ev.status === "substituted" && (
                         <motion.span
-                          initial={animate ? { opacity: 0, scale: 0.9, filter: "blur(2px)" } : false}
-                          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                          // Animations-Audit: filter:blur entfernt, scale+opacity
+                          // reichen fuer den kleinen Badge (Skill-Prinzip 1).
+                          initial={animate ? { opacity: 0, scale: 0.9 } : false}
+                          animate={{ opacity: 1, scale: 1 }}
                           transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
-                          className="inline-flex rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                          // A2 (Kontrast): amber-600 auf amber/15+Block-Blau lag im
+                          // Hellmodus bei ~2.5:1 -- praktisch unlesbar. amber-800 +
+                          // etwas kraeftigerer Fuellung traegt (~5:1); Dark blieb schon gut.
+                          className="inline-flex rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
                         >
                           Vertretung
                         </motion.span>
@@ -609,6 +557,7 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
                     </div>
                   )}
                 </div>
+                </LessonMenu>
               </motion.li>
             );
           })}
@@ -617,35 +566,16 @@ function TodayView({ day, goals, todos, nowMin, dayPast, stagger, onEdit, onTogg
         // O8: seltener, ruhiger Moment -> ein kleiner Reveal + Icon ist hier
         // willkommen statt nacktem Text.
         <motion.div
-          initial={stagger ? { opacity: 0, y: 6 } : false}
+          // A3 (Reduced-Motion): nutzte nur `stagger`, nicht `animate` -- lief
+          // unter Reduced-Motion trotzdem mit opacity+y an.
+          initial={animate ? { opacity: 0, y: 6 } : false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: EASE }}
           className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
         >
           <CalendarCheck className="size-6 text-muted-foreground/50" />
-          {isToday ? "Heute keine Termine." : "Keine Termine an diesem Tag."}
+          {isToday ? "Heute keine Stunden. Genieß den freien Tag!" : "An diesem Tag stehen keine Stunden an."}
         </motion.div>
-      )}
-
-      {/* Aufgaben ohne Uhrzeit + Ueberfaelliges -- ruhig unter der Agenda */}
-      <LooseTodos open={looseTodos} overdue={tOverdue} onToggle={onToggleTodo} stagger={stagger} />
-
-      {/* Offene flexible Ziele der Woche */}
-      {openGoals.length > 0 && (
-        <section className="mt-6">
-          <h4 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Offene Wochenziele</h4>
-          <div className="flex flex-wrap gap-2">
-            {openGoals.map((g) => (
-              <span key={g.routineId} className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                {g.title}
-                <span className="font-mono tabular-nums text-foreground">
-                  {g.done}/{g.targetPerWeek}
-                </span>
-              </span>
-            ))}
-          </div>
-        </section>
       )}
     </div>
   );
@@ -659,6 +589,7 @@ export default function Home() {
   const [mode, setMode] = useState<"week" | "today">("week");
   const [data, setData] = useState<RangeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [now, setNow] = useState<{ date: string; min: number } | null>(null);
   // Beim allerersten Load warten die Termine auf den Section-Auftritt der Card
   // (groessere Basis-Verzoegerung). Danach (Wochenwechsel) cascaden sie sofort.
@@ -666,154 +597,38 @@ export default function Home() {
   // Nur der allererste View-Mount blurrt NICHT (da traegt der StaggerItem-Auftritt).
   // Jeder spaetere Remount (Mode-Switch, Tageswechsel) blurrt als Block rein.
   const firstView = useRef(true);
+  // Animations-Audit: die Heute-Agenda cascadet nur, solange sie noch nie zu
+  // sehen war. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-Framework
+  // 1) -- ohne dieses Gate wuerde die ganze Liste bei JEDEM Pfeilklick erneut
+  // einfliegen.
+  const todayFirstPaint = useRef(true);
 
   // Sichtbare Hoehe des Wochen-Scrollbereichs -- damit das (durch Stauchung
   // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const [viewH, setViewH] = useState(0);
+  // Bleibt einmal true, sobald die erste echte Messung da ist -- verhindert den
+  // sichtbaren Sprung beim ersten Paint (Fallback-Hoehe -> gemessene Hoehe).
+  const [viewMeasured, setViewMeasured] = useState(false);
 
-  // Anlegen/Bearbeiten-Sheet + Reload-Trigger + Untis-Sync.
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editing, setEditing] = useState<EditTarget | null>(null);
+  // Reload-Trigger + Untis-Sync.
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Aufgaben subtil im Kalender: Heute-Ansicht zieht die Tagesliste, Wochen-
-  // Ansicht die konkret terminierten Aufgaben pro Tag (fuer die Punkte).
-  const [dayTodos, setDayTodos] = useState<TodoView | null>(null);
-  const [weekTodos, setWeekTodos] = useState<TodoRange>({});
-
-  // Auto-Planer: Vorschlaege + bestaetigen (nichts wird ohne Zutun geschrieben).
-  const [planOpen, setPlanOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<PlanSuggestion[]>([]);
-  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
-
-  const toggleTodo = useCallback(
-    (inst: TodoInstance, currentlyDone: boolean) => {
-      setDayTodos((v) => (v ? toggleTodoView(v, inst, currentlyDone) : v));
-      persistWrite(
-        () =>
-          fetch(`/api/todos/${inst.todoId}/complete`, {
-            method: currentlyDone ? "DELETE" : "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ date: anchor }),
-          }),
-        {
-          message: currentlyDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
-          onFail: () => setReloadKey((k) => k + 1),
-          retry: () => toggleTodo(inst, currentlyDone),
-        },
-      );
-    },
-    [anchor],
-  );
-
-  // Abhaken direkt aus dem Wochen-Raster: jede Spur traegt ihren eigenen Tag
-  // (inst.date), abgehakt wird also fuer genau diesen Tag -- nicht fuer "anchor".
-  const toggleWeekTodo = useCallback(
-    (inst: TodoInstance) => {
-      const date = inst.date;
-      const wasDone = inst.done;
-      setWeekTodos((prev) => {
-        const day = prev[date];
-        if (!day) return prev;
-        return { ...prev, [date]: day.map((t) => (t.todoId === inst.todoId ? { ...t, done: !wasDone } : t)) };
-      });
-      // Wenn derselbe Tag gerade auch als Heute-Detail offen ist: dort spiegeln.
-      if (date === anchor) setDayTodos((v) => (v ? toggleTodoView(v, inst, wasDone) : v));
-      persistWrite(
-        () =>
-          fetch(`/api/todos/${inst.todoId}/complete`, {
-            method: wasDone ? "DELETE" : "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ date }),
-          }),
-        {
-          message: wasDone ? "Konnte nicht als offen markieren." : "Konnte nicht abhaken.",
-          onFail: () => setReloadKey((k) => k + 1),
-          retry: () => toggleWeekTodo(inst),
-        },
-      );
-    },
-    [anchor],
-  );
-
-  // Atlas plant die Woche: offene, un-terminierte Aufgaben in die freien Luecken.
-  const openPlan = () => {
-    if (!data) return;
-    const freeByDay = Object.fromEntries(data.days.map((d) => [d.date, d.freeSlots]));
-    const onToday = now && data.days.some((d) => d.date === now.date);
-    const sugg = planWeek(weekTodos, freeByDay, {
-      minStartISO: now?.date,
-      minStartMin: onToday ? now!.min : 0,
-    });
-    setSuggestions(sugg);
-    setAcceptedIds(new Set());
-    setPlanOpen(true);
-  };
-
-  const patchTime = (id: string, time: string) =>
-    fetch(`/api/todos/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ scheduledTime: time }),
-    });
-
-  const acceptOne = (s: PlanSuggestion) => {
-    setAcceptedIds((prev) => new Set(prev).add(s.todoId));
-    persistWrite(() => patchTime(s.todoId, s.startTime), {
-      message: "Konnte den Vorschlag nicht einplanen.",
-      onFail: () =>
-        setAcceptedIds((prev) => {
-          const n = new Set(prev);
-          n.delete(s.todoId);
-          return n;
-        }),
-      retry: () => acceptOne(s),
-    });
-  };
-
-  const acceptAll = () => {
-    const pending = suggestions.filter((s) => !acceptedIds.has(s.todoId));
-    if (pending.length === 0) return;
-    setAcceptedIds(new Set(suggestions.map((s) => s.todoId)));
-    persistBatch(
-      pending.map((s) => () => patchTime(s.todoId, s.startTime)),
-      {
-        message: "Einige Vorschläge konnten nicht eingeplant werden.",
-        onFail: () =>
-          setAcceptedIds((prev) => {
-            const n = new Set(prev);
-            pending.forEach((s) => n.delete(s.todoId));
-            return n;
-          }),
-        retry: () => acceptAll(),
-      },
-    );
-  };
-
-  // Beim Schliessen die Ansicht aktualisieren, damit angenommene Zeiten erscheinen.
-  const closePlan = () => {
-    setPlanOpen(false);
-    if (acceptedIds.size > 0) setReloadKey((k) => k + 1);
-  };
-
-  const openCreate = () => {
-    setEditing(null);
-    setSheetOpen(true);
-  };
-  const openEdit = (ev: Ev) => {
-    setEditing(toEdit(ev));
-    setSheetOpen(true);
-  };
-  const reload = () => setReloadKey((k) => k + 1);
+  // Aufgaben-Spur: offene Aufgaben und die Fächer (fuer Farbe + Vorbelegung).
+  // Beides ist rein additiv -- schlaegt der Request fehl, bleiben die Listen
+  // leer und der Stundenplan laeuft unveraendert weiter.
+  const toast = useToast();
+  const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [seed, setSeed] = useState<ComposerSeed | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const urlView = p.get("view");
     // URL-Parameter hat Vorrang, sonst gemerkten Modus aus localStorage nehmen.
-    if (urlView === "today" || (!urlView && localStorage.getItem("atlas:calMode") === "today")) {
+    if (urlView === "today" || (!urlView && readLocal("atlas:calMode") === "today")) {
       setMode("today");
-      if (urlView === "today") localStorage.setItem("atlas:calMode", "today");
+      if (urlView === "today") writeLocal("atlas:calMode", "today");
     }
     const d = p.get("date");
     if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setAnchor(d);
@@ -840,7 +655,7 @@ export default function Home() {
     let busy = false;
 
     const readLast = (): number | null => {
-      const v = Number(localStorage.getItem(KEY));
+      const v = Number(readLocal(KEY));
       return Number.isFinite(v) && v > 0 ? v : null;
     };
 
@@ -853,7 +668,7 @@ export default function Home() {
       try {
         const res = await fetch("/api/sync/untis", { method: "POST" });
         if (res.ok && alive) {
-          localStorage.setItem(KEY, String(Date.now()));
+          writeLocal(KEY, String(Date.now()));
           setReloadKey((k) => k + 1);
         }
       } catch {
@@ -874,35 +689,35 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setError(false);
     fetch(`/api/calendar?view=week&date=${anchor}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d: RangeData) => alive && (setData(d), setLoading(false)))
-      .catch(() => alive && setLoading(false));
+      .catch(() => alive && (setError(true), setLoading(false)));
     return () => {
       alive = false;
     };
   }, [anchor, reloadKey]);
 
-  // Aufgaben laden -- je nach Ansicht der Tag (Heute) bzw. die Woche (Punkte).
+  // Aufgaben + Fächer nachladen. Bewusst OHNE loading/error-Zustand: die Spur
+  // ist Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
   useEffect(() => {
     let alive = true;
-    if (mode === "today") {
-      fetch(`/api/todos/today?date=${anchor}`)
-        .then((r) => r.json())
-        .then((d: { view: TodoView }) => alive && setDayTodos(d.view))
-        .catch(() => {});
-    } else {
-      const start = addDays(anchor, -weekdayOf(anchor));
-      const end = addDays(start, 6);
-      fetch(`/api/todos/range?start=${start}&end=${end}`)
-        .then((r) => r.json())
-        .then((d: { days: TodoRange }) => alive && setWeekTodos(d.days ?? {}))
-        .catch(() => {});
-    }
+    fetch("/api/assignments")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { assignments?: AssignmentDTO[] }) => alive && setAssignments(d.assignments ?? []))
+      .catch(() => {});
+    fetch("/api/subjects")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d: { subjects?: SubjectOption[] }) => alive && setSubjects(d.subjects ?? []))
+      .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [anchor, mode, reloadKey]);
+  }, [reloadKey]);
 
   // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
@@ -920,40 +735,134 @@ export default function Home() {
   const dayLabel = focusDay
     ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${anchor === todayISO ? " · Heute" : ""}`
     : "";
-  // Ganztags-Eintraege liegen nicht im Zeitraster -> vor dem Packen rauswerfen.
-  // Entfall (V3) ebenfalls nicht als Block -> raus aus dem Packen, getrennt
-  // gehalten fuer die Chips in den freien Luecken.
+
+  // Nach der ersten sichtbaren Heute-Agenda keine Cascade mehr -- Tages-Pfeile
+  // sind Hochfrequenz-Navigation.
+  useEffect(() => {
+    if (mode === "today" && focusDay) todayFirstPaint.current = false;
+  });
+
+  // Aufgaben nach Fälligkeitsdatum. Ohne dueDate taucht eine Aufgabe im
+  // Stundenplan nirgends auf.
+  const dueByDay = useMemo(() => {
+    const m = new Map<string, AssignmentDTO[]>();
+    for (const a of assignments) {
+      if (!a.dueDate) continue;
+      const list = m.get(a.dueDate);
+      if (list) list.push(a);
+      else m.set(a.dueDate, [a]);
+    }
+    return m;
+  }, [assignments]);
+
+  // Abhaken in der Tagesansicht: optimistic, mit Rücksprung + Toast bei Fehler.
+  const toggleAssignment = async (a: AssignmentDTO) => {
+    const done = Boolean(a.completedAt);
+    const next = done ? null : new Date().toISOString();
+    setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: next } : x)));
+    try {
+      const res = await fetch(`/api/assignments/${a.id}/complete`, { method: done ? "DELETE" : "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch {
+      setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: a.completedAt } : x)));
+      toast("Die Aufgabe konnte nicht gespeichert werden.");
+    }
+  };
+
+  // Fach zur Stunde: erst der exakte Untis-Wert, sonst der Anzeigename. Findet
+  // sich keins, bleibt subjectId null -- der Server legt das Fach beim Speichern
+  // still ueber untisSubject an.
+  const subjectFor = (title: string) =>
+    subjects.find((s) => s.untisSubject === title) ?? subjects.find((s) => s.name === title) ?? null;
+
+  // Datum der NAECHSTEN Stunde desselben Fachs nach dem angeklickten Tag, aus
+  // den bereits geladenen Wochendaten. Keine gefunden -> Feld bleibt leer.
+  const nextLessonDate = (title: string, afterISO: string) =>
+    data?.days.find(
+      (d) => d.date > afterISO && d.events.some((e) => e.title === title && e.status !== "cancelled"),
+    )?.date ?? null;
+
+  const openComposer = (ev: Ev, dayISO: string, type: AssignmentType) => {
+    setSeed({
+      type,
+      subjectId: subjectFor(ev.title)?.id ?? null,
+      untisSubject: ev.title,
+      dueDate: nextLessonDate(ev.title, dayISO),
+    });
+  };
+  // Zeitachse begrenzt auf den tatsaechlichen Schulbereich der Woche: fruehester
+  // Beginn / spaetestes Ende ueber alle school_blocks. Keine Bloecke (z.B. Ferien)
+  // -> Fallback-Spanne, damit das Raster nicht kollabiert.
+  const dayBounds = useMemo(() => {
+    if (!data) return { start: FALLBACK_DAY_START, end: FALLBACK_DAY_END };
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+    for (const day of data.days) {
+      for (const ev of day.events) {
+        minStart = Math.min(minStart, toMin(ev.startTime));
+        maxEnd = Math.max(maxEnd, ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45);
+      }
+    }
+    if (!Number.isFinite(minStart) || !Number.isFinite(maxEnd)) {
+      return { start: FALLBACK_DAY_START, end: FALLBACK_DAY_END };
+    }
+    return { start: Math.floor(minStart / 60), end: Math.ceil(maxEnd / 60) };
+  }, [data]);
+  const HOURS = useMemo(
+    () => Array.from({ length: dayBounds.end - dayBounds.start + 1 }, (_, i) => dayBounds.start + i),
+    [dayBounds],
+  );
+
+  // Entfallene Stunden rendern nicht als Block -> raus aus dem Packen, getrennt
+  // gehalten fuer die Entfall-Chips im Raster.
   const packedDays = useMemo(
-    () => (data ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => !e.allDay && e.status !== "cancelled"))) : []),
-    [data],
+    () =>
+      data
+        ? data.days.map((d) => packDay(mergeSchool(d.events).filter((e) => e.status !== "cancelled"), dayBounds.start, dayBounds.end))
+        : [],
+    [data, dayBounds],
   );
   const cancelledByDay = useMemo(
-    () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => !e.allDay && e.status === "cancelled")) : []),
+    () => (data ? data.days.map((d) => mergeSchool(d.events).filter((e) => e.status === "cancelled")) : []),
+    [data],
+  );
+  // Werktage immer zeigen, Samstag/Sonntag nur wenn dort tatsaechlich Stunden
+  // liegen. Original-Index (i) bleibt erhalten -> packedDays/cancelledByDay
+  // bleiben ueber i konsistent adressierbar, auch wenn Wochenend-Spalten fehlen.
+  const visibleDayIdx = useMemo(
+    () => (data ? data.days.map((_, i) => i).filter((i) => data.days[i].weekday < 5 || data.days[i].events.length > 0) : []),
     [data],
   );
   // Segmente (Anker/leer) -- aus den gepackten Tagen, hoehenunabhaengig.
-  const segments = useMemo(() => buildSegments(packedDays, data?.days ?? []), [packedDays, data]);
+  const segments = useMemo(
+    () => buildSegments(packedDays, data?.days ?? [], dayBounds.start, dayBounds.end),
+    [packedDays, data, dayBounds],
+  );
 
   // Scrollbereich messen (mode/data -> Raster gerade gemountet bzw. neu befuellt).
   useEffect(() => {
     const el = gridScrollRef.current;
     if (!el) return;
-    const measure = () => setViewH(el.clientHeight);
+    const measure = () => {
+      setViewH(el.clientHeight);
+      setViewMeasured(true);
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, [mode, data]);
 
-  // Pixel-Verteilung: der ganze Tag (06-23 Uhr) fuellt EXAKT die sichtbare Hoehe
-  // ohne Scrollen. Oben/unten ein Polster, damit 06- und 23-Uhr-Label voll
-  // sichtbar bleiben. Anker bekommen Gewicht nach Dauer, leere Zeit gestaucht
+  // Pixel-Verteilung: die dynamische Zeitachse (dayBounds) fuellt EXAKT die
+  // sichtbare Hoehe ohne Scrollen. Oben/unten ein Polster, damit die Rand-Labels
+  // voll sichtbar bleiben. Anker bekommen Gewicht nach Dauer, leere Zeit gestaucht
   // (BREAK_SCALE). Danach: jeder Anker-Abschnitt, der kuerzer als MIN_EVENT_H
   // waere, wird auf MIN_EVENT_H gehoben -- der fehlende Platz kommt aus der leeren
-  // Zeit. So ist ein 30-min-Klavier eine lesbare Karte UND endet exakt bei 16:45.
+  // Zeit. So bleibt auch eine kurze Schulstunde eine lesbare Karte UND endet
+  // exakt zur echten Uhrzeit.
   const fitScale = useMemo<TimeScale>(() => {
-    const DS = DAY_START * 60;
-    const DE = DAY_END * 60;
+    const DS = dayBounds.start * 60;
+    const DE = dayBounds.end * 60;
     const ppm = HOUR_H / 60;
     const PAD_TOP = 12;
     const PAD_BOTTOM = 16;
@@ -994,31 +903,48 @@ export default function Home() {
       return y;
     };
     return { yOf, total };
-  }, [segments, viewH]);
+  }, [segments, viewH, dayBounds]);
 
   return (
     <main className="flex h-full min-h-0 flex-col">
       {/* Split & Stagger (Jakub Krehel): die Page-Sections kommen beim Reload
-          gestaffelt mit blur + opacity + translateY rein -- Kopf, dann Wochenziele,
-          dann die Kalender-Card. Reduced-Motion-Gate global ueber MotionConfig. */}
+          gestaffelt mit blur + opacity + translateY rein -- Kopf, dann die
+          Kalender-Card. Reduced-Motion-Gate global ueber MotionConfig. */}
       <Stagger className="flex min-h-0 flex-1 flex-col">
       {/* Kopf: Modulname + Wochen-Navigation */}
       <StaggerItem className="shrink-0 px-6 pt-6 lg:px-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
+          {/* Animations-Audit: die Ueberschrift steht bei jedem Laden fest an
+              derselben Stelle -- ein Buchstabe-fuer-Buchstabe-Reveal beantwortet
+              keine Frage (kein Cause/Effect, keine Ortsveraenderung) und lief
+              obendrein bei JEDEM Aufruf erneut. Skill-Regel 8: Ruhezustand beim
+              Laden bekommt keinen Auftritt. */}
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
-            <SplitText text="Kalender" />
+            Stundenplan
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Schule, Routinen und Termine in einer Woche."}
+            {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Deine Schulwoche auf einen Blick."}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <h2 className="mr-1 text-[15px] font-medium tabular-nums text-foreground">{mode === "today" ? dayLabel : label}</h2>
+          {/* Polish: Text wechselt je nach Woche/Tag stark in der Laenge ("1.–7.
+              September 2026" vs. "29. September – 5. Oktober 2026") -- ohne
+              reservierte Breite ruckeln die Buttons rechts daneben beim Blaettern
+              mit. min-w + text-right haelt ihre Position fest, der Text waechst
+              nach links. */}
+          <h2 className="mr-1 min-w-[17ch] text-right text-[15px] font-medium tabular-nums text-foreground">
+            {mode === "today" ? dayLabel : label}
+          </h2>
 
+          {/* Design-Audit (Knopf-Rangfolge): alle vier Kopf-Buttons standen bislang
+              gleichrangig auf variant="outline". Die Pfeile sind reine Schritt-
+              Navigation (Struktur, nicht Entscheidung) und treten jetzt als ghost
+              zurueck -- Heute/Woche bleibt outline und ist damit sichtbar der
+              gewichtigere der drei Aktionen. */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
@@ -1038,7 +964,7 @@ export default function Home() {
               onClick={() => {
                 setMode("today");
                 setAnchor(localISO(new Date()));
-                localStorage.setItem("atlas:calMode", "today");
+                writeLocal("atlas:calMode", "today");
                 // O5: bewusster "Heute"-Sprung -> Logo dreht voll durch als Feedback.
                 window.dispatchEvent(new CustomEvent("atlas:focus-today"));
               }}
@@ -1052,7 +978,7 @@ export default function Home() {
               className="h-9"
               onClick={() => {
                 setMode("week");
-                localStorage.setItem("atlas:calMode", "week");
+                writeLocal("atlas:calMode", "week");
                 // F08: kein Logo-Nudge mehr beim Woche-Wechsel.
               }}
             >
@@ -1061,7 +987,7 @@ export default function Home() {
           )}
 
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             onClick={() => {
               // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
@@ -1072,44 +998,9 @@ export default function Home() {
           >
             <ChevronRight />
           </Button>
-
-          {/* Auto-Planer -- nur in der Wochenansicht (braucht die freien Luecken) */}
-          {mode === "week" && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={openPlan} aria-label="Woche automatisch planen">
-              <Sparkles className="size-4" />
-              Planen
-            </Button>
-          )}
-
-          {/* Trenner -> "Neuer Termin" rechts abgesetzt */}
-          <span className="mx-1 h-6 w-px bg-border" />
-
-          <Button variant="outline" size="icon" onClick={openCreate} aria-label="Neuer Termin">
-            <CalendarPlus />
-          </Button>
         </div>
       </div>
       </StaggerItem>
-
-      {/* Wochenziele -- eigene Section, staggert separat rein */}
-      {data && data.flexibleGoals.length > 0 && (
-        <StaggerItem className="shrink-0 px-6 lg:px-8">
-        <div className="mb-4 flex flex-wrap gap-2">
-          {data.flexibleGoals.map((g) => (
-            <span
-              key={g.routineId}
-              className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground"
-            >
-              <span className="size-1.5 rounded-full bg-amber-500" />
-              {g.title}
-              <span className="font-mono tabular-nums text-foreground">
-                {g.done}/{g.targetPerWeek}
-              </span>
-            </span>
-          ))}
-        </div>
-        </StaggerItem>
-      )}
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
       <StaggerItem className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
@@ -1124,19 +1015,34 @@ export default function Home() {
         // nacheinander"-Effekt liegt auf den KLEINEN Elementen drin: Heute-Agenda
         // cascadet Item fuer Item, Woche cascadet die einzelnen Termine.
         key={mode === "today" ? `today-${anchor}` : "week"}
-        initial={firstView.current ? false : { opacity: 0 }}
+        // A3 (Reduced-Motion): kein manuelles Gate hier -- die globale
+        // <MotionConfig reducedMotion="user"> kappt nur transform, opacity blieb an.
+        initial={firstView.current || reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm"}
+        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-card"}
       >
         {mode === "today" ? (
-          loading && !data ? (
+          error && !data ? (
+            <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+          ) : loading && !data ? (
             <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
           ) : (
-            <TodayView day={focusDay} goals={data?.flexibleGoals ?? []} todos={dayTodos} nowMin={anchor === todayISO ? (now?.min ?? 0) : -1} dayPast={anchor < todayISO} stagger onEdit={openEdit} onToggleTodo={toggleTodo} />
+            <TodayView
+              day={focusDay}
+              nowMin={anchor === todayISO ? (now?.min ?? 0) : -1}
+              dayPast={anchor < todayISO}
+              stagger
+              firstPaint={todayFirstPaint.current}
+              due={dueByDay.get(anchor) ?? []}
+              onToggleAssignment={toggleAssignment}
+              onCreateAssignment={openComposer}
+            />
           )
+        ) : error && !data ? (
+          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : loading && !data ? (
-          <div className="py-24 text-center text-sm text-muted-foreground">Lade Woche …</div>
+          <WeekSkeleton />
         ) : !data ? (
           <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>
         ) : (
@@ -1144,15 +1050,17 @@ export default function Home() {
           // die Einzel-Items stagger nur noch beim First-Paint.
           <motion.div
             key={data.start}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            // A3 (Reduced-Motion): opacity-Fade war ungegatet.
+            initial={reduce ? false : { opacity: 0 }}
+            animate={{ opacity: viewMeasured ? 1 : 0 }}
             transition={{ duration: 0.18, ease: EASE }}
             className="flex h-full min-h-0 flex-col"
           >
             {/* Spaltenkoepfe -- fix, scrollen NICHT mit */}
-            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
+            <div className="shrink-0 grid border-b bg-card" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
               <div className="border-r" />
-              {data.days.map((day) => {
+              {visibleDayIdx.map((di) => {
+                const day = data.days[di];
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
                 return (
@@ -1160,7 +1068,9 @@ export default function Home() {
                     key={day.date}
                     className="border-r px-3 pb-2 pt-1.5 last:border-r-0"
                   >
-                    <div className={cn("text-[11px] font-medium uppercase tracking-wide", weekend ? "text-muted-foreground/70" : "text-muted-foreground")}>
+                    {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1 -- volle
+                        muted-foreground traegt in beiden Themes. */}
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       {DAY_NAMES[day.weekday]}
                     </div>
                     <div className="mt-0.5 flex items-center">
@@ -1171,40 +1081,18 @@ export default function Home() {
                         )}
                       >
                         {dayNum(day.date)}
+                        {/* A2: "heute" wurde bislang allein ueber die Fuellfarbe
+                            transportiert -- fuer Screenreader per sr-only ergaenzt. */}
+                        {today && <span className="sr-only"> · Heute</span>}
                       </span>
                     </div>
-
-                    {/* Ganztags-Eintraege -- kleine klickbare Balken unter dem Datum */}
-                    {(() => {
-                      const ad = day.events.filter((e) => e.allDay);
-                      if (ad.length === 0) return null;
-                      return (
-                        <div className="mt-1 flex flex-col gap-1">
-                          {ad.slice(0, 2).map((ev) => {
-                            const look = blockLook(ev);
-                            return (
-                              <button
-                                key={ev.refId}
-                                onClick={() => openEdit(ev)}
-                                style={look.style}
-                                className={cn(
-                                  "truncate rounded border px-1.5 py-0.5 text-left text-[10px] font-medium leading-tight transition-shadow hover:shadow-sm",
-                                  look.className,
-                                )}
-                              >
-                                {ev.title}
-                              </button>
-                            );
-                          })}
-                          {ad.length > 2 && <span className="px-1 text-[10px] text-muted-foreground">+{ad.length - 2} mehr</span>}
-                        </div>
-                      );
-                    })()}
-
-                    {/* Aufgaben des Tags -- dezente Punkte fuer alles, was NICHT als
-                        eigene Spur auf der Zeitachse liegt (ohne Uhrzeit, oder Uhrzeit
-                        an dem Tag belegt). */}
-                    <DayTodoDots todos={(weekTodos[day.date] ?? []).filter((t) => !todoFitsTimeline(t, day.freeSlots))} />
+                    {/* Aufgaben-Spur: Punkte unter der Tageszahl. Ohne fällige
+                        Aufgabe rendert WeekDayDots null, der Kopf bleibt dann
+                        exakt so hoch wie vorher. */}
+                    <WeekDayDots
+                      items={dueByDay.get(day.date) ?? []}
+                      colorOf={(a) => colorValue(a.subjectColor)}
+                    />
                   </div>
                 );
               })}
@@ -1213,9 +1101,11 @@ export default function Home() {
             {/* Raster fittet exakt in die Hoehe -- kein Scrollen noetig. */}
             <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-hidden">
             {/* Raster */}
-            <div className="grid" style={{ gridTemplateColumns: `52px repeat(7, minmax(0,1fr))` }}>
-              {/* Zeitachse */}
-              <div className="relative border-r" style={{ height: fitScale.total }}>
+            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${visibleDayIdx.length}, minmax(0,1fr))` }}>
+              {/* Zeitachse -- rein visuelle Skala, jeder Termin traegt seine Zeit
+                  schon in seinem eigenen aria-label. Fuer AT ausgeblendet, damit
+                  niemand durch 15+ freistehende Stundenzahlen tabben/browsen muss. */}
+              <div className="relative border-r" aria-hidden="true" style={{ height: fitScale.total }}>
                 {HOURS.map((h) => (
                   <span
                     key={h}
@@ -1227,75 +1117,55 @@ export default function Home() {
                 ))}
               </div>
 
-              {data.days.map((day, di) => {
+              {visibleDayIdx.map((di) => {
+                const day = data.days[di];
                 const today = now?.date === day.date;
                 const weekend = day.weekday >= 5;
-                const showNow = today && now && now.min >= DAY_START * 60 && now.min <= DAY_END * 60;
+                const showNow = today && now && now.min >= dayBounds.start * 60 && now.min <= dayBounds.end * 60;
                 return (
+                  // A4 (Semantik): eine Tagesspalte im Wochenraster ist reiner Positions-
+                  // Container ohne Rolle. role="group" + aria-label geben ihr einen
+                  // Namen ("Montag, 3. Februar[, Heute]"), ohne sie in eine Grid/Table-
+                  // Rolle zu zwingen, die volle Keyboard-Grid-Navigation erwarten wuerde.
                   <div
                     key={day.date}
+                    role="group"
+                    aria-label={`${WEEKDAYS_LONG[day.weekday]}, ${dayNum(day.date)}. ${MONTHS[monthOf(day.date)]}${today ? ", Heute" : ""}`}
+                    // Polish (Stacking): isolate spannt hier eine eigene Stacking-
+                    // Context auf. Die drei handgesetzten z-Werte darin (Entfall-Chip
+                    // z-[1] < Termin-Bloecke 2+lane < Jetzt-Linie z-10) beschreiben nur
+                    // die Reihenfolge INNERHALB einer Tagesspalte -- isolate stellt
+                    // sicher, dass sie niemals mit der globalen Chrome-Ebene (Sidebar-
+                    // Resize-Griff z-20, Mobile-Header z-30) verrechnet werden koennen.
                     className={cn(
-                      "relative border-r last:border-r-0",
+                      "relative isolate border-r last:border-r-0",
                       today && "bg-primary/[0.035]",
                       weekend && "bg-muted/30",
                     )}
                     style={{ height: fitScale.total }}
                   >
-                    {HOURS.filter((h) => h > DAY_START).map((h) => (
+                    {HOURS.filter((h) => h > dayBounds.start).map((h) => (
                       <div key={h} className="absolute inset-x-0 border-t border-border/60" style={{ top: fitScale.yOf(h * 60) }} />
                     ))}
-
-                    {/* Freie Lücken -- dezent */}
-                    {day.freeSlots.map((f, i) => {
-                      const top = fitScale.yOf(toMin(f.startTime));
-                      const height = fitScale.yOf(toMin(f.endTime)) - top;
-                      if (height < 22) return null;
-                      return (
-                        <div
-                          key={`f${i}`}
-                          className="absolute inset-x-1 rounded-md bg-foreground/[0.025] dark:bg-foreground/[0.05]"
-                          style={{ top, height }}
-                        />
-                      );
-                    })}
 
                     {/* Entfall -- leiser Chip an der ECHTEN Startzeit der Stunde. */}
                     {(cancelledByDay[di] ?? []).map((e, i) => (
                       <div
                         key={`c${i}`}
                         className="absolute inset-x-1 z-[1] flex"
-                        style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), DAY_START * 60)) + 1 }}
+                        style={{ top: fitScale.yOf(Math.max(toMin(e.startTime), dayBounds.start * 60)) + 1 }}
                       >
-                        <span className="flex max-w-full items-center gap-1 truncate rounded bg-muted/60 px-1 text-[9px] font-medium text-muted-foreground/80">
+                        {/* A2 (Kontrast): bg-muted/60 + text/80 lag bei ~3.1:1 (hell) --
+                            unter AA. /50-Fuellung + volle muted-foreground traegt (4.5:1+). */}
+                        <span
+                          title={`${e.title} entfällt`}
+                          className="flex max-w-full items-center gap-1 truncate rounded bg-muted/50 px-1 text-[11px] font-medium text-muted-foreground"
+                        >
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
                           <span className="truncate">{e.title} entfällt</span>
                         </span>
                       </div>
                     ))}
-
-                    {/* Terminierte Aufgaben -- dezente Spur auf der Zeitachse,
-                        aber nur wo die Uhrzeit an dem Tag frei ist. */}
-                    {(weekTodos[day.date] ?? [])
-                      .filter((t) => todoFitsTimeline(t, day.freeSlots))
-                      .map((t, ti) => {
-                        const accent = t.color ?? "color-mix(in oklab, var(--foreground) 35%, transparent)";
-                        return (
-                          // Aufgaben kommen per eigenem Fetch (asynchron, nach den
-                          // Terminen) -- darum die GLEICHE Einblendung wie die Events:
-                          // sie gleiten beim Mounten ruhig rein statt zu poppen.
-                          // Erledigen -> kurzer Punkt-Pop (siehe WeekTodoChip).
-                          <WeekTodoChip
-                            key={`wt${t.todoId}`}
-                            title={t.title}
-                            done={t.done}
-                            accent={accent}
-                            top={fitScale.yOf(toMin(t.scheduledTime!))}
-                            delay={Math.min(di * 0.05 + ti * 0.03, 0.32)}
-                            reduce={!!reduce}
-                            onClick={() => toggleWeekTodo(t)}
-                          />
-                        );
-                      })}
 
                     {/* Events */}
                     {packedDays[di].map((p, i) => {
@@ -1307,56 +1177,102 @@ export default function Home() {
                       const width = `calc(${100 / p.lanes}% - 4px)`;
                       // Schulstunden: keine Uhrzeit/Dauer im Block (Position im
                       // Raster zeigt sie ohnehin) -- nur der Raum als Zusatz.
-                      const meta =
-                        p.ev.source === "school"
-                          ? (p.ev.room ?? "")
-                          : `${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)}` : ""}`;
-                      const look = blockLook(p.ev);
-                      const canEdit = editable(p.ev);
+                      const meta = p.ev.room ?? "";
+                      // Der Vertretung-Badge braucht eine eigene Zeile unter Fach und
+                      // Raum. Passt die nicht mehr, tritt ein Punkt am Fachnamen an
+                      // seine Stelle (siehe unten).
+                      const vertretung = p.ev.status === "substituted";
+                      const badgePasst = height >= 58;
+                      // A4 (Semantik): reine divs ohne Bedeutung -- ein Screenreader
+                      // liest sonst nur den sichtbaren Titel vor, ohne Zeit/Raum/Status
+                      // (die stecken nur in Position/Hoehe). role="group" (nicht
+                      // "button", der Block ist nicht klickbar) + ein Label, das genau
+                      // das zusammenfasst, was das Auge aus Position + Text liest.
+                      // Nachtrag (Aufgaben-Modul): der Block IST inzwischen klickbar --
+                      // er oeffnet das Menue zum Anlegen einer Aufgabe. Deshalb jetzt
+                      // role="button" + tabIndex; das Label bleibt unveraendert.
+                      const blockLabel = `${p.ev.title}, ${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)} Uhr` : " Uhr"}${p.ev.room ? `, ${p.ev.room}` : ""}${p.ev.status === "substituted" ? ", Vertretung" : ""}`;
                       return (
+                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer}>
                         <motion.div
-                          key={`${p.ev.source}-${p.ev.refId}-${i}`}
-                          onClick={canEdit ? () => openEdit(p.ev) : undefined}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={blockLabel}
+                          // Polish: Fachnamen werden im schmalen Block abgeschnitten --
+                          // title gibt Maus-Nutzern den vollen Namen als Tooltip (kostet
+                          // keine Dependency, ergaenzt das schon vorhandene aria-label
+                          // fuer Screenreader). select-text hebt das app-weite select-none
+                          // fuer den Blockinhalt auf -- Fach/Raum sollen kopierbar bleiben.
+                          // hover signalisiert, dass der Block reagiert (Tooltip), ohne
+                          // eine Klickbarkeit vorzutaeuschen, die es nicht gibt.
+                          title={blockLabel}
                           className={cn(
-                            "absolute flex flex-col gap-[3px] overflow-hidden rounded-md border border-l-[3px] px-2 py-1",
-                            look.className,
-                            canEdit && "cursor-pointer transition-[box-shadow,scale] hover:shadow-sm active:scale-[0.96]",
+                            "absolute flex select-text flex-col gap-1 overflow-hidden rounded-md px-2 py-1 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out hover:ring-2 hover:ring-inset hover:ring-black/[0.12] dark:hover:ring-white/[0.16] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                            BLOCK_CLS,
                           )}
-                          style={{ top, height, left, width, zIndex: 2 + p.lane, ...look.style }}
-                          // Termine loaden einzeln rein -- erst wenn die Card-Section
-                          // steht (kurzer Basis-Delay beim ersten Load), dann gestaffelt
-                          // ueber Tage + Stunden. F02: kein Blur (Lesbarkeit + GPU),
-                          // F05: knapperes Timing, F10: Reduced-Motion -> sofort.
-                          initial={reduce ? false : { opacity: 0, y: 6 }}
+                          style={{ top, height, left, width, zIndex: 2 + p.lane }}
+                          // Termine loaden einzeln rein -- ABER nur beim allerersten
+                          // Laden der Seite. Animations-Audit: das Wochenblaettern ist
+                          // eine Hochfrequenz-Aktion (Skill-Framework 1) -- vorher
+                          // cascadete jeder Block bei JEDEM Wochenwechsel erneut ein und
+                          // stand einem buchstaeblich im Weg. Ab der zweiten Woche stehen
+                          // die Bloecke sofort, der 180ms-Opacity-Fade der Karte (weiter
+                          // unten) traegt das Wechsel-Feedback allein.
+                          // F02: kein Blur (Lesbarkeit + GPU), F10: Reduced-Motion -> sofort.
+                          initial={!firstPaint.current || reduce ? false : { opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{
                             duration: 0.32,
-                            delay: (firstPaint.current ? 0.12 : 0.06) + Math.min(di * 0.05 + i * 0.025, 0.3),
+                            delay: firstPaint.current ? Math.min(0.12 + di * 0.05 + i * 0.025, 0.3) : 0,
                             ease: EASE,
                           }}
                         >
-                          <span className="truncate text-[12px] font-medium leading-tight">
-                            {p.ev.title}
+                          {/* Showcase-Befund: der Badge war das einzige Element ohne
+                              Hoehen-Guard und schob sich auf niedrigen Bloecken ueber den
+                              Fachnamen -- ausgerechnet bei der Stunde, die man lesen muss.
+                              Unterhalb der Badge-Hoehe markiert ein Punkt die Vertretung.
+                              Fach, Zeit, Raum und Vertretung stehen ohnehin vollstaendig
+                              in aria-label und title, es geht keine Information verloren. */}
+                          <span aria-hidden="true" className="flex items-center gap-1.5">
+                            {vertretung && !badgePasst && (
+                              <span className="size-1.5 shrink-0 rounded-full bg-amber-700 dark:bg-amber-400" />
+                            )}
+                            <span className="truncate text-[12px] font-medium leading-tight">
+                              {p.ev.title}
+                            </span>
                           </span>
                           {height > 30 && meta && (
-                            <span className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{meta}</span>
+                            // A2 (Kontrast): volle muted-foreground liegt auf der
+                            // Block-Fuellung nur bei ~4:1 -- foreground/70 traegt sicher.
+                            <span aria-hidden="true" className="truncate font-mono text-[10px] tabular-nums text-foreground/70">{meta}</span>
                           )}
-                          {p.ev.status === "substituted" && (
-                            <span className="mt-0.5 inline-flex w-fit rounded bg-amber-500/15 px-1.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                          {vertretung && badgePasst && (
+                            <span
+                              aria-hidden="true"
+                              className="mt-0.5 inline-flex w-fit rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
+                            >
                               Vertretung
                             </span>
                           )}
                         </motion.div>
+                        </LessonMenu>
                       );
                     })}
 
                     {/* Jetzt-Linie -- O3: zeichnet sich beim Erscheinen einmal von
                         links ein und gleitet danach sanft mit der Zeit (statt
-                        instant zu springen). */}
+                        instant zu springen). Animations-Audit: vorher wurde
+                        transition-[top] animiert -- eine Layout-Eigenschaft, die
+                        bei jedem Frame Reflow ausloest. transform: translateY
+                        laeuft auf dem Compositor. Die Linie bewegt sich bereits
+                        auf dem Bildschirm (Minutentick) -> ease-in-out statt
+                        ease-out (Skill-Regel: bewegen/verschieben = ease-in-out,
+                        nicht das Enter-ease-out eines neu erscheinenden Elements). */}
                     {showNow && (
                       <div
-                        className="absolute inset-x-0 z-10 transition-[top] duration-700 ease-out"
-                        style={{ top: fitScale.yOf(now!.min) }}
+                        aria-hidden="true"
+                        className="absolute inset-x-0 top-0 z-10 transition-transform duration-700 ease-in-out"
+                        style={{ transform: `translateY(${fitScale.yOf(now!.min)}px)` }}
                       >
                         <motion.div
                           className="h-px origin-left bg-red-500"
@@ -1383,21 +1299,19 @@ export default function Home() {
       </StaggerItem>
       </Stagger>
 
-      <EventSheet
-        open={sheetOpen}
-        editing={editing}
-        defaultDate={anchor}
-        onClose={() => setSheetOpen(false)}
-        onSaved={reload}
-      />
-
-      <AutoplanSheet
-        open={planOpen}
-        suggestions={suggestions}
-        acceptedIds={acceptedIds}
-        onAccept={acceptOne}
-        onAcceptAll={acceptAll}
-        onClose={closePlan}
+      {/* Aufgabe aus der Stunde heraus anlegen. Der Composer haengt ausserhalb
+          des Rasters und beeinflusst dessen Layout nicht. */}
+      <AssignmentComposer
+        open={seed !== null}
+        onOpenChange={(open) => {
+          if (!open) setSeed(null);
+        }}
+        subjects={subjects.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+        initial={seed ?? undefined}
+        onSaved={(a) => {
+          setAssignments((prev) => [...prev, a]);
+          setSeed(null);
+        }}
       />
     </main>
   );

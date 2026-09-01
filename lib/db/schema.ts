@@ -1,8 +1,5 @@
 // Atlas Event-Datenmodell (M001-S01-T02).
 //
-// Drei Tabellen + zwei Enums. FreeSlot wird NICHT gespeichert, sondern aus
-// SchoolBlocks (ohne cancelled) + Routinen + manuellen Events berechnet (S02-T03).
-//
 // Untis ist eine reine Importquelle: school_blocks werden per (untis_lesson_id, date)
 // idempotent geupsertet, damit ein Re-Sync keine Duplikate erzeugt.
 
@@ -13,9 +10,8 @@ import {
   text,
   date,
   time,
-  integer,
-  boolean,
   timestamp,
+  integer,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -27,13 +23,6 @@ export const schoolBlockStatus = pgEnum("school_block_status", [
   "cancelled",
   "substituted",
 ]);
-
-// fixed   = feste Wochen-Regel (Tag + Zeit, optional offenes Ende).
-// flexible_goal = "X mal pro Woche", Zeit offen (Auto-Platzierung ab Modul 2).
-export const routineType = pgEnum("routine_type", ["fixed", "flexible_goal"]);
-
-// Prioritaet einer To-Do-Aufgabe. none = ohne.
-export const todoPriority = pgEnum("todo_priority", ["none", "low", "medium", "high"]);
 
 export const schoolBlocks = pgTable(
   "school_blocks",
@@ -61,66 +50,28 @@ export const schoolBlocks = pgTable(
   ],
 );
 
-export const routines = pgTable("routines", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  title: text("title").notNull(),
-  type: routineType("type").notNull(),
-  color: text("color"),
-  location: text("location"),
-  // fixed-Felder:
-  weekday: integer("weekday"), // 0 = Montag ... 6 = Sonntag
-  startTime: time("start_time"),
-  endTime: time("end_time"),
-  openEnded: boolean("open_ended").notNull().default(false),
-  allDay: boolean("all_day").notNull().default(false),
-  // flexible_goal-Feld:
-  targetPerWeek: integer("target_per_week"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+// Praktische Typen fuer den Rest der App.
+export type SchoolBlock = typeof schoolBlocks.$inferSelect;
+export type NewSchoolBlock = typeof schoolBlocks.$inferInsert;
 
-export const manualEvents = pgTable("manual_events", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  title: text("title").notNull(),
-  date: date("date").notNull(),
-  startTime: time("start_time").notNull(),
-  endTime: time("end_time").notNull(),
-  color: text("color"),
-  location: text("location"),
-  allDay: boolean("all_day").notNull().default(false),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-// To-Dos (M002): Habit-Tracker x To-Do-Hybrid.
+// ---------------------------------------------------------------------------
+// M003 -- Schul-Module: Faecher, Notizen, Aufgaben, Dateien.
 //
-// rrule = null  -> einmalige Aufgabe; dueDate ist die (optionale) Faelligkeit.
-// rrule gesetzt -> wiederkehrende Aufgabe/Habit (RFC-5545 RRULE-String, z.B.
-//   "FREQ=DAILY;INTERVAL=2"); dueDate dient dann als Start-Anker (DTSTART).
-//   Konkrete Vorkommen werden NICHT gespeichert, sondern on-demand expandiert.
-// Erledigungen liegen separat in todo_completions (eine Zeile pro Tag).
-// scheduledTime/estMinutes sind kalender-ready Platzhalter (noch ungenutzt).
-export const todos = pgTable(
-  "todos",
+// subjects spiegelt die Untis-Faecher (untis_subject = exakter Untis-Wert,
+// UNIQUE solange nicht null), kann aber auch manuell befuellt werden (AG etc.).
+// Abwaehlen = archivedAt setzen statt loeschen, sonst legt der naechste Sync
+// das Fach still wieder an.
+// ---------------------------------------------------------------------------
+
+export const subjects = pgTable(
+  "subjects",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    title: text("title").notNull(),
-    notes: text("notes"),
+    name: text("name").notNull(),
+    untisSubject: text("untis_subject"),
+    teacher: text("teacher"),
+    room: text("room"),
     color: text("color"),
-    priority: todoPriority("priority").notNull().default("none"),
-    rrule: text("rrule"), // null = einmalig; sonst RFC-5545 RRULE
-    dueDate: date("due_date"), // einmalig: Faelligkeit; wiederkehrend: Start-Anker
-    scheduledTime: time("scheduled_time"), // kalender-ready (ungenutzt)
-    estMinutes: integer("est_minutes"), // kalender-ready (ungenutzt)
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -129,38 +80,88 @@ export const todos = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("todos_due_date_idx").on(t.dueDate)],
+  (t) => [uniqueIndex("subjects_untis_subject_uq").on(t.untisSubject)],
 );
 
-// Erledigungs-Log: eine Zeile pro abgehakter (Aufgabe, Tag). Wiederkehrende
-// Aufgaben sind pro Tag erledigt; einmalige gelten als erledigt, sobald
-// ueberhaupt eine Zeile existiert. UNIQUE verhindert Doppel-Haken.
-export const todoCompletions = pgTable(
-  "todo_completions",
+export const subjectNotes = pgTable(
+  "subject_notes",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    todoId: uuid("todo_id")
+    subjectId: uuid("subject_id")
       .notNull()
-      .references(() => todos.id, { onDelete: "cascade" }),
-    date: date("date").notNull(),
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("subject_notes_subject_updated_idx").on(t.subjectId, t.updatedAt)],
+);
+
+// Typ steuert ausschliesslich Darstellung und Gewicht -- kein eigenes Modell,
+// weil Hausaufgabe und Klassenarbeit sich alle Felder teilen.
+export const assignmentType = pgEnum("assignment_type", [
+  "homework",
+  "exam",
+  "test",
+  "presentation",
+  "other",
+]);
+
+export const assignments = pgTable(
+  "assignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // set null statt cascade: ein geloeschtes Fach macht seine Aufgaben zu
+    // "Allgemein", es loescht sie nicht mit.
+    subjectId: uuid("subject_id").references(() => subjects.id, {
+      onDelete: "set null",
+    }),
+    type: assignmentType("type").notNull().default("homework"),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    dueDate: date("due_date"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex("todo_completions_todo_date_uq").on(t.todoId, t.date),
-    index("todo_completions_date_idx").on(t.date),
+    index("assignments_due_date_idx").on(t.dueDate),
+    index("assignments_subject_idx").on(t.subjectId),
   ],
 );
 
-// Praktische Typen fuer den Rest der App.
-export type SchoolBlock = typeof schoolBlocks.$inferSelect;
-export type NewSchoolBlock = typeof schoolBlocks.$inferInsert;
-export type Routine = typeof routines.$inferSelect;
-export type NewRoutine = typeof routines.$inferInsert;
-export type ManualEvent = typeof manualEvents.$inferSelect;
-export type NewManualEvent = typeof manualEvents.$inferInsert;
-export type Todo = typeof todos.$inferSelect;
-export type NewTodo = typeof todos.$inferInsert;
-export type TodoCompletion = typeof todoCompletions.$inferSelect;
-export type NewTodoCompletion = typeof todoCompletions.$inferInsert;
+// Metadaten zu Vercel-Blob-Uploads. Der Blob selbst liegt bei Vercel, hier
+// steht nur, wo er liegt (url) und wie er sich loeschen laesst (pathname).
+export const subjectFiles = pgTable("subject_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subjectId: uuid("subject_id")
+    .notNull()
+    .references(() => subjects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  pathname: text("pathname").notNull(),
+  size: integer("size").notNull(),
+  contentType: text("content_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export type Subject = typeof subjects.$inferSelect;
+export type NewSubject = typeof subjects.$inferInsert;
+export type SubjectNote = typeof subjectNotes.$inferSelect;
+export type NewSubjectNote = typeof subjectNotes.$inferInsert;
+export type Assignment = typeof assignments.$inferSelect;
+export type NewAssignment = typeof assignments.$inferInsert;
+export type AssignmentType = Assignment["type"];
+export type SubjectFile = typeof subjectFiles.$inferSelect;
+export type NewSubjectFile = typeof subjectFiles.$inferInsert;
