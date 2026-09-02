@@ -1,6 +1,16 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import * as schema from "./schema";
+
+// In der Produktion steht hinter DATABASE_URL immer Neon, das ueber HTTP
+// spricht. Zeigt die Variable dagegen auf ein gewoehnliches Postgres (lokale
+// Entwicklung), ist der Neon-Treiber der falsche und es braucht den normalen
+// node-postgres-Treiber. Beide liefern dieselbe Drizzle-Oberflaeche.
+function isNeonUrl(url: string): boolean {
+  return /neon\.(tech|build)/i.test(url);
+}
 
 // DATABASE_URL kommt aus .env.local (Neon).
 //
@@ -29,7 +39,9 @@ function getDb(): Db {
         "DATABASE_URL ist nicht gesetzt. Trage den Neon-Connection-String in .env.local ein (Vorlage: .env.example).",
       );
     }
-    instance = drizzle(neon(url), { schema });
+    instance = isNeonUrl(url)
+      ? drizzle(neon(url), { schema })
+      : (drizzlePg(new Pool({ connectionString: url }), { schema }) as unknown as Db);
   }
   return instance;
 }
