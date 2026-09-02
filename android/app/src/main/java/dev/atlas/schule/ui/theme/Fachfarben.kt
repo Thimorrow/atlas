@@ -53,8 +53,10 @@ enum class Fachfarbe(val token: String, val bezeichnung: String) {
         /**
          * Wunschfarben von Sid, als Teilstring geprueft, damit auch
          * Untis-Kuerzel und Varianten treffen ("Mathematik", "Mathe", "MA").
-         * Reihenfolge entspricht PRESETS in lib/subject-colors.ts, weil beim
-         * ersten Treffer abgebrochen wird.
+         * Reihenfolge entspricht PRESETS in lib/subject-colors.ts. Sie
+         * entscheidet nichts mehr -- gewaehlt wird der laengste Treffer --,
+         * bleibt aber gleich, damit sich die beiden Listen nebeneinander
+         * lesen lassen.
          */
         private val vorbelegung = listOf(
             "mathe" to BLUE,
@@ -78,9 +80,16 @@ enum class Fachfarbe(val token: String, val bezeichnung: String) {
          */
         fun standardFuer(name: String): Fachfarbe {
             val schluessel = name.lowercase()
-            for ((nadel, farbe) in vorbelegung) {
-                if (schluessel.contains(nadel)) return farbe
-            }
+            // Laengster Treffer gewinnt, nicht der erste in der Liste --
+            // dasselbe wie in lib/subject-colors.ts. "Informatik/ang.
+            // Mathematik" enthaelt "mathe" und "informatik"; nach
+            // Listenreihenfolge bekam es Mathes Blau, und in der Faecherliste
+            // standen zwei blaue Punkte untereinander, waehrend das
+            // eigentliche Informatik grau blieb.
+            vorbelegung
+                .filter { (nadel, _) -> schluessel.contains(nadel) }
+                .maxByOrNull { (nadel, _) -> nadel.length }
+                ?.let { (_, farbe) -> return farbe }
             var h = 0L
             for (zeichen in name) h = (h * 31 + zeichen.code) and 0xFFFFFFFFL
             return auslosbar[(h % auslosbar.size).toInt()]

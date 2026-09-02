@@ -1,6 +1,7 @@
 package dev.atlas.schule.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,12 +40,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -505,24 +508,48 @@ private fun FaecherAbschnitt(
                 val bisherAktiv = aktiveFachNamen(zustand.bestand)
                 val zusammenfassung = faecherAbgleichZusammenfassung(bisherAktiv, zustand.ausgewaehlt)
                 val gibtEsWasZuTun = zustand.ausgewaehlt != bisherAktiv
+                val wirdArchiviert = (bisherAktiv - zustand.ausgewaehlt).isNotEmpty()
 
-                Column(verticalArrangement = Arrangement.spacedBy(Abstand.klein)) {
-                    zeilen.forEach { zeile ->
-                        FachZeileAnsicht(
-                            zeile = zeile,
-                            angehakt = zeile.name in zustand.ausgewaehlt,
-                            beimUmschalten = { beimUmschalten(zeile.name) },
-                        )
-                    }
-                }
+                // Die Liste ist eingeklappt. Sechzehn Kaestchen sind laenger als
+                // alle uebrigen Abschnitte der Einstellungen zusammen, und man
+                // braucht sie zweimal im Jahr. Was zaehlt, ist der Satz darueber:
+                // ob etwas zu tun ist. Die Liste kommt, wenn jemand sie will.
+                var listeOffen by rememberSaveable { mutableStateOf(false) }
 
-                Spacer(Modifier.height(Abstand.mittel))
                 Text(
                     text = zusammenfassung,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
+
                 Spacer(Modifier.height(Abstand.normal))
+                Listenschalter(
+                    offen = listeOffen,
+                    anzahl = zeilen.size,
+                    angehakt = zeilen.count { it.name in zustand.ausgewaehlt },
+                    beimTippen = { listeOffen = !listeOffen },
+                )
+
+                AnimatedVisibility(
+                    visible = listeOffen,
+                    enter = fadeIn(atlasTween(Dauer.SCHNELL)) + expandVertically(atlasTween(Dauer.NORMAL)),
+                    exit = fadeOut(atlasTween(Dauer.SCHNELL)) + shrinkVertically(atlasTween(Dauer.SCHNELL)),
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(Abstand.klein),
+                        modifier = Modifier.padding(top = Abstand.normal),
+                    ) {
+                        zeilen.forEach { zeile ->
+                            FachZeileAnsicht(
+                                zeile = zeile,
+                                angehakt = zeile.name in zustand.ausgewaehlt,
+                                beimUmschalten = { beimUmschalten(zeile.name) },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(Abstand.mittel))
                 OutlinedButton(
                     enabled = !zustand.laeuft && gibtEsWasZuTun,
                     onClick = beimAbgleichen,
@@ -549,13 +576,18 @@ private fun FaecherAbschnitt(
                     }
                 }
 
-                Text(
-                    text = "Ein archiviertes Fach behält seine Notizen, Aufgaben und Noten und kommt " +
-                        "zurück, sobald du es wieder anhakst.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Abstand.normal),
-                )
+                // Nur zeigen, wenn tatsaechlich etwas archiviert wuerde. Sonst
+                // erklaert der Satz eine Folge, die gar nicht eintritt, und
+                // steht als Dauerwarnung unter einem harmlosen Knopf.
+                if (wirdArchiviert) {
+                    Text(
+                        text = "Ein archiviertes Fach behält seine Notizen, Aufgaben und Noten und kommt " +
+                            "zurück, sobald du es wieder anhakst.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Abstand.normal),
+                    )
+                }
 
                 AnimatedVisibility(
                     visible = zustand.ergebnis != null,
@@ -582,6 +614,44 @@ private fun FaecherAbschnitt(
                 }
             }
         }
+    }
+}
+
+/**
+ * Die Zeile, die die Kaestchenliste auf- und zuklappt. Sie sagt im
+ * eingeklappten Zustand schon, wie viele Faecher es sind und wie viele
+ * angehakt sind -- sonst muesste man aufklappen, nur um zu zaehlen.
+ */
+@Composable
+private fun Listenschalter(offen: Boolean, anzahl: Int, angehakt: Int, beimTippen: () -> Unit) {
+    val drehung by animateFloatAsState(
+        targetValue = if (offen) 90f else 0f,
+        animationSpec = atlasTween(Dauer.SCHNELL),
+        label = "faecherliste-pfeil",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .heightIn(min = Hoehe.bedienelement)
+            .clickable(onClick = beimTippen)
+            .padding(horizontal = Abstand.normal),
+        horizontalArrangement = Arrangement.spacedBy(Abstand.normal),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = IkoneWeiter,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { rotationZ = drehung },
+        )
+        Text(
+            text = if (offen) "Liste ausblenden" else "$angehakt von $anzahl Fächern angehakt",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

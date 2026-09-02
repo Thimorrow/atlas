@@ -63,9 +63,20 @@ const AUSLOSBARE_FARBEN = SUBJECT_COLORS.filter((c) => c.token !== "white");
 // Farbe, ohne dass irgendwo ein Zaehler mitgefuehrt werden muss.
 export function defaultColorFor(name: string): SubjectColorToken {
   const key = name.toLowerCase();
+  // Laengster Treffer gewinnt, nicht der erste in der Liste. "Informatik/ang.
+  // Mathematik" enthaelt beide Nadeln, und die Listenreihenfolge gab ihm
+  // Mathes Blau: in der Faecherliste sassen dann zwei blaue Punkte
+  // untereinander, waehrend das eigentliche Informatik grau blieb. Die
+  // laengere Nadel ist die genauere Aussage ueber das Fach.
+  let treffer: SubjectColorToken | null = null;
+  let laenge = 0;
   for (const [needle, token] of PRESETS) {
-    if (key.includes(needle)) return token;
+    if (key.includes(needle) && needle.length > laenge) {
+      treffer = token;
+      laenge = needle.length;
+    }
   }
+  if (treffer) return treffer;
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return AUSLOSBARE_FARBEN[h % AUSLOSBARE_FARBEN.length].token;

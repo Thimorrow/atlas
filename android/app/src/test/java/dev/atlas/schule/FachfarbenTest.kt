@@ -157,4 +157,17 @@ class FachfarbenTest {
     fun `die Vorbelegung darf weiterhin Weiss setzen`() {
         assertEquals(Fachfarbe.WHITE, Fachfarbe.standardFuer("Evangelische Religionslehre"))
     }
+    @Test
+    fun `bei zwei passenden Vorbelegungen gewinnt die laengere`() {
+        // "Informatik/ang. Mathematik" enthaelt "mathe" und "informatik".
+        // Nach Listenreihenfolge bekam es Mathes Blau, und in der
+        // Faecherliste standen zwei blaue Punkte untereinander, waehrend das
+        // eigentliche Informatik grau blieb. Abgenommen aus einem echten Lauf
+        // von defaultColorFor() in der TypeScript-Fassung.
+        assertEquals(Fachfarbe.SLATE, Fachfarbe.standardFuer("Informatik/ang. Mathematik"))
+        assertEquals(Fachfarbe.SLATE, Fachfarbe.standardFuer("Informatik"))
+        assertEquals(Fachfarbe.BLUE, Fachfarbe.standardFuer("Mathe"))
+        assertEquals(Fachfarbe.BLUE, Fachfarbe.standardFuer("Mathematik"))
+    }
+
 }

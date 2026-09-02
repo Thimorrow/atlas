@@ -32,9 +32,20 @@ class UmlautWaechterTest {
     // Variable voellig zu Recht "faecher".
     private val schablone = Regex("""\$\{[^}]*}""")
 
-    // Namen, die nie jemand liest: Bezeichner von Zeichnungen, Schluessel im
-    // Antwortspeicher, Pfadstuecke. Sie folgen der Kommentarschreibweise.
-    private val interneNamen = setOf("\"faecher\"", "\"zurueck\"", "\"schliessen\"")
+    /**
+     * Namen, die nie jemand liest: Bezeichner von Zeichnungen, Schluessel im
+     * Antwortspeicher, Animationslabels, Pfadstuecke. Sie folgen der
+     * Kommentarschreibweise.
+     *
+     * Erkannt am Aussehen statt an einer gepflegten Ausnahmeliste: durchgaengig
+     * klein, ohne Leerzeichen, hoechstens mit Bindestrich getrennt. Ein
+     * deutscher Satz fuer die Oberflaeche sieht nie so aus -- er hat
+     * Grossbuchstaben oder Leerzeichen, meistens beides. Eine Liste dagegen
+     * waechst mit jedem neuen Label, und wer sie einmal nicht pflegt, schaltet
+     * den Waechter ab, weil er rot ist ohne einen echten Fehler zu zeigen.
+     * Genau das passierte beim Label "faecherliste-pfeil".
+     */
+    private val internerName = Regex("^[a-z0-9]+(-[a-z0-9]+)*$")
 
     @Test
     fun `sichtbare Texte tragen ihre Umlaute`() {
@@ -54,7 +65,8 @@ class UmlautWaechterTest {
                 val ohneKommentar = zeile.substringBefore("//")
                 if (ohneKommentar.isBlank()) return@forEachIndexed
                 literal.findAll(ohneKommentar).forEach { treffer ->
-                    if (treffer.value in interneNamen) return@forEach
+                    val inhalt = treffer.value.trim('"')
+                    if (internerName.matches(inhalt)) return@forEach
                     val text = schablone.replace(treffer.value, "")
                     val wort = verdaechtig.firstOrNull { text.contains(it) }
                     if (wort != null) {
