@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { SubjectCard, type SubjectDTO } from "@/components/subject-card";
 import { EmptyPanel, NewSubjectDialog, SubjectSetup } from "@/components/subject-setup";
 import { formatPoints, type GradeAverage } from "@/lib/grades";
 import type { GradeOverviewDTO } from "@/lib/grade-store";
+import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 
 export default function SubjectsPage() {
@@ -20,6 +21,8 @@ export default function SubjectsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const toast = useToast();
   // Die Noten-Uebersicht liegt bewusst auf DIESER Seite statt auf einer eigenen:
   // "Fach" und "Schnitt des Fachs" sind dieselbe Liste, und ein Schueler, der
   // am Handy nach seinem Schnitt sieht, soll dafuer nicht erst navigieren.
@@ -53,6 +56,31 @@ export default function SubjectsPage() {
   useEffect(() => {
     void load(showArchived);
   }, [load, showArchived]);
+
+  // Derselbe Abgleich laeuft nach jedem Untis-Sync automatisch mit. Der Knopf
+  // ist fuer den Moment, in dem man ihn JETZT will -- neuer Kurs im Halbjahr,
+  // Lehrerwechsel -- ohne auf das naechste Sync-Fenster zu warten.
+  async function reconcile() {
+    if (reconciling) return;
+    setReconciling(true);
+    try {
+      const res = await fetch("/api/subjects/reconcile", { method: "POST" });
+      if (!res.ok) throw new Error("Abgleich fehlgeschlagen");
+      const json = (await res.json()) as {
+        created: number;
+        updated: number;
+        archived: number;
+        deleted: number;
+        skipped: boolean;
+      };
+      await load(showArchived);
+      toast(reconcileMeldung(json));
+    } catch {
+      toast("Der Abgleich hat nicht geklappt. Versuch es später erneut.");
+    } finally {
+      setReconciling(false);
+    }
+  }
 
   const body = () => {
     if (failed) {
@@ -144,6 +172,19 @@ export default function SubjectsPage() {
                 >
                   Archivierte zeigen
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={reconciling}
+                  onClick={() => void reconcile()}
+                >
+                  {reconciling ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  Abgleichen
+                </Button>
                 <Button size="sm" onClick={() => setCreating(true)}>
                   <Plus className="size-4" />
                   Fach anlegen
@@ -166,6 +207,31 @@ export default function SubjectsPage() {
       />
     </main>
   );
+}
+
+// Was der Abgleich getan hat, in einem Satz. "Nichts geaendert" ist dabei ein
+// vollwertiges Ergebnis und keine Panne: nach dem ersten Lauf ist genau das der
+// Normalfall, und ohne Rueckmeldung wirkt der Knopf kaputt.
+function reconcileMeldung(r: {
+  created: number;
+  updated: number;
+  archived: number;
+  deleted: number;
+  skipped: boolean;
+}): string {
+  if (r.skipped) return "Es gibt noch keinen Stundenplan zum Abgleichen.";
+
+  const teile: string[] = [];
+  if (r.created > 0) teile.push(plural(r.created, "Fach ergänzt", "Fächer ergänzt"));
+  if (r.updated > 0) teile.push(plural(r.updated, "Fach aktualisiert", "Fächer aktualisiert"));
+  if (r.archived > 0) teile.push(plural(r.archived, "Fach archiviert", "Fächer archiviert"));
+  if (r.deleted > 0) teile.push(plural(r.deleted, "Fach entfernt", "Fächer entfernt"));
+
+  return teile.length === 0 ? "Alles war schon aktuell." : teile.join(", ") + ".";
+}
+
+function plural(n: number, eins: string, viele: string): string {
+  return `${n} ${n === 1 ? eins : viele}`;
 }
 
 // Der Gesamtschnitt ueber alle aktiven Faecher, jedes Fach zaehlt einmal.

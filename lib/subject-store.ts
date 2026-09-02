@@ -6,6 +6,7 @@
 // sonst legt der naechste Sync sie wieder an.
 
 import { and, asc, eq, gte, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
   schoolBlocks,
@@ -527,4 +528,197 @@ export function parseSetupBody(body: unknown): Parsed<{ selected: string[]; all:
   if (!selected || !all)
     return { ok: false, error: "selected und all müssen Listen von Fachnamen sein." };
   return { ok: true, value: { selected, all } };
+}
+
+// --- Abgleich mit dem Stundenplan --------------------------------------------
+//
+// Der Stundenplan ist die Quelle der Wahrheit fuer die Faecherliste: er weiss,
+// welche Faecher es gibt, wer sie unterrichtet und in welchem Raum. Bisher
+// musste der Nutzer das einmalig im Setup bestaetigen und Lehrer/Raum danach
+// von Hand nachtragen. Der Abgleich hier nimmt ihm beides ab und laeuft nach
+// jedem Untis-Sync mit.
+
+// Was der Stundenplan ueber ein Fach weiss.
+export type UntisSubjectFact = {
+  subject: string;
+  teacher: string | null;
+  room: string | null;
+};
+
+// Haeufigster Lehrer und Raum je Fach. mode() nimmt den haeufigsten Wert und
+// ueberspringt dabei NULL. Der Filter auf "regular" haelt Vertretungen und
+// einzelne Raumwechsel heraus -- eine Woche im Ausweichraum soll den Stammraum
+// nicht ueberschreiben. Hat ein Fach ausschliesslich unregelmaessige Stunden,
+// faellt coalesce auf alle Zeilen zurueck, damit dabei nicht schlicht nichts
+// herauskommt.
+export async function untisSubjectFacts(): Promise<UntisSubjectFact[]> {
+  const haeufigster = (spalte: AnyPgColumn) => sql<string | null>`coalesce(
+    mode() within group (order by ${spalte}) filter (where ${schoolBlocks.status} = 'regular'),
+    mode() within group (order by ${spalte})
+  )`;
+
+  return db
+    .select({
+      subject: schoolBlocks.subject,
+      teacher: haeufigster(schoolBlocks.teacher),
+      room: haeufigster(schoolBlocks.room),
+    })
+    .from(schoolBlocks)
+    .groupBy(schoolBlocks.subject)
+    .orderBy(asc(schoolBlocks.subject));
+}
+
+// content = Noten + Notizen + Aufgaben + Dateien. Entscheidet, ob ein Fach ohne
+// Stunden geloescht oder nur archiviert wird.
+export type ExistingSubjectForReconcile = {
+  id: string;
+  untisSubject: string | null;
+  teacher: string | null;
+  room: string | null;
+  archivedAt: Date | null;
+  content: number;
+};
+
+export type SubjectReconcilePlan = {
+  toCreate: UntisSubjectFact[];
+  toUpdate: { id: string; teacher: string | null; room: string | null }[];
+  toArchive: string[];
+  toDelete: string[];
+};
+
+// Reine Mengenlogik, ohne DB -- daher isoliert testbar.
+//
+// Bewusst NICHT dabei: ein archiviertes Fach, das im Stundenplan steht, wird
+// nicht reaktiviert. Wer ein Fach abgewaehlt hat (Kurs nicht belegt, Fach
+// abgegeben), soll es nicht durch den naechsten Sync zurueckbekommen. Neu
+// dazukommende Faecher haben dagegen ueberhaupt keine Zeile und werden aktiv
+// angelegt.
+export function planSubjectReconcile(
+  existing: ExistingSubjectForReconcile[],
+  facts: UntisSubjectFact[],
+): SubjectReconcilePlan {
+  const byUntisSubject = new Map(
+    existing.filter((s) => s.untisSubject !== null).map((s) => [s.untisSubject as string, s]),
+  );
+  const imStundenplan = new Set(facts.map((f) => f.subject));
+
+  const toCreate: UntisSubjectFact[] = [];
+  const toUpdate: SubjectReconcilePlan["toUpdate"] = [];
+
+  for (const fact of facts) {
+    const row = byUntisSubject.get(fact.subject);
+    if (!row) {
+      toCreate.push(fact);
+      continue;
+    }
+    // Lehrer und Raum kommen aus Untis, nicht aus der Erinnerung: steht dort
+    // etwas anderes, gewinnt der Stundenplan. Nur wenn Untis nichts weiss,
+    // bleibt eine von Hand eingetragene Angabe stehen.
+    const teacher = fact.teacher ?? row.teacher;
+    const room = fact.room ?? row.room;
+    if (teacher !== row.teacher || room !== row.room) {
+      toUpdate.push({ id: row.id, teacher, room });
+    }
+  }
+
+  const toArchive: string[] = [];
+  const toDelete: string[] = [];
+
+  for (const row of byUntisSubject.values()) {
+    if (imStundenplan.has(row.untisSubject as string)) continue;
+    // Ein Fach ohne jeden Inhalt ist nur eine Zeile, die irgendein frueherer
+    // Sync angelegt hat -- die darf verschwinden. Sobald Noten, Notizen,
+    // Aufgaben oder Dateien daran haengen, wird archiviert statt geloescht:
+    // Inhalte des Nutzers loescht ein Hintergrundlauf nicht.
+    if (row.content === 0) toDelete.push(row.id);
+    else if (row.archivedAt === null) toArchive.push(row.id);
+  }
+
+  // Faecher mit untisSubject === null sind von Hand angelegt (AG, Nachhilfe)
+  // und stehen naturgemaess in keinem Stundenplan. Sie bleiben unangetastet.
+  return { toCreate, toUpdate, toArchive, toDelete };
+}
+
+export type SubjectReconcileResult = {
+  created: number;
+  updated: number;
+  archived: number;
+  deleted: number;
+  // true = es gibt keine einzige Stunde, es wurde nichts angefasst.
+  skipped: boolean;
+};
+
+const contentCountSql = sql<number>`(
+    (select count(*) from grades where grades.subject_id = subjects.id)
+  + (select count(*) from subject_notes where subject_notes.subject_id = subjects.id)
+  + (select count(*) from assignments where assignments.subject_id = subjects.id)
+  + (select count(*) from subject_files where subject_files.subject_id = subjects.id)
+)`.mapWith(Number);
+
+export async function reconcileSubjects(): Promise<SubjectReconcileResult> {
+  const facts = await untisSubjectFacts();
+  // Ohne eine einzige Stunde gibt es nichts abzugleichen. Das ist keine
+  // Bequemlichkeit, sondern die Sicherung: bei leerem school_blocks (erster
+  // Start, zurueckgesetzte Datenbank, Untis liefert gerade nichts) waeren sonst
+  // schlagartig ALLE Faecher "nicht mehr im Stundenplan".
+  if (facts.length === 0) {
+    return { created: 0, updated: 0, archived: 0, deleted: 0, skipped: true };
+  }
+
+  const existing = await db
+    .select({
+      id: subjects.id,
+      untisSubject: subjects.untisSubject,
+      teacher: subjects.teacher,
+      room: subjects.room,
+      archivedAt: subjects.archivedAt,
+      content: contentCountSql,
+    })
+    .from(subjects);
+
+  const plan = planSubjectReconcile(existing, facts);
+
+  if (plan.toCreate.length > 0) {
+    await db
+      .insert(subjects)
+      .values(
+        plan.toCreate.map((f) => ({
+          name: f.subject,
+          untisSubject: f.subject,
+          teacher: f.teacher,
+          room: f.room,
+          color: defaultColorFor(f.subject),
+        })),
+      )
+      .onConflictDoNothing({ target: subjects.untisSubject });
+  }
+
+  // Lehrer und Raum unterscheiden sich je Fach, das laesst sich nicht in einen
+  // inArray-Aufruf zusammenfassen. In aller Regel ist die Liste nach dem ersten
+  // Abgleich leer, danach kostet die Schleife also nichts.
+  for (const u of plan.toUpdate) {
+    await db
+      .update(subjects)
+      .set({ teacher: u.teacher, room: u.room, updatedAt: sql`now()` })
+      .where(eq(subjects.id, u.id));
+  }
+
+  if (plan.toArchive.length > 0) {
+    await db
+      .update(subjects)
+      .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(inArray(subjects.id, plan.toArchive));
+  }
+
+  if (plan.toDelete.length > 0) {
+    await db.delete(subjects).where(inArray(subjects.id, plan.toDelete));
+  }
+
+  return {
+    created: plan.toCreate.length,
+    updated: plan.toUpdate.length,
+    archived: plan.toArchive.length,
+    deleted: plan.toDelete.length,
+    skipped: false,
+  };
 }

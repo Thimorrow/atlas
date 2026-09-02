@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { planSubjectSetup, type ExistingSubjectForSetup } from "./subject-store";
+import {
+  planSubjectReconcile,
+  planSubjectSetup,
+  type ExistingSubjectForReconcile,
+  type ExistingSubjectForSetup,
+} from "./subject-store";
 
 // planSubjectSetup ist die reine Mengenlogik hinter setupSubjects, ohne DB.
 // Sie entscheidet, was angelegt, reaktiviert oder archiviert werden muss --
@@ -55,5 +60,105 @@ describe("planSubjectSetup", () => {
     const kunst = plan.toCreate.find((c) => c.name === "Kunst");
     expect(mathe?.archivedAt).toBeNull();
     expect(kunst?.archivedAt).toBeInstanceOf(Date);
+  });
+});
+
+// planSubjectReconcile ist die reine Mengenlogik hinter reconcileSubjects: der
+// Stundenplan sagt, welche Faecher es gibt und wer sie unterrichtet, die
+// Faecherliste zieht nach.
+
+function fach(
+  id: string,
+  untisSubject: string | null,
+  extra: Partial<ExistingSubjectForReconcile> = {},
+): ExistingSubjectForReconcile {
+  return {
+    id,
+    untisSubject,
+    teacher: null,
+    room: null,
+    archivedAt: null,
+    content: 0,
+    ...extra,
+  };
+}
+
+describe("planSubjectReconcile", () => {
+  it("legt ein Fach an, das im Stundenplan steht, aber noch keine Zeile hat", () => {
+    const plan = planSubjectReconcile([], [{ subject: "Physik", teacher: "Ka", room: "B12" }]);
+    expect(plan.toCreate).toEqual([{ subject: "Physik", teacher: "Ka", room: "B12" }]);
+    expect(plan.toDelete).toEqual([]);
+    expect(plan.toArchive).toEqual([]);
+  });
+
+  it("uebernimmt Lehrer und Raum aus dem Stundenplan", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Mathe")],
+      [{ subject: "Mathe", teacher: "Sch", room: "A120" }],
+    );
+    expect(plan.toUpdate).toEqual([{ id: "1", teacher: "Sch", room: "A120" }]);
+  });
+
+  it("laesst eine Handeingabe stehen, wenn Untis nichts weiss", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Mathe", { teacher: "Frau Schulz", room: "A120" })],
+      [{ subject: "Mathe", teacher: null, room: null }],
+    );
+    expect(plan.toUpdate).toEqual([]);
+  });
+
+  it("aendert nichts, wenn Lehrer und Raum schon stimmen (idempotent)", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Mathe", { teacher: "Sch", room: "A120" })],
+      [{ subject: "Mathe", teacher: "Sch", room: "A120" }],
+    );
+    expect(plan).toEqual({ toCreate: [], toUpdate: [], toArchive: [], toDelete: [] });
+  });
+
+  it("loescht ein Fach ohne Stunden und ohne Inhalt", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Informatik/ang. Mathematik", { archivedAt: new Date("2024-01-01") })],
+      [{ subject: "Informatik", teacher: null, room: null }],
+    );
+    expect(plan.toDelete).toEqual(["1"]);
+    expect(plan.toArchive).toEqual([]);
+    expect(plan.toCreate.map((c) => c.subject)).toEqual(["Informatik"]);
+  });
+
+  it("archiviert statt zu loeschen, sobald Inhalte daran haengen", () => {
+    const plan = planSubjectReconcile([fach("1", "Kunst", { content: 3 })], [
+      { subject: "Mathe", teacher: null, room: null },
+    ]);
+    expect(plan.toArchive).toEqual(["1"]);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it("archiviert ein bereits archiviertes Fach mit Inhalt nicht erneut", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Kunst", { content: 3, archivedAt: new Date("2024-01-01") })],
+      [{ subject: "Mathe", teacher: null, room: null }],
+    );
+    expect(plan.toArchive).toEqual([]);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it("reaktiviert ein abgewaehltes Fach nicht, nur weil es im Stundenplan steht", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Kunst", { archivedAt: new Date("2024-01-01") })],
+      [{ subject: "Kunst", teacher: null, room: null }],
+    );
+    expect(plan.toCreate).toEqual([]);
+    expect(plan.toArchive).toEqual([]);
+    expect(plan.toDelete).toEqual([]);
+  });
+
+  it("laesst manuell angelegte Faecher (untisSubject null) unangetastet", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", null, { teacher: "Frau Meyer" })],
+      [{ subject: "Mathe", teacher: null, room: null }],
+    );
+    expect(plan.toArchive).toEqual([]);
+    expect(plan.toDelete).toEqual([]);
+    expect(plan.toUpdate).toEqual([]);
   });
 });

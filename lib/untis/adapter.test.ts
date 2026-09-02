@@ -49,6 +49,8 @@ describe("lessonToSchoolBlock", () => {
   it("normalisiert sperrige Fach-Langnamen", () => {
     expect(normalizeSubject("Lateinisch")).toBe("Latein");
     expect(normalizeSubject("Informatik / angewandte Mathe")).toBe("Informatik");
+    // Genau die Schreibweise, die Untis hier liefert.
+    expect(normalizeSubject("Informatik/ang. Mathematik")).toBe("Informatik");
     expect(normalizeSubject("Informatorische Bildung")).toBe("Deutsch");
     expect(normalizeSubject("Englisch")).toBe("Englisch"); // unveraendert
   });

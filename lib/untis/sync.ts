@@ -1,8 +1,9 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { schoolBlocks, type NewSchoolBlock } from "@/lib/db/schema";
 import { fetchTimetable } from "./client";
-import { lessonToSchoolBlock, type UntisLesson } from "./adapter";
+import { lessonToSchoolBlock, normalizeSubject, type UntisLesson } from "./adapter";
+import { reconcileSubjects, type SubjectReconcileResult } from "@/lib/subject-store";
 
 // Idempotenter Upsert in school_blocks (Unique-Key untis_lesson_id + date).
 // Re-Sync ueberschreibt geaenderte Stunden, erzeugt keine Duplikate.
@@ -29,14 +30,56 @@ export async function upsertSchoolBlocks(rows: NewSchoolBlock[]): Promise<number
   return rows.length;
 }
 
+// Die Fachnamen werden beim Import normalisiert (normalizeSubject im Adapter).
+// Zeilen, die vor einer neuen Regel geschrieben wurden, tragen aber weiterhin
+// den alten Untis-Namen, und ein Re-Sync erwischt nur das aktuelle Fenster --
+// "Informatik/ang. Mathematik" blieb deshalb in alten Wochen stehen, waehrend
+// neue Wochen schon "Informatik" hiessen. Zwei Namen fuer dasselbe Fach heisst
+// aber auch zwei Faecher in der Liste. Also einmal pro Abgleich ueber die
+// vorhandenen Namen gehen und die nachziehen, die sich heute anders schreiben.
+//
+// Der Unique-Index steht auf (untis_lesson_id, date), das Umbenennen kann also
+// nicht kollidieren.
+export async function normalizeStoredSubjects(): Promise<number> {
+  const rows = await db.selectDistinct({ subject: schoolBlocks.subject }).from(schoolBlocks);
+  const veraltet = rows.map((r) => r.subject).filter((s) => normalizeSubject(s) !== s);
+
+  for (const alt of veraltet) {
+    await db
+      .update(schoolBlocks)
+      .set({ subject: normalizeSubject(alt), updatedAt: sql`now()` })
+      .where(eq(schoolBlocks.subject, alt));
+  }
+
+  return veraltet.length;
+}
+
+export type SyncResult = {
+  fetched: number;
+  upserted: number;
+  renamed: number;
+  subjects: SubjectReconcileResult;
+  schoolyear: Awaited<ReturnType<typeof fetchTimetable>>["schoolyear"];
+  window: Awaited<ReturnType<typeof fetchTimetable>>["window"];
+  hinweis: string | null;
+};
+
 // Holt den Stundenplan fuer [start, end] und upsertet ihn idempotent. Der
 // tatsaechlich abgefragte Zeitraum kann enger sein als der gewuenschte, weil
 // Untis nicht ueber Schuljahresgrenzen hinweg antwortet.
-export async function syncUntis(start: Date, end: Date) {
+//
+// Im selben Zug wird die Faecherliste nachgezogen: neue Faecher anlegen, Lehrer
+// und Raum aus dem Stundenplan uebernehmen, Faecher ohne Stunden ausraeumen.
+// Das gehoert hierher und nicht in eine eigene Schaltflaeche -- die Faecher
+// sind eine Ableitung des Stundenplans, kein zweiter Datenbestand, den jemand
+// von Hand synchron halten muesste.
+export async function syncUntis(start: Date, end: Date): Promise<SyncResult> {
   const { lessons, schoolyear, window, hinweis } = await fetchTimetable(start, end);
   const rows = lessons.map((l) => lessonToSchoolBlock(l as unknown as UntisLesson));
   const upserted = await upsertSchoolBlocks(rows);
-  return { fetched: lessons.length, upserted, schoolyear, window, hinweis };
+  const renamed = await normalizeStoredSubjects();
+  const subjects = await reconcileSubjects();
+  return { fetched: lessons.length, upserted, renamed, subjects, schoolyear, window, hinweis };
 }
 
 // Rollendes Default-Fenster: vergangene Woche bis 3 Wochen voraus.
