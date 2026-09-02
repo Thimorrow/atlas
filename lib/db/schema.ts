@@ -13,6 +13,7 @@ import {
   timestamp,
   integer,
   doublePrecision,
+  jsonb,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -270,6 +271,48 @@ export const microsoftAccounts = pgTable(
 
 export type MicrosoftAccount = typeof microsoftAccounts.$inferSelect;
 export type NewMicrosoftAccount = typeof microsoftAccounts.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Atlas-Bot -- Gedaechtnis der Chat-Gespraeche.
+//
+// bot_conversations traegt nur den Rahmen (Titel fuer die Verlaufsliste),
+// bot_messages die eigentliche Chronik. tool_name/tool_args/tool_result
+// bleiben null bei normalen Text-Nachrichten und sind nur bei role "tool"
+// befuellt -- so laesst sich morgens nachlesen, welches Werkzeug mit welchen
+// Argumenten lief und was es zurueckgab.
+// ---------------------------------------------------------------------------
+
+export const botMessageRole = pgEnum("bot_message_role", ["user", "assistant", "tool"]);
+
+export const botConversations = pgTable("bot_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const botMessages = pgTable(
+  "bot_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => botConversations.id, { onDelete: "cascade" }),
+    role: botMessageRole("role").notNull(),
+    content: text("content").notNull().default(""),
+    toolName: text("tool_name"),
+    toolArgs: jsonb("tool_args"),
+    toolResult: jsonb("tool_result"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("bot_messages_conversation_created_idx").on(t.conversationId, t.createdAt)],
+);
+
+export type BotConversation = typeof botConversations.$inferSelect;
+export type NewBotConversation = typeof botConversations.$inferInsert;
+export type BotMessage = typeof botMessages.$inferSelect;
+export type NewBotMessage = typeof botMessages.$inferInsert;
+export type BotMessageRole = BotMessage["role"];
 
 export type Subject = typeof subjects.$inferSelect;
 export type TeacherTitle = Subject["teacherTitle"];

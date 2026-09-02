@@ -85,12 +85,18 @@ export function Overlay({
   labelledBy,
   children,
   className,
+  backdropClassName,
 }: {
   open: boolean;
   onClose: () => void;
   labelledBy: string;
   children: React.ReactNode;
   className?: string;
+  // Ueberschreibt den Standard-Hintergrund (kraeftig getoent + verwischt).
+  // Der Bot-Overlay ueber dem Stundenplan braucht einen leichteren Schleier,
+  // damit die Seite dahinter erkennbar bleibt -- Lese-/Bearbeiten-Dialoge
+  // hier bleiben unveraendert.
+  backdropClassName?: string;
 }) {
   const reduce = useReducedMotion();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -122,7 +128,7 @@ export function Overlay({
       {open ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <motion.div
-            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+            className={cn("absolute inset-0 bg-background/70 backdrop-blur-sm", backdropClassName)}
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

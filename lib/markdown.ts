@@ -76,6 +76,53 @@ export function renderMarkdown(src: string): string {
   return md.parse(escapeSource(src), { async: false });
 }
 
+// Reparatur fuer gestreamten Bot-Text: das Modell liefert manchmal zwei
+// Saetze oder einen Listenpunkt und den folgenden Absatz ganz ohne
+// Trennzeichen aneinander, z. B. "...Unit 4 lernenAußerdem sind zwei
+// Aufgaben..." oder "...steht an.Morgen ist frei.". Ohne Leerzeile dazwischen
+// zieht Markdown (Lazy Continuation) den zweiten Satz in denselben
+// Listenpunkt statt einen neuen Absatz zu beginnen.
+//
+// Getrennt wird nur an zwei eindeutigen Stellen, nicht bei jedem
+// Grossbuchstaben mitten im Wort: nach einem Satzendezeichen, und vor einer
+// kurzen Liste von Woertern, mit denen ein neuer Absatz typischerweise
+// anfaengt. Alles andere bleibt, wie es ist -- eine allgemeine Regel "klein
+// gefolgt von gross" wuerde Eigennamen wie OneNote oder WebUntis mitten
+// entzweischneiden. Nur fuer Bot-Text gedacht (vor renderMarkdown
+// angewendet), nicht Teil von renderMarkdown selbst -- Fach-Notizen sollen
+// sich nicht aendern.
+const ABSATZ_ANFAENGE = [
+  "Au\u00dferdem",
+  "Zus\u00e4tzlich",
+  "Zudem",
+  "Daneben",
+  "Ansonsten",
+  "\u00dcbrigens",
+  "Insgesamt",
+  "Dazu",
+  "Wichtig",
+  "Hinweis",
+  "Tipp",
+  "Achtung",
+  "Soll",
+  "Willst",
+  "M\u00f6chtest",
+];
+
+export function repairMissingParagraphBreaks(src: string): string {
+  if (!src) return src;
+  return src
+    // "...steht an.Morgen ist frei." -- ein Satzzeichen ohne Leerzeichen
+    // dahinter ist immer eine Bruchstelle.
+    .replace(/([.!?:])([A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df])/g, "$1\n\n$2")
+    // "...Unit 4 lernenAu\u00dferdem sind..." -- hier fehlt sogar das
+    // Satzzeichen, deshalb nur vor den bekannten Absatzanfaengen.
+    .replace(
+      new RegExp(`([a-z\\u00e4\\u00f6\\u00fc\\u00df])(${ABSATZ_ANFAENGE.join("|")})(?![a-z\\u00e4\\u00f6\\u00fc\\u00df])`, "g"),
+      "$1\n\n$2",
+    );
+}
+
 // Einzeilige Vorschau fuer die Notizliste: Markdown-Zeichen raus, alles auf
 // eine Zeile, damit der Body als lesbarer Satz erscheint statt als Rohtext.
 export function markdownPreview(src: string, max = 120): string {

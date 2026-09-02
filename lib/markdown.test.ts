@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownPreview, renderMarkdown } from "@/lib/markdown";
+import { markdownPreview, renderMarkdown, repairMissingParagraphBreaks } from "@/lib/markdown";
 
 describe("renderMarkdown: Markdown-Syntax", () => {
   it("macht aus ## Titel eine h2", () => {
@@ -103,5 +103,57 @@ describe("markdownPreview", () => {
     const out = markdownPreview("wort ".repeat(60), 40);
     expect(out.length).toBeLessThanOrEqual(43);
     expect(out.endsWith("...")).toBe(true);
+  });
+});
+
+describe("repairMissingParagraphBreaks", () => {
+  // Echtes Beispiel aus einem gestreamten Bot-Text: der letzte Listenpunkt
+  // und der folgende Absatz liefen ohne jedes Trennzeichen ineinander, sodass
+  // "Außerdem ..." als Teil des Listenpunkts gerendert wurde statt als
+  // eigener Absatz danach.
+  const real =
+    '- Englisch: Vokabeln Unit 4 lernenAußerdem sind zwei Aufgaben heute überfällig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.';
+
+  it("trennt den echten Beispielfall in Listenpunkt und neuen Absatz", () => {
+    const repaired = repairMissingParagraphBreaks(real);
+    expect(repaired).toBe(
+      '- Englisch: Vokabeln Unit 4 lernen\n\nAußerdem sind zwei Aufgaben heute überfällig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.',
+    );
+  });
+
+  it("beendet die Liste beim Rendern und startet einen eigenen Absatz", () => {
+    const html = renderMarkdown(repairMissingParagraphBreaks(real));
+    expect(html).toContain("<li>Englisch: Vokabeln Unit 4 lernen</li>");
+    expect(html).toContain("<p>Außerdem sind zwei Aufgaben heute überfällig");
+    // Der zweite Satz darf nicht mehr im li landen.
+    expect(html).not.toContain("lernenAußerdem");
+    expect(html).not.toMatch(/<li>[^<]*Außerdem/);
+  });
+
+  it("trennt zwei direkt aneinandergrenzende Saetze auch ohne Liste", () => {
+    expect(repairMissingParagraphBreaks("Das steht an.Morgen ist frei.")).toBe(
+      "Das steht an.\n\nMorgen ist frei.",
+    );
+  });
+
+  it("lässt normalen Text mit echten Wortzwischenraeumen unveraendert", () => {
+    const normal = "Morgen hast du Englisch, Mathematik und Physik. Viel Erfolg!";
+    expect(repairMissingParagraphBreaks(normal)).toBe(normal);
+  });
+
+  it("lässt bereits vorhandene Absaetze unveraendert", () => {
+    const ok = "Erster Satz.\n\nZweiter Satz beginnt sauber.";
+    expect(repairMissingParagraphBreaks(ok)).toBe(ok);
+  });
+
+  it("zerschneidet Eigennamen mit Grossbuchstaben in der Mitte nicht", () => {
+    // Eine Regel "Kleinbuchstabe gefolgt von Grossbuchstabe" wuerde aus
+    // OneNote "One / Note" machen. Genau diese Namen kommen in Atlas vor.
+    const namen = "Schau in OneNote nach, WebUntis zeigt es auch.";
+    expect(repairMissingParagraphBreaks(namen)).toBe(namen);
+  });
+
+  it("kommt mit leerem Text klar", () => {
+    expect(repairMissingParagraphBreaks("")).toBe("");
   });
 });
