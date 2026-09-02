@@ -588,16 +588,49 @@ export type ExistingSubjectForReconcile = {
   untisSubject: string | null;
   teacher: string | null;
   room: string | null;
+  // Was Untis beim letzten Abgleich lieferte. Weicht teacher davon ab, hat es
+  // jemand von Hand geaendert.
+  untisTeacher: string | null;
+  untisRoom: string | null;
   archivedAt: Date | null;
   content: number;
 };
 
+export type SubjectFieldUpdate = {
+  id: string;
+  teacher: string | null;
+  room: string | null;
+  untisTeacher: string | null;
+  untisRoom: string | null;
+};
+
 export type SubjectReconcilePlan = {
   toCreate: UntisSubjectFact[];
-  toUpdate: { id: string; teacher: string | null; room: string | null }[];
+  toUpdate: SubjectFieldUpdate[];
   toArchive: string[];
   toDelete: string[];
 };
+
+// Ein Feld, das aus Untis kommt und von Hand ueberschrieben werden darf.
+//
+// Der Stundenplan gewinnt, solange niemand eingegriffen hat -- daran erkennbar,
+// dass der Anzeigewert noch genau dem entspricht, was Untis zuletzt lieferte.
+// Hat jemand etwas anderes eingetragen, bleibt das stehen. Ohne diese
+// Unterscheidung waere jede Handeingabe beim naechsten Sync wieder weg, und
+// genau darauf ist man angewiesen: zu manchen Lehrern kennt Untis nur ein
+// Kuerzel, der lesbare Name kann dann nur von Hand kommen.
+//
+// Untis' Rohwert wird trotzdem immer mitgeschrieben. Wechselt spaeter der
+// Lehrer, faellt das auf, statt hinter einer alten Handeingabe zu verschwinden.
+function mergeUntisFeld(
+  anzeige: string | null,
+  zuletztVonUntis: string | null,
+  jetztVonUntis: string | null,
+): { anzeige: string | null; zuletztVonUntis: string | null } {
+  if (jetztVonUntis === null) return { anzeige, zuletztVonUntis };
+  const vonHand = anzeige !== null && anzeige !== zuletztVonUntis;
+  return { anzeige: vonHand ? anzeige : jetztVonUntis, zuletztVonUntis: jetztVonUntis };
+}
 
 // Reine Mengenlogik, ohne DB -- daher isoliert testbar.
 //
@@ -616,7 +649,7 @@ export function planSubjectReconcile(
   const imStundenplan = new Set(facts.map((f) => f.subject));
 
   const toCreate: UntisSubjectFact[] = [];
-  const toUpdate: SubjectReconcilePlan["toUpdate"] = [];
+  const toUpdate: SubjectFieldUpdate[] = [];
 
   for (const fact of facts) {
     const row = byUntisSubject.get(fact.subject);
@@ -624,13 +657,23 @@ export function planSubjectReconcile(
       toCreate.push(fact);
       continue;
     }
-    // Lehrer und Raum kommen aus Untis, nicht aus der Erinnerung: steht dort
-    // etwas anderes, gewinnt der Stundenplan. Nur wenn Untis nichts weiss,
-    // bleibt eine von Hand eingetragene Angabe stehen.
-    const teacher = fact.teacher ?? row.teacher;
-    const room = fact.room ?? row.room;
-    if (teacher !== row.teacher || room !== row.room) {
-      toUpdate.push({ id: row.id, teacher, room });
+
+    const lehrer = mergeUntisFeld(row.teacher, row.untisTeacher, fact.teacher);
+    const raum = mergeUntisFeld(row.room, row.untisRoom, fact.room);
+
+    if (
+      lehrer.anzeige !== row.teacher ||
+      raum.anzeige !== row.room ||
+      lehrer.zuletztVonUntis !== row.untisTeacher ||
+      raum.zuletztVonUntis !== row.untisRoom
+    ) {
+      toUpdate.push({
+        id: row.id,
+        teacher: lehrer.anzeige,
+        room: raum.anzeige,
+        untisTeacher: lehrer.zuletztVonUntis,
+        untisRoom: raum.zuletztVonUntis,
+      });
     }
   }
 
@@ -684,6 +727,8 @@ export async function reconcileSubjects(): Promise<SubjectReconcileResult> {
       untisSubject: subjects.untisSubject,
       teacher: subjects.teacher,
       room: subjects.room,
+      untisTeacher: subjects.untisTeacher,
+      untisRoom: subjects.untisRoom,
       archivedAt: subjects.archivedAt,
       content: contentCountSql,
     })
@@ -700,6 +745,8 @@ export async function reconcileSubjects(): Promise<SubjectReconcileResult> {
           untisSubject: f.subject,
           teacher: f.teacher,
           room: f.room,
+          untisTeacher: f.teacher,
+          untisRoom: f.room,
           color: defaultColorFor(f.subject),
         })),
       )
@@ -712,7 +759,13 @@ export async function reconcileSubjects(): Promise<SubjectReconcileResult> {
   for (const u of plan.toUpdate) {
     await db
       .update(subjects)
-      .set({ teacher: u.teacher, room: u.room, updatedAt: sql`now()` })
+      .set({
+        teacher: u.teacher,
+        room: u.room,
+        untisTeacher: u.untisTeacher,
+        untisRoom: u.untisRoom,
+        updatedAt: sql`now()`,
+      })
       .where(eq(subjects.id, u.id));
   }
 

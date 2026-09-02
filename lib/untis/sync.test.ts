@@ -26,7 +26,7 @@ describe("upsertSchoolBlocks (Integration, Neon)", () => {
   afterAll(cleanup);
 
   it("schreibt SchoolBlocks (inkl. Entfall) und liefert sie korrekt zurueck", async () => {
-    const rows = makeLessons().map(lessonToSchoolBlock);
+    const rows = makeLessons().map((l) => lessonToSchoolBlock(l));
     const n = await upsertSchoolBlocks(rows);
     expect(n).toBe(2);
 

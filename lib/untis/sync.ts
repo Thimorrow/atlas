@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { schoolBlocks, type NewSchoolBlock } from "@/lib/db/schema";
-import { fetchTimetable } from "./client";
+import { fetchTimetable, type TeacherEntry } from "./client";
 import { lessonToSchoolBlock, normalizeSubject, type UntisLesson } from "./adapter";
 import { reconcileSubjects, type SubjectReconcileResult } from "@/lib/subject-store";
 
@@ -54,15 +54,29 @@ export async function normalizeStoredSubjects(): Promise<number> {
   return veraltet.length;
 }
 
-// Untis nennt in jeder Stunde beides: das Kuerzel des Lehrers und seinen
-// Nachnamen. Daraus die Zuordnung bauen, um alte Zeilen nachziehen zu koennen.
-export function teacherAliases(lessons: UntisLesson[]): Map<string, string> {
+// Zuordnung Kuerzel -> Nachname, um alte Zeilen nachziehen zu koennen.
+//
+// Zwei Quellen, weil eine allein nicht reicht: der Stundenplan nennt zu manchen
+// Lehrern nur das Kuerzel ohne longname, das Lehrerverzeichnis kennt sie
+// trotzdem -- ist aber nicht jedem Zugang zugaenglich und dann leer. Das
+// Verzeichnis zuerst, es ist die gepflegte Quelle.
+export function teacherAliases(
+  lessons: UntisLesson[],
+  teachers: TeacherEntry[] = [],
+): Map<string, string> {
   const aliases = new Map<string, string>();
+
+  for (const t of teachers) {
+    if (t.name !== t.longName) aliases.set(t.name, t.longName);
+  }
   for (const l of lessons) {
     for (const t of l.te ?? []) {
-      if (t.name && t.longname && t.name !== t.longname) aliases.set(t.name, t.longname);
+      if (t.name && t.longname && t.name !== t.longname && !aliases.has(t.name)) {
+        aliases.set(t.name, t.longname);
+      }
     }
   }
+
   return aliases;
 }
 
@@ -112,12 +126,13 @@ export type SyncResult = {
 // sind eine Ableitung des Stundenplans, kein zweiter Datenbestand, den jemand
 // von Hand synchron halten muesste.
 export async function syncUntis(start: Date, end: Date): Promise<SyncResult> {
-  const { lessons, schoolyear, window, hinweis } = await fetchTimetable(start, end);
+  const { lessons, teachers, schoolyear, window, hinweis } = await fetchTimetable(start, end);
   const stunden = lessons as unknown as UntisLesson[];
-  const rows = stunden.map(lessonToSchoolBlock);
+  const aliases = teacherAliases(stunden, teachers);
+  const rows = stunden.map((l) => lessonToSchoolBlock(l, aliases));
   const upserted = await upsertSchoolBlocks(rows);
   const renamed = await normalizeStoredSubjects();
-  const renamedTeachers = await normalizeStoredTeachers(teacherAliases(stunden));
+  const renamedTeachers = await normalizeStoredTeachers(aliases);
   const subjects = await reconcileSubjects();
   return {
     fetched: lessons.length,

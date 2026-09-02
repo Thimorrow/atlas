@@ -78,6 +78,14 @@ export const subjects = pgTable(
     teacher: text("teacher"),
     teacherTitle: teacherTitle("teacher_title").notNull().default("herr"),
     room: text("room"),
+    // Der zuletzt von Untis gesehene Rohwert. teacher und room sind der
+    // Anzeigename und duerfen von Hand geaendert werden -- ueberschrieben
+    // werden sie nur, solange sie noch genau dem entsprechen, was Untis zuletzt
+    // lieferte. Ohne dieses Gedaechtnis sammelt der naechste Sync jede
+    // Handeingabe wieder ein, und bei Lehrern, zu denen Untis nur ein Kuerzel
+    // kennt, ist die Handeingabe der einzige Weg zu einem lesbaren Namen.
+    untisTeacher: text("untis_teacher"),
+    untisRoom: text("untis_room"),
     color: text("color"),
     // Ziel-Abschnitt in OneNote. Der Name steht mit in der Zeile, damit die
     // Oberflaeche "Notizbuch / Abschnitt" anzeigen kann, ohne dafuer jedes Mal

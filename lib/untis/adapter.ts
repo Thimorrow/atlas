@@ -48,7 +48,17 @@ export function normalizeSubject(raw: string): string {
 
 // Untis-Lesson -> Atlas SchoolBlock. Untis-Feldnamen leben NUR hier
 // (duenner Adapter, austauschbar gegen kuenftige API).
-export function lessonToSchoolBlock(l: UntisLesson): NewSchoolBlock {
+// aliases bildet Untis-Kuerzel auf Nachnamen ab. Noetig, weil der Stundenplan zu
+// manchen Lehrern nur das Kuerzel nennt, das Lehrerverzeichnis den Nachnamen
+// aber kennt -- ohne das Nachschlagen schriebe der Import ein Kuerzel, das der
+// Abgleich danach erst wieder einsammeln muesste.
+export function lessonToSchoolBlock(
+  l: UntisLesson,
+  aliases?: Map<string, string>,
+): NewSchoolBlock {
+  const te = l.te?.[0];
+  const teacher = te?.longname ?? (te?.name ? (aliases?.get(te.name) ?? te.name) : null);
+
   return {
     untisLessonId: String(l.id),
     date: untisDateToISO(l.date),
@@ -56,10 +66,9 @@ export function lessonToSchoolBlock(l: UntisLesson): NewSchoolBlock {
     endTime: untisTimeToHM(l.endTime),
     subject: normalizeSubject(l.su?.[0]?.longname ?? l.su?.[0]?.name ?? "?"),
     room: l.ro?.[0]?.name ?? null,
-    // longname zuerst: name ist bei Untis das Kuerzel ("Sch"), longname der
-    // Nachname ("Schulze"). Ein Kuerzel sagt niemandem etwas, der nicht ohnehin
+    // Nachname statt Kuerzel: "Schulze" sagt etwas, "Sch" nur dem, der ohnehin
     // schon weiss, wer gemeint ist.
-    teacher: l.te?.[0]?.longname ?? l.te?.[0]?.name ?? null,
+    teacher,
     status: mapStatus(l.code),
     substitutionText: l.substText || l.lstext || null,
   };

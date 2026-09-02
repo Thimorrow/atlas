@@ -77,6 +77,8 @@ function fach(
     untisSubject,
     teacher: null,
     room: null,
+    untisTeacher: null,
+    untisRoom: null,
     archivedAt: null,
     content: 0,
     ...extra,
@@ -96,12 +98,14 @@ describe("planSubjectReconcile", () => {
       [fach("1", "Mathe")],
       [{ subject: "Mathe", teacher: "Sch", room: "A120" }],
     );
-    expect(plan.toUpdate).toEqual([{ id: "1", teacher: "Sch", room: "A120" }]);
+    expect(plan.toUpdate).toEqual([
+      { id: "1", teacher: "Sch", room: "A120", untisTeacher: "Sch", untisRoom: "A120" },
+    ]);
   });
 
-  it("laesst eine Handeingabe stehen, wenn Untis nichts weiss", () => {
+  it("laesst alles stehen, wenn Untis nichts weiss", () => {
     const plan = planSubjectReconcile(
-      [fach("1", "Mathe", { teacher: "Frau Schulz", room: "A120" })],
+      [fach("1", "Mathe", { teacher: "Schulz", room: "A120" })],
       [{ subject: "Mathe", teacher: null, room: null }],
     );
     expect(plan.toUpdate).toEqual([]);
@@ -109,10 +113,50 @@ describe("planSubjectReconcile", () => {
 
   it("aendert nichts, wenn Lehrer und Raum schon stimmen (idempotent)", () => {
     const plan = planSubjectReconcile(
-      [fach("1", "Mathe", { teacher: "Sch", room: "A120" })],
+      [
+        fach("1", "Mathe", {
+          teacher: "Sch",
+          room: "A120",
+          untisTeacher: "Sch",
+          untisRoom: "A120",
+        }),
+      ],
       [{ subject: "Mathe", teacher: "Sch", room: "A120" }],
     );
     expect(plan).toEqual({ toCreate: [], toUpdate: [], toArchive: [], toDelete: [] });
+  });
+
+  // Der Fall, fuer den es untisTeacher ueberhaupt gibt: zu manchen Lehrern
+  // kennt Untis nur ein Kuerzel, der lesbare Name kann dann nur von Hand
+  // kommen -- und muss den naechsten Sync ueberleben.
+  it("laesst eine Handeingabe stehen, auch wenn Untis weiter sein Kuerzel liefert", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Chemie", { teacher: "Bergmann", untisTeacher: "BRM" })],
+      [{ subject: "Chemie", teacher: "BRM", room: null }],
+    );
+    expect(plan.toUpdate).toEqual([]);
+  });
+
+  it("uebernimmt einen Lehrerwechsel, solange niemand von Hand eingegriffen hat", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Mathe", { teacher: "Wirth", untisTeacher: "Wirth" })],
+      [{ subject: "Mathe", teacher: "Schulze", room: null }],
+    );
+    expect(plan.toUpdate).toEqual([
+      { id: "1", teacher: "Schulze", room: null, untisTeacher: "Schulze", untisRoom: null },
+    ]);
+  });
+
+  // Der Rohwert wird auch dann mitgeschrieben, wenn die Anzeige von Hand
+  // gepflegt ist. Sonst wuerde ein spaeterer Lehrerwechsel nie auffallen.
+  it("merkt sich den neuen Untis-Wert hinter einer Handeingabe", () => {
+    const plan = planSubjectReconcile(
+      [fach("1", "Chemie", { teacher: "Bergmann", untisTeacher: "BRM" })],
+      [{ subject: "Chemie", teacher: "NEU", room: null }],
+    );
+    expect(plan.toUpdate).toEqual([
+      { id: "1", teacher: "Bergmann", room: null, untisTeacher: "NEU", untisRoom: null },
+    ]);
   });
 
   it("loescht ein Fach ohne Stunden und ohne Inhalt", () => {

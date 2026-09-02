@@ -8,8 +8,13 @@ function env(name: string): string {
 
 export type Schoolyear = { name: string; start: string; end: string };
 
+// Kuerzel und Nachname aus den Untis-Stammdaten. Leer, wenn der Zugang das
+// Lehrerverzeichnis nicht lesen darf -- bei Schuelerkonten der Normalfall.
+export type TeacherEntry = { name: string; longName: string };
+
 export type TimetableResult = {
   lessons: unknown[];
+  teachers: TeacherEntry[];
   schoolyear: Schoolyear | null;
   // Der tatsaechlich abgefragte Zeitraum, nachdem er ins Schuljahr geschoben
   // wurde. Weicht er vom gewuenschten ab, soll das sichtbar sein.
@@ -94,6 +99,7 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
       if (bis < von) {
         return {
           lessons: [],
+          teachers: [],
           schoolyear: jahr,
           window: null,
           hinweis: `Der Zeitraum liegt außerhalb des Schuljahres ${jahr.name} (${jahr.start} bis ${jahr.end}).`,
@@ -115,6 +121,7 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
       if (untisCode === -8509 || untisCode === -7004) {
         return {
           lessons: [],
+          teachers: [],
           schoolyear: jahr,
           window: { start: isoTag(von), end: isoTag(bis) },
           hinweis:
@@ -126,8 +133,23 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
       throw err;
     }
 
+    // Im Stundenplan steht zu manchen Lehrern nur das Kuerzel, ohne longname.
+    // Das Lehrerverzeichnis kennt den Nachnamen trotzdem -- wenn der Zugang es
+    // lesen darf. Darf er nicht, ist das kein Fehler, sondern eine Auskunft:
+    // dann bleibt es beim Kuerzel und der Nutzer traegt den Namen von Hand ein.
+    let teachers: TeacherEntry[] = [];
+    try {
+      const liste = await untis.getTeachers();
+      teachers = liste
+        .filter((t) => t.name && t.longName)
+        .map((t) => ({ name: t.name, longName: t.longName }));
+    } catch {
+      // bewusst still, siehe oben
+    }
+
     return {
       lessons: lessons as unknown[],
+      teachers,
       schoolyear: jahr,
       window: { start: isoTag(von), end: isoTag(bis) },
       hinweis,
