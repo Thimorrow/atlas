@@ -128,6 +128,26 @@ private fun annotiert(spannen: List<MdSpanne>): AnnotatedString {
  * Ein Ziel ohne Schema meint eine Seite der Web-App. Auf dem Telefon gibt es
  * kein "aktuelles Dokument", relativ zu dem der Browser aufloesen koennte,
  * deshalb wird die Adresse hier vervollstaendigt.
+ *
+ * Das gilt fuer jedes schemalose Ziel, nicht nur fuer die mit fuehrendem
+ * Schraegstrich: `#kapitel-3` oder `notes/2024.pdf` bestehen [istSicheresZiel]
+ * genauso. Kommt so etwas bei AndroidUriHandler an, findet sich keine App, die
+ * es oeffnen koennte; je nach Android-Version geht der Start still ins Leere
+ * oder die ActivityNotFoundException wird als IllegalArgumentException
+ * weitergereicht. Beides ist falsch, deshalb kommt hier nichts ohne Schema
+ * mehr heraus.
  */
-private fun vollesZiel(ziel: String): String =
-    if (ziel.startsWith("/")) ATLAS_BASIS_URL + ziel else ziel
+internal fun vollesZiel(ziel: String): String {
+    if (HAT_SCHEMA.containsMatchIn(ziel)) return ziel
+    // resolve() kennt die Regeln fuer /pfad, pfad und #anker. Es wirft
+    // allerdings bei allem, was sich nicht als Adresse lesen laesst, etwa bei
+    // den spitzen Klammern aus `[t](<javascript:alert(1)>)`. Dann bleibt die
+    // Startseite: lieber die falsche Seite der eigenen App als ein Absturz.
+    //
+    // Der Schraegstrich am Ende der Basis ist keine Kosmetik: ohne ihn ist der
+    // Pfad der Basis leer, und java.net.URI haengt `notes/2024.pdf` dann direkt
+    // an den Hostnamen. Daraus wird vercel.appnotes, eine Adresse, die es nicht
+    // gibt.
+    return runCatching { java.net.URI("$ATLAS_BASIS_URL/").resolve(ziel).toString() }
+        .getOrDefault(ATLAS_BASIS_URL)
+}

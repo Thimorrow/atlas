@@ -39,7 +39,12 @@ data class Startdaten(
  * Nur wenn beides zusammenkommt, sieht der Nutzer eine Zeile darueber: solange
  * frisch nachgeladen wird, ist das Alter der Daten keine Nachricht.
  */
-data class Stand(val zeit: Instant, val veraltet: Boolean = false)
+data class Stand(
+    val zeit: Instant,
+    val veraltet: Boolean = false,
+    /** Warum der letzte Abruf scheiterte. Entscheidet ueber den zweiten Halbsatz der Standzeile. */
+    val ohneVerbindung: Boolean = false,
+)
 
 /** Das Blatt fuer eine neue Aufgabe, solange es offen ist. */
 data class BlattZustand(val laeuft: Boolean = false, val fehler: String? = null)
@@ -222,7 +227,10 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                         // gerade das Netz weg war, waere ein Rueckschritt.
                         start = if (zustand.start is Ladung.Da) zustand.start else Ladung.Fehler(ergebnis.meldung),
                         // Jetzt ist das Alter der Daten eine Nachricht.
-                        startStand = zustand.startStand?.copy(veraltet = true),
+                        startStand = zustand.startStand?.copy(
+                            veraltet = true,
+                            ohneVerbindung = ergebnis.ohneVerbindung,
+                        ),
                         aktualisiert = false,
                         // Beim ersten Aufschlagen mit gespeichertem Stand sagt
                         // schon die Zeile darueber Bescheid, ein Schnipsel
@@ -297,12 +305,21 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         }
     }
 
-    private fun Startdaten.mitHaken(id: String, erledigt: Boolean): Startdaten {
-        val neu = aufgaben.map {
+    private fun Startdaten.mitHaken(id: String, erledigt: Boolean): Startdaten = mitAufgaben(
+        aufgaben.map {
             // completedAt traegt hier nur "gesetzt oder nicht". Der echte
             // Zeitstempel kommt mit dem naechsten Abruf vom Server.
             if (it.id == id) it.copy(completedAt = if (erledigt) java.time.Instant.now() else null) else it
-        }
+        },
+    )
+
+    /**
+     * Setzt die Aufgabenliste und rechnet die Zahl auf den Faecher-Kacheln neu.
+     * Beides gehoert zusammen: openAssignments kommt sonst vom Server und waere
+     * nach jeder lokalen Aenderung eine Zahl aus der Vergangenheit, bis jemand
+     * von oben zieht.
+     */
+    private fun Startdaten.mitAufgaben(neu: List<AssignmentDTO>): Startdaten {
         val offenJeFach = neu.filter { it.completedAt == null }.groupingBy { it.subjectId }.eachCount()
         return copy(
             aufgaben = neu,
@@ -328,7 +345,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                         zustand.copy(
                             blatt = null,
                             start = if (start is Ladung.Da) {
-                                Ladung.Da(start.wert.copy(aufgaben = start.wert.aufgaben + ergebnis.wert))
+                                Ladung.Da(start.wert.mitAufgaben(start.wert.aufgaben + ergebnis.wert))
                             } else {
                                 start
                             },
@@ -374,9 +391,12 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     private suspend fun holeDetail(id: String) {
         val ergebnis = api.fachDetail(id)
         // Wer zwischenzeitlich zurueckgegangen ist, soll das Detail nicht
-        // wieder aufklappen sehen.
+        // wieder aufklappen sehen. Und wer inzwischen ein anderes Fach geoeffnet
+        // hat, soll dessen Ueberschrift nicht ueber den Notizen des vorherigen
+        // stehen sehen: die spaete Antwort gehoert einem Fach, das niemand mehr
+        // ansieht.
         aendere { zustand ->
-            if (zustand.detail == null) return@aendere zustand
+            if (zustand.detailFachId != id) return@aendere zustand
             when (ergebnis) {
                 is AtlasErgebnis.Erfolg -> zustand.copy(
                     detail = Ladung.Da(ergebnis.wert),
@@ -385,7 +405,12 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                 // Ein gespeichertes Fach bleibt stehen statt durch einen
                 // Fehlerbildschirm ersetzt zu werden.
                 is AtlasErgebnis.Fehler -> if (zustand.detail is Ladung.Da) {
-                    zustand.copy(detailStand = zustand.detailStand?.copy(veraltet = true))
+                    zustand.copy(
+                        detailStand = zustand.detailStand?.copy(
+                            veraltet = true,
+                            ohneVerbindung = ergebnis.ohneVerbindung,
+                        ),
+                    )
                 } else {
                     zustand.copy(detail = Ladung.Fehler(ergebnis.meldung))
                 }

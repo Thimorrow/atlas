@@ -73,7 +73,7 @@ fun FachDetailBildschirm(
         }
 
         stand?.takeIf { it.veraltet }?.let {
-            StandZeile(standText(it.zeit, heute))
+            StandZeile(standText(it.zeit, heute, it.ohneVerbindung))
             Spacer(Modifier.height(Abstand.normal))
         }
 

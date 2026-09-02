@@ -206,16 +206,21 @@ fun MittigerZustand(modifier: Modifier = Modifier, inhalt: @Composable () -> Uni
 }
 
 /**
- * "Stand von 14:32 Uhr" bzw. mit Datum, wenn der Stand nicht von heute ist.
- * Die Uhrzeit steht in der Zeitzone des Geraets, nicht in UTC.
+ * "Stand von 14:32 Uhr" bzw. mit Datum, wenn der Stand nicht von heute ist,
+ * dazu der Grund. Die Uhrzeit steht in der Zeitzone des Geraets, nicht in UTC.
+ *
+ * Der Grund wird mitgefuehrt, statt immer "keine Verbindung" zu behaupten: bei
+ * einem 500 oder einer unlesbaren Antwort war der Server ja erreichbar, und wer
+ * dann nach seinem Empfang sucht, sucht an der falschen Stelle.
  */
-fun standText(zeit: Instant, heute: LocalDate): String {
+fun standText(zeit: Instant, heute: LocalDate, ohneVerbindung: Boolean): String {
     val lokal = LocalDateTime.ofInstant(zeit, ZoneId.systemDefault())
     val uhr = "%02d:%02d".format(lokal.hour, lokal.minute)
+    val grund = if (ohneVerbindung) "keine Verbindung" else "der Server antwortet gerade nicht"
     return if (lokal.toLocalDate() == heute) {
-        "Stand von $uhr Uhr, keine Verbindung"
+        "Stand von $uhr Uhr, $grund"
     } else {
-        "Stand vom ${lokal.dayOfMonth}.${lokal.monthValue}., $uhr Uhr, keine Verbindung"
+        "Stand vom ${lokal.dayOfMonth}.${lokal.monthValue}., $uhr Uhr, $grund"
     }
 }
 

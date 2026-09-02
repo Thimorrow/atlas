@@ -237,7 +237,7 @@ private fun linkLesen(text: String, start: Int): Linkfund? {
 // an der eine Notiz etwas ausloesen koennte, deshalb steht die Pruefung hier
 // und nicht in der Darstellung.
 private val SICHERES_SCHEMA = Regex("^(https?:|mailto:)", RegexOption.IGNORE_CASE)
-private val HAT_SCHEMA = Regex("^[a-z][a-z0-9+.-]*:", RegexOption.IGNORE_CASE)
+internal val HAT_SCHEMA = Regex("^[a-z][a-z0-9+.-]*:", RegexOption.IGNORE_CASE)
 
 fun istSicheresZiel(ziel: String): Boolean {
     // Entities und Steuerzeichen zuerst aufloesen, sonst schmuggelt sich

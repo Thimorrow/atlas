@@ -213,7 +213,7 @@ class AtlasApi(
                 wert
             }
         } catch (e: IOException) {
-            AtlasErgebnis.Fehler("Keine Verbindung zum Server.")
+            AtlasErgebnis.Fehler("Keine Verbindung zum Server.", ohneVerbindung = true)
         } catch (e: Exception) {
             // Kaputtes JSON, unerwartete Form, alles andere. Der Nutzer kann
             // damit nichts anfangen, deshalb ein Satz statt einer Meldung aus

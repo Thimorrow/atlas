@@ -17,14 +17,35 @@ data class Zwischenstand<T>(val wert: T, val stand: Instant)
  * gebracht. Der rohe JSON-Text wird gespeichert, nicht das geparste Objekt:
  * so bleibt der Speicher unabhaengig davon, welche DTOs es gerade gibt.
  */
-class AntwortSpeicher(context: Context) {
-    private val ordner = File(context.applicationContext.filesDir, "antworten")
+class AntwortSpeicher(private val ordner: File) {
+    // Der Ordner steckt im Hauptkonstruktor, damit ein Test ihn setzen kann.
+    // Ohne das braeuchte schon der Speichertest einen Android-Kontext.
+    constructor(context: Context) : this(File(context.applicationContext.filesDir, "antworten"))
 
     /** Erste Zeile ist der Zeitstempel, der Rest der Rumpf. */
     fun schreibe(schluessel: String, rumpf: String) {
         runCatching {
             ordner.mkdirs()
-            datei(schluessel).writeText("${System.currentTimeMillis()}\n$rumpf")
+            // Erst daneben schreiben, dann umbenennen. writeText kuerzt die
+            // Datei zuerst: ein zweiter Schreiber auf denselben Schluessel oder
+            // ein Prozesstod mittendrin hinterliesse sonst eine halbe Datei,
+            // und die ist beim naechsten Start ohne Netz genauso wertlos wie
+            // gar keine. Das Umbenennen ist der eine Schritt, den es entweder
+            // ganz oder nicht gab.
+            val ziel = datei(schluessel)
+            // Eigener Name je Schreibvorgang: zwei gleichzeitige Abrufe
+            // desselben Schluessels wuerden sich sonst in derselben
+            // Zwischendatei begegnen.
+            val zwischen = File.createTempFile("neu-${ziel.nameWithoutExtension}", ".tmp", ordner)
+            try {
+                zwischen.writeText("${System.currentTimeMillis()}\n$rumpf")
+                if (!zwischen.renameTo(ziel)) error("Umbenennen von ${zwischen.name} fehlgeschlagen")
+            } finally {
+                // Nach dem Umbenennen gibt es sie nicht mehr, davor darf sie
+                // nicht liegenbleiben: lies() wuerde sie zwar nie oeffnen, aber
+                // aufraeumen wuerde sie sonst auch niemand.
+                zwischen.delete()
+            }
         }
         // Ein voller oder gesperrter Speicher darf nie einen erfolgreichen
         // Abruf in einen Absturz verwandeln. Ohne Datei gibt es beim naechsten

@@ -1,10 +1,12 @@
 package dev.atlas.schule
 
+import dev.atlas.schule.data.ATLAS_BASIS_URL
 import dev.atlas.schule.ui.MdBlock
 import dev.atlas.schule.ui.MdSpanne
 import dev.atlas.schule.ui.istSicheresZiel
 import dev.atlas.schule.ui.markdownLesen
 import dev.atlas.schule.ui.spannenLesen
+import dev.atlas.schule.ui.vollesZiel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,6 +122,50 @@ class MarkdownTest {
     fun `sichere und relative ziele bleiben ziele`() {
         listOf("https://a.de", "http://a.de", "HTTPS://a.de", "mailto:a@b.de", "/subjects/1")
             .forEach { assertTrue(it, istSicheresZiel(it)) }
+    }
+
+    /**
+     * Das zweite Versprechen, und zwar ein plattformeigenes: was ohne Schema
+     * an AndroidUriHandler.openUri geht, findet keine App -- der Start geht
+     * still ins Leere oder wirft, je nach Android-Version. Nach [vollesZiel]
+     * darf deshalb kein Ziel mehr ohne Schema uebrig sein.
+     */
+    @Test
+    fun `schemalose ziele werden vervollstaendigt`() {
+        // Nicht nur "faengt mit der Basis an": vercel.appnotes/2024.pdf taete
+        // das auch, und genau dahin fuehrt ein naiv aufgeloester relativer Pfad.
+        assertEquals("$ATLAS_BASIS_URL/subjects/1", vollesZiel("/subjects/1"))
+        assertEquals("$ATLAS_BASIS_URL/#kapitel-3", vollesZiel("#kapitel-3"))
+        assertEquals("$ATLAS_BASIS_URL/notes/2024.pdf", vollesZiel("notes/2024.pdf"))
+
+        // Und in jedem Fall bleibt der Host der eigene, samt Schema.
+        listOf("/subjects/1", "#kapitel-3", "notes/2024.pdf", "?q=1", "../oben")
+            .forEach { ziel ->
+                val voll = vollesZiel(ziel)
+                assertTrue("$ziel -> $voll", voll.startsWith("$ATLAS_BASIS_URL/"))
+            }
+    }
+
+    @Test
+    fun `sichere ziele mit schema bleiben unveraendert`() {
+        listOf("https://a.de/x", "http://a.de", "mailto:a@b.de").forEach {
+            assertEquals(it, vollesZiel(it))
+        }
+    }
+
+    /**
+     * `[t](<javascript:alert(1)>)`: die spitzen Klammern gehoeren fuer den
+     * Leser zum Ziel, also greift das Schema-Muster nicht und es entsteht ein
+     * Link. Ausgefuehrt wird nichts, es gibt keinen WebView -- aber ohne
+     * Schema waere es derselbe tote Link wie oben. URI.resolve wirft an den
+     * Klammern, uebrig bleibt die Startseite.
+     */
+    @Test
+    fun `kaputtes ziel faellt auf die startseite zurueck`() {
+        val spannen = spannenLesen("[t](<javascript:alert(1)>)")
+        val ziel = spannen.firstNotNullOfOrNull { it.ziel }
+        assertEquals("<javascript:alert(1)>", ziel)
+        assertEquals(ATLAS_BASIS_URL, vollesZiel(ziel!!))
     }
 
     @Test

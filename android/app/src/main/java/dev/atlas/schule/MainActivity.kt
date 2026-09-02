@@ -189,7 +189,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                 // Steht ueber allen drei Reitern, weil der gespeicherte Stand
                 // fuer alle drei gilt: sie kommen aus derselben Antwort.
                 zustand.startStand?.takeIf { it.veraltet }?.let {
-                    StandZeile(standText(it.zeit, zustand.heute))
+                    StandZeile(standText(it.zeit, zustand.heute, it.ohneVerbindung))
                 }
                 PullToRefreshBox(
                     isRefreshing = zustand.aktualisiert,

@@ -13,8 +13,16 @@ sealed interface AtlasErgebnis<out T> {
      * ungeprueft anzeigen darf. Der Server liefert seine Fehler schon so
      * ({"error": "..."}); alles andere setzt diese Schicht selbst.
      * [status] ist der HTTP-Code, sofern es einen gab.
+     *
+     * [ohneVerbindung] trennt "die Anfrage kam nie beim Server an" von "der
+     * Server hat geantwortet, nur nicht brauchbar". Ein fehlender [status]
+     * allein reicht dafuer nicht: eine unlesbare Antwort hat auch keinen.
      */
-    data class Fehler(val meldung: String, val status: Int? = null) : AtlasErgebnis<Nothing>
+    data class Fehler(
+        val meldung: String,
+        val status: Int? = null,
+        val ohneVerbindung: Boolean = false,
+    ) : AtlasErgebnis<Nothing>
 }
 
 /** Nicht angemeldet. Der einzige Fehler, auf den die App mit einem Bildschirmwechsel reagiert. */
