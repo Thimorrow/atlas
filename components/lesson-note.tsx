@@ -5,7 +5,8 @@
 // Autosave selbst. Wird sowohl vom Stundenplan (app/page.tsx) als auch vom
 // Fachdetail (components/subject-detail.tsx) geoeffnet.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Overlay } from "@/components/subject-notes";
@@ -19,6 +20,10 @@ export type LessonNoteTarget = {
   subject: string;
   dayLabel: string; // "Montag, 02.09."
   time: string; // "08:00" oder "08:00–08:45"
+  // Fertiger CSS-Farbwert (aus fachFarbe / colorValue), kein Token-Name --
+  // das Overlay traegt damit denselben linken Fachrand wie der Stundenplan-
+  // Block, aus dem es geoeffnet wurde. Ohne Treffer bleibt der Rand weg.
+  color?: string | null;
 };
 
 type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
@@ -37,9 +42,35 @@ export function LessonNoteEditor({
 }) {
   const toast = useToast();
   const open = target !== null;
+  const reduce = useReducedMotion();
 
   const [body, setBody] = useState("");
   const [state, setState] = useState<SaveState>("idle");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Autowachsendes Feld: field-sizing: content waere die einfachere Loesung,
+  // traegt aber in Firefox (das hier im Einsatz ist) noch nicht -- deshalb
+  // Hoehe manuell aus scrollHeight ableiten. useLayoutEffect statt onChange,
+  // damit auch eine frisch geladene Notiz sofort in passender Hoehe steht,
+  // nicht erst beim ersten Tastendruck. Die Obergrenze (max-h-[40svh]) und
+  // das interne Scrollen traegt CSS -- hier wird nur die natuerliche Hoehe
+  // gesetzt, ein Ueberschreiten faengt max-height plus overflow-y-auto ab.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [body, open]);
+
+  // Tastenkuerzel-Anzeige ist plattformabhaengig (⌘ auf macOS, Strg sonst).
+  // navigator ist erst nach der Hydration verlaesslich bekannt -- ein direktes
+  // Lesen im Render wuerde SSR und ersten Client-Render auseinanderlaufen
+  // lassen (Hydration-Mismatch). Start neutral (Strg, der haeufigere Fall),
+  // die Korrektur fuer Mac laeuft erst im Effekt nach dem Mount.
+  const [modKey, setModKey] = useState("Strg");
+  useEffect(() => {
+    if (/Mac/.test(navigator.userAgent)) setModKey("⌘");
+  }, []);
 
   // Letzter bekannter Server-Stand, um beim Schliessen nur zu speichern, wenn
   // sich wirklich etwas geaendert hat.
@@ -161,7 +192,18 @@ export function LessonNoteEditor({
     <Overlay open={open} onClose={onClose} labelledBy="lesson-note-title">
       {target ? (
         <>
-          <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
+          {/* Fachrand: Overlay hat kein style-Prop (subject-notes.tsx bleibt
+              unangetastet) und eine Tailwind-Klasse kann keinen zur Laufzeit
+              bestimmten Farbwert tragen -- deshalb ein eigener Balken statt
+              eines echten border-left auf dem Panel. absolute + inset-y-0
+              plus das overflow-hidden des Panels (aus Overlay) sorgen dafuer,
+              dass er an den runden Ecken sauber mitgeclippt wird, genau wie
+              die 3px-Kante an den Stundenplan-Bloecken in app/page.tsx. Ohne
+              Farbe entfaellt der Balken komplett, kein Platzhalter-Rand. */}
+          {target.color ? (
+            <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: target.color }} />
+          ) : null}
+          <header className="flex items-start gap-2 px-5 pt-4">
             <div className="min-w-0 flex-1">
               <h3 id="lesson-note-title" className="text-[16px] font-semibold leading-tight tracking-tight">
                 {target.subject}
@@ -170,16 +212,32 @@ export function LessonNoteEditor({
                 {target.dayLabel}, {target.time}
               </p>
             </div>
-            <Button variant="ghost" size="icon" aria-label="Notiz schließen" onClick={onClose}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Notiz schließen"
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
+            >
               <X className="size-4" />
             </Button>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex flex-col px-5 pt-2 pb-4">
             {/* 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus
                 in jedes kleinere Feld hinein. data-autofocus: Overlay holt sich
                 dieses Element beim Oeffnen -- KEIN disabled hier, sonst nimmt
-                das Feld gar keinen Fokus an und "sofort tippbar" stimmt nicht. */}
+                das Feld gar keinen Fokus an und "sofort tippbar" stimmt nicht.
+                Keine feste Hoehe mehr: min-h-24 (~4 Zeilen) ist der Start,
+                der useLayoutEffect oben zieht die Hoehe danach am Inhalt
+                nach -- max-h-[40svh]+overflow-y-auto fangen sehr lange
+                Notizen auf, statt das Panel endlos wachsen zu lassen. Die
+                Transition auf height haelt das Wachsen ruhig, respektiert
+                aber prefers-reduced-motion. resize-none: der Ziehgriff war in
+                diesem randlosen Feld ohnehin kaum zu treffen und auf Touch
+                nutzlos. touch-action manipulation verhindert den
+                Doppeltipp-Zoom beim Tippen mitten im Text. */}
             <textarea
+              ref={textareaRef}
               data-autofocus
               value={body}
               onChange={(e) => {
@@ -188,14 +246,45 @@ export function LessonNoteEditor({
               }}
               onKeyDown={onKeyDown}
               placeholder="Was ist in dieser Stunde passiert?"
-              rows={10}
-              className="min-h-[220px] w-full resize-y rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none placeholder:text-muted-foreground"
+              rows={4}
+              className={cn(
+                "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground",
+                !reduce && "transition-[height] duration-150 ease-[var(--ease-atlas)]",
+              )}
             />
           </div>
-          <footer className="flex items-center justify-end gap-2 border-t px-5 py-2.5">
-            <span className="flex items-center gap-1.5 text-[12px] text-muted-foreground" role="status" aria-live="polite">
-              {state === "saving" && <Loader2 className="size-3 animate-spin" />}
-              <span className={cn(state === "error" && "text-destructive")}>{statusLabel}</span>
+          {/* min-h-11 statt von statusLabel bestimmt: bei state "idle" ist
+              statusLabel anfangs ein leerer String, ohne Mindesthoehe waere
+              die Fusszeile dann rund 16px niedriger und spraenge beim ersten
+              Speichern auf. pb ergaenzt das untere Safe-Area-Inset (min-h
+              statt h, damit dieses Polster die Zeile wachsen laesst statt
+              ihren Inhalt zu clippen) -- das Overlay liegt fixed inset-0 und
+              damit ausserhalb des Layout-Containers aus app/layout.tsx, der
+              dieses Polster traegt (siehe dort), sonst klebt die Fusszeile
+              auf dem iPhone am Home-Balken. Kein eigenes Band mehr (weder
+              Trennlinie noch Toenung) -- der Status steht ruhig unter dem Feld. */}
+          <footer className="flex min-h-11 items-center justify-between gap-2 px-5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+            {state === "idle" && !statusLabel ? (
+              <p className="truncate text-[11px] text-muted-foreground">
+                Speichert automatisch · {modKey} + Enter zum Schließen
+              </p>
+            ) : (
+              <span />
+            )}
+            <span
+              className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {/* Spinner-Slot immer vorhanden statt nur bei state "saving"
+                  gerendert: sonst schiebt sein Erscheinen den Text mit an --
+                  invisible haelt den Platz, ohne ihn zu zeigen. */}
+              <Loader2 className={cn("size-3 animate-spin", state !== "saving" && "invisible")} />
+              {/* Feste Mindestbreite auf den laengsten moeglichen Text, sonst
+                  wandert die ganze Zeile bei jedem Statuswechsel. */}
+              <span className={cn("inline-block min-w-[11ch]", state === "error" && "text-destructive")}>
+                {statusLabel}
+              </span>
             </span>
           </footer>
         </>

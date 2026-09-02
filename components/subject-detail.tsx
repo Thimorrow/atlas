@@ -497,6 +497,7 @@ export function SubjectDetail({ id }: { id: string }) {
                         subject: subject.name,
                         dayLabel: fmtLessonDate(n.date),
                         time: hm(n.startTime),
+                        color: colorValue(subject.color),
                       });
                     }}
                     className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"

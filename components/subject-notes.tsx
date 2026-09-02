@@ -113,6 +113,35 @@ export function Overlay({
               if (e.key === "Escape") {
                 e.stopPropagation();
                 closeRef.current();
+                return;
+              }
+              // Fokus-Falle: aria-modal="true" verspricht, dass Tab den
+              // Dialog nicht verlaesst. Die fokussierbaren Elemente frisch aus
+              // dem DOM holen statt einmalig zu cachen, weil sich der Inhalt
+              // des Panels aendert (Lesen/Bearbeiten/Loeschen sind je ein
+              // eigener Overlay-Aufruf mit eigenem Kindbaum).
+              if (e.key === "Tab") {
+                const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
+                  'a[href], button, textarea, input, select, [tabindex]',
+                );
+                const items = Array.from(focusable ?? []).filter(
+                  (el) => !el.hasAttribute("disabled") && !el.hasAttribute("hidden") && el.tabIndex !== -1,
+                );
+                if (items.length === 0) {
+                  // Nichts Fokussierbares im Panel -- der Fokus bleibt auf dem
+                  // Panel selbst (tabIndex -1), statt in den Hintergrund zu
+                  // entkommen.
+                  e.preventDefault();
+                  panelRef.current?.focus();
+                  return;
+                }
+                const first = items[0];
+                const last = items[items.length - 1];
+                const active = document.activeElement;
+                if (e.shiftKey ? active === first || !items.includes(active as HTMLElement) : active === last) {
+                  e.preventDefault();
+                  (e.shiftKey ? last : first).focus();
+                }
               }
             }}
             initial={reduce ? false : { opacity: 0, y: 16 }}

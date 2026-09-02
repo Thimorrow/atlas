@@ -931,6 +931,7 @@ export default function Home() {
       subject: ev.title,
       dayLabel: `${WEEKDAYS_LONG[weekday]}, ${dayNum(dayISO)}. ${MONTHS[monthOf(dayISO)]}`,
       time: ev.endTime ? `${hm(ev.startTime)}–${hm(ev.endTime)}` : hm(ev.startTime),
+      color: fachFarbe(ev.title),
     });
   };
 
