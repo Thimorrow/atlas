@@ -209,3 +209,48 @@ Nicht angefasst, mit Grund:
 - Erdkunde und Wirtschaft/Politik stehen im Stundenplan, aber nicht in der
   Faecherliste. Das ist die Datenlage auf dem Server (Tabelle subjects gegen
   Untis-Stunden), kein Fehler der App.
+
+## Faecher mit dem Stundenplan abgleichen, 2. September
+
+Ausgangspunkt war Sids Wunsch, Faecher zu loeschen, die im Stundenplan nicht
+vorkommen, und die fehlenden anzulegen. Drei Dinge kamen dabei heraus, die
+alle nicht in der Frage standen.
+
+**Die Praemisse stimmte nicht.** Der Blick auf eine Woche legte nahe, dass
+Deutsch, Latein, Musik und Evangelische Religionslehre nicht im Stundenplan
+stehen. `/api/subjects/candidates` liest aber ueber alle geladenen Bloecke,
+und dort kommen sie alle vor. Zu archivieren war am Ende nichts. Es fehlten
+vier Faecher: Erdkunde, Kunst, Wirtschaft/Politik und Informatik/ang.
+Mathematik.
+
+**Loeschen waere falsch gewesen.** Das Schema sagt es selbst: "Abwaehlen =
+archivedAt setzen statt loeschen, sonst legt der naechste Sync das Fach still
+wieder an." Ein geloeschtes Fach nimmt ausserdem Notizen, Dateien und Noten
+mit (onDelete cascade).
+
+**setupSubjects tat nicht, was ihr Kommentar behauptet.** Die Route sagt
+"Ausgewaehlte aktiv, der Rest archiviert", der Code machte nur ein
+`insert ... onConflictDoNothing`. Vorhandene Faecher blieben unberuehrt, die
+Route wirkte also nur beim allerersten Aufruf. Das war live nachweisbar: der
+erste Abgleich legte drei der vier Faecher an, das vierte, Informatik/ang.
+Mathematik, existierte bereits archiviert und blieb es. Die Zusammenfassung
+sagte danach hartnaeckig "1 kommt dazu". Nach dem Deploy der Reparatur ergab
+derselbe Knopf "Deine Faecher passen zum Stundenplan", und die Liste steht auf
+16 aktiv statt 12.
+
+Neu in der App: Abschnitt "Fächer" in den Einstellungen. Namen aus dem
+Stundenplan vorangehakt, je Zeile der Zustand samt "archiviert" und ob Notizen
+oder Aufgaben daran haengen, darueber der Effekt in Worten, darunter der
+Hinweis auf die Umkehrbarkeit.
+
+Zwei Fehler aus dem ersten Wurf des Subagenten:
+- Der Abschnitt lud in einem LaunchedEffect innerhalb eines LazyColumn-Items.
+  Beim Hoch- und Runterscrollen feuerte der neu und setzte die Auswahl auf die
+  Kandidaten zurueck: gesetzte Haken waren weg.
+- Die beiden unabhaengigen Anfragen liefen nacheinander statt parallel.
+
+Kein Zugriff auf die Datenbank von hier aus: der Connection-String in der
+lokalen Umgebungsdatei ist leer, der lokale Dev-Server antwortet auf allen
+DB-Routen mit 500. Deshalb laufen auch lib/calendar.test.ts und
+lib/untis/sync.test.ts rot, und zwar schon vor dieser Aenderung. Alles am
+Emulator gegen die Produktion geprueft.
