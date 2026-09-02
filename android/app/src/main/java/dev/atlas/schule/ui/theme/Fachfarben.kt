@@ -1,5 +1,6 @@
 package dev.atlas.schule.ui.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -82,8 +83,20 @@ enum class Fachfarbe(val token: String, val bezeichnung: String) {
             }
             var h = 0L
             for (zeichen in name) h = (h * 31 + zeichen.code) and 0xFFFFFFFFL
-            return entries[(h % entries.size).toInt()]
+            return auslosbar[(h % auslosbar.size).toInt()]
         }
+
+        /**
+         * Aus der Auslosung genommen: [WHITE] ist im Hellmodus bewusst ein
+         * sehr helles Grau, damit ein reinweisser Punkt nicht verschwindet.
+         * Wer die Farbe selbst waehlt, will sie so. Ein Fach, dem der Hash
+         * sie zuteilt, sieht dagegen einfach aus wie ein Loch -- genau das
+         * passierte "Wirtschaft/Politik", das als einzige blasse Karte
+         * zwischen elf farbigen stand, ohne dass jemand das entschieden
+         * haette. Gleiche Liste wie AUSLOSBARE_FARBEN in lib/subject-colors.ts:
+         * beide muessen dieselbe Farbe ableiten.
+         */
+        private val auslosbar = entries.filter { it != WHITE }
 
         /**
          * Neutrales Grau fuer "Allgemein" (Aufgabe ohne Fach) und unbekannte
@@ -92,4 +105,15 @@ enum class Fachfarbe(val token: String, val bezeichnung: String) {
          */
         fun neutral(vordergrund: Color): Color = vordergrund.copy(alpha = 0.34f)
     }
+}
+
+/**
+ * Farbe fuer ein Fach ohne hinterlegtes Token: faellt auf die stabile
+ * Namensableitung zurueck, dieselbe wie bei einer Stunde ohne Fach in
+ * fachfarbeFuerStunde (StundenplanBildschirm.kt), statt grau zu bleiben.
+ */
+@Composable
+fun fachfarbeFuerFach(token: String?, name: String): Color {
+    val farbe = Fachfarbe.vonToken(token) ?: Fachfarbe.standardFuer(name)
+    return farbe.farbe(LocalDunkelmodus.current)
 }

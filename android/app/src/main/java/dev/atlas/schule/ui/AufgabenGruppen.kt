@@ -109,6 +109,15 @@ fun gruppiereAufgaben(
     }
 }
 
+/**
+ * Erledigte Aufgaben fuer den eingeklappten Abschnitt am Ende der Liste:
+ * zuletzt abgehakt zuerst. /api/assignments?completed=1 liefert Offene und
+ * Erledigte gemischt (siehe AtlasApi.erledigteAufgaben), das Ausfiltern
+ * passiert hier, genau wie gruppiereAufgaben es fuer die offenen macht.
+ */
+fun sortiereErledigte(eintraege: List<AssignmentDTO>): List<AssignmentDTO> =
+    eintraege.filter { it.completedAt != null }.sortedByDescending { it.completedAt }
+
 /** "seit gestern" / "3 Tage überfällig" -- nur fuer den Ueberfaellig-Block. */
 fun ueberfaelligLabel(faellig: LocalDate, heute: LocalDate): String {
     val tage = ChronoUnit.DAYS.between(faellig, heute)

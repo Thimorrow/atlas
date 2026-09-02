@@ -1,12 +1,14 @@
 package dev.atlas.schule.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,10 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -51,6 +56,7 @@ fun AufgabenBildschirm(
     zustand: AtlasZustand.App,
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
     beimErneutLaden: () -> Unit,
+    beimErledigtAusklappen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (val start = zustand.start) {
@@ -66,6 +72,7 @@ fun AufgabenBildschirm(
         is Ladung.Da -> {
             val bloecke = gruppiereAufgaben(start.wert.aufgaben, zustand.heute)
             val offen = start.wert.aufgaben.count { it.completedAt == null }
+            val erledigt = (zustand.erledigt as? Ladung.Da)?.wert.orEmpty()
 
             LazyColumn(
                 modifier = modifier.fillMaxSize(),
@@ -118,8 +125,78 @@ fun AufgabenBildschirm(
                         Spacer(Modifier.height(Abstand.gross))
                     }
                 }
+
+                if (erledigt.isNotEmpty()) {
+                    item("erledigt-kopf") {
+                        ErledigtKopf(
+                            anzahl = erledigt.size,
+                            ausgeklappt = zustand.erledigtAusgeklappt,
+                            beimTippen = beimErledigtAusklappen,
+                        )
+                    }
+                    if (zustand.erledigtAusgeklappt) {
+                        items(erledigt, key = { "erledigt-${it.id}" }) { aufgabe ->
+                            Aufgabenzeile(
+                                aufgabe = aufgabe,
+                                heute = zustand.heute,
+                                gruppe = gruppeVon(aufgabe.dueDate, zustand.heute),
+                                zeigeFach = true,
+                                // Zurueckgeholt statt neu abgehakt: der Eintrag
+                                // steht schon auf erledigt, das Tippen nimmt es
+                                // zurueck.
+                                beimHaken = { beimHaken(aufgabe, false) },
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/**
+ * Kopfzeile des eingeklappten "Erledigt"-Abschnitts. Ein Pfeil statt eines
+ * Dreiecks, damit dieselbe Zeichensprache wie der Rest der App gilt -- er
+ * dreht sich beim Aufklappen um 90 Grad, so wie in der Fachliste "weiter"
+ * bedeutet, hier bedeutet er "aufgeklappt".
+ */
+@Composable
+private fun ErledigtKopf(anzahl: Int, ausgeklappt: Boolean, beimTippen: () -> Unit) {
+    val drehung by animateFloatAsState(if (ausgeklappt) 90f else 0f, label = "erledigt-pfeil")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = dev.atlas.schule.ui.theme.Hoehe.bedienelement)
+            .clickable(role = Role.Button, onClick = beimTippen)
+            .padding(horizontal = Abstand.klein),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Abstand.eng),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clearAndSetSemantics {
+                contentDescription = "Erledigt, $anzahl " + if (anzahl == 1) "Aufgabe" else "Aufgaben"
+            },
+        ) {
+            Text(
+                text = "Erledigt",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "$anzahl",
+                style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            imageVector = IkoneWeiter,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp).rotate(drehung),
+        )
     }
 }
 
@@ -275,9 +352,32 @@ private fun Hakenfeld(
             Modifier
                 .size(22.dp)
                 .clip(CircleShape)
-                .background(if (ring) Color.Transparent else farbe.copy(alpha = 0.22f))
-                .border(if (ring) 2.dp else 1.dp, farbe.copy(alpha = if (ring) 0.9f else 0.5f), CircleShape),
-        )
+                // Erledigt wird gefuellt gezeigt, offen nur als Ring -- so wie
+                // in components/assignment-checkbox.tsx. Vorher war es
+                // umgekehrt gedacht: der Kreis war im Ruhezustand blass
+                // gefuellt und aenderte sich beim Abhaken gar nicht, weil
+                // [erledigt] nur an die Vorlesefunktion ging. Eine abgehakte
+                // Aufgabe sah damit genauso aus wie eine offene, und der
+                // gefuellte Kreis las sich als Farbpunkt statt als Kaestchen.
+                .background(if (erledigt) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .border(
+                    width = if (erledigt) 0.dp else 2.dp,
+                    // Eine Pruefung traegt ihren Ring kraeftiger: sie ist die
+                    // Aufgabe, die man nicht uebersehen darf.
+                    color = if (erledigt) Color.Transparent else farbe.copy(alpha = if (ring) 0.9f else 0.55f),
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (erledigt) {
+                Icon(
+                    imageVector = IkoneHaken,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
     }
 }
 

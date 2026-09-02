@@ -224,6 +224,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                                 zustand = zustand,
                                 beimHaken = ansichtsmodell::setzeHaken,
                                 beimErneutLaden = ansichtsmodell::ladeNeu,
+                                beimErledigtAusklappen = ansichtsmodell::wechsleErledigtOffen,
                             )
 
                             Reiter.FAECHER -> FaecherBildschirm(

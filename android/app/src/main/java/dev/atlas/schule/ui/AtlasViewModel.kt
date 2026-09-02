@@ -113,6 +113,12 @@ sealed interface AtlasZustand {
         val blatt: BlattZustand? = null,
         /** Einzeiler ueber der Leiste, etwa wenn ein Haken nicht durchkam. */
         val hinweis: String? = null,
+        /** Der eingeklappte "Erledigt"-Abschnitt der Aufgabenliste. */
+        val erledigt: Ladung<List<AssignmentDTO>> = Ladung.Laedt,
+        /** Herkunft von [erledigt]. */
+        val erledigtStand: Stand? = null,
+        /** Ob der Abschnitt gerade aufgeklappt ist. */
+        val erledigtAusgeklappt: Boolean = false,
     ) : AtlasZustand
 }
 
@@ -148,6 +154,10 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                 // Schulgebaeude bleibt er stehen, wenn es nichts findet.
                 zeigeGespeichertenStart()
                 ladeStart()
+            }
+            viewModelScope.launch {
+                zeigeGespeicherteErledigte()
+                ladeErledigte()
             }
         }
         // Ein 401 kann jederzeit kommen, etwa wenn das Passwort auf dem Server
@@ -201,6 +211,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     fun ladeNeu() {
         aendere { it.copy(start = Ladung.Laedt) }
         viewModelScope.launch { ladeStart() }
+        viewModelScope.launch { ladeErledigte() }
     }
 
     private suspend fun zeigeGespeichertenStart() {
@@ -230,6 +241,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         if (jetzt.aktualisiert) return
         aendere { it.copy(aktualisiert = true) }
         viewModelScope.launch { ladeStart() }
+        viewModelScope.launch { ladeErledigte() }
         // /api/home bringt nur die laufende Woche mit. Wer zwei Wochen weiter
         // steht und von oben zieht, saehe sonst zu, wie sich nichts aendert.
         if (jetzt.gezeigteWoche != montagVon(jetzt.heute)) ladeWoche(jetzt.gezeigteWoche)
@@ -319,14 +331,18 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     /**
      * Abhaken fuehlt sich sofort an: die Zeile verschwindet, bevor der Server
-     * geantwortet hat. Kommt ein Fehler zurueck, kehrt sie zurueck und ein
-     * Hinweis sagt warum. Alles andere hiesse, auf eine Mobilfunkantwort zu
-     * warten, um einen Haken zu setzen.
+     * geantwortet hat -- und taucht im selben Zug im "Erledigt"-Abschnitt auf,
+     * ohne dass die Liste dafuer neu laedt. Kommt ein Fehler zurueck, kehrt
+     * beides zurueck und ein Hinweis sagt warum. Alles andere hiesse, auf eine
+     * Mobilfunkantwort zu warten, um einen Haken zu setzen.
      */
     fun setzeHaken(aufgabe: AssignmentDTO, erledigt: Boolean) {
         val vorher = app?.start as? Ladung.Da ?: return
         aendere { zustand ->
-            zustand.copy(start = Ladung.Da(vorher.wert.mitHaken(aufgabe.id, erledigt)))
+            zustand.copy(
+                start = Ladung.Da(vorher.wert.mitHaken(aufgabe.id, erledigt)),
+                erledigt = zustand.erledigt.mitErledigtHaken(aufgabe, erledigt),
+            )
         }
         viewModelScope.launch {
             when (val ergebnis = api.abhaken(aufgabe.id, erledigt)) {
@@ -339,9 +355,64 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                         } else {
                             heute
                         },
+                        erledigt = zustand.erledigt.mitErledigtHaken(aufgabe, !erledigt),
                         hinweis = ergebnis.meldung,
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Der "Erledigt"-Abschnitt spiegelt jeden Haken sofort, ohne neu zu laden:
+     * beim Abhaken kommt die Aufgabe oben rein, beim Zurueckholen faellt sie
+     * wieder heraus. Ist der Abschnitt noch gar nicht geladen, bleibt er es --
+     * die Aufgabe steht dann drin, sobald der Abruf durch ist.
+     */
+    private fun Ladung<List<AssignmentDTO>>.mitErledigtHaken(
+        aufgabe: AssignmentDTO,
+        erledigt: Boolean,
+    ): Ladung<List<AssignmentDTO>> {
+        if (this !is Ladung.Da) return this
+        val ohne = wert.filterNot { it.id == aufgabe.id }
+        return Ladung.Da(
+            if (erledigt) listOf(aufgabe.copy(completedAt = Instant.now())) + ohne else ohne,
+        )
+    }
+
+    /** Der eingeklappte Abschnitt am Ende der Aufgabenliste. */
+    fun wechsleErledigtOffen() = aendere { it.copy(erledigtAusgeklappt = !it.erledigtAusgeklappt) }
+
+    private suspend fun zeigeGespeicherteErledigte() {
+        val gespeichert = api.erledigteAufgabenGespeichert() ?: return
+        aendere { zustand ->
+            if (zustand.erledigt is Ladung.Da) return@aendere zustand
+            zustand.copy(
+                erledigt = Ladung.Da(sortiereErledigte(gespeichert.wert)),
+                erledigtStand = Stand(gespeichert.stand),
+            )
+        }
+    }
+
+    private suspend fun ladeErledigte() {
+        when (val ergebnis = api.erledigteAufgaben()) {
+            is AtlasErgebnis.Erfolg -> aendere { zustand ->
+                zustand.copy(
+                    erledigt = Ladung.Da(sortiereErledigte(ergebnis.wert)),
+                    erledigtStand = Stand(Instant.now()),
+                )
+            }
+            is AtlasErgebnis.Fehler -> aendere { zustand ->
+                zustand.copy(
+                    // Ein schon geladener Abschnitt bleibt stehen. Er ist eine
+                    // Randinformation, ein Fehlerbildschirm dafuer waere mehr
+                    // Stoerung als die offene Liste wert ist.
+                    erledigt = if (zustand.erledigt is Ladung.Da) zustand.erledigt else Ladung.Fehler(ergebnis.meldung),
+                    erledigtStand = zustand.erledigtStand?.copy(
+                        veraltet = true,
+                        ohneVerbindung = ergebnis.ohneVerbindung,
+                    ),
+                )
             }
         }
     }

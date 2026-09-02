@@ -167,6 +167,21 @@ class AtlasApi(
     }
 
     /**
+     * GET /api/assignments?completed=1. Fuer den "Erledigt"-Abschnitt der
+     * Aufgabenliste: der Server mischt Offene und Erledigte, das Ausfiltern
+     * der Offenen uebernimmt die Oberflaeche.
+     */
+    suspend fun erledigteAufgaben(): AtlasErgebnis<List<AssignmentDTO>> =
+        anfrage(
+            Request.Builder().url("$basisUrl/api/assignments?completed=1").get().build(),
+            merke = SCHLUESSEL_ERLEDIGT,
+        ) { text -> json.decodeFromString<AssignmentsAntwort>(text).assignments }
+
+    /** Der zuletzt erfolgreich geladene "Erledigt"-Abschnitt von der Platte. */
+    suspend fun erledigteAufgabenGespeichert(): Zwischenstand<List<AssignmentDTO>>? =
+        gespeichert(SCHLUESSEL_ERLEDIGT) { json.decodeFromString<AssignmentsAntwort>(it).assignments }
+
+    /**
      * POST bzw. DELETE auf /api/assignments/{id}/complete. Der POST ist
      * idempotent, ein zweiter Aufruf laesst completedAt stehen.
      */
@@ -288,6 +303,7 @@ class AtlasApi(
         }
 
         private const val SCHLUESSEL_START = "home"
+        private const val SCHLUESSEL_ERLEDIGT = "erledigt"
 
         private fun schluesselFach(id: String) = "fach-$id"
     }

@@ -100,7 +100,11 @@ fun fachZurStunde(titel: String, faecher: List<SubjectDTO>): SubjectDTO? =
 @Composable
 fun fachfarbeFuerStunde(titel: String, faecher: List<SubjectDTO>): Color {
     val token = fachZurStunde(titel, faecher)?.color
-    return if (token != null) fachfarbe(token)
+    // isNullOrBlank, nicht != null: ein Fach ohne hinterlegte Farbe liefert
+    // einen leeren String, und der ist nicht null. Der Rueckfall griff deshalb
+    // nie, und "Wirtschaft/Politik" stand als einzige graue Karte zwischen elf
+    // farbigen.
+    return if (!token.isNullOrBlank()) fachfarbe(token)
     else Fachfarbe.standardFuer(titel).farbe(LocalDunkelmodus.current)
 }
 

@@ -144,6 +144,13 @@ data class FachDetailAntwort(
 @Serializable
 data class AssignmentAntwort(val assignment: AssignmentDTO)
 
+/**
+ * GET /api/assignments?completed=1. Der Server liefert Offene und Erledigte
+ * gemischt (nur Erledigte der letzten 30 Tage), gefiltert wird auf dem Client.
+ */
+@Serializable
+data class AssignmentsAntwort(val assignments: List<AssignmentDTO> = emptyList())
+
 @Serializable
 data class GradeDTO(
     val id: String,

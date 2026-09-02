@@ -51,6 +51,14 @@ const PRESETS: [string, SubjectColorToken][] = [
   ["geschichte", "violet"],
 ];
 
+// Aus der Auslosung genommen: "white" ist im Hellmodus bewusst ein sehr helles
+// Grau, damit ein reinweisser Punkt nicht verschwindet. Wer die Farbe selbst
+// waehlt, weiss das und will sie so -- ein Fach, dem der Hash sie zuteilt,
+// sieht dagegen einfach aus wie ein Loch. Genau das passierte
+// "Wirtschaft/Politik": es stand als einzige blasse Karte zwischen elf
+// farbigen, ohne dass jemand das entschieden haette.
+const AUSLOSBARE_FARBEN = SUBJECT_COLORS.filter((c) => c.token !== "white");
+
 // Stabile Default-Farbe fuer alles ohne Wunschfarbe: gleicher Name -> gleiche
 // Farbe, ohne dass irgendwo ein Zaehler mitgefuehrt werden muss.
 export function defaultColorFor(name: string): SubjectColorToken {
@@ -60,5 +68,5 @@ export function defaultColorFor(name: string): SubjectColorToken {
   }
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return SUBJECT_COLORS[h % SUBJECT_COLORS.length].token;
+  return AUSLOSBARE_FARBEN[h % AUSLOSBARE_FARBEN.length].token;
 }

@@ -142,3 +142,38 @@ Drei Fehler, die der Umbau erzeugt hat und die ich nachgezogen habe:
 - Die Raumangaben in den Stundenbloecken liefen ebenfalls in Monospace,
   daher las sich "CH 2" wie mit doppeltem Leerzeichen. Ein Raumkuerzel
   steht in keiner Spalte und braucht keine Ziffernflucht.
+
+## Abschluss der zweiten Runde
+
+- [x] Einstellungen samt Untis-Abgleich, Erscheinungsbild ueber den Neustart
+      hinaus, OneNote-Status, Profil, Konto.
+- [x] Offline auf allen drei Listen. Kein Code noetig: Aufgaben und Faecher
+      zeichnen ohnehin aus denselben Startdaten, die schon von der Platte
+      wiederhergestellt werden. Im Flugmodus nachgewiesen, mit Stand-Zeile.
+- [x] Erledigte Aufgaben als eingeklappter Abschnitt am Listenende, mit
+      Abhaken und Zuruecknehmen ohne Neuladen.
+- [x] Befund 7 war zwei verschiedene Dinge. "Evangelische Religionslehre"
+      traegt Weiss, weil das in lib/subject-colors.ts als Wunschfarbe von
+      Sid steht -- das ist eine Entscheidung, kein Loch, und bleibt.
+      "Wirtschaft/Politik" dagegen zog Weiss per Hash-Zufall. Weiss ist im
+      Hellmodus absichtlich ein sehr helles Grau, damit ein reinweisser
+      Punkt nicht verschwindet; als Los ist es dadurch der eine Wert, der
+      wie ein Fehler aussieht. Weiss ist jetzt aus der Auslosung genommen,
+      in beiden Fassungen (lib/subject-colors.ts und Fachfarben.kt), und
+      "Wirtschaft/Politik" ist hellblau. Wer Weiss selbst waehlt, bekommt
+      es weiterhin.
+- [x] Ausserdem gefunden: fachfarbeFuerStunde prueft auf != null, ein leerer
+      String ist aber nicht null, also griff der Rueckfall nie.
+- [x] Befund 8 war schlimmer als gedacht. Der Kreis war nicht nur
+      undeutlich, er zeigte den erledigten Zustand ueberhaupt nicht an:
+      [erledigt] ging nur an die Vorlesefunktion, gezeichnet wurde immer
+      dasselbe. Eine abgehakte Aufgabe sah aus wie eine offene. Jetzt wie
+      in components/assignment-checkbox.tsx: offen ein Ring, erledigt
+      gefuellt mit Haken.
+- [x] Befund 9, Chevron in der Faecherliste entfernt.
+
+Offen und bewusst nicht angefasst:
+- Der Aufgaben-Bildschirm bleibt bei zwei Aufgaben leer, weil es genau
+  zwei gibt und null erledigte. Das ist die Datenlage, nicht die
+  Gestaltung. Fuellmaterial dagegen waere unehrlich.
+- Befund 11, die Form des schwebenden Knopfes. Kleinste Wirkung von allen.

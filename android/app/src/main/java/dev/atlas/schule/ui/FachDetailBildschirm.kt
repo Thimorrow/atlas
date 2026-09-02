@@ -42,7 +42,7 @@ import dev.atlas.schule.data.LessonDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.Tabellenziffern
-import dev.atlas.schule.ui.theme.fachfarbe
+import dev.atlas.schule.ui.theme.fachfarbeFuerFach
 import java.time.LocalDate
 import java.util.Locale
 
@@ -139,7 +139,7 @@ private fun Inhalt(
     beimNoteBlattOeffnen: () -> Unit,
 ) {
     val fach = daten.subject
-    val farbe = fachfarbe(fach.color)
+    val farbe = fachfarbeFuerFach(fach.color, fach.name)
     val offen = daten.assignments.filter { it.completedAt == null }
 
     LazyColumn(

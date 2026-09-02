@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -37,7 +36,7 @@ import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.Tabellenziffern
 import dev.atlas.schule.ui.theme.druckSkalierung
-import dev.atlas.schule.ui.theme.fachfarbe
+import dev.atlas.schule.ui.theme.fachfarbeFuerFach
 
 @Composable
 fun FaecherBildschirm(
@@ -98,7 +97,7 @@ fun FaecherBildschirm(
 
 @Composable
 private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
-    val farbe = fachfarbe(fach.color)
+    val farbe = fachfarbeFuerFach(fach.color, fach.name)
     val untertitel = listOfNotNull(fach.teacher, fach.room).joinToString(" · ")
     val offen = fach.openAssignments
     val beruehrung = remember { MutableInteractionSource() }
@@ -171,12 +170,5 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
                 )
             }
         }
-
-        Icon(
-            imageVector = IkoneWeiter,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-        )
     }
 }
