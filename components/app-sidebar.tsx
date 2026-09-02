@@ -6,7 +6,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bot,
+  BarChart3,
   CalendarDays,
+  GraduationCap,
   ListChecks,
   Library,
   PanelLeftClose,
@@ -29,10 +31,14 @@ import { writeCookie } from "@/lib/safe-storage";
 
 type Mod = { label: string; icon: typeof CalendarDays; href: string };
 
+// Reihenfolge nach zeitlicher Naehe: was heute und morgen dran ist, steht
+// oben, das Halbjahresbild unten.
 const MODULES: Mod[] = [
   { label: "Stundenplan", icon: CalendarDays, href: "/" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
+  { label: "Prüfungen", icon: GraduationCap, href: "/pruefungen" },
   { label: "Fächer", icon: Library, href: "/faecher" },
+  { label: "Noten", icon: BarChart3, href: "/noten" },
 ];
 
 const EXPANDED = 248;
