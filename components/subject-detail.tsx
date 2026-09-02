@@ -11,10 +11,12 @@ import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { SubjectNotes } from "@/components/subject-notes";
 import { SubjectFiles } from "@/components/subject-files";
+import { SubjectGrades } from "@/components/subject-grades";
 import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
 import { dueLabel, type AssignmentDTO } from "@/lib/assignments-view";
+import type { GradeDTO } from "@/lib/grade-store";
 
 export type LessonDTO = {
   id: string;
@@ -41,6 +43,7 @@ type Payload = {
   notes: NoteDTO[];
   assignments: AssignmentDTO[];
   upcoming: LessonDTO[];
+  grades: GradeDTO[];
 };
 
 // 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus in jedes Feld
@@ -220,6 +223,19 @@ export function SubjectDetail({ id }: { id: string }) {
             </span>
           )}
         </div>
+      </StaggerItem>
+
+      {/* --- Noten ---
+          Steht bewusst ganz oben: der Schnitt ist die Zahl, wegen der diese
+          Seite ueberhaupt geoeffnet wird. Stammdaten sind Einstellungen. */}
+      <StaggerItem>
+        <Section title="Noten">
+          <SubjectGrades
+            subjectId={subject.id}
+            initialGrades={data.grades}
+            initialOralWeight={subject.oralWeight}
+          />
+        </Section>
       </StaggerItem>
 
       {/* --- Stammdaten --- */}

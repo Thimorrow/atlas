@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { listAssignments } from "@/lib/assignment-store";
+import { listGrades, summarize } from "@/lib/grade-store";
 import {
   deleteSubject,
   getSubject,
@@ -21,7 +22,7 @@ function notFound() {
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/subjects/[id] -- Fach mit Notizen, Aufgaben und naechsten Stunden.
+// GET /api/subjects/[id] -- Fach mit Notizen, Aufgaben, Noten und naechsten Stunden.
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return notFound();
@@ -29,13 +30,21 @@ export async function GET(_req: Request, { params }: Ctx) {
   const subject = await getSubject(id);
   if (!subject) return notFound();
 
-  const [notes, assignments, upcoming] = await Promise.all([
+  const [notes, assignments, upcoming, grades] = await Promise.all([
     listNotes(id),
     listAssignments({ subjectId: id, includeCompleted: true }),
     upcomingLessons(subject),
+    listGrades(id),
   ]);
 
-  return NextResponse.json({ subject, notes, assignments, upcoming });
+  return NextResponse.json({
+    subject,
+    notes,
+    assignments,
+    upcoming,
+    grades,
+    gradeSummary: summarize(grades, subject.oralWeight),
+  });
 }
 
 // PATCH /api/subjects/[id] -- archivedAt: "now" archiviert, null reaktiviert.

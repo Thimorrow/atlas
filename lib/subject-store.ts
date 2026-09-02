@@ -17,6 +17,7 @@ import {
   type SubjectNote,
 } from "@/lib/db/schema";
 import { SUBJECT_COLORS, defaultColorFor } from "@/lib/subject-colors";
+import { ORAL_WEIGHT_PRESETS } from "@/lib/grades";
 
 // --- DTOs --------------------------------------------------------------------
 
@@ -29,6 +30,7 @@ export type SubjectDTO = {
   color: string | null; // Token aus SUBJECT_COLORS
   onenoteSectionId: string | null;
   onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
+  oralWeight: number; // Anteil muendlich am Fachschnitt, in Prozent
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;
@@ -83,6 +85,7 @@ function toSubjectDTO(row: SubjectRow): SubjectDTO {
     color: row.color,
     onenoteSectionId: row.onenoteSectionId,
     onenoteSectionName: row.onenoteSectionName,
+    oralWeight: row.oralWeight,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     openAssignments: row.openAssignments,
     noteCount: row.noteCount,
@@ -317,6 +320,15 @@ export function isUuid(v: string): boolean {
   return UUID_RE.test(v);
 }
 
+// Die Gewichtung muendlich/schriftlich nimmt nur die Presets an: alles andere
+// waere eine Einstellung, die der Nutzer nie wieder findet.
+export function parseOralWeight(v: unknown): Parsed<number> {
+  const n = typeof v === "string" ? Number(v.trim()) : v;
+  if (typeof n !== "number" || !(ORAL_WEIGHT_PRESETS as readonly number[]).includes(n))
+    return { ok: false, error: `Gewichtung muss ${ORAL_WEIGHT_PRESETS.join(" oder ")} sein.` };
+  return { ok: true, value: n };
+}
+
 // null loescht die Farbe, alles andere muss ein Token aus SUBJECT_COLORS sein.
 function parseColor(v: unknown): Parsed<string | null> {
   if (v === null) return { ok: true, value: null };
@@ -383,6 +395,14 @@ export function parseSubjectPatch(body: unknown): Parsed<Partial<NewSubject>> {
     } else {
       return { ok: false, error: "Der OneNote-Abschnitt ist unvollständig." };
     }
+  }
+
+  // Gewichtung muendlich/schriftlich. Die erlaubten Werte stehen bei den Noten
+  // (lib/grades.ts), damit Rechnung und Eingabe nicht auseinanderlaufen.
+  if (body.oralWeight !== undefined) {
+    const w = parseOralWeight(body.oralWeight);
+    if (!w.ok) return w;
+    patch.oralWeight = w.value;
   }
 
   // "now" archiviert, null reaktiviert -- der Client muss keine Uhrzeit kennen.

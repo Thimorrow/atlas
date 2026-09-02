@@ -6,6 +6,8 @@ import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { SubjectCard, type SubjectDTO } from "@/components/subject-card";
 import { EmptyPanel, NewSubjectDialog, SubjectSetup } from "@/components/subject-setup";
+import { formatPoints, type GradeAverage } from "@/lib/grades";
+import type { GradeOverviewDTO } from "@/lib/grade-store";
 import { cn } from "@/lib/utils";
 
 export default function SubjectsPage() {
@@ -18,20 +20,28 @@ export default function SubjectsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Die Noten-Uebersicht liegt bewusst auf DIESER Seite statt auf einer eigenen:
+  // "Fach" und "Schnitt des Fachs" sind dieselbe Liste, und ein Schueler, der
+  // am Handy nach seinem Schnitt sieht, soll dafuer nicht erst navigieren.
+  const [gradeOverview, setGradeOverview] = useState<GradeOverviewDTO | null>(null);
 
   const load = useCallback(
     async (archived: boolean) => {
       setFailed(false);
       try {
-        const [listRes, allRes] = await Promise.all([
+        const [listRes, allRes, gradesRes] = await Promise.all([
           fetch(archived ? "/api/subjects?archived=1" : "/api/subjects"),
           fetch("/api/subjects?all=1"),
+          fetch("/api/grades"),
         ]);
         if (!listRes.ok || !allRes.ok) throw new Error("Laden fehlgeschlagen");
         const list = (await listRes.json()) as { subjects: SubjectDTO[] };
         const all = (await allRes.json()) as { subjects: SubjectDTO[] };
         setHasAny(all.subjects.length > 0);
         setSubjects(list.subjects);
+        // Die Noten duerfen die Faecherliste nicht mitreissen: faellt nur diese
+        // Runde aus, fehlen die Schnitte, die Seite steht trotzdem.
+        setGradeOverview(gradesRes.ok ? ((await gradesRes.json()) as GradeOverviewDTO) : null);
       } catch {
         setFailed(true);
         setSubjects(null);
@@ -94,11 +104,18 @@ export default function SubjectsPage() {
       );
     }
 
+    const averages = new Map<string, GradeAverage | null>(
+      (gradeOverview?.subjects ?? []).map((e) => [e.id, e.summary.average]),
+    );
+
     return (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {subjects.map((s) => (
-          <SubjectCard key={s.id} subject={s} />
-        ))}
+      <div className="space-y-4">
+        {gradeOverview && <OverallAverage overall={gradeOverview.overall} />}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {subjects.map((s) => (
+            <SubjectCard key={s.id} subject={s} average={averages.get(s.id) ?? null} />
+          ))}
+        </div>
       </div>
     );
   };
@@ -113,7 +130,7 @@ export default function SubjectsPage() {
             <div>
               <h1 className="text-xl font-semibold leading-tight tracking-tight">Fächer</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Stammdaten, Notizen und Aufgaben pro Fach.
+                Noten, Stammdaten, Notizen und Aufgaben pro Fach.
               </p>
             </div>
             {hasAny && (
@@ -148,5 +165,23 @@ export default function SubjectsPage() {
         }}
       />
     </main>
+  );
+}
+
+// Der Gesamtschnitt ueber alle aktiven Faecher, jedes Fach zaehlt einmal.
+function OverallAverage({ overall }: { overall: GradeAverage | null }) {
+  if (!overall) return null;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border bg-card px-4 py-3 shadow-card">
+      <span className="text-[13px] text-muted-foreground">Gesamtschnitt</span>
+      <span className="text-2xl font-semibold leading-none tracking-tight tabular-nums">
+        {formatPoints(overall.points)}
+      </span>
+      <span className="text-[13px] text-muted-foreground">Punkte</span>
+      <span aria-hidden="true" className="text-[13px] text-muted-foreground opacity-50">
+        ·
+      </span>
+      <span className="text-[15px] font-medium">Note {overall.label}</span>
+    </div>
   );
 }

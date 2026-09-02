@@ -12,6 +12,7 @@ import {
   time,
   timestamp,
   integer,
+  doublePrecision,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -77,6 +78,9 @@ export const subjects = pgTable(
     // die Graph-API zu fragen.
     onenoteSectionId: text("onenote_section_id"),
     onenoteSectionName: text("onenote_section_name"),
+    // Anteil der muendlichen Noten am Fachschnitt in Prozent. Steht am Fach,
+    // weil die Verordnung sie je Fach festlegt (Hauptfach oft 40:60).
+    oralWeight: integer("oral_weight").notNull().default(50),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -160,6 +164,37 @@ export const subjectFiles = pgTable("subject_files", {
     .notNull()
     .defaultNow(),
 });
+
+// Muendlich oder schriftlich -- mehr Arten braucht die Oberstufe nicht, und
+// nur an diesen beiden haengt die Gewichtung des Fachschnitts.
+export const gradeKind = pgEnum("grade_kind", ["oral", "written"]);
+
+// Eine Note in Punkten (0-15). Die Note 1-6 wird nie gespeichert, sondern immer
+// aus den Punkten gerechnet (lib/grades.ts) -- sonst koennten beide Werte
+// auseinanderlaufen.
+export const grades = pgTable(
+  "grades",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    kind: gradeKind("kind").notNull().default("written"),
+    points: integer("points").notNull(),
+    label: text("label").notNull(),
+    date: date("date").notNull(),
+    // Gewicht der einzelnen Note innerhalb ihrer Gruppe: 1 = einfach,
+    // 2 = doppelt. 0 nimmt sie aus der Rechnung, ohne sie zu loeschen.
+    weight: doublePrecision("weight").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("grades_subject_date_idx").on(t.subjectId, t.date)],
+);
+
+export type Grade = typeof grades.$inferSelect;
+export type NewGrade = typeof grades.$inferInsert;
+export type GradeKind = Grade["kind"];
 
 // ---------------------------------------------------------------------------
 // Microsoft-Anbindung (OneNote).

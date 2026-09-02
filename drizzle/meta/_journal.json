@@ -57,6 +57,13 @@
       "when": 1788298510271,
       "tag": "0007_seed_daten_entfernen",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788298510272,
+      "tag": "0008_glad_gravity",
+      "breakpoints": true
     }
   ]
 }

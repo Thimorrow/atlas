@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { colorValue } from "@/lib/subject-colors";
+import { formatPoints, type GradeAverage } from "@/lib/grades";
 import { cn } from "@/lib/utils";
 
 // Der DTO liegt hier statt in lib/, weil das Faecher-Modul der einzige
@@ -15,6 +16,7 @@ export type SubjectDTO = {
   color: string | null; // Token aus SUBJECT_COLORS, nie ein Hex-Wert
   onenoteSectionId: string | null;
   onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
+  oralWeight: number; // Anteil muendlich am Fachschnitt, in Prozent
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;
@@ -22,7 +24,15 @@ export type SubjectDTO = {
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function SubjectCard({ subject }: { subject: SubjectDTO }) {
+export function SubjectCard({
+  subject,
+  average,
+}: {
+  subject: SubjectDTO;
+  // Wird von der Uebersicht nachgereicht (eine Runde fuer alle Faecher),
+  // deshalb optional: die Karte rendert auch ohne Noten vollstaendig.
+  average?: GradeAverage | null;
+}) {
   const archived = Boolean(subject.archivedAt);
   return (
     <Link
@@ -44,7 +54,7 @@ export function SubjectCard({ subject }: { subject: SubjectDTO }) {
           className="mt-1 size-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: colorValue(subject.color) }}
         />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold leading-tight tracking-tight">
             {subject.name}
           </div>
@@ -52,6 +62,16 @@ export function SubjectCard({ subject }: { subject: SubjectDTO }) {
             {subject.teacher || "Kein Lehrer hinterlegt"}
           </div>
         </div>
+        {/* Der Schnitt rechts oben: die eine Zahl, die eine Fachkarte im
+            Vorbeigehen beantworten soll. */}
+        {average && (
+          <div className="shrink-0 text-right tabular-nums">
+            <div className="text-[15px] font-semibold leading-tight">
+              {formatPoints(average.points)}
+            </div>
+            <div className="mt-0.5 text-[12px] text-muted-foreground">{average.label}</div>
+          </div>
+        )}
       </div>
 
       {/* tabular-nums: die Zahlen zittern nicht in der Breite, wenn sich die
