@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { schoolBlocks, type NewSchoolBlock } from "@/lib/db/schema";
+import { lessonNotes, schoolBlocks, type NewSchoolBlock } from "@/lib/db/schema";
 import { expandWeek } from "@/lib/calendar-expand";
 
 // --- Integrationstest gegen Neon --------------------------------------------
@@ -13,7 +13,12 @@ async function cleanup() {
   await db.delete(schoolBlocks).where(eq(schoolBlocks.date, D));
 }
 
-describe("Wochen-Expansion (Integration, Neon)", () => {
+// Ohne DATABASE_URL gibt es nichts zu integrieren -- dann wird der ganze
+// Block uebersprungen, statt dass beforeAll/afterAll gegen eine fehlende
+// Verbindung laufen und den Testlauf rot faerben.
+const mitDb = Boolean(process.env.DATABASE_URL);
+
+describe.skipIf(!mitDb)("Wochen-Expansion (Integration, Neon)", () => {
   beforeAll(async () => {
     await cleanup();
     const rows: NewSchoolBlock[] = [
@@ -35,5 +40,24 @@ describe("Wochen-Expansion (Integration, Neon)", () => {
     const school = day!.events.filter((e) => e.source === "school");
     expect(school.length).toBe(2);
     expect(school.some((e) => e.status === "cancelled")).toBe(true);
+  });
+
+  it("setzt hasNote nur fuer Bloecke mit Stundennotiz", async () => {
+    const [regBlock] = await db
+      .select()
+      .from(schoolBlocks)
+      .where(eq(schoolBlocks.untisLessonId, "s2t4-reg"));
+    await db.insert(lessonNotes).values({ schoolBlockId: regBlock.id, date: D, body: "Test-Notiz" });
+
+    try {
+      const range = await expandWeek(D);
+      const day = range.days.find((d) => d.date === D)!;
+      const noted = day.events.find((e) => e.refId === regBlock.id);
+      const other = day.events.find((e) => e.refId !== regBlock.id);
+      expect(noted?.hasNote).toBe(true);
+      expect(other?.hasNote).toBe(false);
+    } finally {
+      await db.delete(lessonNotes).where(eq(lessonNotes.schoolBlockId, regBlock.id));
+    }
   });
 });

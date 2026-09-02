@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { AssignmentComposer } from "@/components/assignment-composer";
+import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
 import { useToast } from "@/components/toast";
 import { UntisSyncNotice } from "@/components/untis-sync-notice";
@@ -33,6 +34,7 @@ type Ev = {
   status?: "regular" | "cancelled" | "substituted";
   room?: string | null;
   teacher?: string | null;
+  hasNote?: boolean;
 };
 type Day = { date: string; weekday: number; events: Ev[] };
 type RangeData = { start: string; end: string; days: Day[] };
@@ -123,11 +125,13 @@ function LessonMenu({
   ev,
   dayISO,
   onCreate,
+  onNote,
   children,
 }: {
   ev: Ev;
   dayISO: string;
   onCreate: (ev: Ev, dayISO: string, type: AssignmentType) => void;
+  onNote: (ev: Ev, dayISO: string) => void;
   children: ReactNode;
 }) {
   return (
@@ -139,6 +143,9 @@ function LessonMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "exam")}>
           <GraduationCap /> Klassenarbeit eintragen
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onNote(ev, dayISO)}>
+          <PenLine /> Notiz schreiben
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -158,6 +165,11 @@ function addDays(iso: string, n: number) {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + n);
   return localISO(d);
+}
+// 0 = Montag ... 6 = Sonntag, aus einem lokalen Datumsstring -- fuer die
+// Notiz-Kopfzeile, falls das Datum (noch) in keinem geladenen Tag steckt.
+function weekdayOfLocal(iso: string) {
+  return (new Date(`${iso}T00:00:00`).getDay() + 6) % 7;
 }
 const dayNum = (iso: string) => Number(iso.slice(8, 10));
 const monthOf = (iso: string) => Number(iso.slice(5, 7)) - 1;
@@ -382,6 +394,7 @@ function TodayView({
   due,
   onToggleAssignment,
   onCreateAssignment,
+  onCreateNote,
   fachFarbe,
 }: {
   day: Day | undefined;
@@ -395,6 +408,7 @@ function TodayView({
   due: AssignmentDTO[];
   onToggleAssignment: (a: AssignmentDTO) => void;
   onCreateAssignment: (ev: Ev, dayISO: string, type: AssignmentType) => void;
+  onCreateNote: (ev: Ev, dayISO: string) => void;
   // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
   // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
   // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
@@ -537,7 +551,7 @@ function TodayView({
               >
                 {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
                 <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
-                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment}>
+                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment} onNote={onCreateNote}>
                 <div
                   // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
                   // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
@@ -562,6 +576,9 @@ function TodayView({
                     <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
                       {it.ev.title}
                     </span>
+                    {it.ev.hasNote && (
+                      <PenLine aria-hidden="true" className="size-3 shrink-0 text-foreground/50" />
+                    )}
                     {it.ev.endTime && (
                       // A2 (Kontrast): volle muted-foreground liegt auf der
                       // Fach-Block-Fuellung (blau) nur bei ~4:1 -- knapp unter AA.
@@ -670,6 +687,7 @@ export default function Home() {
   const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [seed, setSeed] = useState<ComposerSeed | null>(null);
+  const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -902,6 +920,34 @@ export default function Home() {
       untisSubject: ev.title,
       dueDate: nextLessonDate(ev.title, dayISO),
     });
+  };
+
+  // Stundennotiz oeffnen: die Kopfzeile braucht Fach, Wochentag+Datum und
+  // Uhrzeit -- alles schon in ev/dayISO vorhanden, kein Nachladen noetig.
+  const openNote = (ev: Ev, dayISO: string) => {
+    const weekday = data?.days.find((d) => d.date === dayISO)?.weekday ?? weekdayOfLocal(dayISO);
+    setNoteTarget({
+      schoolBlockId: ev.refId,
+      subject: ev.title,
+      dayLabel: `${WEEKDAYS_LONG[weekday]}, ${dayNum(dayISO)}. ${MONTHS[monthOf(dayISO)]}`,
+      time: ev.endTime ? `${hm(ev.startTime)}–${hm(ev.endTime)}` : hm(ev.startTime),
+    });
+  };
+
+  // Marker im Raster ohne Reload aktualisieren -- refId ist die school_block-id
+  // und kommt an jedem Tag hoechstens einmal vor.
+  const onNoteSaved = (schoolBlockId: string, hasNote: boolean) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d) => ({
+              ...d,
+              events: d.events.map((e) => (e.refId === schoolBlockId ? { ...e, hasNote } : e)),
+            })),
+          }
+        : prev,
+    );
   };
   // Zeitachse begrenzt auf den tatsaechlichen Schulbereich der Woche: fruehester
   // Beginn / spaetestes Ende ueber alle school_blocks. Keine Bloecke (z.B. Ferien)
@@ -1194,6 +1240,7 @@ export default function Home() {
               due={dueByDay.get(anchor) ?? []}
               onToggleAssignment={toggleAssignment}
               onCreateAssignment={openComposer}
+              onCreateNote={openNote}
               fachFarbe={fachFarbe}
             />
           )
@@ -1364,7 +1411,7 @@ export default function Home() {
                       // role="button" + tabIndex; das Label bleibt unveraendert.
                       const blockLabel = `${p.ev.title}, ${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)} Uhr` : " Uhr"}${p.ev.room ? `, ${p.ev.room}` : ""}${p.ev.status === "substituted" ? ", Vertretung" : ""}`;
                       return (
-                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer}>
+                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer} onNote={openNote}>
                         <motion.div
                           role="button"
                           tabIndex={0}
@@ -1406,6 +1453,16 @@ export default function Home() {
                               Unterhalb der Badge-Hoehe markiert ein Punkt die Vertretung.
                               Fach, Zeit, Raum und Vertretung stehen ohnehin vollstaendig
                               in aria-label und title, es geht keine Information verloren. */}
+                          {/* Notiz-Marker: dezenter Punkt oben rechts im Block, absolut
+                              positioniert -- braucht keinen eigenen Guard wie der
+                              Vertretung-Badge, weil ein einzelner Punkt in jeder
+                              Spaltenbreite passt. */}
+                          {p.ev.hasNote && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute right-1 top-1 size-1.5 rounded-full bg-foreground/40"
+                            />
+                          )}
                           <span aria-hidden="true" className="flex items-center gap-1.5">
                             {vertretung && !badgePasst && (
                               <span className="size-1.5 shrink-0 rounded-full bg-amber-700 dark:bg-amber-400" />
@@ -1485,6 +1542,14 @@ export default function Home() {
           setAssignments((prev) => [...prev, a]);
           setSeed(null);
         }}
+      />
+
+      {/* Stundennotiz: eigenes freies Textfeld je Stunde, ausserhalb des
+          Rasters -- beeinflusst dessen Layout nicht. */}
+      <LessonNoteEditor
+        target={noteTarget}
+        onClose={() => setNoteTarget(null)}
+        onSaved={onNoteSaved}
       />
     </main>
   );

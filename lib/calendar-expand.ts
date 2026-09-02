@@ -2,6 +2,7 @@ import { and, gte, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { schoolBlocks, type SchoolBlock } from "@/lib/db/schema";
 import { normalizeSubject } from "@/lib/untis/adapter";
+import { lessonNoteBlockIds } from "@/lib/lesson-notes";
 
 // Eine konkrete Event-Instanz an einem Tag (aus einer Untis-Stunde abgeleitet).
 // Zeiten als HH:MM.
@@ -15,6 +16,7 @@ export type CalendarEvent = {
   status: SchoolBlock["status"];
   room: string | null;
   teacher: string | null;
+  hasNote: boolean;
 };
 
 export type ExpandedDay = {
@@ -75,7 +77,7 @@ const hm = (t: string | null): string | null => (t ? t.slice(0, 5) : null);
 
 // --- Mapping -----------------------------------------------------------------
 
-function schoolToEvent(b: SchoolBlock): CalendarEvent {
+function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>): CalendarEvent {
   return {
     source: "school",
     refId: b.id,
@@ -86,6 +88,7 @@ function schoolToEvent(b: SchoolBlock): CalendarEvent {
     status: b.status,
     room: b.room,
     teacher: b.teacher,
+    hasNote: notedBlockIds.has(b.id),
   };
 }
 
@@ -98,9 +101,15 @@ export async function expandRange(startISO: string, endISO: string): Promise<Exp
     .from(schoolBlocks)
     .where(and(gte(schoolBlocks.date, startISO), lte(schoolBlocks.date, endISO)));
 
+  // Ein zusaetzliches Query fuer die ganze Spanne statt eins pro Block --
+  // sonst waere das ein N+1 bei jedem Wochenwechsel.
+  const notedBlockIds = await lessonNoteBlockIds(blocks.map((b) => b.id));
+
   const days: ExpandedDay[] = eachDay(startISO, endISO).map((date) => {
     const weekday = weekdayOf(date);
-    const dayEvents: CalendarEvent[] = blocks.filter((b) => b.date === date).map(schoolToEvent);
+    const dayEvents: CalendarEvent[] = blocks
+      .filter((b) => b.date === date)
+      .map((b) => schoolToEvent(b, notedBlockIds));
     dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return { date, weekday, events: dayEvents };
   });

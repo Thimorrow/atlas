@@ -46,7 +46,10 @@ const byUpdatedDesc = (a: NoteDTO, b: NoteDTO) => b.updatedAt.localeCompare(a.up
 // Ein einziges Overlay-Gehaeuse fuer Lesen, Bearbeiten und Loeschbestaetigung.
 // window.confirm ist bewusst nicht im Spiel: es laesst sich nicht gestalten,
 // blockiert den Thread und sieht auf dem Handy fremd aus.
-function Overlay({
+// Exportiert, weil components/lesson-note.tsx dasselbe Gehaeuse braucht --
+// eine zweite, fast identische Overlay-Implementierung waere reine
+// Kopie ohne eigenen Grund.
+export function Overlay({
   open,
   onClose,
   labelledBy,

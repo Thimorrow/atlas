@@ -21,7 +21,12 @@ async function cleanup() {
   await db.delete(schoolBlocks).where(eq(schoolBlocks.date, TEST_DATE_ISO));
 }
 
-describe("upsertSchoolBlocks (Integration, Neon)", () => {
+// Ohne DATABASE_URL gibt es nichts zu integrieren -- dann wird der ganze
+// Block uebersprungen, statt dass beforeAll/afterAll gegen eine fehlende
+// Verbindung laufen und den Testlauf rot faerben.
+const mitDb = Boolean(process.env.DATABASE_URL);
+
+describe.skipIf(!mitDb)("upsertSchoolBlocks (Integration, Neon)", () => {
   beforeAll(cleanup);
   afterAll(cleanup);
 

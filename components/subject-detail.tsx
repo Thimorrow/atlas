@@ -10,6 +10,7 @@ import type { SubjectDTO } from "@/components/subject-card";
 import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { SubjectNotes } from "@/components/subject-notes";
+import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { SubjectFiles } from "@/components/subject-files";
 import { SubjectGrades } from "@/components/subject-grades";
 import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
@@ -40,12 +41,22 @@ type NoteDTO = {
   updatedAt: string;
 };
 
+export type LessonNoteEntryDTO = {
+  id: string;
+  schoolBlockId: string;
+  date: string;
+  startTime: string;
+  body: string;
+  updatedAt: string;
+};
+
 type Payload = {
   subject: SubjectDTO;
   notes: NoteDTO[];
   assignments: AssignmentDTO[];
   upcoming: LessonDTO[];
   grades: GradeDTO[];
+  lessonNotes: LessonNoteEntryDTO[];
 };
 
 // 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus in jedes Feld
@@ -54,6 +65,17 @@ const FIELD =
   "h-11 w-full rounded-lg border bg-background px-3 text-[16px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const hm = (t: string) => t.slice(0, 5);
+
+// "02.09.2026" fuer den Kopf einer Stundennotiz -- date kommt als YYYY-MM-DD.
+function fmtLessonDate(dateISO: string) {
+  const [y, m, d] = dateISO.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+// Neuste zuerst -- dieselbe Reihenfolge wie die API liefert, gebraucht beim
+// Wiedereinfuegen eines Eintrags nach dem Speichern (siehe onSaved unten).
+const byLessonDateDesc = (a: LessonNoteEntryDTO, b: LessonNoteEntryDTO) =>
+  b.date === a.date ? b.startTime.localeCompare(a.startTime) : b.date.localeCompare(a.date);
 
 // Zwei Knoepfe statt eines Auswahlfeldes: bei genau zwei Moeglichkeiten ist die
 // Auswahl schon sichtbar, ein Aufklappen waere ein Schritt zu viel.
@@ -129,6 +151,11 @@ export function SubjectDetail({ id }: { id: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
+  // date/startTime der gerade geoeffneten Stundennotiz -- gebraucht, um einen
+  // Eintrag nach dem Leeren+Wiederbeschreiben an der richtigen Stelle zurueck
+  // in die Liste einzufuegen (siehe onSaved am LessonNoteEditor unten).
+  const [noteMeta, setNoteMeta] = useState<{ date: string; startTime: string } | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -449,6 +476,43 @@ export function SubjectDetail({ id }: { id: string }) {
         </Section>
       </StaggerItem>
 
+      {/* --- Stundennotizen ---
+          Anders als "Notizen" oben (frei angelegt, mit Titel) haengt hier
+          jeder Eintrag an einer konkreten Schulstunde -- chronologisch nach
+          Datum, ohne Titel, klickbar zum Bearbeiten. */}
+      <StaggerItem>
+        <Section title="Stundennotizen">
+          {data.lessonNotes.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground">Noch keine Stundennotizen.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {data.lessonNotes.map((n) => (
+                <li key={n.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNoteMeta({ date: n.date, startTime: n.startTime });
+                      setNoteTarget({
+                        schoolBlockId: n.schoolBlockId,
+                        subject: subject.name,
+                        dayLabel: fmtLessonDate(n.date),
+                        time: hm(n.startTime),
+                      });
+                    }}
+                    className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  >
+                    <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
+                      {fmtLessonDate(n.date)}, {hm(n.startTime)}
+                    </span>
+                    <span className="line-clamp-2 w-full text-[13px] text-foreground">{n.body}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </StaggerItem>
+
       {/* --- OneNote --- */}
       <StaggerItem>
         <Section title="OneNote">
@@ -527,6 +591,44 @@ export function SubjectDetail({ id }: { id: string }) {
           </Button>
         </div>
       </Modal>
+
+      <LessonNoteEditor
+        target={noteTarget}
+        onClose={() => setNoteTarget(null)}
+        onSaved={(schoolBlockId, hasNote, body) =>
+          setData((prev) => {
+            if (!prev) return prev;
+            if (!hasNote) {
+              // Leer gespeichert -> aus der Chronik raus.
+              return { ...prev, lessonNotes: prev.lessonNotes.filter((n) => n.schoolBlockId !== schoolBlockId) };
+            }
+            const exists = prev.lessonNotes.some((n) => n.schoolBlockId === schoolBlockId);
+            if (exists) {
+              // Nur den Text aktualisieren, die Reihenfolge (Datum) aendert
+              // sich durch eine Bearbeitung nicht.
+              return {
+                ...prev,
+                lessonNotes: prev.lessonNotes.map((n) => (n.schoolBlockId === schoolBlockId ? { ...n, body } : n)),
+              };
+            }
+            // War vorher leer und ist im selben geoeffneten Overlay wieder
+            // beschrieben worden -- der Eintrag fehlt noch in der Liste
+            // (onSaved mit hasNote=false hat ihn rausgefiltert). noteMeta
+            // traegt date/startTime derselben Stunde, die aendern sich beim
+            // erneuten Speichern nicht.
+            if (!noteMeta) return prev;
+            const entry: LessonNoteEntryDTO = {
+              id: schoolBlockId,
+              schoolBlockId,
+              date: noteMeta.date,
+              startTime: noteMeta.startTime,
+              body,
+              updatedAt: new Date().toISOString(),
+            };
+            return { ...prev, lessonNotes: [...prev.lessonNotes, entry].sort(byLessonDateDesc) };
+          })
+        }
+      />
     </Shell>
   );
 }

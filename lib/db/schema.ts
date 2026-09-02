@@ -125,6 +125,34 @@ export const subjectNotes = pgTable(
   (t) => [index("subject_notes_subject_updated_idx").on(t.subjectId, t.updatedAt)],
 );
 
+// Eine Stundennotiz haengt an genau EINER konkreten Schulstunde (school_blocks-
+// Zeile), nicht am Fach -- deshalb der eigene unique Index auf schoolBlockId
+// statt einer Liste wie bei subject_notes. subjectId ist rein denormalisiert
+// (aufgeloest ueber subjects.untisSubject beim Anlegen): die Fach-Chronik in
+// der Detailseite soll ohne Join auf school_blocks sortieren koennen, und ein
+// geloeschtes Fach soll die Notiz nicht mitreissen (set null statt cascade).
+export const lessonNotes = pgTable(
+  "lesson_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolBlockId: uuid("school_block_id")
+      .notNull()
+      .references(() => schoolBlocks.id, { onDelete: "cascade" }),
+    subjectId: uuid("subject_id").references(() => subjects.id, { onDelete: "set null" }),
+    date: date("date").notNull(),
+    body: text("body").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_notes_school_block_uq").on(t.schoolBlockId),
+    index("lesson_notes_subject_date_idx").on(t.subjectId, t.date),
+  ],
+);
+
+export type LessonNote = typeof lessonNotes.$inferSelect;
+export type NewLessonNote = typeof lessonNotes.$inferInsert;
+
 // Typ steuert ausschliesslich Darstellung und Gewicht -- kein eigenes Modell,
 // weil Hausaufgabe und Klassenarbeit sich alle Felder teilen.
 export const assignmentType = pgEnum("assignment_type", [

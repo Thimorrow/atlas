@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listAssignments } from "@/lib/assignment-store";
 import { listGrades, summarize } from "@/lib/grade-store";
+import { listSubjectLessonNotes } from "@/lib/lesson-notes";
 import {
   deleteSubject,
   getSubject,
@@ -30,11 +31,12 @@ export async function GET(_req: Request, { params }: Ctx) {
   const subject = await getSubject(id);
   if (!subject) return notFound();
 
-  const [notes, assignments, upcoming, grades] = await Promise.all([
+  const [notes, assignments, upcoming, grades, lessonNotes] = await Promise.all([
     listNotes(id),
     listAssignments({ subjectId: id, includeCompleted: true }),
     upcomingLessons(subject),
     listGrades(id),
+    listSubjectLessonNotes(subject),
   ]);
 
   return NextResponse.json({
@@ -44,6 +46,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     upcoming,
     grades,
     gradeSummary: summarize(grades, subject.oralWeight),
+    lessonNotes,
   });
 }
 
