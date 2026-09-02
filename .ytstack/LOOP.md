@@ -105,3 +105,36 @@ Stundenplan aus der Produktion mit Farben, Vertretung und Ausfall.
 
 Korrektur zur Ehrlichkeit: die Commit-Nachricht von 4f6aa0e nennt 61
 Unit-Tests, es sind 48. Die Zahl war falsch, die Tests sind gruen.
+
+## Abschluss der Nacht, 02:30
+
+Ein Gegenlesen der ganzen Nachtarbeit hat fuenf Fehler gefunden, alle behoben
+und am Geraet belegt (Commit 53b1726):
+- holeDetail trug seine Antwort ein, ohne zu pruefen, ob noch dasselbe Fach
+  offen ist. Antippen, zurueck, anderes Fach antippen zeigte danach das erste.
+- Notiz-Links ohne Schema gingen roh an den Android-Uri-Handler. `#kapitel-3`
+  reichte. Beim Beheben kam noch ein zweiter Fehler ans Licht: ohne
+  Schraegstrich am Ende der Basis haengt java.net.URI den Pfad direkt an den
+  Hostnamen, aus notes/2024.pdf wurde vercel.appnotes.
+- Die Standzeile behauptete "keine Verbindung" auch bei einem 500.
+- Eine neu angelegte Aufgabe zaehlte nicht in die Zahl auf der Fachkachel.
+- Der Offline-Speicher schrieb nicht atomar.
+
+Zwei Korrekturen am Befund, weil der Agent sie am Geraet gegengeprueft hat:
+Der behauptete Absturz bei schemalosen Links reproduziert auf API 34 nicht,
+dort passiert beim Tippen nichts. Und die Ueberschrift kann nicht vom Inhalt
+abweichen, beide kommen aus derselben Antwort; der Schaden war, dass das
+komplett falsche Fach dastand.
+
+56 Unit-Tests gruen. Die Testaufgabe "Badge-Probe Mathe", die der Agent auf
+dem Server angelegt hatte, ist geloescht.
+
+Dunkelmodus am Emulator angesehen: eigene Fachfarben als dunkle Toenungen mit
+farbigem Rand, kein Material-Flieder, Ausfaelle durchgestrichen, der heutige
+Tag hell hervorgehoben. Nichts zu tun.
+
+APK: ~/Desktop/Atlas.apk aus Commit 53b1726, installiert und durchgeklickt.
+
+Damit ist der Loop zu Ende. Was noch auf Sid wartet, steht oben unter
+"Wartet auf eine Freigabe des Nutzers": der OneNote-Zweig braucht einen Lauf
+von POST /api/admin/migrate gegen Neon, dann git merge onenote.
