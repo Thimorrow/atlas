@@ -2,6 +2,9 @@ package dev.atlas.schule.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -35,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.TextAutoSize
@@ -49,6 +54,7 @@ import dev.atlas.schule.data.ExpandedRange
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Fachfarbe
+import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.LocalDunkelmodus
 import dev.atlas.schule.ui.theme.fachfarbe
 import java.time.LocalDate
@@ -72,15 +78,21 @@ private fun wochenLabel(start: LocalDate, ende: LocalDate): String =
     }
 
 /**
- * Farbe einer Stunde. Untis kennt nur den Fachnamen, die Farbe haengt am Fach:
- * erst der exakte Untis-Wert, dann der Anzeigename, so wie subjectFor() im Web.
- * Findet sich kein Fach, greift dieselbe Hash-Vorbelegung wie dort.
+ * Das Fach zu einer Stunde: erst der exakte Untis-Wert, dann der Anzeigename,
+ * so wie subjectFor() im Web. Untis kennt nur den Fachnamen, alles Weitere
+ * haengt am Fach.
+ */
+fun fachZurStunde(titel: String, faecher: List<SubjectDTO>): SubjectDTO? =
+    faecher.firstOrNull { it.untisSubject == titel }
+        ?: faecher.firstOrNull { it.name == titel }
+
+/**
+ * Farbe einer Stunde. Findet sich kein Fach, greift dieselbe Hash-Vorbelegung
+ * wie im Web.
  */
 @Composable
 fun fachfarbeFuerStunde(titel: String, faecher: List<SubjectDTO>): Color {
-    val fach = faecher.firstOrNull { it.untisSubject == titel }
-        ?: faecher.firstOrNull { it.name == titel }
-    val token = fach?.color
+    val token = fachZurStunde(titel, faecher)?.color
     return if (token != null) fachfarbe(token)
     else Fachfarbe.standardFuer(titel).farbe(LocalDunkelmodus.current)
 }
@@ -90,6 +102,7 @@ fun StundenplanBildschirm(
     zustand: AtlasZustand.App,
     beimWochenwechsel: (LocalDate) -> Unit,
     beimWocheLaden: (LocalDate) -> Unit,
+    beimStundeTippen: (Vorbelegung) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val heutigerMontag = remember(zustand.heute) { montagVon(zustand.heute) }
@@ -118,6 +131,7 @@ fun StundenplanBildschirm(
             heute = zustand.heute,
             faecher = faecher,
             beimErneutVersuchen = { beimWocheLaden(montag) },
+            beimStundeTippen = beimStundeTippen,
         )
     }
 }
@@ -129,6 +143,7 @@ private fun Woche(
     heute: LocalDate,
     faecher: List<SubjectDTO>,
     beimErneutVersuchen: () -> Unit,
+    beimStundeTippen: (Vorbelegung) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -166,7 +181,7 @@ private fun Woche(
                     }
                 } else {
                     Kopfzeile(tage.map { it.first }, heute)
-                    Raster(tage, heute, faecher)
+                    Raster(tage, heute, faecher, beimStundeTippen)
                 }
             }
         }
@@ -229,7 +244,11 @@ private fun Raster(
     tage: List<Pair<LocalDate, List<CalendarEvent>>>,
     heute: LocalDate,
     faecher: List<SubjectDTO>,
+    beimStundeTippen: (Vorbelegung) -> Unit,
 ) {
+    // Alle Stunden der Woche an einer Stelle: aus ihnen faellt gleich der
+    // Vorschlag fuer das Faelligkeitsdatum.
+    val wochenstunden = remember(tage) { tage.flatMap { it.second } }
     val (start, ende) = remember(tage) { tagesgrenzen(tage.flatMap { it.second }) }
     val stunden = ende - start
 
@@ -261,6 +280,8 @@ private fun Raster(
                     tagEnde = ende,
                     stundenHoehe = stundenHoehe,
                     faecher = faecher,
+                    wochenstunden = wochenstunden,
+                    beimStundeTippen = beimStundeTippen,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -305,6 +326,8 @@ private fun Tagesspalte(
     tagEnde: Int,
     stundenHoehe: androidx.compose.ui.unit.Dp,
     faecher: List<SubjectDTO>,
+    wochenstunden: List<CalendarEvent>,
+    beimStundeTippen: (Vorbelegung) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bloecke = remember(ereignisse, tagStart, tagEnde) {
@@ -335,9 +358,25 @@ private fun Tagesspalte(
         }
 
         bloecke.forEach { block ->
+            val fach = block.ereignis.title
             Stundenblock(
                 block = block,
-                farbe = fachfarbeFuerStunde(block.ereignis.title, faecher),
+                farbe = fachfarbeFuerStunde(fach, faecher),
+                // Eine entfallene Stunde bekommt nichts aufgegeben. Das Web
+                // haengt sein Menue aus demselben Grund nur an die uebrigen.
+                beimTippen = if (block.ereignis.status == "cancelled") {
+                    null
+                } else {
+                    {
+                        beimStundeTippen(
+                            Vorbelegung(
+                                fachId = fachZurStunde(fach, faecher)?.id,
+                                untisFach = fach,
+                                faellig = naechsteStundeDesFachs(wochenstunden, fach, datum),
+                            ),
+                        )
+                    }
+                },
                 oben = proMinute * (block.start - tagStart * 60),
                 hoehe = proMinute * (block.ende - block.start) - 2.dp,
                 links = spaltenbreite * (block.spur.toFloat() / block.spuren) + 1.dp,
@@ -351,6 +390,7 @@ private fun Tagesspalte(
 private fun Stundenblock(
     block: Rasterblock,
     farbe: Color,
+    beimTippen: (() -> Unit)?,
     oben: androidx.compose.ui.unit.Dp,
     hoehe: androidx.compose.ui.unit.Dp,
     links: androidx.compose.ui.unit.Dp,
@@ -378,98 +418,142 @@ private fun Stundenblock(
         if (entfaellt) append(", entfällt")
     }
 
-    Column(
-        modifier = Modifier
-            .offset(x = links, y = oben)
-            .width(breite)
-            .height(echteHoehe)
-            .clip(RoundedCornerShape(6.dp))
-            // Entfallene Stunden verlieren ihre Fuellung und behalten nur den
-            // Umriss: der Platz bleibt sichtbar, die Stunde nicht.
-            .background(if (entfaellt) Color.Transparent else farbe.copy(alpha = 0.18f))
-            .border(
-                width = 1.dp,
-                color = if (entfaellt) MaterialTheme.colorScheme.outlineVariant
-                else farbe.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(6.dp),
-            )
-            .padding(horizontal = Abstand.eng, vertical = Abstand.winzig)
-            .semantics { contentDescription = ansage },
-        verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Abstand.klein),
-        ) {
-            if (vertretung && !badgePasst) {
-                Spacer(
-                    Modifier.size(6.dp).clip(CircleShape).background(vertretungFarbe()),
-                )
-            }
-            Text(
-                text = ereignis.title,
-                style = MaterialTheme.typography.bodySmall,
-                // Fachnamen sind unterschiedlich lang, die Spalte ist es nicht.
-                // "Mathematik" endete als "Mathema…", obwohl es eine halbe
-                // Stufe kleiner ganz hineinpasst. Umbrechen hilft hier nicht,
-                // weil es ein einzelnes Wort ist, und eine kuerzere Form gibt
-                // Untis nicht her. Also darf die Schrift schrumpfen, aber nur
-                // bis 10sp, darunter waere sie kleiner als die Raumnummer.
-                autoSize = TextAutoSize.StepBased(
-                    minFontSize = 10.sp,
-                    maxFontSize = 12.sp,
-                    stepSize = 0.5.sp,
-                ),
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.Medium,
-                textDecoration = if (entfaellt) TextDecoration.LineThrough else null,
-                color = if (entfaellt) MaterialTheme.colorScheme.onSurfaceVariant
-                else MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clearAndSetSemantics { },
-            )
-        }
+    // Die Groesse eines Blocks kommt aus der Uhrzeit und kann deshalb unter die
+    // 48dp fallen, die ein Tippziel unter Android braucht. Statt den Block
+    // aufzublasen und damit das Raster zu verziehen, waechst nur die
+    // Beruehrungsflaeche um ihn herum -- der Block bleibt, wo die Stunde liegt.
+    val zielHoehe = maxOf(echteHoehe, Hoehe.bedienelement)
+    // In der Breite nur, wenn die Stunde allein in ihrer Spalte steht. Bei zwei
+    // parallelen Stunden laegen sonst zwei verschiedene Ziele uebereinander und
+    // ein Tipp dazwischen traefe die falsche.
+    val zielBreite = if (block.spuren == 1) maxOf(breite, Hoehe.bedienelement) else breite
+    val beruehrung = remember { MutableInteractionSource() }
 
-        if (echteHoehe > 30.dp * skala) {
-            val zusatz = if (entfaellt) "entfällt" else ereignis.room.orEmpty()
-            if (zusatz.isNotEmpty()) {
+    Box(
+        modifier = Modifier
+            .offset(
+                x = links - (zielBreite - breite) / 2,
+                y = oben - (zielHoehe - echteHoehe) / 2,
+            )
+            .size(width = zielBreite, height = zielHoehe)
+            .then(
+                if (beimTippen == null) {
+                    Modifier
+                } else {
+                    Modifier.clickable(
+                        interactionSource = beruehrung,
+                        // Die Rueckmeldung sitzt auf dem sichtbaren Block, nicht
+                        // auf der groesseren Flaeche: eine Welle im leeren Raster
+                        // waere ein Signal ohne Gegenstand.
+                        indication = null,
+                        role = Role.Button,
+                        onClickLabel = "Aufgabe zu dieser Stunde anlegen",
+                        onClick = beimTippen,
+                    )
+                },
+            )
+            // Die Ansage sitzt auf derselben Flaeche wie der Klick und fasst
+            // den Block zu einem einzigen Ziel zusammen. Laege sie weiter innen
+            // auf dem sichtbaren Kasten, haette der Baum zwei Elemente an
+            // derselben Stelle: eins mit Namen, eins mit Handlung.
+            .semantics(mergeDescendants = true) { contentDescription = ansage },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(breite)
+                .height(echteHoehe)
+                .clip(RoundedCornerShape(6.dp))
+                // Entfallene Stunden verlieren ihre Fuellung und behalten nur den
+                // Umriss: der Platz bleibt sichtbar, die Stunde nicht.
+                .background(if (entfaellt) Color.Transparent else farbe.copy(alpha = 0.18f))
+                .border(
+                    width = 1.dp,
+                    color = if (entfaellt) MaterialTheme.colorScheme.outlineVariant
+                    else farbe.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(6.dp),
+                )
+                // Die Welle beim Druecken ist das einzige Zeichen, dass hier
+                // etwas passiert. Ein dauerhaftes waere in einem Raster aus
+                // dreissig Kaesten dreissigmal zuviel.
+                .indication(beruehrung, ripple())
+                .padding(horizontal = Abstand.eng, vertical = Abstand.winzig),
+            verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Abstand.klein),
+            ) {
+                if (vertretung && !badgePasst) {
+                    Spacer(
+                        Modifier.size(6.dp).clip(CircleShape).background(vertretungFarbe()),
+                    )
+                }
                 Text(
-                    text = zusatz,
+                    text = ereignis.title,
                     style = MaterialTheme.typography.bodySmall,
-                    fontSize = 10.sp,
-                    lineHeight = 12.sp,
-                    fontFamily = if (entfaellt) FontFamily.Default else FontFamily.Monospace,
-                    // Auf der eingefaerbten Blockflaeche traegt der volle
-                    // gedaempfte Ton nur rund 4:1. Der Vordergrund mit 70
-                    // Prozent liegt sicher darueber, so macht es das Web auch.
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    // Fachnamen sind unterschiedlich lang, die Spalte ist es nicht.
+                    // "Mathematik" endete als "Mathema…", obwohl es eine halbe
+                    // Stufe kleiner ganz hineinpasst. Umbrechen hilft hier nicht,
+                    // weil es ein einzelnes Wort ist, und eine kuerzere Form gibt
+                    // Untis nicht her. Also darf die Schrift schrumpfen, aber nur
+                    // bis 10sp, darunter waere sie kleiner als die Raumnummer.
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = 10.sp,
+                        maxFontSize = 12.sp,
+                        stepSize = 0.5.sp,
+                    ),
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = if (entfaellt) TextDecoration.LineThrough else null,
+                    color = if (entfaellt) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clearAndSetSemantics { },
                 )
             }
-        }
 
-        if (vertretung && badgePasst) {
-            Text(
-                text = "VERTRETUNG",
-                style = MaterialTheme.typography.bodySmall,
-                fontSize = 9.sp,
-                lineHeight = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                // Versalien brauchen Laufweite, sonst kleben sie aneinander.
-                // Bei 0.6sp passte das Wort auf einem 1080er Schirm um ein Haar
-                // nicht mehr in die Spalte und endete als "VERTRETUN": ohne
-                // overflow schneidet Compose mitten im Buchstaben ab, statt zu
-                // kuerzen. Weniger Laufweite schafft den Platz, das Ellipsis
-                // faengt schmalere Geraete ab.
-                letterSpacing = 0.2.sp,
-                color = vertretungFarbe(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clearAndSetSemantics { },
-            )
+            if (echteHoehe > 30.dp * skala) {
+                val zusatz = if (entfaellt) "entfällt" else ereignis.room.orEmpty()
+                if (zusatz.isNotEmpty()) {
+                    Text(
+                        text = zusatz,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp,
+                        fontFamily = if (entfaellt) FontFamily.Default else FontFamily.Monospace,
+                        // Auf der eingefaerbten Blockflaeche traegt der volle
+                        // gedaempfte Ton nur rund 4:1. Der Vordergrund mit 70
+                        // Prozent liegt sicher darueber, so macht es das Web auch.
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clearAndSetSemantics { },
+                    )
+                }
+            }
+
+            if (vertretung && badgePasst) {
+                Text(
+                    text = "VERTRETUNG",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 9.sp,
+                    lineHeight = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    // Versalien brauchen Laufweite, sonst kleben sie aneinander.
+                    // Bei 0.6sp passte das Wort auf einem 1080er Schirm um ein Haar
+                    // nicht mehr in die Spalte und endete als "VERTRETUN": ohne
+                    // overflow schneidet Compose mitten im Buchstaben ab, statt zu
+                    // kuerzen. Weniger Laufweite schafft den Platz, das Ellipsis
+                    // faengt schmalere Geraete ab.
+                    letterSpacing = 0.2.sp,
+                    color = vertretungFarbe(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clearAndSetSemantics { },
+                )
+            }
         }
     }
 }

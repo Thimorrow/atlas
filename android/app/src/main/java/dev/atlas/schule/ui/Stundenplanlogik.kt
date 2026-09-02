@@ -1,6 +1,7 @@
 package dev.atlas.schule.ui
 
 import dev.atlas.schule.data.CalendarEvent
+import java.time.LocalDate
 
 // Nachbau von mergeSchool und packDay aus app/page.tsx. Wie bei der
 // Aufgaben-Gruppierung ist das Anzeigelogik und liegt im Client; ohne Compose,
@@ -42,6 +43,23 @@ fun verschmelzeStunden(ereignisse: List<CalendarEvent>): List<CalendarEvent> {
     }
     return zusammen
 }
+
+/**
+ * Der Tag, an dem [fach] nach [nach] das naechste Mal wieder stattfindet.
+ * Nachbau von nextLessonDate aus app/page.tsx: eine Hausaufgabe wird auf die
+ * naechste Stunde desselben Fachs aufgegeben, und genau die soll das Blatt
+ * vorschlagen. Entfallene Stunden zaehlen nicht, dort wird nichts abgegeben.
+ *
+ * Gesucht wird nur in [ereignisse], also in der gerade geladenen Woche. Findet
+ * sich nichts, gibt es kein Datum: ein geratenes waere schlechter als keins.
+ */
+fun naechsteStundeDesFachs(
+    ereignisse: List<CalendarEvent>,
+    fach: String,
+    nach: LocalDate,
+): LocalDate? = ereignisse
+    .filter { it.date > nach && it.title == fach && it.status != "cancelled" }
+    .minOfOrNull { it.date }
 
 /**
  * Ein Block im Raster: [start] und [ende] in Minuten, [spur] von [spuren] fuer

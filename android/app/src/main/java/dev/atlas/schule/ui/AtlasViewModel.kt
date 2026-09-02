@@ -46,8 +46,25 @@ data class Stand(
     val ohneVerbindung: Boolean = false,
 )
 
+/**
+ * Was schon feststeht, wenn das Blatt aus einer Schulstunde heraus aufgeht.
+ * null heisst: ueber das Pluszeichen geoeffnet, also ohne Vorgabe.
+ */
+data class Vorbelegung(
+    /** Das Fach aus der Fachliste, null wenn die Stunde dort keins hat. */
+    val fachId: String?,
+    /** Der Fachname aus Untis, als Rueckfallebene fuer den Server. */
+    val untisFach: String,
+    /** Die naechste Stunde desselben Fachs, null wenn in der Woche keine mehr kommt. */
+    val faellig: LocalDate?,
+)
+
 /** Das Blatt fuer eine neue Aufgabe, solange es offen ist. */
-data class BlattZustand(val laeuft: Boolean = false, val fehler: String? = null)
+data class BlattZustand(
+    val laeuft: Boolean = false,
+    val fehler: String? = null,
+    val vorbelegung: Vorbelegung? = null,
+)
 
 sealed interface AtlasZustand {
     data class Anmeldung(
@@ -329,14 +346,38 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     fun oeffneBlatt() = aendere { it.copy(blatt = BlattZustand()) }
 
+    /**
+     * Dasselbe Blatt, aber aus einer Schulstunde heraus. Der Stundenplan rechnet
+     * die Vorgabe aus, weil nur er das Wochenraster kennt; hier liegt sie nur ab.
+     */
+    fun oeffneBlattFuerStunde(vorbelegung: Vorbelegung) = aendere {
+        // Ein zweites Tippen waehrend das Blatt schon offen ist wuerde die
+        // bereits getippten Eingaben zuruecksetzen.
+        if (it.blatt != null) it else it.copy(blatt = BlattZustand(vorbelegung = vorbelegung))
+    }
+
     fun schliesseBlatt() = aendere { it.copy(blatt = null) }
 
-    fun legeAufgabeAn(titel: String, typ: String, faellig: LocalDate?, fachId: String?) {
+    fun legeAufgabeAn(
+        titel: String,
+        typ: String,
+        faellig: LocalDate?,
+        fachId: String?,
+        untisFach: String?,
+    ) {
         if (app?.blatt?.laeuft == true) return
-        aendere { it.copy(blatt = BlattZustand(laeuft = true)) }
+        // copy statt neu: die Vorbelegung muss den Lauf ueberstehen, sonst
+        // stuende nach einem Fehler ein anderes Blatt da als vorher.
+        aendere { it.copy(blatt = it.blatt?.copy(laeuft = true, fehler = null)) }
         viewModelScope.launch {
             val ergebnis = api.aufgabeAnlegen(
-                NeueAufgabeAnfrage(title = titel.trim(), type = typ, dueDate = faellig, subjectId = fachId),
+                NeueAufgabeAnfrage(
+                    title = titel.trim(),
+                    type = typ,
+                    dueDate = faellig,
+                    subjectId = fachId,
+                    untisSubject = untisFach,
+                ),
             )
             when (ergebnis) {
                 is AtlasErgebnis.Erfolg -> {
@@ -355,7 +396,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                 }
 
                 is AtlasErgebnis.Fehler -> aendere {
-                    it.copy(blatt = BlattZustand(fehler = ergebnis.meldung))
+                    it.copy(blatt = it.blatt?.copy(laeuft = false, fehler = ergebnis.meldung))
                 }
             }
         }

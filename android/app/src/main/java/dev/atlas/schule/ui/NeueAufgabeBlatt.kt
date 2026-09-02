@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,11 @@ import dev.atlas.schule.ui.theme.fachfarbe
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.roundToInt
 
 // Die fuenf Typen des Servers, in derselben Reihenfolge wie ASSIGNMENT_TYPES.
 private val TYPEN = listOf("homework", "exam", "test", "presentation", "other")
@@ -64,16 +70,51 @@ fun NeueAufgabeBlatt(
     heute: LocalDate,
     faecher: List<SubjectDTO>,
     beimSchliessen: () -> Unit,
-    beimAnlegen: (String, String, LocalDate?, String?) -> Unit,
+    beimAnlegen: (String, String, LocalDate?, String?, String?) -> Unit,
 ) {
+    // Kommt das Blatt aus einer Schulstunde, sind Fach und Datum schon gesetzt.
+    // Die Vorbelegung wird beim Oeffnen einmal gelesen und danach nicht mehr:
+    // wer das Fach wieder wegtippt, soll es nicht zurueckspringen sehen.
+    val vorgabe = blatt.vorbelegung
     // Das Blatt kam sonst halb hoch und liess "Aufgabe anlegen" unter dem Rand
     // stehen, obwohl das Formular ganz auf den Schirm passt. Wer eine Aufgabe
     // anlegt, soll den Knopf sehen, ohne erst ziehen zu muessen.
     val blattZustand = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var titel by remember { mutableStateOf("") }
     var typ by remember { mutableStateOf("homework") }
-    var faellig by remember { mutableStateOf<LocalDate?>(heute.plusDays(1)) }
-    var fachId by remember { mutableStateOf<String?>(null) }
+    // Ohne Stunde ist morgen der beste Rat. Mit Stunde gilt deren naechster
+    // Termin, und wenn es keinen mehr gibt, bleibt das Datum bewusst leer.
+    var faellig by remember {
+        mutableStateOf(if (vorgabe != null) vorgabe.faellig else heute.plusDays(1))
+    }
+    var fachId by remember { mutableStateOf(vorgabe?.fachId) }
+    // Gehoert die Stunde zu einem Fach, das die Fachliste nicht kennt, faehrt
+    // der Untis-Name mit: der Server legt daraus beim Speichern still ein Fach
+    // an. Das Plaettchen dazu steht sichtbar in der Reihe, denn "Allgemein"
+    // waere an dieser Stelle schlicht falsch.
+    val untisNeu = vorgabe?.untisFach?.takeIf { vorgabe.fachId == null }
+    var untisFach by remember { mutableStateOf(untisNeu) }
+
+    // Die Faecherliste ist zwoelf Eintraege lang und alphabetisch. Ein aus der
+    // Schulstunde vorbelegtes Englisch steht damit weit rechts, ausserhalb des
+    // Bildes: das Blatt behauptete dann, ein Fach sei gesetzt, und zeigte
+    // "Allgemein, Biologie, Chemie". Deshalb schiebt sich die Reihe beim
+    // Oeffnen einmal zum gewaehlten Plaettchen.
+    //
+    // Einmal und nur einmal: waehrend des Tippens duerfte die Reihe nie von
+    // selbst springen, das faende der Nutzer als Fehler.
+    val fachScroll = rememberScrollState()
+    var zielX by remember { mutableStateOf<Int?>(null) }
+    var schonGeschoben by remember { mutableStateOf(false) }
+    val randPx = with(LocalDensity.current) { Abstand.gross.roundToPx() }
+    LaunchedEffect(zielX) {
+        val x = zielX
+        if (x == null || schonGeschoben) return@LaunchedEffect
+        schonGeschoben = true
+        // Minus Rand, damit das Plaettchen an derselben Kante sitzt wie sonst
+        // das erste, statt an der Bildschirmkante zu kleben.
+        fachScroll.scrollTo((x - randPx).coerceAtLeast(0))
+    }
     var kalenderOffen by remember { mutableStateOf(false) }
 
     // Frueher sprang der Fokus beim Oeffnen in den Titel. Auf dem Telefon
@@ -83,7 +124,7 @@ fun NeueAufgabeBlatt(
     val gueltig = titel.isNotBlank() && !blatt.laeuft
 
     fun absenden() {
-        if (gueltig) beimAnlegen(titel, typ, faellig, fachId)
+        if (gueltig) beimAnlegen(titel, typ, faellig, fachId, untisFach)
     }
 
     ModalBottomSheet(
@@ -154,23 +195,45 @@ fun NeueAufgabeBlatt(
                 )
             }
 
-            if (faecher.isNotEmpty()) {
-                Chipreihe("Fach") {
+            if (faecher.isNotEmpty() || untisNeu != null) {
+                Chipreihe("Fach", scrollZustand = fachScroll) {
                     AtlasChip(
-                        ausgewaehlt = fachId == null,
-                        beimKlick = { fachId = null },
+                        ausgewaehlt = fachId == null && untisFach == null,
+                        beimKlick = {
+                            fachId = null
+                            untisFach = null
+                        },
                         beschriftung = "Allgemein",
                     )
+                    untisNeu?.let { name ->
+                        AtlasChip(
+                            ausgewaehlt = untisFach != null,
+                            beimKlick = {
+                                fachId = null
+                                untisFach = name
+                            },
+                            beschriftung = name,
+                        )
+                    }
                     faecher.forEach { fach ->
                         AtlasChip(
                             ausgewaehlt = fachId == fach.id,
-                            beimKlick = { fachId = fach.id },
+                            beimKlick = {
+                                fachId = fach.id
+                                untisFach = null
+                            },
                             beschriftung = fach.name,
                             symbol = {
                                 Spacer(
                                     Modifier.size(8.dp).clip(CircleShape)
                                         .background(fachfarbe(fach.color)),
                                 )
+                            },
+                            // Nur das vorbelegte Plaettchen meldet, wo es liegt.
+                            modifier = if (fachId == fach.id && !schonGeschoben) {
+                                Modifier.onPlaced { zielX = it.positionInParent().x.roundToInt() }
+                            } else {
+                                Modifier
                             },
                         )
                     }
@@ -238,7 +301,11 @@ fun NeueAufgabeBlatt(
 }
 
 @Composable
-private fun Chipreihe(beschriftung: String, inhalt: @Composable () -> Unit) {
+private fun Chipreihe(
+    beschriftung: String,
+    scrollZustand: ScrollState = rememberScrollState(),
+    inhalt: @Composable () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(Abstand.normal)) {
         Text(
             text = beschriftung,
@@ -249,7 +316,7 @@ private fun Chipreihe(beschriftung: String, inhalt: @Composable () -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
+                .horizontalScroll(scrollZustand)
                 // Der Abstand liegt hinter dem Scroll und wandert deshalb mit
                 // dem Inhalt. So laeuft das letzte Plaettchen bis an die
                 // Bildschirmkante: ein Schnitt am Rand liest sich als "geht
@@ -273,6 +340,7 @@ private fun AtlasChip(
     beimKlick: () -> Unit,
     beschriftung: String,
     symbol: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     FilterChip(
         selected = ausgewaehlt,
@@ -298,6 +366,6 @@ private fun AtlasChip(
         ),
         // Material stellt Plaettchen 32dp hoch. In einer Reihe, die man
         // seitlich schiebt, ist das zu wenig zum Treffen.
-        modifier = Modifier.heightIn(min = Hoehe.plaettchen),
+        modifier = modifier.heightIn(min = Hoehe.plaettchen),
     )
 }

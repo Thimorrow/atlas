@@ -155,4 +155,11 @@ data class NeueAufgabeAnfrage(
     val type: String,
     @Serializable(with = LocalDateSerialisierer::class) val dueDate: LocalDate? = null,
     val subjectId: String? = null,
+    /**
+     * Der Fachname aus Untis. Der Server legt daraus still ein Fach an, wenn
+     * [subjectId] leer bleibt, und ignoriert das Feld sonst. So endet eine
+     * Aufgabe aus einer Stunde nie unter "Allgemein", nur weil das Fach in der
+     * Liste noch fehlt.
+     */
+    val untisSubject: String? = null,
 )

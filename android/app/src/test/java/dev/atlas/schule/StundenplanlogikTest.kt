@@ -1,10 +1,12 @@
 package dev.atlas.schule
 
 import dev.atlas.schule.data.CalendarEvent
+import dev.atlas.schule.ui.naechsteStundeDesFachs
 import dev.atlas.schule.ui.packeTag
 import dev.atlas.schule.ui.tagesgrenzen
 import dev.atlas.schule.ui.verschmelzeStunden
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 
@@ -145,5 +147,42 @@ class StundenplanlogikTest {
     @Test
     fun `ein leerer Tag bekommt die Standardachse`() {
         assertEquals(8 to 16, tagesgrenzen(emptyList()))
+    }
+
+    // --- naechste Stunde desselben Fachs, der Vertrag mit nextLessonDate ------
+
+    private fun stundeAm(datum: String, titel: String, status: String = "regular") =
+        stunde(titel, "08:00", "08:45", status).copy(date = LocalDate.parse(datum))
+
+    @Test
+    fun `die naechste Stunde desselben Fachs liegt nach dem angetippten Tag`() {
+        val woche = listOf(
+            stundeAm("2026-03-09", "Mathematik"),
+            stundeAm("2026-03-11", "Deutsch"),
+            stundeAm("2026-03-12", "Mathematik"),
+            stundeAm("2026-03-13", "Mathematik"),
+        )
+        assertEquals(
+            LocalDate.parse("2026-03-12"),
+            naechsteStundeDesFachs(woche, "Mathematik", LocalDate.parse("2026-03-09")),
+        )
+    }
+
+    @Test
+    fun `eine entfallene Stunde zaehlt nicht als naechste`() {
+        val woche = listOf(
+            stundeAm("2026-03-11", "Mathematik", status = "cancelled"),
+            stundeAm("2026-03-13", "Mathematik"),
+        )
+        assertEquals(
+            LocalDate.parse("2026-03-13"),
+            naechsteStundeDesFachs(woche, "Mathematik", LocalDate.parse("2026-03-09")),
+        )
+    }
+
+    @Test
+    fun `ohne weitere Stunde in der Woche gibt es kein Datum`() {
+        val woche = listOf(stundeAm("2026-03-13", "Mathematik"))
+        assertNull(naechsteStundeDesFachs(woche, "Mathematik", LocalDate.parse("2026-03-13")))
     }
 }

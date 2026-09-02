@@ -209,6 +209,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                                 zustand = zustand,
                                 beimWochenwechsel = ansichtsmodell::zeigeWoche,
                                 beimWocheLaden = ansichtsmodell::ladeWoche,
+                                beimStundeTippen = ansichtsmodell::oeffneBlattFuerStunde,
                             )
 
                             Reiter.AUFGABEN -> AufgabenBildschirm(
