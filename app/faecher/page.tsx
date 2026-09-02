@@ -10,6 +10,7 @@ import { formatPoints, type GradeAverage } from "@/lib/grades";
 import type { GradeOverviewDTO } from "@/lib/grade-store";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<SubjectDTO[] | null>(null);
@@ -97,12 +98,7 @@ export default function SubjectsPage() {
     }
 
     if (hasAny === null || subjects === null) {
-      return (
-        <div className="flex items-center gap-2 rounded-2xl border bg-card px-5 py-8 text-sm text-muted-foreground shadow-card">
-          <Loader2 className="size-4 animate-spin" />
-          Fächer werden geladen…
-        </div>
-      );
+      return <SubjectsSkeleton />;
     }
 
     // Erstes Oeffnen: noch kein einziges Fach, weder aktiv noch archiviert.
@@ -206,6 +202,29 @@ export default function SubjectsPage() {
         }}
       />
     </main>
+  );
+}
+
+function SubjectsSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" aria-label="Fächer werden geladen" aria-busy="true">
+      <Skeleton className="h-16 w-full rounded-xl" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-4 rounded-2xl border bg-card p-5 shadow-card">
+            <div className="flex items-start justify-between gap-3">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="size-8 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-24" />
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

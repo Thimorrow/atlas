@@ -10,6 +10,7 @@ import { AssignmentComposer } from "@/components/assignment-composer";
 import { useToast } from "@/components/toast";
 import { type AssignmentDTO } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SubjectOption = { id: string; name: string; color: string | null };
 
@@ -140,17 +141,17 @@ export default function AssignmentsPage() {
 // ihre Form, statt von einer Textzeile auf eine Liste zu springen.
 function ListSkeleton() {
   return (
-    <div className="space-y-6" aria-hidden>
+    <div className="flex flex-col gap-6" aria-label="Aufgaben werden geladen" aria-busy="true">
       {[3, 2].map((rows, g) => (
-        <section key={g}>
-          <div className="mx-2.5 h-3 w-20 animate-pulse rounded bg-muted" />
-          <ul className="mt-2 space-y-1">
+        <section key={g} className="flex flex-col gap-2">
+          <Skeleton className="mx-2.5 h-3 w-20" />
+          <ul className="flex flex-col gap-1">
             {Array.from({ length: rows }).map((_, i) => (
               <li key={i} className="flex items-center gap-3.5 px-2.5 py-3">
-                <span className="size-[22px] shrink-0 animate-pulse rounded-full bg-muted" />
-                <span className="flex-1 space-y-1.5">
-                  <span className="block h-3.5 animate-pulse rounded bg-muted" style={{ width: `${62 - i * 9}%` }} />
-                  <span className="block h-3 w-28 animate-pulse rounded bg-muted/70" />
+                <Skeleton className="size-[22px] shrink-0 rounded-full" />
+                <span className="flex flex-1 flex-col gap-1.5">
+                  <Skeleton className="h-3.5" style={{ width: `${62 - i * 9}%` }} />
+                  <Skeleton className="h-3 w-28 opacity-70" />
                 </span>
               </li>
             ))}
