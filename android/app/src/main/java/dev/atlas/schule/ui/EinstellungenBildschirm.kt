@@ -44,6 +44,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.atlas.schule.data.AtlasApi
@@ -58,8 +62,8 @@ import dev.atlas.schule.ui.theme.LocalErscheinungsbild
 import dev.atlas.schule.ui.theme.LocalErscheinungsbildSetzen
 import dev.atlas.schule.ui.theme.Tabellenziffern
 import dev.atlas.schule.ui.theme.atlasTween
-import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 
 /**
  * Der vierte Reiter. Orientiert an app/settings/page.tsx: dieselbe
@@ -148,6 +152,11 @@ private fun Abschnitt(
                     text = titel,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onBackground,
+                    // Als Ueberschrift ausgezeichnet: Talkback springt damit
+                    // von Abschnitt zu Abschnitt, statt sich durch alle drei
+                    // Erscheinungsbild-Kacheln zum Untis-Abgleich wischen zu
+                    // muessen.
+                    modifier = Modifier.semantics { heading() },
                 )
                 Text(
                     text = beschreibung,
@@ -433,7 +442,13 @@ private fun SyncMeldung(erfolg: Boolean, inhalt: @Composable ColumnScope.() -> U
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, farbe.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             .background(farbe.copy(alpha = 0.08f))
-            .padding(Abstand.mittel),
+            .padding(Abstand.mittel)
+            // liveRegion, damit ein Screenreader das Ergebnis des Abgleichs
+            // vorliest, sobald es da ist. Ohne das erschiene die Meldung
+            // stumm, und wer den Knopf nicht sehen kann, erfuehre nie, ob der
+            // Abgleich geklappt hat. Die Web-App setzt dafuer role="status"
+            // mit aria-live, siehe app/settings/page.tsx.
+            .semantics { liveRegion = LiveRegionMode.Polite },
         content = inhalt,
     )
 }

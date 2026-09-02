@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.atlas.schule.data.CalendarEvent
@@ -68,12 +70,18 @@ private const val WOCHEN_MITTE = WOCHEN_SPANNE
 private val WOCHENTAGE_KURZ = listOf("Mo", "Di", "Mi", "Do", "Fr")
 // 38dp reichten fuer die alte Beschriftung mit vollen Stunden ("08"). Seit die
 // Achse die echten Stundengrenzen zeigt, ist "11:10" der laengste Fall, und der
-// brach dort auf zwei Zeilen um. 48dp fassen ihn samt Innenabstand.
-private val ZEITSPALTE = 48.dp
+// brauchte mehr. Eine feste Breite reicht dafuer aber nicht: bei doppelter
+// Systemschrift schnitt die Spalte "11:10" zu "11:1" ab. Sie waechst deshalb
+// mit, so wie die Datumsspalte im Fachdetail.
+private val ZEITSPALTE_BASIS = 48.dp
 private val MINDEST_STUNDENHOEHE = 46.dp
 
 // In normalen Abschnitten ist eine Einheit eine Minute, siehe Rasterachse.
 private val MINDEST_EINHEITHOEHE = MINDEST_STUNDENHOEHE / 60
+
+@Composable
+@ReadOnlyComposable
+private fun zeitspalte(): Dp = ZEITSPALTE_BASIS * LocalDensity.current.fontScale
 
 /** "2.–8. September 2025", ein Monatsname wenn die Woche nicht umbricht. */
 private fun wochenLabel(start: LocalDate, ende: LocalDate): String =
@@ -202,7 +210,7 @@ private fun Woche(
 @Composable
 private fun Kopfzeile(tage: List<LocalDate>, heute: LocalDate) {
     Row(Modifier.fillMaxWidth().padding(bottom = Abstand.normal)) {
-        Spacer(Modifier.width(ZEITSPALTE))
+        Spacer(Modifier.width(zeitspalte()))
         tage.forEachIndexed { index, datum ->
             val istHeute = datum == heute
             Column(
@@ -330,7 +338,7 @@ private fun Raster(
 private fun Zeitachse(grenzen: List<Rastergrenze>, achse: Rasterachse, einheitHoehe: androidx.compose.ui.unit.Dp) {
     Box(
         Modifier
-            .width(ZEITSPALTE)
+            .width(zeitspalte())
             .fillMaxHeight()
             // Die Achse ist eine reine Skala. Jeder Block traegt seine Zeit
             // schon im eigenen Namen, sonst laese ein Screenreader hier zehn

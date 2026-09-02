@@ -29,6 +29,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -268,6 +270,11 @@ private fun Abschnitt(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground,
+                // Als Ueberschrift ausgezeichnet: Talkback kennt eine Geste,
+                // die von Ueberschrift zu Ueberschrift springt. Ohne sie muss
+                // man sich vom Fachnamen bis zu den Noten durch jede einzelne
+                // Stunde und jede Aufgabe wischen.
+                modifier = Modifier.semantics { heading() },
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
                 zusatz?.let {

@@ -162,7 +162,15 @@ fun AufgabenBildschirm(
  */
 @Composable
 private fun ErledigtKopf(anzahl: Int, ausgeklappt: Boolean, beimTippen: () -> Unit) {
-    val drehung by animateFloatAsState(if (ausgeklappt) 90f else 0f, label = "erledigt-pfeil")
+    // atlasTween statt der Standardfeder: die kennt die Atlas-Kurve nicht und
+    // faellt vor allem bei abgeschalteter Systemanimation nicht auf Dauer null
+    // zurueck. Wer weniger Bewegung eingestellt hat, saehe den Pfeil sonst als
+    // einzige Stelle der App weiter schwingen.
+    val drehung by animateFloatAsState(
+        targetValue = if (ausgeklappt) 90f else 0f,
+        animationSpec = atlasTween(Dauer.SCHNELL),
+        label = "erledigt-pfeil",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
