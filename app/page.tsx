@@ -17,7 +17,7 @@ import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
 import { useToast } from "@/components/toast";
 import { UntisSyncNotice } from "@/components/untis-sync-notice";
 import { decideSync } from "@/lib/untis/sync-policy";
-import type { AssignmentDTO, AssignmentType } from "@/lib/assignments-view";
+import { TYPE_LABEL, weekdayDateLabel, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
 import { colorValue } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 import { readLocal, writeLocal } from "@/lib/safe-storage";
@@ -35,6 +35,7 @@ type Ev = {
   room?: string | null;
   teacher?: string | null;
   hasNote?: boolean;
+  hasAssignment?: boolean;
 };
 type Day = { date: string; weekday: number; events: Ev[] };
 type RangeData = { start: string; end: string; days: Day[] };
@@ -46,6 +47,10 @@ type ComposerSeed = {
   subjectId: string | null;
   untisSubject: string | null;
   dueDate: string | null;
+  // Fuer den Hinweistext unterm Faelligkeits-Feld ("Naechste Mathestunde: ...").
+  subjectName: string;
+  // Ursprungsstunde, damit onSaved den Marker gezielt an ihr setzen kann.
+  originBlockId: string;
 };
 
 // --- Konstanten -------------------------------------------------------------
@@ -576,6 +581,20 @@ function TodayView({
                     <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
                       {it.ev.title}
                     </span>
+                    {/* Punkt statt Icon: die App markiert faellige Aufgaben schon
+                        anderswo (WeekDayDots) als Punkt, nicht als Symbol -- ein
+                        Hausaufgabe-Icon waere hier zudem falsch, sobald die faellige
+                        Aufgabe eine Klassenarbeit oder ein Referat ist. */}
+                    {it.ev.hasAssignment && (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          title="Hier ist eine Aufgabe faellig"
+                          className="size-1.5 shrink-0 rounded-full bg-primary/70"
+                        />
+                        <span className="sr-only">Hier ist eine Aufgabe fällig.</span>
+                      </>
+                    )}
                     {it.ev.hasNote && (
                       <PenLine aria-hidden="true" className="size-3 shrink-0 text-foreground/50" />
                     )}
@@ -906,19 +925,30 @@ export default function Home() {
     return s?.color ? colorValue(s.color) : null;
   };
 
-  // Datum der NAECHSTEN Stunde desselben Fachs nach dem angeklickten Tag, aus
-  // den bereits geladenen Wochendaten. Keine gefunden -> Feld bleibt leer.
-  const nextLessonDate = (title: string, afterISO: string) =>
-    data?.days.find(
-      (d) => d.date > afterISO && d.events.some((e) => e.title === title && e.status !== "cancelled"),
-    )?.date ?? null;
-
-  const openComposer = (ev: Ev, dayISO: string, type: AssignmentType) => {
+  // Aufgabe aus einer Schulstunde heraus anlegen: Fach steht schon fest, die
+  // Faelligkeit fragt den Server (school_blocks kann ueber die geladene Woche
+  // hinausreichen und behandelt Entfall korrekt -- eine rein clientseitige
+  // Suche in `data` kaeme dabei zu kurz). Kein Treffer -> dueDate bleibt null,
+  // lieber ehrlich leer als geraten (Composer zeigt das im Hinweistext).
+  const openComposer = async (ev: Ev, dayISO: string, type: AssignmentType) => {
+    const subject = subjectFor(ev.title);
+    let dueDate: string | null = null;
+    try {
+      const res = await fetch(`/api/lessons/${ev.refId}/next-due`);
+      if (res.ok) {
+        const body = (await res.json()) as { dueDate: string | null };
+        dueDate = body.dueDate;
+      }
+    } catch {
+      // Ohne Antwort bleibt die Faelligkeit leer statt falsch vorbelegt.
+    }
     setSeed({
       type,
-      subjectId: subjectFor(ev.title)?.id ?? null,
+      subjectId: subject?.id ?? null,
       untisSubject: ev.title,
-      dueDate: nextLessonDate(ev.title, dayISO),
+      dueDate,
+      subjectName: subject?.name ?? ev.title,
+      originBlockId: ev.refId,
     });
   };
 
@@ -1458,6 +1488,18 @@ export default function Home() {
                               positioniert -- braucht keinen eigenen Guard wie der
                               Vertretung-Badge, weil ein einzelner Punkt in jeder
                               Spaltenbreite passt. */}
+                          {/* Aufgaben-Marker: eigener Punkt links vom Notiz-Punkt, damit
+                              beide gleichzeitig sichtbar bleiben statt sich zu ueberlagern. */}
+                          {p.ev.hasAssignment && (
+                            <>
+                              <span
+                                aria-hidden="true"
+                                title="Hier ist eine Aufgabe faellig"
+                                className="absolute right-3 top-1 size-1.5 rounded-full bg-primary/70"
+                              />
+                              <span className="sr-only">Hier ist eine Aufgabe fällig.</span>
+                            </>
+                          )}
                           {p.ev.hasNote && (
                             <span
                               aria-hidden="true"
@@ -1539,8 +1581,25 @@ export default function Home() {
         }}
         subjects={subjects.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
         initial={seed ?? undefined}
+        dueHint={
+          seed &&
+          (seed.dueDate
+            ? `Nächste ${seed.subjectName}-Stunde: ${weekdayDateLabel(seed.dueDate)}`
+            : `Die nächste ${seed.subjectName}-Stunde ist nicht bekannt.`)
+        }
         onSaved={(a) => {
           setAssignments((prev) => [...prev, a]);
+          if (seed) {
+            // Sichtbares Ergebnis: sagen, WOFUER die Aufgabe faellig ist --
+            // und den Stundenplan leise nachziehen, damit die Stunde ab jetzt
+            // ihren Aufgaben-Marker zeigt (kein Reload noetig).
+            const subjectName = a.subjectName ?? seed.subjectName;
+            const meldung = a.dueDate
+              ? `${TYPE_LABEL[a.type]} angelegt, fällig zur nächsten ${subjectName}-Stunde am ${WEEKDAYS_LONG[weekdayOfLocal(a.dueDate)]}.`
+              : `${TYPE_LABEL[a.type]} angelegt. Die nächste ${subjectName}-Stunde ist nicht bekannt.`;
+            toast(meldung);
+            setReloadKey((k) => k + 1);
+          }
           setSeed(null);
         }}
       />

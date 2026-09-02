@@ -2,7 +2,7 @@
 // Fach. Die Gruppierung liegt bewusst in lib/assignments-view.ts -- hier steht
 // nur, was aus der DB kommt.
 
-import { and, asc, desc, eq, gte, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   assignments,
@@ -14,6 +14,7 @@ import {
   type AssignmentDTO,
   type AssignmentType,
 } from "@/lib/assignments-view";
+import { normalizeSubject } from "@/lib/untis/adapter";
 import {
   ensureSubjectForUntis,
   isObj,
@@ -93,6 +94,45 @@ export async function listAssignments(
     );
 
   return rows.map(toDTO);
+}
+
+// Fuer den Stundenplan (lib/calendar-expand.ts): welche Schulstunden haben
+// eine offene Aufgabe, die genau an ihnen faellig ist? Es gibt keine direkte
+// Verknuepfung zwischen Aufgabe und Schulstunde (kein schoolBlockId an
+// assignments) -- der Treffer entsteht ueber Datum + Fach, genau wie eine
+// Aufgabe heute schon im Tages-Datum landet (DayDueRow). Ein Query fuer die
+// ganze uebergebene Spanne statt eins pro Block.
+export async function assignmentDueBlockIds(
+  blocks: { id: string; date: string; subject: string }[],
+): Promise<Set<string>> {
+  if (blocks.length === 0) return new Set();
+  const dates = [...new Set(blocks.map((b) => b.date))];
+
+  const rows = await db
+    .select({
+      dueDate: assignments.dueDate,
+      untisSubject: subjects.untisSubject,
+      subjectName: subjects.name,
+    })
+    .from(assignments)
+    .innerJoin(subjects, eq(assignments.subjectId, subjects.id))
+    .where(and(isNull(assignments.completedAt), inArray(assignments.dueDate, dates)));
+
+  // Datum -> Menge moeglicher (normalisierter) Fachnamen an diesem Tag.
+  const subjectsPerDate = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (!r.dueDate) continue;
+    const set = subjectsPerDate.get(r.dueDate) ?? new Set<string>();
+    if (r.untisSubject) set.add(normalizeSubject(r.untisSubject));
+    if (r.subjectName) set.add(normalizeSubject(r.subjectName));
+    subjectsPerDate.set(r.dueDate, set);
+  }
+
+  const out = new Set<string>();
+  for (const b of blocks) {
+    if (subjectsPerDate.get(b.date)?.has(normalizeSubject(b.subject))) out.add(b.id);
+  }
+  return out;
 }
 
 export async function getAssignment(id: string): Promise<AssignmentDTO | undefined> {

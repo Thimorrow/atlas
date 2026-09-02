@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { schoolBlocks, type SchoolBlock } from "@/lib/db/schema";
 import { normalizeSubject } from "@/lib/untis/adapter";
 import { lessonNoteBlockIds } from "@/lib/lesson-notes";
+import { assignmentDueBlockIds } from "@/lib/assignment-store";
 
 // Eine konkrete Event-Instanz an einem Tag (aus einer Untis-Stunde abgeleitet).
 // Zeiten als HH:MM.
@@ -17,6 +18,7 @@ export type CalendarEvent = {
   room: string | null;
   teacher: string | null;
   hasNote: boolean;
+  hasAssignment: boolean;
 };
 
 export type ExpandedDay = {
@@ -77,7 +79,7 @@ const hm = (t: string | null): string | null => (t ? t.slice(0, 5) : null);
 
 // --- Mapping -----------------------------------------------------------------
 
-function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>): CalendarEvent {
+function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>, dueBlockIds: Set<string>): CalendarEvent {
   return {
     source: "school",
     refId: b.id,
@@ -89,6 +91,7 @@ function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>): CalendarEven
     room: b.room,
     teacher: b.teacher,
     hasNote: notedBlockIds.has(b.id),
+    hasAssignment: dueBlockIds.has(b.id),
   };
 }
 
@@ -101,15 +104,18 @@ export async function expandRange(startISO: string, endISO: string): Promise<Exp
     .from(schoolBlocks)
     .where(and(gte(schoolBlocks.date, startISO), lte(schoolBlocks.date, endISO)));
 
-  // Ein zusaetzliches Query fuer die ganze Spanne statt eins pro Block --
+  // Zwei zusaetzliche Queries fuer die ganze Spanne statt eins pro Block --
   // sonst waere das ein N+1 bei jedem Wochenwechsel.
   const notedBlockIds = await lessonNoteBlockIds(blocks.map((b) => b.id));
+  const dueBlockIds = await assignmentDueBlockIds(
+    blocks.map((b) => ({ id: b.id, date: b.date, subject: b.subject })),
+  );
 
   const days: ExpandedDay[] = eachDay(startISO, endISO).map((date) => {
     const weekday = weekdayOf(date);
     const dayEvents: CalendarEvent[] = blocks
       .filter((b) => b.date === date)
-      .map((b) => schoolToEvent(b, notedBlockIds));
+      .map((b) => schoolToEvent(b, notedBlockIds, dueBlockIds));
     dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return { date, weekday, events: dayEvents };
   });
