@@ -190,6 +190,41 @@ class AtlasApi(
     }
 
     /**
+     * POST /api/sync/untis, ohne Rumpf: das uebliche Fenster (letzte Woche bis
+     * in drei Wochen). Bei Erfolg kommen Anzahl und Zeitraum zurueck, bei
+     * Misserfolg ein deutscher Satz -- [AtlasErgebnis.Fehler.ohneVerbindung]
+     * unterscheidet dabei schon "kein Netz" von "Server hat abgelehnt", genau
+     * die Unterscheidung, die die Einstellungen fuer ihre Meldung brauchen.
+     */
+    suspend fun syncUntis(): AtlasErgebnis<SyncUntisAntwort> =
+        anfrage(
+            Request.Builder().url("$basisUrl/api/sync/untis").post(ByteArray(0).toRequestBody(null)).build(),
+        ) { text -> json.decodeFromString<SyncUntisAntwort>(text) }
+
+    /**
+     * GET /api/microsoft/status. enabled=false ist der Normalfall, solange
+     * keine Azure-Registrierung hinterlegt ist, kein Fehler.
+     */
+    suspend fun microsoftStatus(): AtlasErgebnis<MicrosoftStatusAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/microsoft/status").get().build()) { text ->
+            json.decodeFromString<MicrosoftStatusAntwort>(text)
+        }
+
+    /** GET /api/subjects/{id}/grades. Noten und Schnitt eines Fachs. */
+    suspend fun noten(fachId: String): AtlasErgebnis<GradesAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects/$fachId/grades").get().build()) { text ->
+            json.decodeFromString<GradesAntwort>(text)
+        }
+
+    /** POST /api/subjects/{id}/grades. Antwortet mit 201, der neuen Note und dem neuen Schnitt. */
+    suspend fun noteAnlegen(fachId: String, neu: NeueNoteAnfrage): AtlasErgebnis<GradeAntwort> {
+        val rumpf = json.encodeToString(neu).toRequestBody(JSON_TYP)
+        return anfrage(
+            Request.Builder().url("$basisUrl/api/subjects/$fachId/grades").post(rumpf).build(),
+        ) { text -> json.decodeFromString<GradeAntwort>(text) }
+    }
+
+    /**
      * Der gemeinsame Weg jeder Anfrage: ausfuehren, Fehler in [AtlasErgebnis]
      * uebersetzen, den Rumpf nur im Erfolgsfall lesen. Jede Ausnahme endet
      * hier, keine verlaesst die Netzwerkschicht.

@@ -30,11 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.AtlasEasing
 import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.LocalBewegungReduziert
+import dev.atlas.schule.ui.theme.Tabellenziffern
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -88,9 +90,19 @@ fun Platzhalter(modifier: Modifier = Modifier, form: RoundedCornerShape = Rounde
     )
 }
 
-/** Skelett fuer eine gruppierte Liste: zwei Gruppen, drei und zwei Zeilen. */
+/**
+ * Skelett fuer eine gruppierte Liste: zwei Gruppen, drei und zwei Zeilen.
+ *
+ * [zeilenHoehe] ist die Hoehe einer echten Zeile in der jeweiligen Liste. Der
+ * Vorgabewert entspricht der Aufgabenzeile (48dp Hakenfeld plus 2×8dp
+ * Abstand.normal). Ohne diesen Abgleich fiel die Liste beim Eintreffen der
+ * Daten sichtbar zusammen, weil das Skelett schmaler war als die echte Zeile.
+ */
 @Composable
-fun ListenSkelett(modifier: Modifier = Modifier) {
+fun ListenSkelett(
+    modifier: Modifier = Modifier,
+    zeilenHoehe: Dp = Hoehe.bedienelement + Abstand.normal * 2,
+) {
     Column(
         // Das Skelett hat keine Bedeutung, es hat nur eine Form. Vorgelesen
         // waere es eine Reihe namenloser Kaesten.
@@ -104,7 +116,7 @@ fun ListenSkelett(modifier: Modifier = Modifier) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
-                        modifier = Modifier.height(Hoehe.bedienelement),
+                        modifier = Modifier.height(zeilenHoehe),
                     ) {
                         Platzhalter(Modifier.size(22.dp), CircleShape)
                         Column(
@@ -217,10 +229,12 @@ fun standText(zeit: Instant, heute: LocalDate, ohneVerbindung: Boolean): String 
     val lokal = LocalDateTime.ofInstant(zeit, ZoneId.systemDefault())
     val uhr = "%02d:%02d".format(lokal.hour, lokal.minute)
     val grund = if (ohneVerbindung) "keine Verbindung" else "der Server antwortet gerade nicht"
+    // Geschuetztes Leerzeichen vor "Uhr": eine Uhrzeit und ihre Einheit sollen
+    // nie an unterschiedlichen Zeilenenden landen.
     return if (lokal.toLocalDate() == heute) {
-        "Stand von $uhr Uhr, $grund"
+        "Stand von $uhr Uhr, $grund"
     } else {
-        "Stand vom ${lokal.dayOfMonth}.${lokal.monthValue}., $uhr Uhr, $grund"
+        "Stand vom ${lokal.dayOfMonth}.${lokal.monthValue}., $uhr Uhr, $grund"
     }
 }
 
@@ -233,7 +247,7 @@ fun standText(zeit: Instant, heute: LocalDate, ohneVerbindung: Boolean): String 
 fun StandZeile(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = modifier

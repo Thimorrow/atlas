@@ -8,7 +8,9 @@ import dev.atlas.schule.data.AtlasApi
 import dev.atlas.schule.data.AtlasErgebnis
 import dev.atlas.schule.data.ExpandedRange
 import dev.atlas.schule.data.FachDetailAntwort
+import dev.atlas.schule.data.GradesAntwort
 import dev.atlas.schule.data.NeueAufgabeAnfrage
+import dev.atlas.schule.data.NeueNoteAnfrage
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.data.SyncDTO
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +22,12 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 
-/** Die drei Ziele der unteren Leiste. Die Reihenfolge ist die Reihenfolge dort. */
+/** Die vier Ziele der unteren Leiste. Die Reihenfolge ist die Reihenfolge dort. */
 enum class Reiter(val bezeichnung: String) {
     STUNDENPLAN("Stundenplan"),
     AUFGABEN("Aufgaben"),
     FAECHER("Fächer"),
+    EINSTELLUNGEN("Einstellungen"),
 }
 
 /** Was /api/home ausser der Woche liefert. Die Woche liegt im Wochenspeicher. */
@@ -64,6 +67,24 @@ data class BlattZustand(
     val laeuft: Boolean = false,
     val fehler: String? = null,
     val vorbelegung: Vorbelegung? = null,
+)
+
+/**
+ * Noten und Schnitt eines Fachs, dazu das Blatt fuer eine neue Note.
+ *
+ * Ein eigener StateFlow statt eines Feldes auf AtlasZustand.App: AtlasZustand
+ * ist in Zustaende.kt definiert, das fuer diese Aufgabe gesperrt ist. Das
+ * detailFachId-Muster aus holeDetail() gilt hier genauso ueber [fachId]: eine
+ * spaete Antwort fuer ein inzwischen verlassenes Fach darf nicht mehr
+ * geschrieben werden.
+ */
+data class NotenZustand(
+    /** null heisst: kein Fach mit Notenansicht offen. */
+    val fachId: String? = null,
+    val noten: Ladung<GradesAntwort>? = null,
+    val blattOffen: Boolean = false,
+    val blattLaeuft: Boolean = false,
+    val blattFehler: String? = null,
 )
 
 sealed interface AtlasZustand {
@@ -110,6 +131,9 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         if (api.hatGateCookie()) frischeApp() else AtlasZustand.Anmeldung(),
     )
     val zustand: StateFlow<AtlasZustand> = _zustand.asStateFlow()
+
+    private val _notenZustand = MutableStateFlow(NotenZustand())
+    val notenZustand: StateFlow<NotenZustand> = _notenZustand.asStateFlow()
 
     private fun frischeApp(): AtlasZustand.App {
         val heute = LocalDate.now()
@@ -406,6 +430,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     fun oeffneFach(id: String) {
         aendere { it.copy(detail = Ladung.Laedt, detailStand = null, detailFachId = id) }
+        ladeNoten(id)
         viewModelScope.launch {
             zeigeGespeichertesDetail(id)
             holeDetail(id)
@@ -421,7 +446,10 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         }
     }
 
-    fun schliesseFach() = aendere { it.copy(detail = null, detailFachId = null) }
+    fun schliesseFach() {
+        aendere { it.copy(detail = null, detailFachId = null) }
+        _notenZustand.value = NotenZustand()
+    }
 
     fun ladeDetailNeu() {
         val id = app?.detailFachId ?: return
@@ -463,5 +491,67 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     private fun ladeDetailNeuFallsOffen() {
         val offen = app?.detailFachId ?: return
         viewModelScope.launch { holeDetail(offen) }
+    }
+
+    // --- Noten -----------------------------------------------------------------
+
+    private fun ladeNoten(id: String) {
+        _notenZustand.value = NotenZustand(fachId = id, noten = Ladung.Laedt)
+        viewModelScope.launch { holeNoten(id) }
+    }
+
+    private suspend fun holeNoten(id: String) {
+        val ergebnis = api.noten(id)
+        // Wer inzwischen ein anderes Fach geoeffnet hat, soll dessen Noten
+        // nicht durch die spaete Antwort dieses Fachs ueberschrieben sehen.
+        _notenZustand.update { zustand ->
+            if (zustand.fachId != id) return@update zustand
+            when (ergebnis) {
+                is AtlasErgebnis.Erfolg -> zustand.copy(noten = Ladung.Da(ergebnis.wert))
+                is AtlasErgebnis.Fehler -> zustand.copy(noten = Ladung.Fehler(ergebnis.meldung))
+            }
+        }
+    }
+
+    fun ladeNotenNeu() {
+        val id = _notenZustand.value.fachId ?: return
+        ladeNoten(id)
+    }
+
+    fun oeffneNoteBlatt() = _notenZustand.update { it.copy(blattOffen = true, blattFehler = null) }
+
+    fun schliesseNoteBlatt() = _notenZustand.update { it.copy(blattOffen = false, blattFehler = null) }
+
+    fun noteAnlegen(fachId: String, punkte: Int, bezeichnung: String, art: String, datum: LocalDate) {
+        if (_notenZustand.value.blattLaeuft) return
+        _notenZustand.update { it.copy(blattLaeuft = true, blattFehler = null) }
+        viewModelScope.launch {
+            val ergebnis = api.noteAnlegen(
+                fachId,
+                NeueNoteAnfrage(points = punkte, label = bezeichnung.trim(), kind = art, date = datum),
+            )
+            when (ergebnis) {
+                is AtlasErgebnis.Erfolg -> {
+                    // Neu laden statt die Antwort selbst einzusortieren: der
+                    // Server liefert dabei auch den neuen Schnitt gleich mit.
+                    //
+                    // Aber nicht ueber ladeNoten: das setzt den Zustand auf
+                    // Ladung.Laedt zurueck, und die eben noch sichtbare Liste
+                    // faellt fuer einen Moment auf das Skelett zurueck. Wer
+                    // gerade eine Note eingetragen hat, soll die alte Liste
+                    // stehen sehen, bis die neue da ist.
+                    _notenZustand.update { zustand ->
+                        if (zustand.fachId != fachId) return@update zustand
+                        zustand.copy(blattOffen = false, blattLaeuft = false, blattFehler = null)
+                    }
+                    holeNoten(fachId)
+                }
+
+                is AtlasErgebnis.Fehler -> _notenZustand.update { zustand ->
+                    if (zustand.fachId != fachId) return@update zustand
+                    zustand.copy(blattLaeuft = false, blattFehler = ergebnis.meldung)
+                }
+            }
+        }
     }
 }

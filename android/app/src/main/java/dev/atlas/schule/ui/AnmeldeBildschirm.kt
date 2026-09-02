@@ -148,7 +148,7 @@ fun AnmeldeBildschirm(
                 modifier = Modifier
                     .fillMaxWidth()
                     // heightIn statt height: bei doppelter Systemschrift passte
-                    // "Einen Moment ..." nicht mehr in die festen 48dp und wurde
+                    // „Einen Moment …“ nicht mehr in die festen 48dp und wurde
                     // oben und unten abgeschnitten.
                     .heightIn(min = Hoehe.bedienelement),
             ) {

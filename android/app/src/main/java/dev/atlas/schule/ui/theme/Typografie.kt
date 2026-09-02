@@ -62,3 +62,12 @@ val AtlasTypografie = Typography(
         lineHeight = 19.sp,
     ),
 )
+
+/**
+ * Ziffern gleicher Breite statt proportionaler. Ohne das aendert eine "1"
+ * neben einer "8" die Breite einer Zahl, und eine Uhrzeit oder ein Zaehler,
+ * der sich aendert, zittert dabei sichtbar. Ueber `.merge(Tabellenziffern)`
+ * an jede Stelle anhaengen, an der Zahlen sich aendern oder untereinander
+ * stehen -- Uhrzeiten, Datumsangaben, Zaehler.
+ */
+val Tabellenziffern = TextStyle(fontFeatureSettings = "tnum")

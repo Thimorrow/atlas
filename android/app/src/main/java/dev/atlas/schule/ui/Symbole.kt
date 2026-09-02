@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 
 private const val STRICH = 1.75f
 
-private fun strichzeichen(name: String, pfad: PathBuilder.() -> Unit): ImageVector =
+internal fun strichzeichen(name: String, pfad: PathBuilder.() -> Unit): ImageVector =
     ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,

@@ -9,10 +9,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import dev.atlas.schule.data.Erscheinungsbild
+import dev.atlas.schule.data.ErscheinungsbildSpeicher
 
 // Atlas ist bewusst monochrom: --brand zeigt im Web auf --primary, es gibt
 // keinen bunten Akzent. Deshalb tragen primary, secondary und tertiary hier
@@ -115,6 +121,12 @@ val LocalFokusring = compositionLocalOf { HellFokusring }
 /** Fachfarben brauchen den Modus, weil "Weiss" pro Modus verschieden ist. */
 val LocalDunkelmodus = compositionLocalOf { false }
 
+/** Die aktuell gewaehlte Kachel aus "Erscheinungsbild", nicht das ausgewertete Hell/Dunkel. */
+val LocalErscheinungsbild = compositionLocalOf { Erscheinungsbild.SYSTEM }
+
+/** Setzt die Wahl und schreibt sie weg, wechselt also sofort und ueberlebt den naechsten Start. */
+val LocalErscheinungsbildSetzen = compositionLocalOf<(Erscheinungsbild) -> Unit> { {} }
+
 /**
  * Farbe eines Fachs aus dem gespeicherten Token. Ein leeres oder unbekanntes
  * Token ergibt das neutrale Grau, genau wie colorValue() im Web.
@@ -128,14 +140,22 @@ fun fachfarbe(token: String?): Color {
 
 @Composable
 fun AtlasTheme(
-    // Der Dunkelmodus folgt dem System. Einen eigenen Schalter gibt es nicht,
-    // die Web-App hat auch keinen.
-    dunkel: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
+    // Synchron aus den SharedPreferences gelesen, nicht ueber LaunchedEffect:
+    // sonst stuende die App fuer einen Frame im System-Look, bevor die
+    // gespeicherte Wahl nachtraeglich einschlaegt.
+    var erscheinungsbild by remember { mutableStateOf(ErscheinungsbildSpeicher(context).lies()) }
+    val system = isSystemInDarkTheme()
+    val dunkel = when (erscheinungsbild) {
+        Erscheinungsbild.HELL -> false
+        Erscheinungsbild.DUNKEL -> true
+        Erscheinungsbild.SYSTEM -> system
+    }
+
     val schema = if (dunkel) DunklesSchema else HellesSchema
     val view = LocalView.current
-    val context = LocalContext.current
 
     if (!view.isInEditMode) {
         SideEffect {
@@ -150,6 +170,11 @@ fun AtlasTheme(
         LocalFokusring provides if (dunkel) DunkelFokusring else HellFokusring,
         LocalDunkelmodus provides dunkel,
         LocalBewegungReduziert provides bewegungReduziert(context),
+        LocalErscheinungsbild provides erscheinungsbild,
+        LocalErscheinungsbildSetzen provides { neu ->
+            erscheinungsbild = neu
+            ErscheinungsbildSpeicher(context).schreibe(neu)
+        },
     ) {
         MaterialTheme(
             colorScheme = schema,

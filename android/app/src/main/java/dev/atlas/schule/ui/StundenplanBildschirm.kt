@@ -43,7 +43,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +55,8 @@ import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Fachfarbe
 import dev.atlas.schule.ui.theme.Hoehe
 import dev.atlas.schule.ui.theme.LocalDunkelmodus
+import dev.atlas.schule.ui.theme.Tabellenziffern
+import dev.atlas.schule.ui.theme.druckSkalierung
 import dev.atlas.schule.ui.theme.fachfarbe
 import java.time.LocalDate
 
@@ -65,8 +66,14 @@ private const val WOCHEN_SPANNE = 60
 private const val WOCHEN_MITTE = WOCHEN_SPANNE
 
 private val WOCHENTAGE_KURZ = listOf("Mo", "Di", "Mi", "Do", "Fr")
-private val ZEITSPALTE = 38.dp
+// 38dp reichten fuer die alte Beschriftung mit vollen Stunden ("08"). Seit die
+// Achse die echten Stundengrenzen zeigt, ist "11:10" der laengste Fall, und der
+// brach dort auf zwei Zeilen um. 48dp fassen ihn samt Innenabstand.
+private val ZEITSPALTE = 48.dp
 private val MINDEST_STUNDENHOEHE = 46.dp
+
+// In normalen Abschnitten ist eine Einheit eine Minute, siehe Rasterachse.
+private val MINDEST_EINHEITHOEHE = MINDEST_STUNDENHOEHE / 60
 
 /** "2.–8. September 2025", ein Monatsname wenn die Woche nicht umbricht. */
 private fun wochenLabel(start: LocalDate, ende: LocalDate): String =
@@ -148,7 +155,7 @@ private fun Woche(
     Column(Modifier.fillMaxSize()) {
         Text(
             text = wochenLabel(montag, montag.plusDays(4)),
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall.merge(Tabellenziffern),
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(horizontal = Abstand.weit, vertical = Abstand.mittel),
         )
@@ -225,7 +232,7 @@ private fun Kopfzeile(tage: List<LocalDate>, heute: LocalDate) {
                 ) {
                     Text(
                         text = "${datum.dayOfMonth}",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelLarge.merge(Tabellenziffern),
                         fontWeight = if (istHeute) FontWeight.SemiBold else FontWeight.Normal,
                         color = if (istHeute) MaterialTheme.colorScheme.onPrimary
                         else MaterialTheme.colorScheme.onBackground,
@@ -250,7 +257,8 @@ private fun Raster(
     // Vorschlag fuer das Faelligkeitsdatum.
     val wochenstunden = remember(tage) { tage.flatMap { it.second } }
     val (start, ende) = remember(tage) { tagesgrenzen(tage.flatMap { it.second }) }
-    val stunden = ende - start
+    val achse = remember(wochenstunden, start, ende) { Rasterachse(wochenstunden, start, ende) }
+    val grenzen = remember(wochenstunden, start, ende) { rastergrenzen(wochenstunden, start, ende) }
 
     // Die Schrift in den Bloecken waechst mit der Systemschrift, die Zeilen
     // muessen es also auch: sonst faellt bei doppelter Schrift zuerst der Raum
@@ -259,38 +267,63 @@ private fun Raster(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Passt die Woche in die Hoehe, wird sie eingepasst; passt sie nicht,
-        // bekommt jede Stunde ihre Mindesthoehe und das Raster scrollt. Ein
+        // bekommt jede Einheit ihre Mindesthoehe und das Raster scrollt. Ein
         // gestauchtes Raster waere unlesbar, ein immer scrollendes laestig.
-        val stundenHoehe = maxOf(MINDEST_STUNDENHOEHE * schriftskala, maxHeight / stunden)
-        val gesamt = stundenHoehe * stunden
+        val einheitHoehe = maxOf(MINDEST_EINHEITHOEHE * schriftskala, maxHeight / achse.gesamtEinheiten)
+        val gesamt = einheitHoehe * achse.gesamtEinheiten
 
-        Row(
+        Box(
             Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .height(gesamt),
         ) {
-            Zeitachse(start, ende, stundenHoehe)
-            tage.forEach { (datum, ereignisse) ->
-                Tagesspalte(
-                    datum = datum,
-                    ereignisse = ereignisse,
-                    istHeute = datum == heute,
-                    tagStart = start,
-                    tagEnde = ende,
-                    stundenHoehe = stundenHoehe,
-                    faecher = faecher,
-                    wochenstunden = wochenstunden,
-                    beimStundeTippen = beimStundeTippen,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                )
+            Row(Modifier.fillMaxWidth().height(gesamt)) {
+                Zeitachse(grenzen, achse, einheitHoehe)
+                tage.forEach { (datum, ereignisse) ->
+                    Tagesspalte(
+                        datum = datum,
+                        ereignisse = ereignisse,
+                        istHeute = datum == heute,
+                        tagStart = start,
+                        tagEnde = ende,
+                        grenzen = grenzen,
+                        achse = achse,
+                        einheitHoehe = einheitHoehe,
+                        faecher = faecher,
+                        wochenstunden = wochenstunden,
+                        beimStundeTippen = beimStundeTippen,
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                    )
+                }
+            }
+
+            // Jedes Leerband liegt als eigene, ruhige Zone ueber der vollen
+            // Zeilenbreite inklusive Zeitspalte -- so ist auf einen Blick
+            // klar, dass hier keine einzelne Spalte leer ist, sondern die
+            // ganze Woche an dieser Stelle keinen Unterricht hat.
+            achse.leerbaender.forEach { band ->
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .offset(y = einheitHoehe * achse.position(band.start))
+                        .height(einheitHoehe * LEERBAND_EINHEITEN)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = formatiereDauer(band.dauer),
+                        style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun Zeitachse(start: Int, ende: Int, stundenHoehe: androidx.compose.ui.unit.Dp) {
+private fun Zeitachse(grenzen: List<Rastergrenze>, achse: Rasterachse, einheitHoehe: androidx.compose.ui.unit.Dp) {
     Box(
         Modifier
             .width(ZEITSPALTE)
@@ -300,15 +333,23 @@ private fun Zeitachse(start: Int, ende: Int, stundenHoehe: androidx.compose.ui.u
             // freistehende Zahlen vor.
             .clearAndSetSemantics { },
     ) {
-        (start until ende).forEach { stunde ->
+        grenzen.filter { it.beschriftet }.forEach { grenze ->
             Text(
-                text = "%02d".format(stunde),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
+                text = formatiereUhrzeit(grenze.minute),
+                // Kein Monospace: Tabellenziffern halten die Zahlen schon in
+                // einer Flucht, Monospace macht sie nur breiter und gab auch
+                // dem Doppelpunkt eine volle Ziffernbreite. Zusammen mit der
+                // schmalen Spalte brach "11:10" dadurch auf zwei Zeilen um.
+                style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
                 fontSize = 11.sp,
+                // Eine Uhrzeit hat keine zweite Zeile. Lieber ueber den Rand
+                // als umgebrochen: die Spalte ist auf den laengsten Fall
+                // ausgelegt, aber eine grosse Systemschrift kann sie sprengen.
+                maxLines = 1,
+                softWrap = false,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .offset(y = stundenHoehe * (stunde - start))
+                    .offset(y = einheitHoehe * achse.position(grenze.minute))
                     .padding(end = Abstand.eng)
                     .fillMaxWidth(),
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -324,7 +365,9 @@ private fun Tagesspalte(
     istHeute: Boolean,
     tagStart: Int,
     tagEnde: Int,
-    stundenHoehe: androidx.compose.ui.unit.Dp,
+    grenzen: List<Rastergrenze>,
+    achse: Rasterachse,
+    einheitHoehe: androidx.compose.ui.unit.Dp,
     faecher: List<SubjectDTO>,
     wochenstunden: List<CalendarEvent>,
     beimStundeTippen: (Vorbelegung) -> Unit,
@@ -333,7 +376,6 @@ private fun Tagesspalte(
     val bloecke = remember(ereignisse, tagStart, tagEnde) {
         packeTag(ereignisse, tagStart, tagEnde)
     }
-    val proMinute = stundenHoehe / 60f
 
     BoxWithConstraints(
         modifier
@@ -347,10 +389,10 @@ private fun Tagesspalte(
     ) {
         val spaltenbreite = maxWidth
 
-        (tagStart + 1 until tagEnde).forEach { stunde ->
+        grenzen.filter { it.minute > tagStart && it.minute < tagEnde }.forEach { grenze ->
             Spacer(
                 Modifier
-                    .offset(y = stundenHoehe * (stunde - tagStart))
+                    .offset(y = einheitHoehe * achse.position(grenze.minute))
                     .fillMaxWidth()
                     .height(1.dp)
                     .background(MaterialTheme.colorScheme.outline),
@@ -377,8 +419,8 @@ private fun Tagesspalte(
                         )
                     }
                 },
-                oben = proMinute * (block.start - tagStart * 60),
-                hoehe = proMinute * (block.ende - block.start) - 2.dp,
+                oben = einheitHoehe * achse.position(block.start),
+                hoehe = einheitHoehe * (achse.position(block.ende) - achse.position(block.start)) - 2.dp,
                 links = spaltenbreite * (block.spur.toFloat() / block.spuren) + 1.dp,
                 breite = spaltenbreite / block.spuren - 2.dp,
             )
@@ -463,6 +505,9 @@ private fun Stundenblock(
             modifier = Modifier
                 .width(breite)
                 .height(echteHoehe)
+                // Der Druck schrumpft den sichtbaren Block leicht -- die
+                // Beruehrungsflaeche drumherum bleibt unveraendert stehen.
+                .druckSkalierung(beruehrung)
                 .clip(RoundedCornerShape(6.dp))
                 // Entfallene Stunden verlieren ihre Fuellung und behalten nur den
                 // Umriss: der Platz bleibt sichtbar, die Stunde nicht.
@@ -522,7 +567,6 @@ private fun Stundenblock(
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        fontFamily = if (entfaellt) FontFamily.Default else FontFamily.Monospace,
                         // Auf der eingefaerbten Blockflaeche traegt der volle
                         // gedaempfte Ton nur rund 4:1. Der Vordergrund mit 70
                         // Prozent liegt sicher darueber, so macht es das Web auch.
@@ -571,7 +615,11 @@ private fun WochenSkelett() {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(Abstand.normal)) {
             repeat(5) {
-                Platzhalter(Modifier.weight(1f).height(38.dp))
+                // 57dp = 19dp Wochentagskuerzel (bodySmall) + 4dp Abstand.klein
+                // + 26dp Tageskreis + 8dp Abstand.normal, der unter der echten
+                // Kopfzeile steht. Bei 38dp rutschte die Woche beim Eintreffen
+                // der Daten sichtbar nach unten.
+                Platzhalter(Modifier.weight(1f).height(57.dp))
             }
         }
         Row(

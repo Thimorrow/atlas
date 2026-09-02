@@ -45,9 +45,11 @@ import dev.atlas.schule.ui.AnmeldeBildschirm
 import dev.atlas.schule.ui.AtlasViewModel
 import dev.atlas.schule.ui.AtlasZustand
 import dev.atlas.schule.ui.AufgabenBildschirm
+import dev.atlas.schule.ui.EinstellungenBildschirm
 import dev.atlas.schule.ui.FachDetailBildschirm
 import dev.atlas.schule.ui.FaecherBildschirm
 import dev.atlas.schule.ui.IkoneAufgaben
+import dev.atlas.schule.ui.IkoneEinstellungen
 import dev.atlas.schule.ui.IkoneFaecher
 import dev.atlas.schule.ui.IkoneStundenplan
 import dev.atlas.schule.ui.Ladung
@@ -83,6 +85,7 @@ private fun ikoneVon(reiter: Reiter): ImageVector = when (reiter) {
     Reiter.STUNDENPLAN -> IkoneStundenplan
     Reiter.AUFGABEN -> IkoneAufgaben
     Reiter.FAECHER -> IkoneFaecher
+    Reiter.EINSTELLUNGEN -> IkoneEinstellungen
 }
 
 @Composable
@@ -115,6 +118,11 @@ private fun AtlasApp(ansichtsmodell: AtlasViewModel = viewModel()) {
 @Composable
 private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel) {
     val schnipsel = remember { SnackbarHostState() }
+
+    // Eigener Fluss neben dem Hauptzustand: die Noten haengen am geoeffneten
+    // Fach, nicht am Geruest, und eine spaete Antwort fuer ein inzwischen
+    // geschlossenes Fach darf den Rest der App nicht anfassen.
+    val noten by ansichtsmodell.notenZustand.collectAsStateWithLifecycle()
 
     // Ein Hinweis wird genau einmal gezeigt und dann aus dem Zustand geraeumt,
     // sonst taucht er nach jeder Drehung erneut auf.
@@ -223,6 +231,10 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                                 beimOeffnen = ansichtsmodell::oeffneFach,
                                 beimErneutLaden = ansichtsmodell::ladeNeu,
                             )
+
+                            Reiter.EINSTELLUNGEN -> EinstellungenBildschirm(
+                                beimSyncErfolgreich = ansichtsmodell::ladeNeu,
+                            )
                         }
                     }
                 }
@@ -247,6 +259,17 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                     beimZurueck = ansichtsmodell::schliesseFach,
                     beimHaken = ansichtsmodell::setzeHaken,
                     beimErneutLaden = ansichtsmodell::ladeDetailNeu,
+                    notenZustand = noten,
+                    beimNotenErneutLaden = ansichtsmodell::ladeNotenNeu,
+                    beimNoteBlattOeffnen = ansichtsmodell::oeffneNoteBlatt,
+                    beimNoteBlattSchliessen = ansichtsmodell::schliesseNoteBlatt,
+                    // Das Fach steht im Notenzustand, nicht am Blatt: das Blatt
+                    // weiss nur, was eingegeben wurde, nicht wozu.
+                    beimNoteAnlegen = { punkte, bezeichnung, art, datum ->
+                        noten.fachId?.let {
+                            ansichtsmodell.noteAnlegen(it, punkte, bezeichnung, art, datum)
+                        }
+                    },
                 )
             }
         }

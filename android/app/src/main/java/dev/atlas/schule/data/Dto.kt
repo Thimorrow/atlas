@@ -144,6 +144,110 @@ data class FachDetailAntwort(
 @Serializable
 data class AssignmentAntwort(val assignment: AssignmentDTO)
 
+@Serializable
+data class GradeDTO(
+    val id: String,
+    val subjectId: String,
+    /** oral oder written */
+    val kind: String,
+    /** 0-15 */
+    val points: Int,
+    /** Vom Server abgeleitet, etwa "2+". Wird nie selbst berechnet oder gesendet. */
+    val grade: String,
+    val label: String,
+    @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
+    val weight: Double,
+    @Serializable(with = InstantSerialisierer::class) val createdAt: Instant,
+    @Serializable(with = InstantSerialisierer::class) val updatedAt: Instant,
+)
+
+@Serializable
+data class GradeAverageDTO(
+    val points: Double,
+    val label: String,
+)
+
+@Serializable
+data class GradeSummaryDTO(
+    val average: GradeAverageDTO? = null,
+    val oral: GradeAverageDTO? = null,
+    val written: GradeAverageDTO? = null,
+    val count: Int = 0,
+    /** Anteil muendlich am Fachschnitt, in Prozent. */
+    val oralWeight: Int = 50,
+)
+
+@Serializable
+data class GradeOverviewEntryDTO(
+    val id: String,
+    val name: String,
+    val color: String? = null,
+    val summary: GradeSummaryDTO,
+)
+
+/** GET /api/grades. */
+@Serializable
+data class GradeOverviewAntwort(
+    val overall: GradeAverageDTO? = null,
+    val subjects: List<GradeOverviewEntryDTO> = emptyList(),
+)
+
+/** GET /api/subjects/{id}/grades. */
+@Serializable
+data class GradesAntwort(
+    val grades: List<GradeDTO> = emptyList(),
+    val summary: GradeSummaryDTO,
+)
+
+/** Antwort auf POST /api/subjects/{id}/grades. */
+@Serializable
+data class GradeAntwort(
+    val grade: GradeDTO,
+    val summary: GradeSummaryDTO,
+)
+
+/**
+ * Rumpf fuer POST /api/subjects/{id}/grades. [weight] darf fehlen, der Server
+ * setzt dann seinen eigenen Standardwert.
+ */
+@Serializable
+data class NeueNoteAnfrage(
+    val points: Int,
+    val label: String,
+    val kind: String,
+    @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
+    val weight: Double? = null,
+)
+
+/** Zeitraum eines Untis-Abgleichs, "start" und "end" als JJJJ-MM-TT. */
+@Serializable
+data class SyncFensterDTO(
+    @Serializable(with = LocalDateSerialisierer::class) val start: LocalDate,
+    @Serializable(with = LocalDateSerialisierer::class) val end: LocalDate,
+)
+
+/** Erfolgsantwort von POST /api/sync/untis. */
+@Serializable
+data class SyncUntisAntwort(
+    val fetched: Int = 0,
+    val upserted: Int = 0,
+    val window: SyncFensterDTO,
+)
+
+/** GET /api/microsoft/status. */
+@Serializable
+data class MicrosoftStatusAntwort(
+    val enabled: Boolean,
+    val connected: Boolean,
+    val account: MicrosoftAccountDTO? = null,
+)
+
+@Serializable
+data class MicrosoftAccountDTO(
+    val displayName: String? = null,
+    val email: String? = null,
+)
+
 /**
  * Rumpf fuer POST /api/assignments. Nur "title" ist Pflicht; die uebrigen
  * Felder duerfen fehlen, deshalb sind sie nullbar und explicitNulls = false

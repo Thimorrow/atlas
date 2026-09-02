@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,18 +29,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.atlas.schule.data.AssignmentDTO
 import dev.atlas.schule.data.FachDetailAntwort
+import dev.atlas.schule.data.GradeDTO
+import dev.atlas.schule.data.GradeSummaryDTO
+import dev.atlas.schule.data.GradesAntwort
 import dev.atlas.schule.data.LessonDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
+import dev.atlas.schule.ui.theme.Tabellenziffern
 import dev.atlas.schule.ui.theme.fachfarbe
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Fachdetail: Stammdaten, naechste Stunden, offene Aufgaben, Notizen.
@@ -55,6 +61,19 @@ fun FachDetailBildschirm(
     beimZurueck: () -> Unit,
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
     beimErneutLaden: () -> Unit,
+    /**
+     * Noten und Schnitt dieses Fachs, dazu das Blatt fuer eine neue Note. Ein
+     * eigener Parameterblock statt eines Felds auf [ladung], weil die Noten
+     * ueber einen eigenen StateFlow im ViewModel laufen (siehe NotenZustand in
+     * AtlasViewModel.kt). Vorbelegt mit leerem Zustand, damit bestehende
+     * Aufrufstellen ohne Anpassung weiter uebersetzen; angebunden wird der
+     * echte Zustand dort, wo dieser Bildschirm aufgerufen wird.
+     */
+    notenZustand: NotenZustand = NotenZustand(),
+    beimNotenErneutLaden: () -> Unit = {},
+    beimNoteBlattOeffnen: () -> Unit = {},
+    beimNoteBlattSchliessen: () -> Unit = {},
+    beimNoteAnlegen: (Int, String, String, LocalDate) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -88,8 +107,25 @@ fun FachDetailBildschirm(
                 FehlerZustand(ladung.meldung, beimErneutLaden)
             }
 
-            is Ladung.Da -> Inhalt(ladung.wert, heute, beimHaken)
+            is Ladung.Da -> Inhalt(
+                daten = ladung.wert,
+                heute = heute,
+                beimHaken = beimHaken,
+                notenLadung = notenZustand.noten ?: Ladung.Laedt,
+                beimNotenErneutLaden = beimNotenErneutLaden,
+                beimNoteBlattOeffnen = beimNoteBlattOeffnen,
+            )
         }
+    }
+
+    if (notenZustand.blattOffen) {
+        NeueNoteBlatt(
+            laeuft = notenZustand.blattLaeuft,
+            fehler = notenZustand.blattFehler,
+            heute = heute,
+            beimSchliessen = beimNoteBlattSchliessen,
+            beimAnlegen = beimNoteAnlegen,
+        )
     }
 }
 
@@ -98,6 +134,9 @@ private fun Inhalt(
     daten: FachDetailAntwort,
     heute: LocalDate,
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
+    notenLadung: Ladung<GradesAntwort>,
+    beimNotenErneutLaden: () -> Unit,
+    beimNoteBlattOeffnen: () -> Unit,
 ) {
     val fach = daten.subject
     val farbe = fachfarbe(fach.color)
@@ -165,6 +204,24 @@ private fun Inhalt(
             }
         }
 
+        item("noten") {
+            Abschnitt(
+                titel = "Noten",
+                aktion = {
+                    IconButton(onClick = beimNoteBlattOeffnen, modifier = Modifier.size(Hoehe.bedienelement)) {
+                        Icon(
+                            IkonePlus,
+                            contentDescription = "Note eintragen",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                },
+            ) {
+                NotenInhalt(notenLadung, beimNotenErneutLaden, beimNoteBlattOeffnen)
+            }
+        }
+
         item("notizen") {
             Abschnitt("Notizen", if (daten.notes.isEmpty()) null else "${daten.notes.size}") {
                 if (daten.notes.isEmpty()) {
@@ -196,6 +253,8 @@ private fun Inhalt(
 private fun Abschnitt(
     titel: String,
     zusatz: String? = null,
+    /** Zusaetzliche Kopfzeilen-Aktion, etwa das Pluszeichen im Notenabschnitt. */
+    aktion: (@Composable () -> Unit)? = null,
     inhalt: @Composable () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Abstand.normal)) {
@@ -210,12 +269,15 @@ private fun Abschnitt(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            zusatz?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+                zusatz?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                aktion?.invoke()
             }
         }
         Column(
@@ -312,8 +374,12 @@ private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
         )
         Text(
             text = stunde.endTime?.let { "${stunde.startTime}–$it" } ?: stunde.startTime,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
+            // Tabellenziffern statt Monospace. Beide halten die Uhrzeiten
+            // untereinander in einer Flucht, aber Monospace gibt auch dem
+            // Doppelpunkt eine volle Ziffernbreite, und "09:40–10:25" fiel
+            // dadurch sichtbar auseinander. Ausserdem wechselte hier mitten
+            // auf der Seite die Schriftart.
+            style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
             textDecoration = if (entfaellt) TextDecoration.LineThrough else null,
             color = MaterialTheme.colorScheme.onBackground,
         )
@@ -341,3 +407,157 @@ private fun Leerzeile(text: String) {
         modifier = Modifier.padding(vertical = Abstand.klein),
     )
 }
+
+/**
+ * Der Notenabschnitt: Ladezustand, Leerzustand mit Einstiegsaktion,
+ * Fehlerzustand, oder Schnitt plus Einzelnoten. Die Rechnung selbst kommt
+ * fertig vom Server (GradeSummaryDTO), diese Datei zeigt sie nur an -- siehe
+ * Notenlogik.kt fuer die Portierung der Rechnung, die nur die Tests brauchen.
+ */
+@Composable
+private fun NotenInhalt(
+    ladung: Ladung<GradesAntwort>,
+    beimErneutLaden: () -> Unit,
+    beimNoteBlattOeffnen: () -> Unit,
+) {
+    when (ladung) {
+        is Ladung.Laedt -> NotenSkelett()
+
+        is Ladung.Fehler -> FehlerZustand(ladung.meldung, beimErneutLaden)
+
+        is Ladung.Da -> {
+            val daten = ladung.wert
+            val schnitt = daten.summary.average
+            if (schnitt == null) {
+                LeerZustand(
+                    titel = "Noch keine Note eingetragen",
+                    text = "Trage die erste Note für dieses Fach ein, um einen Schnitt zu sehen.",
+                    aktion = {
+                        Button(
+                            onClick = beimNoteBlattOeffnen,
+                            modifier = Modifier.heightIn(min = Hoehe.bedienelement),
+                        ) {
+                            Text("Note eintragen", style = MaterialTheme.typography.labelLarge)
+                        }
+                    },
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(Abstand.gross)) {
+                    Schnittzeile(daten.summary)
+                    Column {
+                        daten.grades.forEach { note -> Notenzeile(note) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Skelett fuer den Notenabschnitt: eine grosse Zeile fuer den Schnitt, drei fuer Einzelnoten. */
+@Composable
+private fun NotenSkelett() {
+    Column(verticalArrangement = Arrangement.spacedBy(Abstand.gross)) {
+        Platzhalter(Modifier.height(28.dp).width(96.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(Abstand.normal)) {
+            repeat(3) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
+                    modifier = Modifier.height(Hoehe.bedienelement),
+                ) {
+                    Platzhalter(Modifier.height(20.dp).width(28.dp))
+                    Platzhalter(Modifier.height(13.dp).fillMaxWidth(0.5f))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Der Schnitt oben im Abschnitt: die Punktzahl gross und ruhig als
+ * Leitwaehrung, die Note kleiner daneben -- genau wie bei den Einzelnoten
+ * darunter, nie umgekehrt.
+ */
+@Composable
+private fun Schnittzeile(summary: GradeSummaryDTO) {
+    val schnitt = summary.average ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(Abstand.winzig)) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+            Text(
+                text = formatPunkte(schnitt.points),
+                style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = "Punkte, Note ${schnitt.label}",
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val teile = listOfNotNull(
+            summary.oral?.let { "Mündlich ${formatPunkte(it.points)}" },
+            summary.written?.let { "Schriftlich ${formatPunkte(it.points)}" },
+        )
+        if (teile.isNotEmpty()) {
+            Text(
+                text = teile.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * Eine einzelne Note: die Punktzahl gross als Leitwaehrung, die Note kleiner
+ * daneben -- nie umgekehrt, denn die Punkte sind die eigentliche Eingabe.
+ */
+@Composable
+private fun Notenzeile(note: GradeDTO) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Abstand.eng)
+            .clearAndSetSemantics {
+                contentDescription = "${note.points} Punkte, Note ${note.grade}, ${note.label}, " +
+                    "${notenartBezeichnung(note.kind)}, ${note.date}"
+            },
+        horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = note.points.toString(),
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.width(36.dp),
+        )
+        Text(
+            text = note.grade,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(28.dp),
+        )
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Abstand.winzig)) {
+            Text(
+                text = note.label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "${notenartBezeichnung(note.kind)} · ${note.date}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun notenartBezeichnung(kind: String): String = if (kind == "oral") "Mündlich" else "Schriftlich"
+
+/** Eine Nachkommastelle mit deutschem Komma, wie formatPoints in lib/grades.ts. */
+private fun formatPunkte(punkte: Double): String =
+    String.format(Locale.ROOT, "%.1f", punkte).replace(".", ",")

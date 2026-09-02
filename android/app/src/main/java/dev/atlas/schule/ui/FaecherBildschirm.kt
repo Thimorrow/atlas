@@ -2,6 +2,7 @@ package dev.atlas.schule.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
+import dev.atlas.schule.ui.theme.Tabellenziffern
+import dev.atlas.schule.ui.theme.druckSkalierung
 import dev.atlas.schule.ui.theme.fachfarbe
 
 @Composable
@@ -44,7 +49,14 @@ fun FaecherBildschirm(
     when (val start = zustand.start) {
         is Ladung.Laedt -> Column(modifier.fillMaxSize().padding(Abstand.weit)) {
             Kopf("Fächer", "Wird geladen …")
-            ListenSkelett(Modifier.padding(top = Abstand.weit))
+            ListenSkelett(
+                Modifier.padding(top = Abstand.weit),
+                // 67dp = 22dp Titel + 2dp Abstand.winzig + 19dp Untertitel +
+                // 2×12dp Abstand.mittel, so hoch ist eine geladene Fachzeile
+                // mit Lehrer und Raum wirklich. Beim Skelett-Standardwert
+                // sprang die Liste beim Eintreffen der Daten nach unten.
+                zeilenHoehe = 67.dp,
+            )
         }
 
         is Ladung.Fehler -> MittigerZustand(modifier) {
@@ -89,12 +101,14 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
     val farbe = fachfarbe(fach.color)
     val untertitel = listOfNotNull(fach.teacher, fach.room).joinToString(" · ")
     val offen = fach.openAssignments
+    val beruehrung = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = beimTippen)
+            .druckSkalierung(beruehrung)
+            .clickable(interactionSource = beruehrung, indication = ripple(), onClick = beimTippen)
             .heightIn(min = Hoehe.bedienelement)
             .padding(horizontal = Abstand.normal, vertical = Abstand.mittel)
             .semantics {
@@ -152,7 +166,7 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
             ) {
                 Text(
                     text = "$offen",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

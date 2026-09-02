@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import dev.atlas.schule.data.AssignmentDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Dauer
+import dev.atlas.schule.ui.theme.Tabellenziffern
 import dev.atlas.schule.ui.theme.atlasTween
 import dev.atlas.schule.ui.theme.fachfarbe
 import java.time.LocalDate
@@ -156,7 +157,7 @@ private fun Gruppentitel(bezeichnung: String, anzahl: Int, hervorgehoben: Boolea
         )
         Text(
             text = "$anzahl",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.clearAndSetSemantics { },
         )

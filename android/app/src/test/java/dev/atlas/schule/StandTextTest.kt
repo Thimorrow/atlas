@@ -22,7 +22,7 @@ class StandTextTest {
     @Test
     fun `ohne netz nennt die zeile die verbindung`() {
         assertEquals(
-            "Stand von 08:05 Uhr, keine Verbindung",
+            "Stand von 08:05 Uhr, keine Verbindung",
             standText(zeit(2, 8, 5), heute, ohneVerbindung = true),
         )
     }
@@ -30,7 +30,7 @@ class StandTextTest {
     @Test
     fun `bei einer antwort des servers nennt die zeile den server`() {
         assertEquals(
-            "Stand von 14:32 Uhr, der Server antwortet gerade nicht",
+            "Stand von 14:32 Uhr, der Server antwortet gerade nicht",
             standText(zeit(2, 14, 32), heute, ohneVerbindung = false),
         )
     }
@@ -38,7 +38,7 @@ class StandTextTest {
     @Test
     fun `ein stand von gestern bekommt das datum dazu`() {
         assertEquals(
-            "Stand vom 1.9., 21:07 Uhr, der Server antwortet gerade nicht",
+            "Stand vom 1.9., 21:07 Uhr, der Server antwortet gerade nicht",
             standText(zeit(1, 21, 7), heute, ohneVerbindung = false),
         )
     }
