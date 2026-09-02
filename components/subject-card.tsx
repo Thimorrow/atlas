@@ -11,7 +11,9 @@ export type SubjectDTO = {
   id: string;
   name: string;
   untisSubject: string | null;
-  teacher: string | null;
+  teacher: string | null; // Nachname, so wie Untis ihn liefert
+  teacherTitle: "herr" | "frau";
+  teacherLabel: string | null; // "Herr Schulze", vom Server zusammengesetzt
   room: string | null;
   color: string | null; // Token aus SUBJECT_COLORS, nie ein Hex-Wert
   onenoteSectionId: string | null;
@@ -59,7 +61,7 @@ export function SubjectCard({
             {subject.name}
           </div>
           <div className="mt-0.5 truncate text-[13px] text-muted-foreground">
-            {subject.teacher || "Kein Lehrer hinterlegt"}
+            {subject.teacherLabel || "Kein Lehrer hinterlegt"}
           </div>
         </div>
         {/* Der Schnitt rechts oben: die eine Zahl, die eine Fachkarte im

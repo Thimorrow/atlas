@@ -16,8 +16,10 @@ import {
   type NewSubjectNote,
   type Subject,
   type SubjectNote,
+  type TeacherTitle,
 } from "@/lib/db/schema";
 import { SUBJECT_COLORS, defaultColorFor } from "@/lib/subject-colors";
+import { TEACHER_TITLES, teacherLabel } from "@/lib/teacher";
 import { ORAL_WEIGHT_PRESETS } from "@/lib/grades";
 
 // --- DTOs --------------------------------------------------------------------
@@ -26,7 +28,9 @@ export type SubjectDTO = {
   id: string;
   name: string;
   untisSubject: string | null;
-  teacher: string | null;
+  teacher: string | null; // Nachname, so wie Untis ihn liefert
+  teacherTitle: TeacherTitle;
+  teacherLabel: string | null; // "Herr Schulze", fertig fuer die Anzeige
   room: string | null;
   color: string | null; // Token aus SUBJECT_COLORS
   onenoteSectionId: string | null;
@@ -82,6 +86,8 @@ function toSubjectDTO(row: SubjectRow): SubjectDTO {
     name: row.name,
     untisSubject: row.untisSubject,
     teacher: row.teacher,
+    teacherTitle: row.teacherTitle,
+    teacherLabel: teacherLabel(row.teacherTitle, row.teacher),
     room: row.room,
     color: row.color,
     onenoteSectionId: row.onenoteSectionId,
@@ -447,6 +453,13 @@ export function parseSubjectPatch(body: unknown): Parsed<Partial<NewSubject>> {
   }
   if (body.teacher !== undefined) patch.teacher = optionalText(body.teacher);
   if (body.room !== undefined) patch.room = optionalText(body.room);
+
+  if (body.teacherTitle !== undefined) {
+    const erlaubt = TEACHER_TITLES.map((t) => t.value as string);
+    if (typeof body.teacherTitle !== "string" || !erlaubt.includes(body.teacherTitle))
+      return { ok: false, error: "Anrede muss \"herr\" oder \"frau\" sein." };
+    patch.teacherTitle = body.teacherTitle as TeacherTitle;
+  }
 
   if (body.color !== undefined) {
     const c = parseColor(body.color);

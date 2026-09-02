@@ -15,6 +15,8 @@ import { SubjectGrades } from "@/components/subject-grades";
 import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
+import { TEACHER_TITLES } from "@/lib/teacher";
+import { cn } from "@/lib/utils";
 import { dueLabel, type AssignmentDTO } from "@/lib/assignments-view";
 import type { GradeDTO } from "@/lib/grade-store";
 
@@ -52,6 +54,43 @@ const FIELD =
   "h-11 w-full rounded-lg border bg-background px-3 text-[16px] transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const hm = (t: string) => t.slice(0, 5);
+
+// Zwei Knoepfe statt eines Auswahlfeldes: bei genau zwei Moeglichkeiten ist die
+// Auswahl schon sichtbar, ein Aufklappen waere ein Schritt zu viel.
+function TitlePicker({
+  value,
+  onChange,
+}: {
+  value: "herr" | "frau";
+  onChange: (v: "herr" | "frau") => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Anrede"
+      className="flex h-11 shrink-0 items-center gap-0.5 rounded-lg border bg-background p-0.5"
+    >
+      {TEACHER_TITLES.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          role="radio"
+          aria-checked={value === t.value}
+          onClick={() => value !== t.value && onChange(t.value)}
+          className={cn(
+            "h-full rounded-[6px] px-3 text-[14px] transition-colors [touch-action:manipulation]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            value === t.value
+              ? "bg-accent font-medium text-accent-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function Section({
   title,
@@ -261,16 +300,26 @@ export function SubjectDetail({ id }: { id: string }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-[13px] font-medium">Lehrer</span>
-                <input
-                  className={FIELD}
-                  value={teacher}
-                  placeholder="Nicht hinterlegt"
-                  onChange={(e) => setTeacher(e.target.value)}
-                  onBlur={() => {
-                    const v = teacher.trim();
-                    if (v !== (subject.teacher ?? "")) void patch({ teacher: v || null });
-                  }}
-                />
+                {/* Untis kennt nur den Nachnamen, nicht das Geschlecht. Die
+                    Anrede sitzt deshalb direkt am Feld statt in einer eigenen
+                    Zeile -- sie ist Teil desselben Namens, keine zweite
+                    Einstellung. */}
+                <div className="flex gap-2">
+                  <TitlePicker
+                    value={subject.teacherTitle}
+                    onChange={(v) => void patch({ teacherTitle: v })}
+                  />
+                  <input
+                    className={FIELD}
+                    value={teacher}
+                    placeholder="Nicht hinterlegt"
+                    onChange={(e) => setTeacher(e.target.value)}
+                    onBlur={() => {
+                      const v = teacher.trim();
+                      if (v !== (subject.teacher ?? "")) void patch({ teacher: v || null });
+                    }}
+                  />
+                </div>
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-[13px] font-medium">Raum</span>

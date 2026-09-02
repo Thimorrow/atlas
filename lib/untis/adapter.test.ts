@@ -8,7 +8,7 @@ const base: UntisLesson = {
   endTime: 835, // 08:35
   su: [{ name: "E", longname: "Englisch" }],
   ro: [{ name: "A120" }],
-  te: [{ name: "Mu" }],
+  te: [{ name: "Mu", longname: "Mustermann" }],
 };
 
 describe("lessonToSchoolBlock", () => {
@@ -20,7 +20,7 @@ describe("lessonToSchoolBlock", () => {
     expect(b.endTime).toBe("08:35");
     expect(b.subject).toBe("Englisch");
     expect(b.room).toBe("A120");
-    expect(b.teacher).toBe("Mu");
+    expect(b.teacher).toBe("Mustermann");
   });
 
   it("Entfall -> status cancelled", () => {
@@ -38,6 +38,10 @@ describe("lessonToSchoolBlock", () => {
   it("Fach-Fallback auf longname, dann '?'", () => {
     expect(lessonToSchoolBlock({ ...base, su: [{ longname: "Englisch" }] }).subject).toBe("Englisch");
     expect(lessonToSchoolBlock({ ...base, su: [] }).subject).toBe("?");
+  });
+
+  it("faellt auf das Kuerzel zurueck, wenn Untis keinen Nachnamen liefert", () => {
+    expect(lessonToSchoolBlock({ ...base, te: [{ name: "Mu" }] }).teacher).toBe("Mu");
   });
 
   it("fehlender Raum/Lehrer -> null", () => {

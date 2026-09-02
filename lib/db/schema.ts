@@ -64,6 +64,11 @@ export type NewSchoolBlock = typeof schoolBlocks.$inferInsert;
 // das Fach still wieder an.
 // ---------------------------------------------------------------------------
 
+// Untis liefert zu einem Lehrer nur Kuerzel und Nachname, kein Geschlecht.
+// Die Anrede steht deshalb am Fach und wird dort von Hand gesetzt. "Herr" ist
+// die Vorbelegung, weil eine gewaehlt werden muss -- geraten wird nicht.
+export const teacherTitle = pgEnum("teacher_title", ["herr", "frau"]);
+
 export const subjects = pgTable(
   "subjects",
   {
@@ -71,6 +76,7 @@ export const subjects = pgTable(
     name: text("name").notNull(),
     untisSubject: text("untis_subject"),
     teacher: text("teacher"),
+    teacherTitle: teacherTitle("teacher_title").notNull().default("herr"),
     room: text("room"),
     color: text("color"),
     // Ziel-Abschnitt in OneNote. Der Name steht mit in der Zeile, damit die
@@ -230,6 +236,7 @@ export type MicrosoftAccount = typeof microsoftAccounts.$inferSelect;
 export type NewMicrosoftAccount = typeof microsoftAccounts.$inferInsert;
 
 export type Subject = typeof subjects.$inferSelect;
+export type TeacherTitle = Subject["teacherTitle"];
 export type NewSubject = typeof subjects.$inferInsert;
 export type SubjectNote = typeof subjectNotes.$inferSelect;
 export type NewSubjectNote = typeof subjectNotes.$inferInsert;

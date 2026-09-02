@@ -170,7 +170,7 @@ private fun Inhalt(
 
         item("stammdaten") {
             Abschnitt("Stammdaten") {
-                Angabe("Lehrkraft", fach.teacher)
+                Angabe("Lehrkraft", fach.teacherLabel ?: fach.teacher)
                 Angabe("Raum", fach.room)
                 Angabe("In Untis", fach.untisSubject)
             }

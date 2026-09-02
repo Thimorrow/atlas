@@ -54,10 +54,48 @@ export async function normalizeStoredSubjects(): Promise<number> {
   return veraltet.length;
 }
 
+// Untis nennt in jeder Stunde beides: das Kuerzel des Lehrers und seinen
+// Nachnamen. Daraus die Zuordnung bauen, um alte Zeilen nachziehen zu koennen.
+export function teacherAliases(lessons: UntisLesson[]): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const l of lessons) {
+    for (const t of l.te ?? []) {
+      if (t.name && t.longname && t.name !== t.longname) aliases.set(t.name, t.longname);
+    }
+  }
+  return aliases;
+}
+
+// Bis vor kurzem landete nur das Kuerzel im Stundenplan ("Sch"). Der Import
+// schreibt jetzt den Nachnamen -- aber nur fuer die Wochen, die gerade
+// abgefragt wurden. Alte Zeilen behielten ihr Kuerzel, und mode() in
+// untisSubjectFacts wuerde dann zwei Schreibweisen desselben Lehrers
+// gegeneinander zaehlen. Also dieselbe Kur wie bei den Fachnamen: schauen, was
+// wirklich noch als Kuerzel dasteht, und nur das anfassen. Nach dem ersten
+// Durchlauf ist die Liste leer und der Abgleich kostet eine Abfrage.
+export async function normalizeStoredTeachers(aliases: Map<string, string>): Promise<number> {
+  if (aliases.size === 0) return 0;
+
+  const rows = await db.selectDistinct({ teacher: schoolBlocks.teacher }).from(schoolBlocks);
+  const veraltet = rows
+    .map((r) => r.teacher)
+    .filter((t): t is string => t !== null && aliases.has(t));
+
+  for (const kuerzel of veraltet) {
+    await db
+      .update(schoolBlocks)
+      .set({ teacher: aliases.get(kuerzel), updatedAt: sql`now()` })
+      .where(eq(schoolBlocks.teacher, kuerzel));
+  }
+
+  return veraltet.length;
+}
+
 export type SyncResult = {
   fetched: number;
   upserted: number;
   renamed: number;
+  renamedTeachers: number;
   subjects: SubjectReconcileResult;
   schoolyear: Awaited<ReturnType<typeof fetchTimetable>>["schoolyear"];
   window: Awaited<ReturnType<typeof fetchTimetable>>["window"];
@@ -75,11 +113,22 @@ export type SyncResult = {
 // von Hand synchron halten muesste.
 export async function syncUntis(start: Date, end: Date): Promise<SyncResult> {
   const { lessons, schoolyear, window, hinweis } = await fetchTimetable(start, end);
-  const rows = lessons.map((l) => lessonToSchoolBlock(l as unknown as UntisLesson));
+  const stunden = lessons as unknown as UntisLesson[];
+  const rows = stunden.map(lessonToSchoolBlock);
   const upserted = await upsertSchoolBlocks(rows);
   const renamed = await normalizeStoredSubjects();
+  const renamedTeachers = await normalizeStoredTeachers(teacherAliases(stunden));
   const subjects = await reconcileSubjects();
-  return { fetched: lessons.length, upserted, renamed, subjects, schoolyear, window, hinweis };
+  return {
+    fetched: lessons.length,
+    upserted,
+    renamed,
+    renamedTeachers,
+    subjects,
+    schoolyear,
+    window,
+    hinweis,
+  };
 }
 
 // Rollendes Default-Fenster: vergangene Woche bis 3 Wochen voraus.

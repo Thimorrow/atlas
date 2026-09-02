@@ -98,7 +98,7 @@ fun FaecherBildschirm(
 @Composable
 private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
     val farbe = fachfarbeFuerFach(fach.color, fach.name)
-    val untertitel = listOfNotNull(fach.teacher, fach.room).joinToString(" · ")
+    val untertitel = listOfNotNull(fach.teacherLabel ?: fach.teacher, fach.room).joinToString(" · ")
     val offen = fach.openAssignments
     val beruehrung = remember { MutableInteractionSource() }
 

@@ -14,7 +14,10 @@ data class SubjectDTO(
     val id: String,
     val name: String,
     val untisSubject: String? = null,
+    /** Nachname, so wie Untis ihn liefert -- ohne Anrede. */
     val teacher: String? = null,
+    /** "Herr Schulze", vom Server aus Anrede und Nachname zusammengesetzt. */
+    val teacherLabel: String? = null,
     val room: String? = null,
     /** Farbtoken, kein Farbwert. Aufloesen ueber Fachfarbe.vonToken(). */
     val color: String? = null,

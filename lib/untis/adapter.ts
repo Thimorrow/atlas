@@ -8,7 +8,7 @@ export type UntisLesson = {
   endTime: number;
   su?: { name?: string; longname?: string }[];
   ro?: { name?: string }[];
-  te?: { name?: string }[];
+  te?: { name?: string; longname?: string }[];
   code?: "cancelled" | "irregular";
   substText?: string;
   lstext?: string;
@@ -56,7 +56,10 @@ export function lessonToSchoolBlock(l: UntisLesson): NewSchoolBlock {
     endTime: untisTimeToHM(l.endTime),
     subject: normalizeSubject(l.su?.[0]?.longname ?? l.su?.[0]?.name ?? "?"),
     room: l.ro?.[0]?.name ?? null,
-    teacher: l.te?.[0]?.name ?? null,
+    // longname zuerst: name ist bei Untis das Kuerzel ("Sch"), longname der
+    // Nachname ("Schulze"). Ein Kuerzel sagt niemandem etwas, der nicht ohnehin
+    // schon weiss, wer gemeint ist.
+    teacher: l.te?.[0]?.longname ?? l.te?.[0]?.name ?? null,
     status: mapStatus(l.code),
     substitutionText: l.substText || l.lstext || null,
   };
