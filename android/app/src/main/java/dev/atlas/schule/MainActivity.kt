@@ -36,6 +36,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -137,6 +139,8 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
     // beenden. Ohne das waere das Detail eine Sackgasse mit nur einem Ausgang.
     BackHandler(enabled = zustand.detail != null) { ansichtsmodell.schliesseFach() }
 
+    val kante = MaterialTheme.colorScheme.outlineVariant
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(schnipsel) },
@@ -150,7 +154,27 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.background,
+                // Die Leiste traegt dieselbe Farbe wie der Inhalt darueber.
+                // Ohne Kante verschwand eine wegscrollende Zeile an einem
+                // unsichtbaren Rand. Die Web-App zieht dafuer border-b unter
+                // ihren mobilen Kopf, siehe components/mobile-header.tsx.
+                // drawWithContent, nicht drawBehind: NavigationBar legt seine
+                // containerColor als Flaeche ueber alles, was der uebergebene
+                // Modifier vorher zeichnet. Die Linie war damit unsichtbar,
+                // im Pixelabzug messbar unveraendert bei (14, 14, 14).
+                modifier = Modifier.drawWithContent {
+                    drawContent()
+                    val staerke = 1.dp.toPx()
+                    drawLine(
+                        color = kante,
+                        start = Offset(0f, staerke / 2),
+                        end = Offset(size.width, staerke / 2),
+                        strokeWidth = staerke,
+                    )
+                },
+            ) {
                 Reiter.entries.forEach { reiter ->
                     NavigationBarItem(
                         selected = zustand.reiter == reiter,

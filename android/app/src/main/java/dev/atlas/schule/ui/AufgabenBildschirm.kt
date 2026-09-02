@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -404,8 +405,23 @@ fun NeueAufgabeKnopf(sichtbar: Boolean, beimTippen: () -> Unit, modifier: Modifi
     ) {
         androidx.compose.material3.FloatingActionButton(
             onClick = beimTippen,
+            // Rund statt der Material-Vorgabe: AtlasFormen.large sind 14dp, und
+            // auf einem 56dp-Knopf liest sich das als Quadrat mit gebrochenen
+            // Ecken. Der aktive Reiter unten ist bereits eine volle Pille, der
+            // Knopf gehoert in dieselbe Sprache.
+            shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
+            // Material stellt den Knopf auf 6dp. Der Rest der App kommt ohne
+            // Schatten aus und trennt mit Haarlinien; 6dp warfen deshalb den
+            // einzigen harten Schatten im ganzen Bild. 3dp heben ihn noch
+            // sichtbar von der Liste ab, ohne aus dem Rahmen zu fallen.
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 3.dp,
+                pressedElevation = 1.dp,
+                focusedElevation = 3.dp,
+                hoveredElevation = 3.dp,
+            ),
         ) {
             Icon(IkonePlus, contentDescription = "Neue Aufgabe anlegen")
         }

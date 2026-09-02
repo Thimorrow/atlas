@@ -177,3 +177,35 @@ Offen und bewusst nicht angefasst:
   zwei gibt und null erledigte. Das ist die Datenlage, nicht die
   Gestaltung. Fuellmaterial dagegen waere unehrlich.
 - Befund 11, die Form des schwebenden Knopfes. Kleinste Wirkung von allen.
+
+## Dritte Runde: Barrierefreiheit, FAB, Kante
+
+- [x] Zeitspalte waechst jetzt mit der Systemschrift. Bei 200 Prozent stand
+      dort "11:1", "13:0", "13:4" -- ein Fehler, den mein eigener Umbau der
+      Woche erzeugt hatte und den nur der Test bei doppelter Schrift fand.
+- [x] Ueberschriften als heading() ausgezeichnet. Vorher gab es im ganzen
+      Programm keine einzige; TalkBack hat eine Geste zum Springen von
+      Ueberschrift zu Ueberschrift, ohne Auszeichnung muss man sich durch
+      jedes Element wischen.
+- [x] Das Ergebnis des Untis-Abgleichs ist ein liveRegion. Vorher erschien es
+      stumm, obwohl die Web-App dafuer role="status" setzt.
+- [x] Der Pfeil am Abschnitt "Erledigt" nutzt atlasTween statt der
+      Standardfeder und steht damit still, wenn Systemanimationen aus sind.
+- [x] Befund 11, der schwebende Knopf: rund statt 14dp-Ecken (auf 56dp las
+      sich das als Quadrat), Schatten von 6dp auf 3dp. Damit ist die
+      Befundliste vollstaendig abgearbeitet.
+- [x] Die Navigationsleiste hatte keine Kante. Sie traegt dieselbe Farbe wie
+      der Inhalt, eine wegscrollende Zeile verschwand also an einem
+      unsichtbaren Rand. Jetzt eine Haarlinie wie border-b im mobilen Kopf
+      der Web-App. Erster Versuch mit drawBehind war unsichtbar, weil
+      NavigationBar seine Flaeche darueber legt; drawWithContent zeichnet
+      nach dem Inhalt. Im Pixelabzug nachgemessen: hell 229/229/229 bei
+      y=2127, dunkel 50/50/50 -- also genau --input in beiden Modi.
+
+Nicht angefasst, mit Grund:
+- "Grammatik-Uebungen" ohne Umlaut ist eine echte Zeile in der Datenbank,
+  kein Text aus dem Quelltext. Der Umlaut-Waechter kann sie nicht sehen und
+  ich aendere keine Nutzerdaten ungefragt.
+- Erdkunde und Wirtschaft/Politik stehen im Stundenplan, aber nicht in der
+  Faecherliste. Das ist die Datenlage auf dem Server (Tabelle subjects gegen
+  Untis-Stunden), kein Fehler der App.
