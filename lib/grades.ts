@@ -142,6 +142,19 @@ export function overallAverage(subjectAverages: (GradeAverage | null)[]): GradeA
   return toAverage(sum / values.length);
 }
 
+// Faecher nach Schnitt sortieren, schwaechstes zuerst: genau da soll der Blick
+// zuerst hinfallen. Faecher ohne Note sind kein "Schnitt 0" und stehen darum
+// in einer zweiten Gruppe statt mittendrin -- eine echte Note ist immer
+// aussagekraeftiger als das Fehlen einer.
+export function sortSubjectsByAverage<T extends { average: GradeAverage | null }>(
+  items: T[],
+): { withGrades: T[]; withoutGrades: T[] } {
+  const withGrades = items.filter((i) => i.average !== null);
+  const withoutGrades = items.filter((i) => i.average === null);
+  withGrades.sort((a, b) => a.average!.points - b.average!.points);
+  return { withGrades, withoutGrades };
+}
+
 // --- Anzeige -----------------------------------------------------------------
 
 // Eine Nachkommastelle mit deutschem Komma. Bewusst nicht toLocaleString:

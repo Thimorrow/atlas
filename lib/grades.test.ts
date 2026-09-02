@@ -5,6 +5,7 @@ import {
   overallAverage,
   pointsToGradeLabel,
   pointsToGradeNumber,
+  sortSubjectsByAverage,
   subjectAverage,
   type GradeInput,
 } from "./grades";
@@ -155,6 +156,34 @@ describe("overallAverage", () => {
     ]);
     expect(r?.points).toBe(10);
     expect(r?.label).toBe("2-");
+  });
+});
+
+describe("sortSubjectsByAverage", () => {
+  const s = (name: string, points: number | null) => ({
+    name,
+    average: points === null ? null : { points, label: pointsToGradeLabel(points) },
+  });
+
+  it("sortiert nach Schnitt aufsteigend, das schwaechste Fach zuerst", () => {
+    const { withGrades } = sortSubjectsByAverage([s("Mathe", 12), s("Deutsch", 6), s("Bio", 9)]);
+    expect(withGrades.map((x) => x.name)).toEqual(["Deutsch", "Bio", "Mathe"]);
+  });
+
+  it("trennt Faecher ohne Note in eine eigene Gruppe", () => {
+    const { withGrades, withoutGrades } = sortSubjectsByAverage([
+      s("Mathe", 12),
+      s("Kunst", null),
+      s("Deutsch", 6),
+    ]);
+    expect(withGrades.map((x) => x.name)).toEqual(["Deutsch", "Mathe"]);
+    expect(withoutGrades.map((x) => x.name)).toEqual(["Kunst"]);
+  });
+
+  it("ohne jede Note bleiben beide Gruppen leer bzw. voll", () => {
+    const { withGrades, withoutGrades } = sortSubjectsByAverage([s("Kunst", null), s("Sport", null)]);
+    expect(withGrades).toEqual([]);
+    expect(withoutGrades.length).toBe(2);
   });
 });
 

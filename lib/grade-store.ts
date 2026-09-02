@@ -48,9 +48,17 @@ export type GradeOverviewEntryDTO = {
   summary: GradeSummaryDTO;
 };
 
+// Eine Note in der "Zuletzt"-Liste der Uebersicht: dieselben Felder wie
+// GradeDTO, plus Fach, weil die Liste faecheruebergreifend ist.
+export type RecentGradeDTO = GradeDTO & {
+  subjectName: string;
+  subjectColor: string | null;
+};
+
 export type GradeOverviewDTO = {
   overall: GradeAverage | null;
   subjects: GradeOverviewEntryDTO[];
+  recentGrades: RecentGradeDTO[];
 };
 
 function toGradeDTO(row: Grade): GradeDTO {
@@ -123,9 +131,22 @@ export async function gradeOverview(): Promise<GradeOverviewDTO> {
     summary: summarize(bySubject.get(s.id) ?? [], s.oralWeight),
   }));
 
+  // Die letzten Noten faecheruebergreifend, neueste zuerst -- nur aus aktiven
+  // Faechern, sonst taucht eine archivierte Klausur unangekuendigt wieder auf.
+  const subjectById = new Map(subjectRows.map((s) => [s.id, s]));
+  const recentGrades: RecentGradeDTO[] = gradeRows
+    .filter((g) => subjectById.has(g.subjectId))
+    .map((g) => {
+      const s = subjectById.get(g.subjectId)!;
+      return { ...toGradeDTO(g), subjectName: s.name, subjectColor: s.color };
+    })
+    .sort((a, b) => (a.date === b.date ? (a.createdAt < b.createdAt ? 1 : -1) : a.date < b.date ? 1 : -1))
+    .slice(0, 8);
+
   return {
     overall: overallAverage(entries.map((e) => e.summary.average)),
     subjects: entries,
+    recentGrades,
   };
 }
 
