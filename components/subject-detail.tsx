@@ -18,6 +18,7 @@ import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
 import { TEACHER_TITLES } from "@/lib/teacher";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { dueLabel, type AssignmentDTO } from "@/lib/assignments-view";
 import type { GradeDTO } from "@/lib/grade-store";
 
@@ -221,10 +222,7 @@ export function SubjectDetail({ id }: { id: string }) {
   if (state === "loading") {
     return (
       <Shell>
-        <div className="flex items-center gap-2 rounded-2xl border bg-card px-5 py-8 text-sm text-muted-foreground shadow-card">
-          <Loader2 className="size-4 animate-spin" />
-          Fach wird geladen…
-        </div>
+        <SubjectDetailSkeleton />
       </Shell>
     );
   }
@@ -605,6 +603,33 @@ export function SubjectDetail({ id }: { id: string }) {
         }
       />
     </Shell>
+  );
+}
+
+function SubjectDetailSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" aria-label="Fach wird geladen" aria-busy="true">
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-4 w-32" />
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-9 w-24 rounded-md" />
+        </div>
+        <Skeleton className="h-4 w-64" />
+      </div>
+      {["Stammdaten", "Aufgaben", "Notizen", "Dateien"].map((title) => (
+        <section key={title} className="overflow-hidden rounded-2xl border bg-card shadow-card">
+          <div className="border-b bg-muted/30 px-5 py-3">
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="flex flex-col gap-3 px-5 py-5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
