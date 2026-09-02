@@ -15,6 +15,21 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 // beim Build wegkompiliert und landet nicht im Client-Bundle.
 import type { NoteDTO } from "@/lib/subject-store";
 export type { NoteDTO };
+import { weekdayOf } from "@/lib/assignments-view";
+
+// Bewusst gespiegelt statt aus lib/lesson-notes.ts importiert: das Modul
+// zieht `db` herein, und diese Datei ist eine Client-Komponente. `import
+// type` wuerde zwar wegkompiliert, aber ein spaeteres Streichen des `type`
+// holte die Datenbank still in den Browser-Bundle. Die Form muss zu
+// SubjectLessonNoteDTO dort passen; sie ist der einzige Ort, der sie liefert.
+export type SubjectLessonNoteDTO = {
+  id: string;
+  schoolBlockId: string;
+  date: string;
+  startTime: string;
+  body: string;
+  updatedAt: string;
+};
 
 // Typografie fuer den gerenderten Markdown-Body. Der Wrapper stylt die
 // Kind-Elemente ueber Attribut-Selektoren, weil das HTML aus
@@ -42,6 +57,21 @@ const fmtDate = (iso: string) => {
 };
 
 const byUpdatedDesc = (a: NoteDTO, b: NoteDTO) => b.updatedAt.localeCompare(a.updatedAt);
+
+const WEEKDAYS_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+// "Mi 02.09., 09:40" fuer den Kopf einer Stundennotiz -- dateISO kommt als
+// YYYY-MM-DD, deshalb String-Zerlegung statt Date-Objekt (wie fmtLessonDate
+// in subject-detail.tsx). weekdayOf rechnet lokal, kein UTC-Drift.
+function fmtLessonHeader(dateISO: string, startTime: string) {
+  const [, m, d] = dateISO.split("-");
+  const wd = WEEKDAYS_SHORT[weekdayOf(dateISO)];
+  return `${wd} ${d}.${m}., ${startTime.slice(0, 5)}`;
+}
+
+type MergedEntry =
+  | { kind: "note"; ts: string; note: NoteDTO }
+  | { kind: "lesson"; ts: string; note: SubjectLessonNoteDTO };
 
 // Ein einziges Overlay-Gehaeuse fuer Lesen, Bearbeiten und Loeschbestaetigung.
 // window.confirm ist bewusst nicht im Spiel: es laesst sich nicht gestalten,
@@ -170,10 +200,17 @@ type SendState = "idle" | "sending" | "sent";
 export function SubjectNotes({
   subjectId,
   initialNotes,
+  lessonNotes,
+  onOpenLessonNote,
   onenoteReady = false,
 }: {
   subjectId: string;
   initialNotes: NoteDTO[];
+  // Lebt komplett in subject-detail.tsx (Laden, Editor, Autosave) -- hier
+  // nur zum Anzeigen, deshalb direkt das Prop verwenden statt eine eigene
+  // Kopie im State zu halten wie bei den freien Notizen.
+  lessonNotes: SubjectLessonNoteDTO[];
+  onOpenLessonNote: (n: SubjectLessonNoteDTO) => void;
   // true erst, wenn Microsoft verbunden UND fuer dieses Fach ein Abschnitt
   // gewaehlt ist. Sonst gibt es den Knopf gar nicht, statt ihn tot anzuzeigen.
   onenoteReady?: boolean;
@@ -188,6 +225,20 @@ export function SubjectNotes({
 
   const open = useMemo(() => notes.find((n) => n.id === openId) ?? null, [notes, openId]);
   const confirmNote = useMemo(() => notes.find((n) => n.id === confirmId) ?? null, [notes, confirmId]);
+
+  // Beide Notizarten chronologisch gemischt, neuste zuerst. Bei einer
+  // Stundennotiz zaehlt der Termin der Stunde (Datum + Uhrzeit), nicht
+  // updatedAt -- der Nutzer sucht "wann war die Stunde", nicht "wann habe
+  // ich zuletzt getippt".
+  const merged = useMemo<MergedEntry[]>(() => {
+    const freeItems: MergedEntry[] = notes.map((n) => ({ kind: "note", ts: n.updatedAt, note: n }));
+    const lessonItems: MergedEntry[] = lessonNotes.map((n) => ({
+      kind: "lesson",
+      ts: `${n.date}T${n.startTime}`,
+      note: n,
+    }));
+    return [...freeItems, ...lessonItems].sort((a, b) => b.ts.localeCompare(a.ts));
+  }, [notes, lessonNotes]);
 
   const html = useMemo(() => (open ? renderMarkdown(open.body) : ""), [open]);
 
@@ -288,9 +339,9 @@ export function SubjectNotes({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground">
-          {notes.length === 0
+          {merged.length === 0
             ? "Noch keine Notizen"
-            : `${notes.length} ${notes.length === 1 ? "Notiz" : "Notizen"}`}
+            : `${merged.length} ${merged.length === 1 ? "Notiz" : "Notizen"}`}
         </p>
         <Button
           size="sm"
@@ -302,37 +353,50 @@ export function SubjectNotes({
         </Button>
       </div>
 
-      {notes.length === 0 ? (
+      {merged.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center">
           <NotebookPen className="size-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Hier landen deine Notizen zum Fach. Markdown wird unterstützt.
+            Hier landen deine Notizen zum Fach: eine freie Notiz legst du über „Neue Notiz" an, eine
+            Stundennotiz schreibst du direkt an der Stunde im Stundenplan.
           </p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
-          {notes.map((n) => {
-            const preview = markdownPreview(n.body);
-            return (
-              <li key={n.id}>
+          {merged.map((entry) =>
+            entry.kind === "note" ? (
+              <li key={`note-${entry.note.id}`}>
                 <button
                   type="button"
-                  onClick={() => setOpenId(n.id)}
+                  onClick={() => setOpenId(entry.note.id)}
                   className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <span className="flex w-full items-baseline justify-between gap-3">
-                    <span className="truncate text-[15px] font-medium leading-tight">{n.title}</span>
+                    <span className="truncate text-[15px] font-medium leading-tight">{entry.note.title}</span>
                     <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
-                      {fmtDate(n.updatedAt)}
+                      {fmtDate(entry.note.updatedAt)}
                     </span>
                   </span>
                   <span className="line-clamp-1 w-full text-[13px] text-muted-foreground">
-                    {preview || "Kein Text"}
+                    {markdownPreview(entry.note.body) || "Kein Text"}
                   </span>
                 </button>
               </li>
-            );
-          })}
+            ) : (
+              <li key={`lesson-${entry.note.id}`}>
+                <button
+                  type="button"
+                  onClick={() => onOpenLessonNote(entry.note)}
+                  className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
+                    {fmtLessonHeader(entry.note.date, entry.note.startTime)} · Stunde
+                  </span>
+                  <span className="line-clamp-2 w-full text-[13px] text-foreground">{entry.note.body}</span>
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
 

@@ -9,7 +9,7 @@ import { ColorPicker, EmptyPanel, Modal, ButtonLink } from "@/components/subject
 import type { SubjectDTO } from "@/components/subject-card";
 import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
-import { SubjectNotes } from "@/components/subject-notes";
+import { SubjectNotes, type SubjectLessonNoteDTO } from "@/components/subject-notes";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { SubjectFiles } from "@/components/subject-files";
 import { SubjectGrades } from "@/components/subject-grades";
@@ -41,14 +41,10 @@ type NoteDTO = {
   updatedAt: string;
 };
 
-export type LessonNoteEntryDTO = {
-  id: string;
-  schoolBlockId: string;
-  date: string;
-  startTime: string;
-  body: string;
-  updatedAt: string;
-};
+// Dieselbe Form wie in der Liste, die sie anzeigt -- eine dritte Kopie
+// derselben sechs Felder waere nur eine Stelle mehr, die auseinanderlaufen
+// kann. Der Name bleibt, weil er hier den Eintrag im Fach-Payload benennt.
+export type LessonNoteEntryDTO = SubjectLessonNoteDTO;
 
 type Payload = {
   subject: SubjectDTO;
@@ -465,52 +461,30 @@ export function SubjectDetail({ id }: { id: string }) {
         </Section>
       </StaggerItem>
 
-      {/* --- Notizen --- */}
+      {/* --- Notizen ---
+          Freie Notizen und Stundennotizen sind zwei getrennte Datenmodelle,
+          stehen dem Nutzer aber als EIN chronologisch gemischter Abschnitt
+          gegenueber -- zwei Abschnitte mit demselben Oberbegriff "Notizen"
+          fuehrten dazu, dass Stundennotizen im falschen Abschnitt gesucht
+          wurden. */}
       <StaggerItem>
         <Section title="Notizen">
           <SubjectNotes
             subjectId={subject.id}
             initialNotes={data.notes}
+            lessonNotes={data.lessonNotes}
             onenoteReady={Boolean(microsoft?.connected && subject.onenoteSectionId)}
+            onOpenLessonNote={(n) => {
+              setNoteMeta({ date: n.date, startTime: n.startTime });
+              setNoteTarget({
+                schoolBlockId: n.schoolBlockId,
+                subject: subject.name,
+                dayLabel: fmtLessonDate(n.date),
+                time: hm(n.startTime),
+                color: colorValue(subject.color),
+              });
+            }}
           />
-        </Section>
-      </StaggerItem>
-
-      {/* --- Stundennotizen ---
-          Anders als "Notizen" oben (frei angelegt, mit Titel) haengt hier
-          jeder Eintrag an einer konkreten Schulstunde -- chronologisch nach
-          Datum, ohne Titel, klickbar zum Bearbeiten. */}
-      <StaggerItem>
-        <Section title="Stundennotizen">
-          {data.lessonNotes.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">Noch keine Stundennotizen.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {data.lessonNotes.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNoteMeta({ date: n.date, startTime: n.startTime });
-                      setNoteTarget({
-                        schoolBlockId: n.schoolBlockId,
-                        subject: subject.name,
-                        dayLabel: fmtLessonDate(n.date),
-                        time: hm(n.startTime),
-                        color: colorValue(subject.color),
-                      });
-                    }}
-                    className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                  >
-                    <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
-                      {fmtLessonDate(n.date)}, {hm(n.startTime)}
-                    </span>
-                    <span className="line-clamp-2 w-full text-[13px] text-foreground">{n.body}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </Section>
       </StaggerItem>
 
