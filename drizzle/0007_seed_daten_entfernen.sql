@@ -1,0 +1,11 @@
+-- Die Testdaten aus scripts/seed.mjs entfernen.
+--
+-- Sie wurden angelegt, solange WebUntis fuer das neue Schuljahr nichts
+-- lieferte. Seit dem 2. September 2026 liefert es wieder, und seitdem lagen
+-- zwei Stundenplaene uebereinander: der echte auf dem Raster 07:50/08:35/...
+-- und die Testdaten auf 08:00/08:45/...
+--
+-- Die Abgrenzung ist eindeutig: das Seed-Skript vergibt untis_lesson_id als
+-- `seed-<datum>-<nummer>`, echte Untis-Stunden tragen dort die Zahl aus Untis.
+-- Genau diese Anweisung steht auch in scripts/seed.mjs unter --clear.
+DELETE FROM school_blocks WHERE untis_lesson_id LIKE 'seed-%';

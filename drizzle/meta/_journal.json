@@ -50,6 +50,13 @@
       "when": 1788298510270,
       "tag": "0006_special_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788298510271,
+      "tag": "0007_seed_daten_entfernen",
+      "breakpoints": true
     }
   ]
 }
