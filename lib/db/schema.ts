@@ -72,6 +72,11 @@ export const subjects = pgTable(
     teacher: text("teacher"),
     room: text("room"),
     color: text("color"),
+    // Ziel-Abschnitt in OneNote. Der Name steht mit in der Zeile, damit die
+    // Oberflaeche "Notizbuch / Abschnitt" anzeigen kann, ohne dafuer jedes Mal
+    // die Graph-API zu fragen.
+    onenoteSectionId: text("onenote_section_id"),
+    onenoteSectionName: text("onenote_section_name"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -155,6 +160,39 @@ export const subjectFiles = pgTable("subject_files", {
     .notNull()
     .defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Microsoft-Anbindung (OneNote).
+//
+// Atlas ist eine Ein-Personen-App, es gibt also hoechstens EINE Verbindung.
+// Statt das im Code zu hoffen, erzwingt es hier eine Spalte mit fixem Wert und
+// einem Unique-Index: eine zweite Anmeldung ueberschreibt die erste, sie legt
+// keine zweite Zeile an.
+//
+// access_token und refresh_token liegen verschluesselt (AES-256-GCM, siehe
+// lib/microsoft.ts). In der Datenbank steht also kein Token, mit dem sich
+// jemand als der Nutzer bei Microsoft ausgeben koennte.
+// ---------------------------------------------------------------------------
+
+export const microsoftAccounts = pgTable(
+  "microsoft_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    singleton: text("singleton").notNull().default("only"),
+    displayName: text("display_name"),
+    email: text("email"),
+    accessToken: text("access_token").notNull(),
+    refreshToken: text("refresh_token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    scope: text("scope"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("microsoft_accounts_singleton_uq").on(t.singleton)],
+);
+
+export type MicrosoftAccount = typeof microsoftAccounts.$inferSelect;
+export type NewMicrosoftAccount = typeof microsoftAccounts.$inferInsert;
 
 export type Subject = typeof subjects.$inferSelect;
 export type NewSubject = typeof subjects.$inferInsert;

@@ -13,11 +13,13 @@ import {
   User,
   Palette,
   CalendarClock,
+  NotebookPen,
   RefreshCw,
   Check,
   AlertTriangle,
 } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
+import { MicrosoftConnection } from "@/components/microsoft-connection";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -335,6 +337,17 @@ export default function SettingsPage() {
                 </span>
               </motion.div>
             )}
+          </Section>
+        </StaggerItem>
+
+        {/* Microsoft 365 / OneNote */}
+        <StaggerItem>
+          <Section
+            icon={NotebookPen}
+            title="OneNote"
+            desc="Fach-Notizen als Seite in dein OneNote schicken."
+          >
+            <MicrosoftConnection />
           </Section>
         </StaggerItem>
 

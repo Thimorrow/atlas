@@ -13,6 +13,8 @@ export type SubjectDTO = {
   teacher: string | null;
   room: string | null;
   color: string | null; // Token aus SUBJECT_COLORS, nie ein Hex-Wert
+  onenoteSectionId: string | null;
+  onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;

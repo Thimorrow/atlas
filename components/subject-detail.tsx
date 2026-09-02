@@ -11,6 +11,7 @@ import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { SubjectNotes } from "@/components/subject-notes";
 import { SubjectFiles } from "@/components/subject-files";
+import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
 import { dueLabel, type AssignmentDTO } from "@/lib/assignments-view";
@@ -71,6 +72,9 @@ function Section({
 
 export function SubjectDetail({ id }: { id: string }) {
   const toast = useToast();
+  // Einmal pro Seite abgefragt: die Abschnittswahl und der Sende-Knopf an der
+  // Notiz haengen an derselben Auskunft.
+  const microsoft = useMicrosoftStatus();
   const [data, setData] = useState<Payload | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing" | "failed">("loading");
 
@@ -372,7 +376,37 @@ export function SubjectDetail({ id }: { id: string }) {
       {/* --- Notizen --- */}
       <StaggerItem>
         <Section title="Notizen">
-          <SubjectNotes subjectId={subject.id} initialNotes={data.notes} />
+          <SubjectNotes
+            subjectId={subject.id}
+            initialNotes={data.notes}
+            onenoteReady={Boolean(microsoft?.connected && subject.onenoteSectionId)}
+          />
+        </Section>
+      </StaggerItem>
+
+      {/* --- OneNote --- */}
+      <StaggerItem>
+        <Section title="OneNote">
+          <SubjectOnenote
+            subjectId={subject.id}
+            status={microsoft}
+            sectionId={subject.onenoteSectionId}
+            sectionName={subject.onenoteSectionName}
+            onChange={(next) =>
+              setData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      subject: {
+                        ...prev.subject,
+                        onenoteSectionId: next.id,
+                        onenoteSectionName: next.name,
+                      },
+                    }
+                  : prev,
+              )
+            }
+          />
         </Section>
       </StaggerItem>
 

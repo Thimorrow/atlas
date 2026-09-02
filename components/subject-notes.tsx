@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { NotebookPen, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Loader2, NotebookPen, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { markdownPreview, renderMarkdown } from "@/lib/markdown";
@@ -131,13 +131,28 @@ function Overlay({
 
 type Editor = { id: string | null; title: string; body: string };
 
-export function SubjectNotes({ subjectId, initialNotes }: { subjectId: string; initialNotes: NoteDTO[] }) {
+// Zustand des OneNote-Knopfs. "sent" haelt die Bestaetigung kurz stehen --
+// ohne sie klickt man ein zweites Mal, um zu pruefen, ob es geklappt hat.
+type SendState = "idle" | "sending" | "sent";
+
+export function SubjectNotes({
+  subjectId,
+  initialNotes,
+  onenoteReady = false,
+}: {
+  subjectId: string;
+  initialNotes: NoteDTO[];
+  // true erst, wenn Microsoft verbunden UND fuer dieses Fach ein Abschnitt
+  // gewaehlt ist. Sonst gibt es den Knopf gar nicht, statt ihn tot anzuzeigen.
+  onenoteReady?: boolean;
+}) {
   const toast = useToast();
   const [notes, setNotes] = useState<NoteDTO[]>(() => [...initialNotes].sort(byUpdatedDesc));
   const [openId, setOpenId] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [send, setSend] = useState<SendState>("idle");
 
   const open = useMemo(() => notes.find((n) => n.id === openId) ?? null, [notes, openId]);
   const confirmNote = useMemo(() => notes.find((n) => n.id === confirmId) ?? null, [notes, confirmId]);
@@ -200,6 +215,32 @@ export function SubjectNotes({ subjectId, initialNotes }: { subjectId: string; i
       toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Beim Wechsel der geoeffneten Notiz zurueck auf Anfang: eine stehengebliebene
+  // Bestaetigung wuerde sonst an der naechsten Notiz haengen, die noch nirgends
+  // gelandet ist.
+  useEffect(() => {
+    setSend("idle");
+  }, [openId]);
+
+  async function sendToOnenote(id: string) {
+    if (send !== "idle") return;
+    setSend("sending");
+    try {
+      const res = await fetch(`/api/notes/${id}/onenote`, { method: "POST" });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        toast(data?.error ?? "Die Notiz konnte nicht an OneNote gesendet werden.");
+        setSend("idle");
+        return;
+      }
+      setSend("sent");
+      window.setTimeout(() => setSend("idle"), 2500);
+    } catch {
+      toast("Keine Verbindung zum Server. Die Notiz wurde nicht gesendet.");
+      setSend("idle");
     }
   }
 
@@ -297,13 +338,55 @@ export function SubjectNotes({ subjectId, initialNotes }: { subjectId: string; i
                 <Trash2 className="size-4" />
                 Löschen
               </Button>
-              <Button
-                size="sm"
-                onClick={() => setEditor({ id: open.id, title: open.title, body: open.body })}
-              >
-                <Pencil className="size-4" />
-                Bearbeiten
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Der Text im Knopf aendert sich, das meldet kein Screenreader
+                    von selbst -- deshalb dieselbe Auskunft noch einmal als
+                    unsichtbare Live-Region. */}
+                <span role="status" aria-live="polite" className="sr-only">
+                  {send === "sending"
+                    ? "Notiz wird an OneNote gesendet."
+                    : send === "sent"
+                      ? "Notiz wurde in OneNote angelegt."
+                      : ""}
+                </span>
+                {onenoteReady && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={send === "sending"}
+                    onClick={() => void sendToOnenote(open.id)}
+                  >
+                    {send === "sending" ? (
+                      <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+                    ) : send === "sent" ? (
+                      <Check aria-hidden="true" className="size-4" />
+                    ) : (
+                      <Send aria-hidden="true" className="size-4" />
+                    )}
+                    {/* Alle drei Beschriftungen liegen in derselben Grid-Zelle:
+                        der Knopf reserviert die Breite des laengsten Texts und
+                        springt beim Wechsel nicht. */}
+                    <span className="relative inline-grid">
+                      <span className={cn("col-start-1 row-start-1", send !== "idle" && "invisible")}>
+                        An OneNote senden
+                      </span>
+                      <span className={cn("col-start-1 row-start-1", send !== "sending" && "invisible")}>
+                        Wird gesendet …
+                      </span>
+                      <span className={cn("col-start-1 row-start-1", send !== "sent" && "invisible")}>
+                        In OneNote angelegt
+                      </span>
+                    </span>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => setEditor({ id: open.id, title: open.title, body: open.body })}
+                >
+                  <Pencil className="size-4" />
+                  Bearbeiten
+                </Button>
+              </div>
             </footer>
           </>
         ) : null}

@@ -27,6 +27,8 @@ export type SubjectDTO = {
   teacher: string | null;
   room: string | null;
   color: string | null; // Token aus SUBJECT_COLORS
+  onenoteSectionId: string | null;
+  onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;
@@ -79,6 +81,8 @@ function toSubjectDTO(row: SubjectRow): SubjectDTO {
     teacher: row.teacher,
     room: row.room,
     color: row.color,
+    onenoteSectionId: row.onenoteSectionId,
+    onenoteSectionName: row.onenoteSectionName,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     openAssignments: row.openAssignments,
     noteCount: row.noteCount,
@@ -364,6 +368,21 @@ export function parseSubjectPatch(body: unknown): Parsed<Partial<NewSubject>> {
     const c = parseColor(body.color);
     if (!c.ok) return c;
     patch.color = c.value;
+  }
+
+  // OneNote-Ziel: id und Anzeigename gehoeren zusammen, null loest die
+  // Verknuepfung. Nur eines von beiden zu setzen ergaebe eine Zeile, die auf
+  // einen Abschnitt zeigt, den die Oberflaeche nicht benennen kann.
+  if (body.onenoteSectionId !== undefined) {
+    if (body.onenoteSectionId === null) {
+      patch.onenoteSectionId = null;
+      patch.onenoteSectionName = null;
+    } else if (nonEmptyStr(body.onenoteSectionId) && nonEmptyStr(body.onenoteSectionName)) {
+      patch.onenoteSectionId = body.onenoteSectionId.trim();
+      patch.onenoteSectionName = body.onenoteSectionName.trim();
+    } else {
+      return { ok: false, error: "Der OneNote-Abschnitt ist unvollständig." };
+    }
   }
 
   // "now" archiviert, null reaktiviert -- der Client muss keine Uhrzeit kennen.
