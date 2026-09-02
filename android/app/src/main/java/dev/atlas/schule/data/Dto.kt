@@ -94,6 +94,23 @@ data class FileDTO(
 @Serializable
 data class SubjectsAntwort(val subjects: List<SubjectDTO> = emptyList())
 
+/** GET /api/subjects/candidates. Die distinct Fachnamen aus allen geladenen Stundenplan-Bloecken. */
+@Serializable
+data class CandidatesAntwort(
+    val candidates: List<String> = emptyList(),
+    val hasBlocks: Boolean = false,
+)
+
+/**
+ * Rumpf fuer POST /api/subjects/setup. [selected] wird aktiv, der Rest von
+ * [all] wird archiviert. Idempotent ueber untisSubject.
+ */
+@Serializable
+data class SubjectsSetupAnfrage(
+    val selected: List<String>,
+    val all: List<String>,
+)
+
 @Serializable
 data class FehlerAntwort(val error: String? = null)
 

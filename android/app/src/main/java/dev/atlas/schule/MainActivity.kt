@@ -259,6 +259,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
 
                             Reiter.EINSTELLUNGEN -> EinstellungenBildschirm(
                                 beimSyncErfolgreich = ansichtsmodell::ladeNeu,
+                                ansichtsmodell = ansichtsmodell,
                             )
                         }
                     }

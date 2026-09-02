@@ -225,6 +225,32 @@ class AtlasApi(
             json.decodeFromString<MicrosoftStatusAntwort>(text)
         }
 
+    /**
+     * GET /api/subjects/candidates. Die distinct Fachnamen aus allen
+     * geladenen Stundenplan-Bloecken, fuer den Abgleich mit der Faecherliste.
+     */
+    suspend fun fachKandidaten(): AtlasErgebnis<CandidatesAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects/candidates").get().build()) { text ->
+            json.decodeFromString<CandidatesAntwort>(text)
+        }
+
+    /** GET /api/subjects?all=1. Alle Faecher, auch die archivierten. */
+    suspend fun alleFaecher(): AtlasErgebnis<List<SubjectDTO>> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects?all=1").get().build()) { text ->
+            json.decodeFromString<SubjectsAntwort>(text).subjects
+        }
+
+    /**
+     * POST /api/subjects/setup. [ausgewaehlt] wird aktiv, der Rest von [alle]
+     * wird archiviert. Antwortet mit 201 und der neuen Faecherliste.
+     */
+    suspend fun faecherAbgleichen(ausgewaehlt: List<String>, alle: List<String>): AtlasErgebnis<List<SubjectDTO>> {
+        val rumpf = json.encodeToString(SubjectsSetupAnfrage(ausgewaehlt, alle)).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/subjects/setup").post(rumpf).build()) { text ->
+            json.decodeFromString<SubjectsAntwort>(text).subjects
+        }
+    }
+
     /** GET /api/subjects/{id}/grades. Noten und Schnitt eines Fachs. */
     suspend fun noten(fachId: String): AtlasErgebnis<GradesAntwort> =
         anfrage(Request.Builder().url("$basisUrl/api/subjects/$fachId/grades").get().build()) { text ->

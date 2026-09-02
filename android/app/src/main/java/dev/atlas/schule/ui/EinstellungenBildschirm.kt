@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,14 +44,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.atlas.schule.data.AtlasApi
 import dev.atlas.schule.data.AtlasErgebnis
 import dev.atlas.schule.data.Erscheinungsbild
@@ -76,10 +81,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun EinstellungenBildschirm(
     beimSyncErfolgreich: () -> Unit,
+    ansichtsmodell: AtlasViewModel,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val api = remember { AtlasApi.fuer(context) }
+    val faecherAbgleich by ansichtsmodell.faecherAbgleichZustand.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -92,6 +99,14 @@ fun EinstellungenBildschirm(
         item("profil") { ProfilAbschnitt() }
         item("erscheinungsbild") { ErscheinungsbildAbschnitt() }
         item("stundenplan") { StundenplanAbschnitt(api, beimSyncErfolgreich) }
+        item("faecher") {
+            FaecherAbschnitt(
+                zustand = faecherAbgleich,
+                beimLaden = ansichtsmodell::ladeFaecherAbgleich,
+                beimUmschalten = ansichtsmodell::wechsleFachAuswahl,
+                beimAbgleichen = ansichtsmodell::faecherAbgleichen,
+            )
+        }
         item("onenote") { OneNoteAbschnitt(api) }
         item("konto") { KontoAbschnitt() }
         item("fuss") {
@@ -451,6 +466,194 @@ private fun SyncMeldung(erfolg: Boolean, inhalt: @Composable ColumnScope.() -> U
             .semantics { liveRegion = LiveRegionMode.Polite },
         content = inhalt,
     )
+}
+
+// --- Faecher-Abgleich -------------------------------------------------------
+
+@Composable
+private fun FaecherAbschnitt(
+    zustand: FaecherAbgleichZustand,
+    beimLaden: () -> Unit,
+    beimUmschalten: (String) -> Unit,
+    beimAbgleichen: () -> Unit,
+) {
+    // Erst beim Aufklappen der Einstellungen laden, nicht beim Start der App:
+    // der Abgleich braucht zwei Anfragen, die niemand sieht, der nur den
+    // Stundenplan oeffnet.
+    LaunchedEffect(Unit) { beimLaden() }
+
+    Abschnitt(
+        IkoneFaecher,
+        "Fächer",
+        "Fächerliste mit dem Stundenplan abgleichen.",
+    ) {
+        when {
+            zustand.laedt && zustand.kandidaten.isEmpty() && zustand.bestand.isEmpty() -> Text(
+                "Wird geladen …",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            zustand.fehler != null -> Text(
+                zustand.fehler,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            else -> {
+                val zeilen = faecherZeilen(zustand.kandidaten, zustand.bestand)
+                val bisherAktiv = aktiveFachNamen(zustand.bestand)
+                val zusammenfassung = faecherAbgleichZusammenfassung(bisherAktiv, zustand.ausgewaehlt)
+                val gibtEsWasZuTun = zustand.ausgewaehlt != bisherAktiv
+
+                Column(verticalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+                    zeilen.forEach { zeile ->
+                        FachZeileAnsicht(
+                            zeile = zeile,
+                            angehakt = zeile.name in zustand.ausgewaehlt,
+                            beimUmschalten = { beimUmschalten(zeile.name) },
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(Abstand.mittel))
+                Text(
+                    text = zusammenfassung,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(Abstand.normal))
+                OutlinedButton(
+                    enabled = !zustand.laeuft && gibtEsWasZuTun,
+                    onClick = beimAbgleichen,
+                    modifier = Modifier.heightIn(min = Hoehe.bedienelement),
+                ) {
+                    if (zustand.laeuft) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(Abstand.eng))
+                    }
+                    Box {
+                        Text(
+                            text = "Fächer abgleichen",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.alpha(0f),
+                        )
+                        Text(
+                            text = if (zustand.laeuft) "Gleiche ab…" else "Fächer abgleichen",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Ein archiviertes Fach behält seine Notizen, Aufgaben und Noten und kommt " +
+                        "zurück, sobald du es wieder anhakst.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Abstand.normal),
+                )
+
+                AnimatedVisibility(
+                    visible = zustand.ergebnis != null,
+                    enter = fadeIn(atlasTween(Dauer.SCHNELL)) + expandVertically(atlasTween(Dauer.SCHNELL)),
+                    exit = fadeOut(atlasTween(Dauer.SCHNELL)) + shrinkVertically(atlasTween(Dauer.SCHNELL)),
+                ) {
+                    when (val ergebnis = zustand.ergebnis) {
+                        is FaecherAbgleichErgebnis.Erfolg -> SyncMeldung(erfolg = true) {
+                            Text(
+                                ergebnis.meldung,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        is FaecherAbgleichErgebnis.Fehler -> SyncMeldung(erfolg = false) {
+                            Text(
+                                ergebnis.meldung,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        null -> {}
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FachZeileAnsicht(
+    zeile: FaecherZeile,
+    angehakt: Boolean,
+    beimUmschalten: () -> Unit,
+) {
+    val beruehrung = remember { MutableInteractionSource() }
+    val beschreibung = buildString {
+        append(
+            when (zeile.status) {
+                FachStatus.IM_STUNDENPLAN -> "im Stundenplan"
+                FachStatus.NICHT_IM_STUNDENPLAN -> "nicht im Stundenplan"
+                FachStatus.NEU -> "neu"
+            },
+        )
+        if (zeile.archiviert) append(" · archiviert")
+        if (zeile.hatInhalt) append(" · hat Notizen oder Aufgaben")
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = Hoehe.bedienelement)
+            .toggleable(
+                value = angehakt,
+                interactionSource = beruehrung,
+                indication = ripple(),
+                role = Role.Checkbox,
+                onValueChange = { beimUmschalten() },
+            )
+            .padding(vertical = Abstand.eng),
+        horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (angehakt) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .border(
+                    width = if (angehakt) 0.dp else 1.5.dp,
+                    color = if (angehakt) Color.Transparent else MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(4.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (angehakt) {
+                Icon(
+                    imageVector = IkoneHaken,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(13.dp),
+                )
+            }
+        }
+
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = zeile.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                text = beschreibung,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 // --- OneNote --------------------------------------------------------------

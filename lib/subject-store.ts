@@ -5,7 +5,7 @@
 // Aufgabe darauf zeigt. Abgewaehlte Faecher werden archiviert, nie geloescht,
 // sonst legt der naechste Sync sie wieder an.
 
-import { and, asc, eq, gte, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   schoolBlocks,
@@ -220,25 +220,96 @@ export async function ensureSubjectForUntis(untisSubject: string): Promise<Subje
   return raced;
 }
 
-// Setup: ausgewaehlte Faecher aktiv, der Rest archiviert. Idempotent ueber
-// untis_subject, ein zweiter Lauf aendert an bestehenden Faechern nichts.
-export async function setupSubjects(selected: string[], all: string[]): Promise<SubjectDTO[]> {
-  const selectedSet = new Set(selected);
-  const names = Array.from(new Set([...all, ...selected]));
-  const now = new Date();
+// Reine Mengenlogik fuer setupSubjects, ohne DB -- daher gut isoliert testbar.
+// Faecher mit untisSubject === null sind manuell angelegt (z. B. eine AG) und
+// werden nie angefasst, egal was in selected steht.
+export type ExistingSubjectForSetup = {
+  id: string;
+  untisSubject: string | null;
+  archivedAt: Date | null;
+};
 
-  if (names.length > 0) {
+export type SubjectSetupPlan = {
+  toCreate: { name: string; archivedAt: Date | null }[];
+  toReactivate: string[]; // ids
+  toArchive: string[]; // ids
+};
+
+export function planSubjectSetup(
+  existing: ExistingSubjectForSetup[],
+  selected: string[],
+  all: string[],
+): SubjectSetupPlan {
+  const selectedSet = new Set(selected);
+  const names = new Set([...all, ...selected]);
+  const existingByUntisSubject = new Map(
+    existing.filter((s) => s.untisSubject !== null).map((s) => [s.untisSubject as string, s]),
+  );
+
+  const toCreate: { name: string; archivedAt: Date | null }[] = [];
+  for (const name of names) {
+    if (!existingByUntisSubject.has(name)) {
+      toCreate.push({ name, archivedAt: selectedSet.has(name) ? null : new Date() });
+    }
+  }
+
+  const toReactivate: string[] = [];
+  const toArchive: string[] = [];
+  for (const row of existingByUntisSubject.values()) {
+    if (selectedSet.has(row.untisSubject as string)) {
+      if (row.archivedAt !== null) toReactivate.push(row.id);
+    } else {
+      if (row.archivedAt === null) toArchive.push(row.id);
+    }
+  }
+
+  return { toCreate, toReactivate, toArchive };
+}
+
+// Setup: ausgewaehlte Faecher aktiv, der Rest archiviert. Idempotent ueber
+// untis_subject: derselbe Aufruf zweimal aendert beim zweiten Mal nichts mehr.
+// Ein Aufruf mit anderer Auswahl aendert sehr wohl etwas -- genau dafuer ist er
+// da, die Route ist keine reine Erstbefuellung.
+// Faecher mit untisSubject === null (manuell angelegt) bleiben unangetastet.
+export async function setupSubjects(selected: string[], all: string[]): Promise<SubjectDTO[]> {
+  const existing = await db
+    .select({
+      id: subjects.id,
+      untisSubject: subjects.untisSubject,
+      archivedAt: subjects.archivedAt,
+    })
+    .from(subjects);
+
+  const plan = planSubjectSetup(existing, selected, all);
+
+  if (plan.toCreate.length > 0) {
     await db
       .insert(subjects)
       .values(
-        names.map((name) => ({
+        plan.toCreate.map(({ name, archivedAt }) => ({
           name,
           untisSubject: name,
           color: defaultColorFor(name),
-          archivedAt: selectedSet.has(name) ? null : now,
+          archivedAt,
         })),
       )
       .onConflictDoNothing({ target: subjects.untisSubject });
+  }
+
+  // inArray statt einer Schleife: db laeuft ueber neon-http, jedes await ist
+  // eine eigene HTTP-Runde. Bei zwoelf Faechern waren das bis zu zwoelf.
+  if (plan.toReactivate.length > 0) {
+    await db
+      .update(subjects)
+      .set({ archivedAt: null, updatedAt: sql`now()` })
+      .where(inArray(subjects.id, plan.toReactivate));
+  }
+
+  if (plan.toArchive.length > 0) {
+    await db
+      .update(subjects)
+      .set({ archivedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(inArray(subjects.id, plan.toArchive));
   }
 
   return listSubjects("all");

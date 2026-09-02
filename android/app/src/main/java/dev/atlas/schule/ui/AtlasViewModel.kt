@@ -13,6 +13,7 @@ import dev.atlas.schule.data.NeueAufgabeAnfrage
 import dev.atlas.schule.data.NeueNoteAnfrage
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.data.SyncDTO
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,6 +88,34 @@ data class NotenZustand(
     val blattFehler: String? = null,
 )
 
+/** Ergebnis eines Abgleich-Laufs, fuer die Meldung unter dem Knopf. */
+sealed interface FaecherAbgleichErgebnis {
+    data class Erfolg(val meldung: String) : FaecherAbgleichErgebnis
+    data class Fehler(val meldung: String) : FaecherAbgleichErgebnis
+}
+
+/**
+ * Der Faecher-Abschnitt der Einstellungen: Kandidaten aus dem Stundenplan und
+ * der aktuelle Fachbestand nebeneinander, dazu die Auswahl, wer aktiv sein
+ * soll. Ein eigener StateFlow wie [NotenZustand], statt eines Feldes auf
+ * AtlasZustand.App: der Abschnitt lebt nur in den Einstellungen und braucht
+ * keinen Platz im Zustand des Rests der App.
+ */
+data class FaecherAbgleichZustand(
+    val laedt: Boolean = false,
+    /** Fehler beim Laden der Kandidaten oder des Fachbestands. */
+    val fehler: String? = null,
+    val kandidaten: List<String> = emptyList(),
+    /** Alle Faecher, auch archivierte -- aus GET /api/subjects?all=1. */
+    val bestand: List<SubjectDTO> = emptyList(),
+    /** Welche Namen nach dem Abgleich aktiv sein sollen. */
+    val ausgewaehlt: Set<String> = emptySet(),
+    val laeuft: Boolean = false,
+    val ergebnis: FaecherAbgleichErgebnis? = null,
+    /** Einmal erfolgreich geladen. Verhindert, dass ein erneuter Lauf die Auswahl zuruecksetzt. */
+    val geladen: Boolean = false,
+)
+
 sealed interface AtlasZustand {
     data class Anmeldung(
         val fehler: String? = null,
@@ -140,6 +169,9 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     private val _notenZustand = MutableStateFlow(NotenZustand())
     val notenZustand: StateFlow<NotenZustand> = _notenZustand.asStateFlow()
+
+    private val _faecherAbgleichZustand = MutableStateFlow(FaecherAbgleichZustand())
+    val faecherAbgleichZustand: StateFlow<FaecherAbgleichZustand> = _faecherAbgleichZustand.asStateFlow()
 
     private fun frischeApp(): AtlasZustand.App {
         val heute = LocalDate.now()
@@ -621,6 +653,92 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                 is AtlasErgebnis.Fehler -> _notenZustand.update { zustand ->
                     if (zustand.fachId != fachId) return@update zustand
                     zustand.copy(blattLaeuft = false, blattFehler = ergebnis.meldung)
+                }
+            }
+        }
+    }
+
+    // --- Faecher-Abgleich ------------------------------------------------------
+
+    /**
+     * Kandidaten aus dem Stundenplan und Fachbestand laden, Auswahl auf die
+     * Kandidaten vorbelegen.
+     *
+     * Der Aufruf steht in einem LaunchedEffect innerhalb eines LazyColumn-Items
+     * und feuert damit jedes Mal neu, wenn der Abschnitt aus dem Sichtfeld
+     * scrollt und zurueckkommt. Ohne [geladen] setzte das die Auswahl jedes Mal
+     * auf die Kandidaten zurueck: wer Latein wieder angehakt hatte, verlor den
+     * Haken beim Hoch- und Runterscrollen. Ein zweiter Lauf passiert deshalb
+     * nur, wenn ihn jemand ausdruecklich will.
+     */
+    fun ladeFaecherAbgleich(erzwingen: Boolean = false) {
+        val jetzt = _faecherAbgleichZustand.value
+        if (jetzt.laedt) return
+        if (jetzt.geladen && !erzwingen) return
+        _faecherAbgleichZustand.update { it.copy(laedt = true, fehler = null, ergebnis = null) }
+        viewModelScope.launch {
+            // async statt zweier nacheinander abgewarteter Aufrufe: die beiden
+            // Anfragen haengen nicht voneinander ab, nacheinander kostete das
+            // zwei volle Netzrunden.
+            val kandidatenAuftrag = async { api.fachKandidaten() }
+            val bestandAuftrag = async { api.alleFaecher() }
+            val kandidaten = kandidatenAuftrag.await()
+            val bestand = bestandAuftrag.await()
+            when {
+                kandidaten is AtlasErgebnis.Erfolg && bestand is AtlasErgebnis.Erfolg -> {
+                    _faecherAbgleichZustand.update {
+                        it.copy(
+                            laedt = false,
+                            geladen = true,
+                            kandidaten = kandidaten.wert.candidates,
+                            bestand = bestand.wert,
+                            ausgewaehlt = kandidaten.wert.candidates.toSet(),
+                        )
+                    }
+                }
+                kandidaten is AtlasErgebnis.Fehler ->
+                    _faecherAbgleichZustand.update { it.copy(laedt = false, fehler = kandidaten.meldung) }
+                bestand is AtlasErgebnis.Fehler ->
+                    _faecherAbgleichZustand.update { it.copy(laedt = false, fehler = bestand.meldung) }
+            }
+        }
+    }
+
+    /** Ein Name in der Liste wird angehakt oder abgewaehlt. */
+    fun wechsleFachAuswahl(name: String) = _faecherAbgleichZustand.update {
+        it.copy(ausgewaehlt = if (name in it.ausgewaehlt) it.ausgewaehlt - name else it.ausgewaehlt + name)
+    }
+
+    /**
+     * Fuehrt den Abgleich aus. Bei Erfolg wird die Faecherliste im Rest der
+     * App neu geladen, genau wie beim Untis-Abgleich (siehe ladeNeu()) --
+     * sonst saehe der Rest der App weiter die alte Liste, bis jemand von
+     * Hand aktualisiert.
+     */
+    fun faecherAbgleichen() {
+        val zustand = _faecherAbgleichZustand.value
+        if (zustand.laeuft) return
+        val alle = (zustand.kandidaten + zustand.bestand.mapNotNull { it.untisSubject }).distinct()
+        val bisherAktiv = aktiveFachNamen(zustand.bestand)
+        // Die Meldung entsteht aus dem Stand vor dem Aufruf: danach spiegelt
+        // [bestand] schon das neue Ergebnis, und "kommen dazu" waere nichts
+        // mehr zu vergleichen.
+        val meldung = faecherAbgleichZusammenfassung(bisherAktiv, zustand.ausgewaehlt)
+        _faecherAbgleichZustand.update { it.copy(laeuft = true, ergebnis = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.faecherAbgleichen(zustand.ausgewaehlt.toList(), alle)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _faecherAbgleichZustand.update {
+                        it.copy(
+                            laeuft = false,
+                            bestand = ergebnis.wert,
+                            ergebnis = FaecherAbgleichErgebnis.Erfolg(meldung),
+                        )
+                    }
+                    ladeNeu()
+                }
+                is AtlasErgebnis.Fehler -> _faecherAbgleichZustand.update {
+                    it.copy(laeuft = false, ergebnis = FaecherAbgleichErgebnis.Fehler(ergebnis.meldung))
                 }
             }
         }
