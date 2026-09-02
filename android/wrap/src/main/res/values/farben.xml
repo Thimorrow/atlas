@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Die vier Toene, die der Stoerschirm braucht, aus denselben Werten wie die
+      Web-App. Mehr wird hier nicht gebraucht: alles andere zeichnet die Seite
+      selbst.
+    -->
+    <color name="hintergrund">#FCFCFC</color>
+    <color name="vordergrund">#1A1A1A</color>
+    <color name="gedaempft">#71717A</color>
+    <color name="knopf_schrift">#FCFCFC</color>
+</resources>

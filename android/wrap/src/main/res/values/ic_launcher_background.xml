@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Der Hintergrund des Startsymbols. Atlas ist monochrom, deshalb das
+        Fast-Schwarz des Dunkelmodus (der Token background, oklch(0.165 0 0)) statt
+        einer Markenfarbe, die es nicht gibt. Es traegt das weisse Zeichen in
+        jedem Launcher-Theme.
+    -->
+    <color name="ic_launcher_background">#0E0E0E</color>
+</resources>

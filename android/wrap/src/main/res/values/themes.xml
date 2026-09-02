@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Die WebView leitet prefers-color-scheme aus dem Theme der Activity ab.
+      Deshalb gibt es dieses Theme zweimal, hell hier und dunkel in
+      values-night: nur so schaltet die Web-App im Dunkelmodus wirklich um,
+      ganz ohne zusaetzliche Bibliothek.
+
+      Die Systemleisten tragen denselben Ton wie die Seite. Ohne das sitzt die
+      App zwischen einem grauen Balken oben und einem schwarzen unten und sieht
+      aus wie eine Webseite in einem Rahmen, nicht wie eine App.
+    -->
+    <style name="Theme.AtlasWrap" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/hintergrund</item>
+        <item name="android:statusBarColor">@color/hintergrund</item>
+        <item name="android:navigationBarColor">@color/hintergrund</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- Erst ab 27, darunter faellt das Attribut still weg. Auf 26 bleibt
+             die Navigationsleiste damit hell mit hellen Symbolen; das betrifft
+             nur noch Geraete, die es praktisch nicht mehr gibt. -->
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
+    </style>
+</resources>

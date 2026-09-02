@@ -22,3 +22,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Atlas"
 include(":app")
+// Zweite App aus demselben Repo: dieselbe Web-App in einer WebView. Sie teilt
+// sich mit :app nur die Werkzeugkette, keinen Code -- deshalb ein eigenes Modul
+// und keine Produktvariante.
+include(":wrap")
