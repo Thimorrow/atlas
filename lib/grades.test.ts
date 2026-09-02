@@ -5,6 +5,7 @@ import {
   overallAverage,
   pointsToGradeLabel,
   pointsToGradeNumber,
+  requiredPointsForGoal,
   sortSubjectsByAverage,
   subjectAverage,
   type GradeInput,
@@ -184,6 +185,108 @@ describe("sortSubjectsByAverage", () => {
     const { withGrades, withoutGrades } = sortSubjectsByAverage([s("Kunst", null), s("Sport", null)]);
     expect(withGrades).toEqual([]);
     expect(withoutGrades.length).toBe(2);
+  });
+});
+
+describe("requiredPointsForGoal", () => {
+  it("Normalfall: rechnet die noetige Punktzahl fuer die naechste schriftliche Note aus", () => {
+    // oral 12, written 9, 50:50 -> Schnitt 10,5. Ziel 11 Punkte.
+    // written muss auf 10 im Schnitt: (9+p)/2 = 10 -> p = 11.
+    const r = requiredPointsForGoal(
+      [g("oral", 12), g("written", 9)],
+      11,
+      { kind: "written", weight: 1 },
+      50,
+    );
+    expect(r).toEqual({ status: "achievable", points: 11 });
+  });
+
+  it("Ziel schon erreicht: keine Punktzahl, sondern der bestehende Schnitt", () => {
+    const r = requiredPointsForGoal(
+      [g("oral", 13), g("written", 13)],
+      11,
+      { kind: "written", weight: 1 },
+      50,
+    );
+    expect(r).toEqual({ status: "reached", current: 13 });
+  });
+
+  it("Ziel selbst mit 15 Punkten nicht erreichbar: sagt, was mit 15 herauskaeme", () => {
+    // oral 5 (fix), 50:50, noch keine schriftliche Note. Ziel 15.
+    // Bestes moegliches: (5+15)/2 = 10.
+    const r = requiredPointsForGoal(
+      [g("oral", 5)],
+      15,
+      { kind: "written", weight: 1 },
+      50,
+    );
+    expect(r).toEqual({ status: "unreachable", atMax: 10 });
+  });
+
+  it("erste Note ueberhaupt in dieser Gruppe: die neue Note zaehlt allein", () => {
+    // Noch keine schriftliche Note, oral fehlt komplett -- die neue
+    // schriftliche Note ist der ganze Schnitt.
+    const r = requiredPointsForGoal([], 9, { kind: "written", weight: 1 }, 50);
+    expect(r).toEqual({ status: "achievable", points: 9 });
+  });
+
+  it("die andere Gruppe hat keine Note: sie traegt nichts bei", () => {
+    // Nur schriftliche Noten vorhanden, Ziel per neuer muendlicher Note.
+    // written-Schnitt fehlt hier komplett -> oral zaehlt allein.
+    const r = requiredPointsForGoal(
+      [g("written", 8)],
+      12,
+      { kind: "oral", weight: 1 },
+      50,
+    );
+    // written existiert (8), oral fehlt -- Ziel per neuer oral-Note.
+    // otherAvg (written) = 8, ownShare (oral) = 0.5, otherShare = 0.5.
+    // (target - 0.5*8)/0.5 = (12-4)/0.5 = 16 -> noetig waeren 16 Punkte, nicht
+    // erreichbar. Mit 15: 0.5*15 + 0.5*8 = 7.5 + 4 = 11.5.
+    expect(r).toEqual({ status: "unreachable", atMax: 11.5 });
+  });
+
+  it("oralWeight 0: eine neue muendliche Note aendert am Schnitt nichts", () => {
+    const r = requiredPointsForGoal(
+      [g("oral", 5), g("written", 8)],
+      12,
+      { kind: "oral", weight: 1 },
+      0,
+    );
+    // Schnitt ist fix bei 8 (nur schriftlich zaehlt), egal welche muendliche
+    // Note dazukommt.
+    expect(r).toEqual({ status: "unreachable", atMax: 8 });
+  });
+
+  it("oralWeight 100: eine neue schriftliche Note aendert am Schnitt nichts", () => {
+    const r = requiredPointsForGoal(
+      [g("oral", 5), g("written", 8)],
+      12,
+      { kind: "written", weight: 1 },
+      100,
+    );
+    expect(r).toEqual({ status: "unreachable", atMax: 5 });
+  });
+
+  it("Gewichtung der neuen Note doppelt zaehlt staerker", () => {
+    // written existiert schon mit 9 (Gewicht 1), oral fix bei 12, 50:50.
+    // Ziel 11 -> written muss auf 10: (9 + p*2)/(1+2) = 10 -> p = 10.5 -> 11
+    const r = requiredPointsForGoal(
+      [g("oral", 12), g("written", 9)],
+      11,
+      { kind: "written", weight: 2 },
+      50,
+    );
+    expect(r).toEqual({ status: "achievable", points: 11 });
+  });
+
+  it("das Ergebnis liegt nie ueber 15 und ist immer eine ganze Zahl", () => {
+    const r = requiredPointsForGoal([g("written", 1)], 15, { kind: "written", weight: 1 }, 50);
+    if (r.status === "achievable") {
+      expect(Number.isInteger(r.points)).toBe(true);
+      expect(r.points).toBeLessThanOrEqual(15);
+      expect(r.points).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 

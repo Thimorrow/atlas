@@ -25,6 +25,7 @@ import {
 } from "@/lib/grades";
 import type { GradeDTO } from "@/lib/grade-store";
 import { cn } from "@/lib/utils";
+import { SubjectGoal } from "@/components/subject-goal";
 
 // 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus in jedes Feld
 // darunter hinein und schiebt das halbe Formular aus dem Bild.
@@ -203,6 +204,16 @@ export function SubjectGrades({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Nur mit einem verwertbaren Schnitt sinnvoll -- ohne den gaebe es
+          nichts, wovon aus zu rechnen waere. */}
+      {summary.average && (
+        <SubjectGoal
+          grades={grades}
+          oralWeight={oralWeight}
+          currentAveragePoints={summary.average.points}
+        />
       )}
     </div>
   );

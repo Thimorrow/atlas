@@ -132,6 +132,87 @@ export function subjectAverage(
   };
 }
 
+// --- Zielnoten-Rechner ---------------------------------------------------
+
+// Ergebnis von requiredPointsForGoal: entweder ist das Ziel schon erreicht,
+// es ist selbst mit 15 Punkten nicht mehr erreichbar, oder es braucht genau
+// diese Punktzahl in der naechsten Note.
+export type GoalOutcome =
+  | { status: "reached"; current: number }
+  | { status: "unreachable"; atMax: number }
+  | { status: "achievable"; points: number };
+
+// Rundungsfehler aus der Bruchrechnung duerfen nicht ueber "erreichbar" oder
+// "nicht erreichbar" entscheiden.
+const GOAL_EPSILON = 1e-9;
+
+// Kehrt subjectAverage() um: gegeben die vorhandenen Noten und eine geplante
+// naechste Note (Art und Gewichtung), welche Punktzahl braucht diese naechste
+// Note, damit der Fachschnitt targetPoints erreicht?
+//
+// Die Herleitung folgt exakt subjectAverage() oben: die neue Note veraendert
+// nur den Schnitt ihrer eigenen Gruppe (muendlich oder schriftlich), die
+// andere Gruppe bleibt unveraendert. Beide Gruppenschnitte sind linear in der
+// neuen Punktzahl, ihr gewichtetes Mittel also auch -- die Umkehrung ist damit
+// eine einzige Geradengleichung, keine Naeherung oder Suche.
+export function requiredPointsForGoal(
+  grades: GradeInput[],
+  targetPoints: number,
+  next: { kind: GradeKind; weight: number },
+  oralWeightPercent: number = DEFAULT_ORAL_WEIGHT,
+): GoalOutcome {
+  const target = clampPoints(targetPoints);
+  const w = Number.isFinite(next.weight) && next.weight > 0 ? next.weight : 0;
+  const share = Math.min(100, Math.max(0, oralWeightPercent)) / 100;
+
+  // Ist das Ziel schon ohne die neue Note erreicht?
+  const current = subjectAverage(grades, oralWeightPercent).average;
+  if (current !== null && current.points >= target - GOAL_EPSILON) {
+    return { status: "reached", current: current.points };
+  }
+
+  if (w === 0) {
+    // Eine Note ohne Gewicht zaehlt nirgends mit -- der Schnitt bleibt, wie er
+    // ist, ganz gleich welche Punktzahl eingetragen wird.
+    return { status: "unreachable", atMax: current?.points ?? 0 };
+  }
+
+  const sameKind = grades.filter((g) => g.kind === next.kind);
+  let sameWeightSum = 0;
+  let samePointSum = 0;
+  for (const g of sameKind) {
+    const gw = Number.isFinite(g.weight) && g.weight > 0 ? g.weight : 0;
+    sameWeightSum += gw;
+    samePointSum += clampPoints(g.points) * gw;
+  }
+
+  const otherAvg = weightedAverage(grades.filter((g) => g.kind !== next.kind));
+
+  // Anteil, mit dem die eigene (neue) bzw. die andere Gruppe in den
+  // Fachschnitt eingeht -- dieselbe Fallunterscheidung wie in subjectAverage.
+  const ownShare = otherAvg === null ? 1 : next.kind === "oral" ? share : 1 - share;
+  const otherShare = otherAvg === null ? 0 : next.kind === "oral" ? 1 - share : share;
+
+  if (ownShare === 0) {
+    // Die Gewichtung stellt die eigene Gruppe auf 0 Anteil (oralWeight 0 mit
+    // einer muendlichen bzw. 100 mit einer schriftlichen naechsten Note) --
+    // die neue Note aendert am Schnitt nichts, egal welche Punktzahl.
+    return { status: "unreachable", atMax: otherAvg ?? 0 };
+  }
+
+  // combined(p) = ownShare * (samePointSum + p*w) / (sameWeightSum + w) + otherShare * otherAvg
+  const m = otherAvg !== null ? otherShare * otherAvg : 0;
+  const requiredOwnAverage = (target - m) / ownShare;
+  const p = (requiredOwnAverage * (sameWeightSum + w) - samePointSum) / w;
+
+  if (p > POINTS_MAX + GOAL_EPSILON) {
+    const atMax = ownShare * ((samePointSum + POINTS_MAX * w) / (sameWeightSum + w)) + m;
+    return { status: "unreachable", atMax: clampPoints(atMax) };
+  }
+
+  return { status: "achievable", points: Math.max(POINTS_MIN, Math.ceil(p - GOAL_EPSILON)) };
+}
+
 // Gesamtschnitt ueber die Faecher: jedes Fach zaehlt einmal, unabhaengig davon,
 // wie viele Noten darin stehen. Faecher ohne Note bleiben aussen vor, sonst
 // wuerde ein frisch angelegtes Fach den Schnitt verschieben.
