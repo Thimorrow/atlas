@@ -55,6 +55,20 @@
   --shadow-popover-value:
     0 10px 15px -3px rgb(0 0 0 / 0.1),
     0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* Öffentliche Atlas-Tokens für neue Oberflächen und die Styleguide-Galerie. */
+  --focus-width: 2px;
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 360ms;
+  --space-page: 1.5rem;
+  --surface-subtle: color-mix(in oklab, var(--foreground) 3%, transparent);
+  --surface-raised: var(--card);
+}
+
+.dark {
+  --surface-subtle: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --surface-raised: var(--card);
 }
 
 .dark {

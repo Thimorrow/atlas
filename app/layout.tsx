@@ -39,7 +39,7 @@ export default async function RootLayout({
   return (
     <html
       lang="de"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} bg-background`}
       suppressHydrationWarning
     >
       <body className="select-none font-sans">
