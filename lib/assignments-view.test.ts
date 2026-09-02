@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  daysUntilLabel,
   dueLabel,
   endOfWeek,
   groupAssignments,
+  groupExamsByWeek,
   groupOf,
+  isExamPageType,
   localISO,
   overdueLabel,
+  partitionExams,
   recentlyCompleted,
+  sameDayCount,
+  weekdayDateLabel,
   type AssignmentDTO,
   type AssignmentType,
 } from "@/lib/assignments-view";
@@ -267,5 +273,145 @@ describe("localISO / addDays", () => {
     expect(addDays("2025-03-29", 1)).toBe("2025-03-30");
     expect(addDays("2025-03-30", 1)).toBe("2025-03-31");
     expect(addDays("2025-10-26", 1)).toBe("2025-10-27");
+  });
+});
+
+// --- Pruefungsplan -----------------------------------------------------------
+
+describe("isExamPageType", () => {
+  it("zaehlt exam, test und presentation als Pruefung, homework und other nicht", () => {
+    expect(isExamPageType("exam")).toBe(true);
+    expect(isExamPageType("test")).toBe(true);
+    expect(isExamPageType("presentation")).toBe(true);
+    expect(isExamPageType("homework")).toBe(false);
+    expect(isExamPageType("other")).toBe(false);
+  });
+});
+
+describe("partitionExams", () => {
+  it("filtert auf Pruefungstypen und trennt nach heute", () => {
+    const { upcoming, past } = partitionExams(
+      [
+        make({ type: "exam", dueDate: MO, title: "Alte Arbeit" }),
+        make({ type: "homework", dueDate: DI, title: "Hausaufgabe" }),
+        make({ type: "test", dueDate: MI, title: "Test heute" }),
+        make({ type: "presentation", dueDate: FR, title: "Referat" }),
+      ],
+      MI,
+    );
+    expect(titles(upcoming)).toEqual(["Test heute", "Referat"]);
+    expect(titles(past)).toEqual(["Alte Arbeit"]);
+  });
+
+  it("eine Pruefung ohne Datum gilt als anstehend, nicht als vorbei", () => {
+    const { upcoming, past } = partitionExams(
+      [make({ type: "exam", dueDate: null, title: "Ohne Datum" })],
+      MI,
+    );
+    expect(titles(upcoming)).toEqual(["Ohne Datum"]);
+    expect(past).toEqual([]);
+  });
+
+  it("eine Pruefung mit heutigem Datum gilt als anstehend", () => {
+    const { upcoming, past } = partitionExams(
+      [make({ type: "exam", dueDate: MI, title: "Heute" })],
+      MI,
+    );
+    expect(titles(upcoming)).toEqual(["Heute"]);
+    expect(past).toEqual([]);
+  });
+
+  it("sortiert vergangene ruecklaeufig, neueste zuerst", () => {
+    const { past } = partitionExams(
+      [
+        make({ type: "exam", dueDate: MO, title: "Vorgestern" }),
+        make({ type: "exam", dueDate: DI, title: "Gestern" }),
+      ],
+      MI,
+    );
+    expect(titles(past)).toEqual(["Gestern", "Vorgestern"]);
+  });
+});
+
+describe("daysUntilLabel", () => {
+  it("nutzt Worte fuer heute und morgen, sonst 'in N Tagen'", () => {
+    expect(daysUntilLabel(MI, MI)).toBe("Heute");
+    expect(daysUntilLabel(DO, MI)).toBe("Morgen");
+    expect(daysUntilLabel(SO, MI)).toBe("in 4 Tagen");
+  });
+
+  it("faellt fuer ein vergangenes Datum auf 'Heute' zurueck statt negativ zu zaehlen", () => {
+    expect(daysUntilLabel(DI, MI)).toBe("Heute");
+  });
+});
+
+describe("weekdayDateLabel", () => {
+  it("zeigt immer Wochentag und Datum, nie 'heute'/'morgen'", () => {
+    expect(weekdayDateLabel(MI)).toBe("Mi., 16. Juli");
+    expect(weekdayDateLabel(NAECHSTE_WOCHE)).toBe("Mo., 21. Juli");
+  });
+});
+
+describe("groupExamsByWeek", () => {
+  it("gruppiert nach Kalenderwoche und benennt diese und naechste Woche", () => {
+    const groups = groupExamsByWeek(
+      [
+        make({ type: "exam", dueDate: MI, title: "Diese Woche" }),
+        make({ type: "exam", dueDate: NAECHSTE_WOCHE, title: "Naechste Woche" }),
+        make({ type: "exam", dueDate: "2025-08-04", title: "Spaeter" }),
+      ],
+      MI,
+    );
+    expect(groups.map((g) => g.label)).toEqual([
+      "Diese Woche",
+      "Nächste Woche",
+      "Woche vom 4. August",
+    ]);
+  });
+
+  it("markiert eine Woche ab drei Pruefungen als crowded", () => {
+    const groups = groupExamsByWeek(
+      [
+        make({ type: "exam", dueDate: MI, title: "A" }),
+        make({ type: "test", dueDate: DO, title: "B" }),
+        make({ type: "presentation", dueDate: FR, title: "C" }),
+      ],
+      MI,
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0].crowded).toBe(true);
+  });
+
+  it("laesst zwei Pruefungen in derselben Woche nicht als crowded gelten", () => {
+    const groups = groupExamsByWeek(
+      [
+        make({ type: "exam", dueDate: MI, title: "A" }),
+        make({ type: "test", dueDate: DO, title: "B" }),
+      ],
+      MI,
+    );
+    expect(groups[0].crowded).toBe(false);
+  });
+
+  it("sammelt Pruefungen ohne Datum in einer eigenen Gruppe am Ende", () => {
+    const groups = groupExamsByWeek(
+      [make({ type: "exam", dueDate: MI, title: "Mit Datum" }), make({ type: "exam", dueDate: null, title: "Ohne" })],
+      MI,
+    );
+    expect(groups.at(-1)?.key).toBe("undated");
+    expect(titles(groups.at(-1)!.items)).toEqual(["Ohne"]);
+  });
+});
+
+describe("sameDayCount", () => {
+  it("zaehlt, wie viele Eintraege auf denselben Tag fallen", () => {
+    const items = [
+      make({ dueDate: MI, title: "A" }),
+      make({ dueDate: MI, title: "B" }),
+      make({ dueDate: DO, title: "C" }),
+    ];
+    expect(sameDayCount(items, MI)).toBe(2);
+    expect(sameDayCount(items, DO)).toBe(1);
+    expect(sameDayCount(items, null)).toBe(1);
   });
 });

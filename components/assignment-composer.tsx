@@ -40,13 +40,24 @@ export function AssignmentComposer({
   onOpenChange,
   subjects,
   initial,
+  // Kurzer Hinweistext unter dem Faelligkeits-Feld, z.B. wenn die Aufgabe aus
+  // einer Schulstunde heraus angelegt wird und die Faelligkeit ein Vorschlag
+  // ist (naechste Stunde desselben Fachs). Additiv: ohne diesen Prop verhaelt
+  // sich der Composer wie bisher.
+  dueHint,
   onSaved,
+  // Additiv wie dueHint: andere Seiten (z. B. /pruefungen) koennen die
+  // Ueberschrift im Neu-Anlegen-Zustand anpassen, ohne dass bestehende
+  // Aufrufer etwas davon merken -- ohne Angabe bleibt der Text wie bisher.
+  newHeading = "Neue Aufgabe",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   subjects: { id: string; name: string; color: string | null }[];
   initial?: AssignmentComposerInitial;
+  dueHint?: string | null;
   onSaved: (a: AssignmentDTO) => void;
+  newHeading?: string;
 }): React.JSX.Element {
   const reduce = useReducedMotion();
   const toast = useToast();
@@ -185,7 +196,7 @@ export function AssignmentComposer({
             <header className="flex items-start justify-between gap-3 border-b bg-muted/30 px-5 py-4">
               <div className="min-w-0">
                 <h2 id={`${uid}-title`} className="text-[15px] font-semibold leading-tight tracking-tight">
-                  {editing ? "Aufgabe bearbeiten" : "Neue Aufgabe"}
+                  {editing ? "Aufgabe bearbeiten" : newHeading}
                 </h2>
                 <p className="mt-0.5 text-[13px] text-muted-foreground">
                   Nur der Titel ist Pflicht.
@@ -267,7 +278,15 @@ export function AssignmentComposer({
                   className={FIELD}
                   value={dueDate ?? ""}
                   onChange={(e) => setDueDate(e.target.value)}
+                  aria-describedby={dueHint ? `${uid}-due-hint` : undefined}
                 />
+                {/* Vorschlag bleibt aenderbar, es ist keine Vorschrift -- der
+                    Hinweis erklaert nur, wo das Datum herkommt (oder warum es
+                    fehlt). aria-describedby verbindet ihn mit dem Feld, sonst
+                    bekommt ihn nur zu sehen, wer hinschaut. */}
+                {dueHint && (
+                  <p id={`${uid}-due-hint`} className="mt-1.5 text-[12px] text-muted-foreground">{dueHint}</p>
+                )}
               </div>
 
               <div>

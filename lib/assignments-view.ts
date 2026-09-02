@@ -164,6 +164,114 @@ export function dueLabel(dueISO: string | null, todayISO: string = localISO()): 
   return `${WEEKDAYS_SHORT[weekdayOf(dueISO)]}., ${d}. ${MONTHS[m]}`;
 }
 
+// --- Pruefungsplan (/pruefungen) ---------------------------------------------
+// Eigene Sicht auf Aufgaben: nur Klassenarbeiten, Tests und Referate, sortiert
+// nach Naehe statt in die sechs Aufgaben-Gruppen einsortiert.
+
+export function isExamPageType(t: AssignmentType): boolean {
+  return t === "exam" || t === "test" || t === "presentation";
+}
+
+// Vergangen = Faelligkeitsdatum vor heute. Eine Pruefung ohne Datum kann nicht
+// "vorbei" sein, wenn kein Datum feststeht -- sie zaehlt als anstehend.
+export function partitionExams(
+  items: AssignmentDTO[],
+  todayISO: string = localISO(),
+): { upcoming: AssignmentDTO[]; past: AssignmentDTO[] } {
+  const exams = items.filter((i) => isExamPageType(i.type));
+  const upcoming: AssignmentDTO[] = [];
+  const past: AssignmentDTO[] = [];
+  for (const e of exams) {
+    if (e.dueDate && e.dueDate < todayISO) past.push(e);
+    else upcoming.push(e);
+  }
+  upcoming.sort(
+    (a, b) => (a.dueDate ?? "￿").localeCompare(b.dueDate ?? "￿") || compareInGroup(a, b),
+  );
+  // Vergangene chronologisch rueckwaerts: die zuletzt geschriebene Arbeit
+  // steht oben im aufklappbaren Rueckblick.
+  past.sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? "") || compareInGroup(a, b));
+  return { upcoming, past };
+}
+
+// "Heute" / "Morgen" / "in 5 Tagen" -- ehrliche Angabe, wie viel Zeit noch
+// bleibt. Grossgeschrieben, weil es als eigener Chip steht, nicht mitten im
+// Satz wie dueLabel.
+export function daysUntilLabel(dueISO: string, todayISO: string = localISO()): string {
+  const days = daysBetween(todayISO, dueISO);
+  if (days <= 0) return "Heute";
+  if (days === 1) return "Morgen";
+  return `in ${days} Tagen`;
+}
+
+function dateOnlyLabel(iso: string): string {
+  const d = Number(iso.slice(8, 10));
+  const m = Number(iso.slice(5, 7)) - 1;
+  return `${d}. ${MONTHS[m]}`;
+}
+
+// Wochentag+Datum ohne "heute"/"morgen"-Ersetzung -- fuer Zeilen, die den
+// Abstand schon separat als Chip (daysUntilLabel) zeigen, damit die
+// Information nicht doppelt in Worten steht.
+export function weekdayDateLabel(dueISO: string): string {
+  return `${WEEKDAYS_SHORT[weekdayOf(dueISO)]}., ${dateOnlyLabel(dueISO)}`;
+}
+
+export type ExamWeekGroup = {
+  key: string; // ISO-Datum des Wochenmontags, "undated" fuer die Restgruppe
+  label: string;
+  items: AssignmentDTO[];
+  crowded: boolean; // drei oder mehr Pruefungen in dieser Woche
+};
+
+// Gruppiert anstehende Pruefungen nach Kalenderwoche (Mo..So). Aufgaben ohne
+// Datum landen in einer eigenen Gruppe am Ende. "crowded" markiert Wochen mit
+// drei oder mehr Pruefungen -- die eigentliche Information, die eine reine
+// chronologische Liste verschluckt.
+export function groupExamsByWeek(
+  items: AssignmentDTO[],
+  todayISO: string = localISO(),
+): ExamWeekGroup[] {
+  const dated = items.filter((i) => i.dueDate);
+  const undated = items.filter((i) => !i.dueDate);
+  const buckets = new Map<string, AssignmentDTO[]>();
+  for (const it of dated) {
+    const start = addDays(it.dueDate!, -weekdayOf(it.dueDate!));
+    const list = buckets.get(start);
+    if (list) list.push(it);
+    else buckets.set(start, [it]);
+  }
+  const todayWeekStart = addDays(todayISO, -weekdayOf(todayISO));
+  const groups: ExamWeekGroup[] = [...buckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, group]) => {
+      const sorted = [...group].sort(
+        (a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || compareInGroup(a, b),
+      );
+      let label: string;
+      if (weekStart === todayWeekStart) label = "Diese Woche";
+      else if (weekStart === addDays(todayWeekStart, 7)) label = "Nächste Woche";
+      else label = `Woche vom ${dateOnlyLabel(weekStart)}`;
+      return { key: weekStart, label, items: sorted, crowded: sorted.length >= 3 };
+    });
+  if (undated.length > 0) {
+    groups.push({
+      key: "undated",
+      label: "Ohne Datum",
+      items: [...undated].sort(compareInGroup),
+      crowded: false,
+    });
+  }
+  return groups;
+}
+
+// Anzahl der Pruefungen aus `items`, die auf denselben Tag fallen -- fuer den
+// Hinweis "2 Pruefungen an diesem Tag" direkt an der Zeile.
+export function sameDayCount(items: AssignmentDTO[], dueDate: string | null): number {
+  if (!dueDate) return 1;
+  return items.filter((i) => i.dueDate === dueDate).length;
+}
+
 // Erledigte der letzten 30 Tage, neueste zuerst -- fuer "Erledigte zeigen".
 export function recentlyCompleted(
   items: AssignmentDTO[],
