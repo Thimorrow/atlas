@@ -126,7 +126,6 @@ export function ExamComposer({
   // Nur "beruehrt" zeigt einen Fehler -- vor dem ersten Verlassen des Felds
   // waere ein leeres Pflichtfeld noch keine falsche Eingabe, nur eine offene.
   const [subjectTouched, setSubjectTouched] = useState(false);
-  const [titleTouched, setTitleTouched] = useState(false);
   const [today, setToday] = useState(() => localISO());
 
   // Ohne ein einziges angelegtes Fach waere ein Pflichtfeld eine Sackgasse --
@@ -134,9 +133,14 @@ export function ExamComposer({
   const subjectRequired = subjects.length > 0;
   const subjectError =
     subjectRequired && subjectTouched && !subjectId ? "Bitte ein Fach wählen." : null;
-  const titleError = titleTouched && !title.trim() ? "Titel darf nicht leer sein." : null;
   const collisions = dueDate ? sameDayCount(existingExams, dueDate) : 0;
   const selectedSubject = subjects.find((s) => s.id === subjectId) ?? null;
+  // Beim Eintragen steht der Termin meist fest, das Thema noch nicht ("Mathe,
+  // am 15."). Ein Pflicht-Titel zwingt dann zu einer erfundenen Angabe --
+  // deshalb ist der Titel optional und faellt auf die Art zurueck. Der Server
+  // verlangt weiterhin einen nicht-leeren Titel (parseNewAssignment), die
+  // Ersatzangabe entsteht also hier, nicht in der API.
+  const fallbackTitle = TYPE_SHORT_LABEL[type];
 
   useEffect(() => {
     if (!open) return;
@@ -147,20 +151,24 @@ export function ExamComposer({
     setNotes("");
     setSaving(false);
     setSubjectTouched(false);
-    setTitleTouched(false);
     setToday(localISO());
     restoreRef.current = document.activeElement as HTMLElement | null;
     // Auf Touch-Geraeten poppt Autofokus die Tastatur ungefragt hoch --
-    // dort bleibt das Feld unfokussiert, bis der Finger es beruehrt. Ist der
-    // Termin schon vorbelegt (Kalender-Einstieg), ist der Titel das naechste
-    // offene Feld statt eines bereits ausgefuellten Datums.
+    // dort bleibt das Feld unfokussiert, bis der Finger es beruehrt. Der
+    // Fokus landet auf dem ersten noch offenen Feld: Termin, sonst Fach,
+    // sonst Thema. Beim Kalender-Einstieg ist der Termin bereits gesetzt,
+    // dann waere er die falsche Station.
     // ontouchstart liegt auf Hybridgeraeten und manchen Touch-Notebooks
     // falsch -- die eigentliche Frage ist, ob der Zeiger grob ist (Finger),
     // nicht ob das Geraet ueberhaupt Touch kann. Gleiche Erkennung wie in
     // assignment-composer.tsx.
     const isTouch =
       typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-    const target = initialDueDate ? titleRef : dateRef;
+    const target = !initialDueDate
+      ? dateRef
+      : subjects.length > 0 && !initialSubjectId
+        ? subjectRef
+        : titleRef;
     const t = isTouch ? null : window.setTimeout(() => target.current?.focus(), 20);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -200,18 +208,13 @@ export function ExamComposer({
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = title.trim();
+    const trimmed = title.trim() || fallbackTitle;
     const subjectMissing = subjectRequired && !subjectId;
     if (subjectMissing) {
       setSubjectTouched(true);
       subjectRef.current?.focus();
-      if (trimmed) return;
     }
-    if (!trimmed) {
-      setTitleTouched(true);
-      titleRef.current?.focus();
-    }
-    if (subjectMissing || !trimmed || saving) return;
+    if (subjectMissing || saving) return;
     setSaving(true);
     try {
       const res = await fetch("/api/assignments", {
@@ -451,26 +454,18 @@ export function ExamComposer({
 
               <div>
                 <label className={cn(LABEL, "mb-1")} htmlFor={`${uid}-title-input`}>
-                  Titel
+                  Thema <span className="font-normal text-muted-foreground/70">optional</span>
                 </label>
                 <input
                   id={`${uid}-title-input`}
                   ref={titleRef}
-                  className={cn(FIELD, titleError && "border-destructive focus-visible:border-destructive focus-visible:ring-destructive")}
+                  className={FIELD}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  onBlur={() => setTitleTouched(true)}
-                  placeholder="Worüber geht die Arbeit?"
+                  placeholder={`Steht noch nicht fest? Dann "${fallbackTitle}"`}
                   autoComplete="off"
                   spellCheck={false}
-                  aria-invalid={Boolean(titleError)}
-                  aria-describedby={titleError ? `${uid}-title-error` : undefined}
                 />
-                {titleError && (
-                  <p id={`${uid}-title-error`} className="mt-1 text-[12px] text-destructive">
-                    {titleError}
-                  </p>
-                )}
               </div>
 
               <div>
