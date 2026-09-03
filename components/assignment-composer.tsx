@@ -63,6 +63,7 @@ export function AssignmentComposer({
   const toast = useToast();
   const uid = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
   // Das Element, das den Dialog geoeffnet hat -- dorthin kehrt der Fokus zurueck.
   const restoreRef = useRef<HTMLElement | null>(null);
@@ -87,16 +88,19 @@ export function AssignmentComposer({
     setDueDate(initial?.dueDate ?? "");
     setNotes(initial?.notes ?? "");
     setSaving(false);
-    // Fokus landet im Titelfeld, dem einzigen Pflichtfeld.
+    // Fokus landet im Titelfeld, dem einzigen Pflichtfeld -- aber nicht auf
+    // Touch-Geraeten: dort reisst Autofokus die Tastatur unangekuendigt hoch,
+    // noch bevor die Einblend-Animation fertig ist.
     restoreRef.current = document.activeElement as HTMLElement | null;
-    const t = window.setTimeout(() => titleRef.current?.focus(), 20);
+    const isTouch = typeof window !== "undefined" && "ontouchstart" in window;
+    const t = isTouch ? undefined : window.setTimeout(() => titleRef.current?.focus(), 20);
     // Die Seite hinter dem Overlay darf nicht mitscrollen: auf dem Handy liegt
     // der Dialog als Blatt unten auf, und eine wischende Hand trifft sonst den
     // Stundenplan dahinter statt das Formular.
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      window.clearTimeout(t);
+      if (t !== undefined) window.clearTimeout(t);
       document.body.style.overflow = prevOverflow;
       // Ohne das faellt der Fokus auf <body> und die Tastatur-Navigation faengt
       // wieder ganz oben an.
@@ -113,6 +117,14 @@ export function AssignmentComposer({
     if (e.key === "Escape") {
       e.stopPropagation();
       close();
+      return;
+    }
+    // Die Notiz ist ein Textarea, dort fuegt Enter allein nur eine Zeile ein --
+    // Cmd/Ctrl+Enter speichert trotzdem, ohne dass man erst ins Titelfeld
+    // wechseln muss.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
       return;
     }
     if (e.key !== "Tab") return;
@@ -212,7 +224,7 @@ export function AssignmentComposer({
               </button>
             </header>
 
-            <form onSubmit={save} className="space-y-4 px-5 py-5">
+            <form ref={formRef} onSubmit={save} className="space-y-4 px-5 py-5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={LABEL} htmlFor={`${uid}-type`}>

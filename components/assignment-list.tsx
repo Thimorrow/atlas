@@ -291,7 +291,12 @@ function RowMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="py-2.5 text-destructive [&_svg]:text-destructive focus:bg-destructive/10 focus:text-destructive"
-          onClick={() => onDelete(a)}
+          onClick={() => {
+            // confirm() ist die Untergrenze fuer eine zerstoerende Aktion --
+            // reicht hier, ein eigener Dialog waere fuer eine einzelne Zeile
+            // in einer Dropdown ueberbaut.
+            if (window.confirm(`„${a.title}" wirklich löschen?`)) onDelete(a);
+          }}
         >
           <Trash2 />
           Löschen
