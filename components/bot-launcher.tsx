@@ -5,8 +5,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { History, Minus, X } from "lucide-react";
+import { History, Minus, SquarePen, X } from "lucide-react";
 import { AtlasBotMark } from "@/components/atlas-bot-mark";
+import { requestBotNewChat } from "@/lib/bot/chat-session";
 import { cn } from "@/lib/utils";
 
 // Der Chat-Code (Markdown-Renderer, Karten, Stream-Parser) haengt nicht am
@@ -164,6 +165,15 @@ function PanelHeader({ onClose }: { onClose: () => void }) {
       <Link href="/bot/verlauf" onClick={onClose} aria-label="Verlauf öffnen" title="Verlauf" className={action}>
         <History className="size-4" />
       </Link>
+      <button
+        type="button"
+        onClick={requestBotNewChat}
+        aria-label="Neuen Chat starten"
+        title="Neuen Chat starten"
+        className={action}
+      >
+        <SquarePen className="size-4" />
+      </button>
       <button type="button" onClick={onClose} aria-label="Schließen" title="Schließen" className={action}>
         <Minus className="size-4" />
       </button>

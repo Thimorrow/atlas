@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { renderMarkdown, repairMissingParagraphBreaks } from "@/lib/markdown";
 import { parseBotEvent, splitNDJSON } from "@/lib/bot/stream";
+import { isWriteToolMessage } from "@/lib/bot/verlauf";
+import {
+  BOT_NEW_EVENT,
+  loadStoredConversationId,
+  saveStoredConversationId,
+} from "@/lib/bot/chat-session";
+import type { MessageDTO } from "@/lib/bot/store";
 import {
   ActionCard,
   fmtDate,
@@ -89,12 +96,89 @@ function actionToastText(tool: string): string {
 // Atlas-Signaturkurve, wie in components/stagger.tsx und assignment-list.tsx.
 const EASE = [0.22, 1, 0.36, 1] as const;
 
+// Baut aus den gespeicherten Nachrichten wieder Turn-State für den
+// Live-Chat: Nutzerfrage + Antwort + Karten (Aufgaben/Notizen,
+// Notenvorschläge). Lesende Werkzeugaufrufe bleiben draussen -- sie stehen
+// nur im Verlauf, nicht im laufenden Fenster.
+function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }>): Turn[] {
+  const turns: Turn[] = [];
+  let current: Turn | null = null;
+  const ensureCurrent = (): Turn => {
+    if (!current) {
+      current = {
+        id: crypto.randomUUID(),
+        userText: "",
+        assistantText: "",
+        statusText: null,
+        items: [],
+        errorText: null,
+        streaming: false,
+        needsBreak: false,
+      };
+      turns.push(current);
+    }
+    return current;
+  };
+  const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+  for (const m of messages) {
+    if (m.role === "user") {
+      current = {
+        id: m.id,
+        userText: m.content,
+        assistantText: "",
+        statusText: null,
+        items: [],
+        errorText: null,
+        streaming: false,
+        needsBreak: false,
+      };
+      turns.push(current);
+    } else if (m.role === "assistant") {
+      const t = ensureCurrent();
+      t.assistantText = t.assistantText ? `${t.assistantText}\n\n${m.content}` : m.content;
+    } else if (m.role === "tool" && m.toolName) {
+      const t = ensureCurrent();
+      if (isWriteToolMessage(m)) {
+        t.items.push({
+          kind: "action",
+          id: m.id,
+          tool: m.toolName,
+          result: m.toolResult as AssignmentActionResult | NoteActionResult,
+          state: m.stillExists === false ? "undone" : "active",
+          busy: false,
+        });
+      } else if (
+        m.toolName === "note_vorschlagen" &&
+        isObj(m.toolResult) &&
+        isObj(m.toolResult.vorschlag)
+      ) {
+        t.items.push({
+          kind: "proposal",
+          id: m.id,
+          data: m.toolResult.vorschlag as GradeProposalData,
+          state: "pending",
+          busy: false,
+        });
+      }
+    }
+  }
+  // Züge ohne jede sichtbare Spur (z. B. nur lesende Werkzeuge ohne Antwort)
+  // fallen raus -- sonst stünden leere Blöcke im Fenster.
+  return turns.filter((t) => t.userText || t.assistantText || t.items.length > 0);
+}
+
+// Von aussen (Kopfzeilen-Button) aufgerufen, um den laufenden Chat zu
+// beenden und frisch anzufangen -- ein CustomEvent statt Context, wie schon
+// bei atlas:bot-toggle, damit kein Provider nötig ist. Re-Export, damit
+// bestehende Imports weiter funktionieren; die Quelle ist lib/bot/chat-session.
+export { requestBotNewChat } from "@/lib/bot/chat-session";
+
 // --- Hauptkomponente ------------------------------------------------------
 
 // Gemeinsame Chat-Logik fuer /bot und das Cmd+K-Overlay. Beide unterscheiden
 // sich nur im Rahmen (Seite vs. Dialog), deshalb lebt hier die gesamte
-// Zustandsverwaltung: Begruessung laden, streamen, Karten, Rueckgaengig,
-// Notenvorschlag.
+// Zustandsverwaltung: Begruessung laden, Verlauf fortsetzen, streamen,
+// Karten, Rueckgaengig, Notenvorschlag.
 export function BotChat({ className, autoFocus = false }: { className?: string; autoFocus?: boolean }) {
   const toast = useToast();
   const [info, setInfo] = useState<BotInfo | null>(null);
@@ -102,6 +186,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [loadError, setLoadError] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -110,19 +195,75 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/bot")
-      .then((r) => r.json())
-      .then((d: BotInfo) => {
+    (async () => {
+      const stored = loadStoredConversationId();
+      try {
+        const res = await fetch("/api/bot");
+        const d = (await res.json()) as BotInfo;
         if (!alive) return;
         setInfo(d);
+        // Gespeichertes Gespräch zuerst versuchen -- erst wenn es weg ist
+        // (gelöscht, ungültig, leer), gilt die frische Id aus dem GET.
+        if (stored) {
+          try {
+            const hr = await fetch(`/api/bot/verlauf/${stored}`);
+            if (hr.ok) {
+              const data = (await hr.json()) as {
+                conversation: { id: string };
+                messages: Array<MessageDTO & { stillExists?: boolean }>;
+              };
+              const restored = turnsFromHistory(data.messages);
+              if (!alive) return;
+              if (restored.length > 0) {
+                setTurns(restored);
+                setConversationId(data.conversation.id);
+                saveStoredConversationId(data.conversation.id);
+                setRestoring(false);
+                return;
+              }
+            }
+          } catch {
+            // Heruntergefallener Verlauf -- unten einfach frisch anfangen.
+          }
+          if (!alive) return;
+        }
         setConversationId(d.conversationId);
-      })
-      .catch(() => {
+        saveStoredConversationId(d.conversationId);
+      } catch {
         if (alive) setLoadError(true);
-      });
+      } finally {
+        if (alive) setRestoring(false);
+      }
+    })();
     return () => {
       alive = false;
     };
+  }, []);
+
+  // "Neuer Chat": laufenden Stream abbrechen, Verlauf leeren, frische
+  // conversationId holen und speichern.
+  useEffect(() => {
+    const onNew = async () => {
+      abortRef.current?.abort();
+      setTurns([]);
+      setInput("");
+      setRestoring(true);
+      try {
+        const res = await fetch("/api/bot");
+        const d = (await res.json()) as BotInfo;
+        setInfo(d);
+        setConversationId(d.conversationId);
+        saveStoredConversationId(d.conversationId);
+      } catch {
+        setLoadError(true);
+      } finally {
+        setRestoring(false);
+      }
+      inputRef.current?.focus();
+    };
+    const handler = () => void onNew();
+    window.addEventListener(BOT_NEW_EVENT, handler);
+    return () => window.removeEventListener(BOT_NEW_EVENT, handler);
   }, []);
 
   useEffect(() => {
@@ -183,6 +324,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           break;
         case "done":
           setConversationId(evt.conversationId);
+          saveStoredConversationId(evt.conversationId);
           break;
       }
     },
@@ -381,7 +523,16 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   return (
     <div className={cn("flex h-full flex-col", className)}>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
-        {turns.length === 0 ? (
+        {restoring && turns.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-4 px-2" aria-label="Chat wird geladen" aria-busy="true">
+            <span className="relative grid size-14 place-items-center">
+              <span aria-hidden className="absolute inset-0 animate-pulse rounded-full bg-primary/15 blur-md" />
+              <span className="relative grid size-12 animate-pulse place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <AtlasBotMark className="size-6" />
+              </span>
+            </span>
+          </div>
+        ) : turns.length === 0 ? (
           // Solange kein Gespraech laeuft, steht der Startblock als Einheit
           // in der Mitte der Flaeche statt oben-links zu kleben -- das ist
           // der erste Eindruck des Features und braucht Gewicht. Sobald die
