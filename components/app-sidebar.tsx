@@ -5,7 +5,6 @@ import { motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bot,
   BarChart3,
   CalendarDays,
   GraduationCap,
@@ -18,7 +17,8 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
-import { toggleBotOverlay } from "@/components/bot-overlay-host";
+import { AtlasBotMark } from "@/components/atlas-bot-mark";
+import { toggleBotOverlay } from "@/components/bot-launcher";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -269,24 +269,24 @@ export function AppSidebar({
           })}
         </nav>
 
-        {/* Sichtbarer Einstieg zum Atlas-Bot fuer alle, die Cmd+K nicht
-            kennen. Bewusst ein Button statt eines Links: er oeffnet das
-            Overlay ueber der aktuellen Seite, statt zu /bot zu navigieren. */}
+        {/* Zweiter Weg zum Bot neben dem schwebenden Knopf unten rechts --
+            fuer alle, die die Tastenkombination suchen. Beide stossen
+            dasselbe Panel an, statt zu /bot zu navigieren. */}
         <div className="mx-2 border-t pt-2">
           <button
             type="button"
             onClick={toggleBotOverlay}
-            title={collapsed ? "Atlas-Bot (⌘K)" : undefined}
+            title={collapsed ? "Atlas fragen (⌘K)" : undefined}
             className={cn(
               row,
               "mx-0 [touch-action:manipulation] text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             )}
           >
             <span className={iconBox}>
-              <Bot className="size-[18px]" />
+              <AtlasBotMark className="size-[18px]" />
             </span>
             <span className={labelCls("flex items-center justify-between gap-2")}>
-              Atlas-Bot
+              Atlas fragen
               <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                 ⌘K
               </kbd>

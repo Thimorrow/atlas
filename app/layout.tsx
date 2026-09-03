@@ -7,7 +7,9 @@ import { MotionProvider } from "@/components/motion-provider";
 import { AppSidebar } from "@/components/app-sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { ToastProvider } from "@/components/toast";
-import { BotOverlayHost } from "@/components/bot-overlay-host";
+import { BotLauncher } from "@/components/bot-launcher";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -65,7 +67,9 @@ export default async function RootLayout({
                 <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
               </div>
             </div>
-            <BotOverlayHost />
+            <BotLauncher />
+            <Analytics />
+            <SpeedInsights />
             </ToastProvider>
           </MotionProvider>
         </ThemeProvider>
