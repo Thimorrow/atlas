@@ -113,16 +113,19 @@ einmal neu bei Microsoft an.
 
 ```
 app/
-  page.tsx              Stundenplan (Woche und Tag)
-  aufgaben/             Aufgaben-Modul
-  faecher/              Fächer-Übersicht und Detailseite
+  page.tsx              Plan (Woche und Fokus, der Fokus zeigt heute solange
+                        heute noch Unterricht laeuft oder ansteht, sonst morgen)
+  aufgaben/             Aufgaben mit Tabs Offen und Pruefungen
+  faecher/              Fächer-Übersicht (mit Notenschnitt und Zuletzt
+                        eingetragen) und Detailseite
   settings/             Einstellungen, Untis-Sync, Theme
-  api/                  calendar, sync/untis, subjects, notes, assignments, files, microsoft
+  api/                  calendar, morgen, sync/untis, subjects, notes, assignments, files, grades, microsoft
 components/             UI-Bausteine, alle im selben Stil
 lib/
   db/schema.ts          Drizzle-Schema
   calendar-expand.ts    Untis-Stunden zu Tages-Instanzen expandieren
   assignments-view.ts   Gruppierung und Sortierung der Aufgaben (rein, getestet)
+  morgen-view.ts        Fokus-Zieltag und Aufgaben bis zum Zieltag (rein, getestet)
   subject-colors.ts     Fachfarben-Palette und Vorbelegung
   markdown.ts           Markdown für Notizen, escape-first
   microsoft.ts          Entra-ID-Anmeldung (PKCE) und OneNote über Graph

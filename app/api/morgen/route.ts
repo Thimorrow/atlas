@@ -3,7 +3,7 @@ import { expandDay, expandRange, isRealDate } from "@/lib/calendar-expand";
 import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
 import { listFiles, type FileDTO } from "@/lib/subject-file-store";
-import { dueUntilTarget, examsOnTarget, pickTargetDay, targetDayLabel } from "@/lib/morgen-view";
+import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,9 +55,10 @@ export type MorgenLessonDTO = {
 
 // GET /api/morgen?date=JJJJ-MM-TT
 //
-// Ohne date: rechnet den Zieltag selbst aus (morgen, oder der naechste
-// Schultag danach). Mit date: liefert genau diesen Tag -- so kann die Seite
-// z.B. "heute" nachschlagen, ohne dass die Route zwei verschiedene Formen hat.
+// Ohne date: rechnet den Fokus-Zieltag selbst aus -- heute, solange heute noch
+// Unterricht laeuft oder ansteht, sonst morgen oder der naechste Schultag
+// danach. Mit date: liefert genau diesen Tag (fuer Tests und Debug) -- die
+// UI selbst hat bewusst keinen Heute/Morgen-Schalter mehr.
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const forcedDate = url.searchParams.get("date");
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
 
   const target = forcedDate
     ? { date: forcedDate, isTomorrow: forcedDate === addDaysISO(today, 1) }
-    : pickTargetDay(today, hasLessons, LOOKAHEAD_DAYS);
+    : pickFocusDay(today, hasLessons, todayRemaining(today, lookahead), LOOKAHEAD_DAYS);
 
   // Der Tag selbst: aus dem schon geladenen Suchfenster wiederverwenden, wenn
   // moeglich, sonst (erzwungenes date ausserhalb des Fensters, z.B. "heute")
@@ -149,4 +150,20 @@ function addDaysISO(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + n);
   return d.toLocaleDateString("sv-SE");
+}
+
+// Heute steht noch etwas an, solange mindestens eine nicht-entfallene Stunde
+// nach Jetzt endet (HH:MM vergleicht sich lexikographisch). Entfallene und
+// stundenlose Tage zaehlen nicht -- abends und am Wochenende zeigt der Fokus
+// ehrlich den naechsten Schultag statt ein leeres Heute.
+function todayRemaining(
+  today: string,
+  lookahead: { days: { date: string; events: { status: string; endTime: string | null }[] }[] } | null,
+): boolean {
+  if (!lookahead) return false;
+  const events = lookahead.days.find((d) => d.date === today)?.events ?? [];
+  const nowHM = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return events.some(
+    (ev) => ev.status !== "cancelled" && typeof ev.endTime === "string" && ev.endTime > nowHM,
+  );
 }

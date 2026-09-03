@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SubjectCard, type SubjectDTO } from "@/components/subject-card";
 import { EmptyPanel, NewSubjectDialog, SubjectSetup } from "@/components/subject-setup";
 import { formatPoints, type GradeAverage } from "@/lib/grades";
+import { colorValue } from "@/lib/subject-colors";
 import type { GradeOverviewDTO } from "@/lib/grade-store";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,9 @@ export default function SubjectsPage() {
             <SubjectCard key={s.id} subject={s} average={averages.get(s.id) ?? null} />
           ))}
         </div>
+        {gradeOverview && gradeOverview.recentGrades.length > 0 && (
+          <RecentGrades grades={gradeOverview.recentGrades} />
+        )}
       </div>
     );
   };
@@ -251,6 +255,45 @@ function reconcileMeldung(r: {
 
 function plural(n: number, eins: string, viele: string): string {
   return `${n} ${n === 1 ? eins : viele}`;
+}
+
+// Zuletzt eingetragene Noten ueber alle Faecher -- frueher die untere Haelfte
+// der eigenen Noten-Seite, jetzt Abschnitt hier: lesen ja, bearbeiten im Fach.
+function RecentGrades({ grades }: { grades: GradeOverviewDTO["recentGrades"] }) {
+  return (
+    <div>
+      <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">Zuletzt eingetragen</h2>
+      <ul className="divide-y rounded-xl border bg-card shadow-card">
+        {grades.map((g) => (
+          <li key={g.id} className="flex items-center gap-3 px-4 py-2.5">
+            <span
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: colorValue(g.subjectColor) }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium leading-tight">{g.label}</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
+                <span className="truncate">{g.subjectName}</span>
+                <span aria-hidden="true" className="opacity-50">
+                  ·
+                </span>
+                <span className="tabular-nums">{formatDate(g.date)}</span>
+              </div>
+            </div>
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[12px] font-semibold tabular-nums">
+              {g.grade}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y.slice(2)}`;
 }
 
 // Der Gesamtschnitt ueber alle aktiven Faecher, jedes Fach zaehlt einmal.

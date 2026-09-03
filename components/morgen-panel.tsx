@@ -1,14 +1,15 @@
 "use client";
 
-// Die Abend-Frage in einem Blick: "was ist morgen, was muss ich noch machen
-// und mitnehmen". Buendelt, wofuer man bisher drei Ansichten brauchte
-// (Stundenplan, Aufgaben, Fach-Details) -- siehe app/api/morgen/route.ts fuer
-// die Zusammenstellung, lib/morgen-view.ts fuer die Zieltag-Logik dahinter.
+// Der Fokus: ein Blick, der die Abend-Frage beantwortet -- was steht an, was
+// muss ich noch machen und mitnehmen. Frueher die eigene Seite /morgen, jetzt
+// die Standard-Ansicht des Stundenplans neben der Woche. Welcher Tag gemeint
+// ist, entscheidet die API (heute, solange heute noch Unterricht laeuft oder
+// ansteht, sonst morgen bzw. der naechste Schultag) -- die UI hat bewusst
+// keinen Heute/Morgen-Schalter mehr.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronLeft,
   ChevronRight,
   FileText,
   GraduationCap,
@@ -44,110 +45,68 @@ const TYPE_ICON: Record<AssignmentType, typeof GraduationCap> = {
   other: GraduationCap,
 };
 
-export default function MorgenPage() {
+export function MorgenPanel() {
   const toast = useToast();
   const [data, setData] = useState<MorgenResponse | null>(null);
   const [failed, setFailed] = useState(false);
-  // null = automatisch (morgen bzw. naechster Schultag). "today" = die kleine
-  // Ausweiche, um trotzdem noch auf den Rest des heutigen Tages zu schauen.
-  const [view, setView] = useState<"auto" | "today">("auto");
 
-  const load = useCallback(async (v: "auto" | "today") => {
+  const load = useCallback(async () => {
     setFailed(false);
     try {
-      const qs = v === "today" ? "?date=" + new Date().toLocaleDateString("sv-SE") : "";
-      const res = await fetch(`/api/morgen${qs}`);
+      const res = await fetch("/api/morgen");
       if (!res.ok) throw new Error("Laden fehlgeschlagen");
       setData((await res.json()) as MorgenResponse);
     } catch {
       setFailed(true);
-      toast("Die Morgen-Ansicht konnte nicht geladen werden.");
+      toast("Die Fokus-Ansicht konnte nicht geladen werden.");
     }
   }, [toast]);
 
   useEffect(() => {
     setData(null);
-    void load(view);
-  }, [view, load]);
+    void load();
+  }, [load]);
 
   return (
-    <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
-      <Stagger className="mx-auto max-w-2xl space-y-6">
+    <Stagger className="mx-auto max-w-2xl space-y-6">
+      <StaggerItem>
+        <div>
+          <h1 className="text-xl font-semibold leading-tight tracking-tight">
+            {data ? data.target.label : "Fokus"}
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {data ? subtitleFor(data) : "Wird geladen …"}
+          </p>
+        </div>
+      </StaggerItem>
+
+      {failed ? (
         <StaggerItem>
-          {/* Back-Link nur auf Mobile -- dort fehlt die Sidebar. */}
-          <Link
-            href="/"
-            className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
-          >
-            <ChevronLeft className="size-4" />
-            Zurück zum Stundenplan
-          </Link>
-          <Header data={data} view={view} onToggleView={() => setView((v) => (v === "auto" ? "today" : "auto"))} />
+          <div className="rounded-xl border bg-card px-4 py-6 text-center shadow-card">
+            <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
+            <button
+              type="button"
+              className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+              onClick={() => void load()}
+            >
+              Erneut versuchen
+            </button>
+          </div>
         </StaggerItem>
-
-        {failed ? (
-          <StaggerItem>
-            <div className="rounded-xl border bg-card px-4 py-6 text-center shadow-card">
-              <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
-              <button
-                type="button"
-                className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
-                onClick={() => void load(view)}
-              >
-                Erneut versuchen
-              </button>
-            </div>
-          </StaggerItem>
-        ) : data === null ? (
-          <StaggerItem>
-            <PageSkeleton />
-          </StaggerItem>
-        ) : (
-          <Body data={data} />
-        )}
-      </Stagger>
-    </main>
+      ) : data === null ? (
+        <StaggerItem>
+          <PageSkeleton />
+        </StaggerItem>
+      ) : (
+        <Body data={data} />
+      )}
+    </Stagger>
   );
 }
 
-// --- Kopfzeile ---------------------------------------------------------------
-
-function Header({
-  data,
-  view,
-  onToggleView,
-}: {
-  data: MorgenResponse | null;
-  view: "auto" | "today";
-  onToggleView: () => void;
-}) {
-  const title = data ? (view === "today" ? "Heute" : data.target.label) : view === "today" ? "Heute" : "Morgen";
-  const subtitle = data ? subtitleFor(data, view) : "Wird geladen …";
-
-  return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-xl font-semibold leading-tight tracking-tight">{title}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
-      </div>
-      {/* Kleine Ausweiche auf den jeweils anderen Tag -- ohne die Seite in zwei
-          gleichwertige Tabs zu verwandeln, dafuer ist "morgen" zu klar die
-          Vorbelegung. */}
-      <button
-        type="button"
-        onClick={onToggleView}
-        className="relative rounded-md px-2 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        {view === "today" ? "Zurück zu morgen" : "Heute ansehen"}
-      </button>
-    </div>
-  );
-}
-
-function subtitleFor(data: MorgenResponse, view: "auto" | "today"): string {
-  const dateDay = view === "today" ? data.today : data.target.date;
-  const dateLabel = weekdayDateLabel(dateDay).replace(/^\w+\.,\s*/, "");
-  if (view === "today") return `Heute, ${dateLabel}`;
+function subtitleFor(data: MorgenResponse): string {
+  const dateLabel = weekdayDateLabel(data.target.date).replace(/^\w+\.,\s*/, "");
+  if (data.target.date === data.today) return `Heute, ${dateLabel}`;
   if (data.target.isTomorrow) return `Morgen, ${dateLabel}`;
   return "Morgen ist schulfrei. Hier der nächste Schultag:";
 }

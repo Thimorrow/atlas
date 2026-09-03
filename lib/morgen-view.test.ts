@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dueUntilTarget,
   examsOnTarget,
+  pickFocusDay,
   pickTargetDay,
   targetDayLabel,
 } from "@/lib/morgen-view";
@@ -65,6 +66,25 @@ describe("pickTargetDay", () => {
     const result = pickTargetDay(FR, hasLessons);
     expect(result.date).toBe(MO_NAECHSTE);
     expect(result.isTomorrow).toBe(false);
+  });
+});
+
+describe("pickFocusDay", () => {
+  it("zeigt heute, solange heute noch Unterricht ansteht", () => {
+    const result = pickFocusDay(DI, (d) => d === MI, true);
+    expect(result).toEqual({ date: DI, isTomorrow: false });
+    expect(targetDayLabel(result, DI)).toBe("Heute");
+  });
+
+  it("zeigt morgen, wenn heute nichts mehr laeuft", () => {
+    const result = pickFocusDay(DI, (d) => d === MI, false);
+    expect(result).toEqual({ date: MI, isTomorrow: true });
+  });
+
+  it("springt am Freitagabend auf Montag, nicht auf Samstag", () => {
+    const hasLessons = (d: string) => d === MO_NAECHSTE;
+    const result = pickFocusDay(FR, hasLessons, false);
+    expect(result).toEqual({ date: MO_NAECHSTE, isTomorrow: false });
   });
 });
 

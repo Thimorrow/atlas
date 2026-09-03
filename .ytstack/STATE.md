@@ -24,12 +24,21 @@ heute liegen **51 Commits**, die hier vorher nicht abgebildet waren.
 `grades`, `microsoft_accounts`; vier Enums `school_block_status`,
 `teacher_title`, `assignment_type`, `grade_kind`.
 
-**Web-App** (Next.js 16, App Router): 6 Seiten (`/`, `/aufgaben`, `/faecher`,
-`/faecher/[id]`, `/settings`, `/login`) und **29 API-Routen**.
+**Web-App** (Next.js 16, App Router): 3 Module in der Navigation (`/`,
+`/aufgaben`, `/faecher`) plus Fachdetail (`/faecher/[id]`), `/settings` und
+`/login`.
 
-- *Stundenplan* -- Untis-Spiegel, Aufgaben nur als subtile Spur.
-- *Aufgaben* -- Hausaufgaben, Arbeiten, Referate nach Faelligkeit.
-- *Faecher* -- Stammdaten, Markdown-Notizen, Dateien, Aufgaben des Fachs.
+- *Plan* -- Untis-Spiegel mit Woche und Fokus. Der Fokus zeigt heute, solange
+  heute noch Unterricht laeuft oder ansteht, sonst morgen bzw. den naechsten
+  Schultag (`lib/morgen-view.ts`, `components/morgen-panel.tsx`). Aufgaben nur
+  als subtile Spur im Raster.
+- *Aufgaben* -- Tabs Offen (Hausaufgaben mit Quick-Add) und Pruefungen
+  (naechste gross, Rest nach Woche, Vergangene aufklappbar;
+  `components/pruefungen-view.tsx`). Die eigenen Routen `/pruefungen`,
+  `/morgen` und `/noten` sind ersatzlos gestrichen (2026-09-03,
+  Konsolidierung auf 3 Module).
+- *Faecher* -- Stammdaten, Markdown-Notizen, Dateien, Aufgaben des Fachs,
+  dazu der Notenschnitt (gesamt, pro Fach, zuletzt eingetragen).
 - *Noten* -- `grades`-Tabelle, Gewichtung muendlich/schriftlich
   (`oral_weight` je Fach), Schnitt je Fach; `lib/grades.ts`,
   `components/subject-grades.tsx`, Routen `/api/grades`, `/api/grades/[id]`,
@@ -82,8 +91,9 @@ Bei Vercel gesetzt fuer Production und Preview: `DATABASE_URL`, `WEBUNTIS_*`,
 - ~~Markdown-Bibliothek~~: entschieden, `marked` mit escape-first in `lib/markdown.ts`.
 - ~~Vercel-Deploy~~: erledigt, laeuft in Production.
 - ~~`BLOB_READ_WRITE_TOKEN`~~: erledigt, live `enabled: true`.
-- **Offen:** naechstes Modul ist noch nicht gewaehlt. Noten sind bereits gebaut --
-  Kandidaten waeren Pruefungen/Termine, Fehlzeiten oder Lernkarten.
+- **Erledigt (2026-09-03):** Konsolidierung auf 3 Module statt neuem Modul.
+  `/pruefungen` ist ein Tab auf `/aufgaben`, `/noten` steckt in `/faecher`,
+  `/morgen` ist der Fokus-Modus von `/`. Keine Redirects, ersatzlos gestrichen.
 
 ## Lehre aus diesem Durchgang
 

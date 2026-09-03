@@ -1,25 +1,19 @@
 "use client";
 
-// Pruefungsplan: nur Klassenarbeiten, Tests und Referate, nach Naehe sortiert.
-// Beantwortet "wann ist die naechste Arbeit und was kommt noch" ohne Scrollen
-// durch die grosse Aufgabenliste -- siehe app/aufgaben/page.tsx fuer die
-// generische Sicht, hier gibt es bewusst keine Hausaufgaben und kein Abhaken.
+// Reine Anzeige der Pruefungen (Klassenarbeit, Test, Referat): naechste gross,
+// Rest nach Woche gruppiert, Vergangene aufklappbar. Frueher die eigene Seite
+// /pruefungen, jetzt der Pruefungen-Tab auf /aufgaben -- Gruppierung und
+// Sortierung (partitionExams, groupExamsByWeek) laufen in der Seite, hier wird
+// nur gerendert. Anlegen bleibt beim ExamComposer der Seite.
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, GraduationCap, PartyPopper, Plus, Presentation } from "lucide-react";
-import { Stagger, StaggerItem } from "@/components/stagger";
+import { ChevronRight, GraduationCap, PartyPopper, Plus, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ExamComposer } from "@/components/exam-composer";
-import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import {
   TYPE_LABEL,
   daysUntilLabel,
-  groupExamsByWeek,
-  localISO,
-  partitionExams,
   sameDayCount,
   weekdayDateLabel,
   type AssignmentDTO,
@@ -27,8 +21,6 @@ import {
   type ExamWeekGroup,
 } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
-
-type SubjectOption = { id: string; name: string; color: string | null };
 
 // Referat bekommt ein eigenes Icon, Klassenarbeit und Test teilen sich den
 // Doktorhut -- beide sind "die Note zaehlt", nur unterschiedlich schwer.
@@ -40,121 +32,31 @@ const TYPE_ICON: Record<AssignmentType, typeof GraduationCap> = {
   other: GraduationCap,
 };
 
-export default function PruefungenPage() {
-  const toast = useToast();
-  const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
-  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [showPast, setShowPast] = useState(false);
-  const [today, setToday] = useState(() => localISO());
-
-  // Ueber Mitternacht darf eine offene Seite nicht in der falschen Gruppe
-  // haengenbleiben (gleiches Muster wie components/assignment-list.tsx).
-  useEffect(() => {
-    const id = setInterval(() => setToday(localISO()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // completed=1 mitgeben, damit als erledigt markierte Pruefungen im
-  // aufklappbaren Rueckblick nicht fehlen -- "vorbei" entscheidet hier das
-  // Datum, nicht der Haken.
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    Promise.all([
-      fetch("/api/assignments?completed=1").then((r) => r.json()),
-      fetch("/api/subjects").then((r) => r.json()),
-    ])
-      .then(([a, s]) => {
-        if (!alive) return;
-        setAssignments((a.assignments ?? []) as AssignmentDTO[]);
-        setSubjects((s.subjects ?? []) as SubjectOption[]);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setLoading(false);
-        toast("Die Prüfungen konnten nicht geladen werden.");
-      });
-    return () => {
-      alive = false;
-    };
-  }, [toast]);
-
-  const onCreated = useCallback((a: AssignmentDTO) => {
-    setAssignments((prev) => [...prev, a]);
-  }, []);
-
-  const { upcoming, past } = partitionExams(assignments, today);
-  const [next, ...rest] = upcoming;
-  const weeks = groupExamsByWeek(rest, today);
-
+export function PruefungenView({
+  next,
+  weeks,
+  past,
+  today,
+  showPast,
+  onTogglePast,
+}: {
+  next: AssignmentDTO;
+  weeks: ExamWeekGroup[];
+  past: AssignmentDTO[];
+  today: string;
+  showPast: boolean;
+  onTogglePast: () => void;
+}) {
   return (
-    <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
-      <Stagger className="mx-auto max-w-2xl space-y-6">
-        <StaggerItem>
-          {/* Back-Link nur auf Mobile -- dort fehlt die Sidebar. */}
-          <Link
-            href="/"
-            className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
-          >
-            <ChevronLeft className="size-4" />
-            Zurück zum Stundenplan
-          </Link>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-semibold leading-tight tracking-tight">Prüfungen</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {loading
-                  ? "Wird geladen …"
-                  : upcoming.length === 0
-                    ? "Nichts steht an."
-                    : `${upcoming.length} anstehend.`}
-              </p>
-            </div>
-            <Button size="sm" className="gap-1.5" onClick={() => setComposerOpen(true)}>
-              <Plus className="size-4" />
-              Neue Prüfung
-            </Button>
-          </div>
-        </StaggerItem>
-
-        <StaggerItem>
-          {loading ? (
-            <PageSkeleton />
-          ) : upcoming.length === 0 ? (
-            <EmptyState onAdd={() => setComposerOpen(true)} />
-          ) : (
-            <div className="space-y-5">
-              <NextExamCard exam={next} today={today} />
-              {weeks.map((w) => (
-                <WeekSection key={w.key} group={w} today={today} />
-              ))}
-            </div>
-          )}
-        </StaggerItem>
-
-        {!loading && past.length > 0 && (
-          <StaggerItem>
-            <PastExams
-              items={past}
-              today={today}
-              open={showPast}
-              onToggle={() => setShowPast((v) => !v)}
-            />
-          </StaggerItem>
-        )}
-      </Stagger>
-
-      <ExamComposer
-        open={composerOpen}
-        onOpenChange={setComposerOpen}
-        subjects={subjects}
-        existingExams={upcoming}
-        onSaved={onCreated}
-      />
-    </main>
+    <div className="space-y-5">
+      <NextExamCard exam={next} today={today} />
+      {weeks.map((w) => (
+        <WeekSection key={w.key} group={w} today={today} />
+      ))}
+      {past.length > 0 && (
+        <PastExams items={past} today={today} open={showPast} onToggle={onTogglePast} />
+      )}
+    </div>
   );
 }
 
@@ -410,9 +312,9 @@ function PastRow({ exam, today }: { exam: AssignmentDTO; today: string }) {
   );
 }
 
-// --- Leerzustand ---------------------------------------------------------------
+// --- Leerer Pruefungs-Tab ------------------------------------------------------
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+export function PruefungenEmpty({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
       <PartyPopper className="size-6 text-muted-foreground/60" />
@@ -430,9 +332,9 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-// --- Ladezustand -----------------------------------------------------------------
+// --- Ladezustand des Pruefungs-Tabs --------------------------------------------
 
-function PageSkeleton() {
+export function PruefungenSkeleton() {
   return (
     <div className="flex flex-col gap-5" aria-label="Prüfungen werden geladen" aria-busy="true">
       <div className="rounded-2xl border bg-card p-5 shadow-card">

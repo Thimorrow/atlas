@@ -41,6 +41,23 @@ export function pickTargetDay(
   return { date: tomorrow, isTomorrow: true };
 }
 
+// --- Fokus-Zieltag ---------------------------------------------------------
+
+// Der Fokus zeigt heute, solange heute noch Unterricht laeuft oder ansteht,
+// sonst den naechsten Schultag ab morgen. todayRemaining rechnet der Aufrufer
+// aus den Events des Tages (mind. ein nicht-entfallenes Event endet nach
+// Jetzt) -- hier bleibt es eine reine, DB-freie Entscheidung wie pickTargetDay.
+// Es gibt bewusst keinen manuellen Heute/Morgen-Schalter: ein View oder Woche.
+export function pickFocusDay(
+  todayISO: string,
+  hasLessons: (dateISO: string) => boolean,
+  todayRemaining: boolean,
+  maxLookaheadDays = 14,
+): TargetDay {
+  if (todayRemaining) return { date: todayISO, isTomorrow: false };
+  return pickTargetDay(todayISO, hasLessons, maxLookaheadDays);
+}
+
 const WEEKDAYS_FULL = [
   "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag",
 ];

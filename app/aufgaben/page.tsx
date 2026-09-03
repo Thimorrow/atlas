@@ -1,19 +1,44 @@
 "use client";
 
+// Aufgaben und Pruefungen auf einer Seite: zwei Tabs ueber derselben Tabelle.
+// "Offen" ist die Hausaufgaben-Liste mit Quick-Add, "Pruefungen" die
+// Pruefungsansicht (naechste gross, Rest nach Woche, Vergangene aufklappbar).
+// Je Tab holt die Seite ihren Stand vom Server -- der Tabwechsel ist nur noch
+// ein Fetch statt einer vollen Seitennavigation.
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, RefreshCw } from "lucide-react";
+import { ChevronLeft, Plus, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentQuickAdd } from "@/components/assignment-quick-add";
+import { ExamComposer } from "@/components/exam-composer";
+import { PruefungenEmpty, PruefungenSkeleton, PruefungenView } from "@/components/pruefungen-view";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
-import { type AssignmentDTO } from "@/lib/assignments-view";
+import {
+  groupExamsByWeek,
+  localISO,
+  partitionExams,
+  type AssignmentDTO,
+} from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+
+type Tab = "offen" | "pruefungen";
+type SubjectOption = { id: string; name: string; color: string | null };
+
+function initialTab(): Tab {
+  if (typeof window === "undefined") return "offen";
+  return new URLSearchParams(window.location.search).get("tab") === "pruefungen"
+    ? "pruefungen"
+    : "offen";
+}
 
 export default function AssignmentsPage() {
   const toast = useToast();
   const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [loading, setLoading] = useState(true);
   // Getrennt vom Toast: der Toast verschwindet nach ein paar Sekunden von
   // selbst, aber solange gar keine Daten da sind, braucht die Seite einen
@@ -22,21 +47,35 @@ export default function AssignmentsPage() {
   const [loadError, setLoadError] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [showPast, setShowPast] = useState(false);
+  const [today, setToday] = useState(() => localISO());
 
-  // Die Erledigten kommen nicht mit der Standardantwort, sondern erst mit
-  // ?completed=1 -- der Umschalter laedt deshalb neu, statt lokal zu filtern.
-  // Die Faecherliste holt sich jetzt jede Eingabe-Komponente selbst und erst
-  // beim ersten Fokus (AssignmentQuickAdd, AssignmentList-Editor) -- ein
-  // Seitenbesuch ohne Neuanlage/Bearbeitung braucht sie gar nicht.
+  // Ueber Mitternacht darf eine offene Seite nicht in der falschen Gruppe
+  // haengenbleiben (gleiches Muster wie components/assignment-list.tsx).
+  useEffect(() => {
+    const id = setInterval(() => setToday(localISO()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Offen ohne, Erledigte und Pruefungen mit ?completed=1 -- wie frueher je
+  // Ansicht vom Server, damit Loeschen und Abhaken keine Geister in der
+  // jeweils anderen Sicht hinterlassen. Der Tabwechsel ist nur noch ein
+  // Fetch statt einer vollen Seitennavigation.
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setLoadError(false);
-    fetch(`/api/assignments${showCompleted ? "?completed=1" : ""}`)
-      .then((r) => r.json())
-      .then((a) => {
+    const query = tab === "pruefungen" || showCompleted ? "?completed=1" : "";
+    Promise.all([
+      fetch(`/api/assignments${query}`).then((r) => r.json()),
+      fetch("/api/subjects").then((r) => r.json()),
+    ])
+      .then(([a, s]) => {
         if (!alive) return;
         setAssignments((a.assignments ?? []) as AssignmentDTO[]);
+        setSubjects((s.subjects ?? []) as SubjectOption[]);
         setLoading(false);
       })
       .catch(() => {
@@ -48,13 +87,32 @@ export default function AssignmentsPage() {
     return () => {
       alive = false;
     };
-  }, [showCompleted, toast, reloadKey]);
+  }, [toast, reloadKey, tab, showCompleted]);
 
   const onCreated = useCallback((a: AssignmentDTO) => {
     setAssignments((prev) => [...prev, a]);
   }, []);
 
-  const openCount = assignments.filter((a) => !a.completedAt).length;
+  const switchTab = useCallback((next: Tab) => {
+    setTab(next);
+    const url = next === "pruefungen" ? "/aufgaben?tab=pruefungen" : "/aufgaben";
+    window.history.replaceState(null, "", url);
+  }, []);
+
+  const open = assignments.filter((a) => !a.completedAt);
+  const { upcoming, past } = partitionExams(assignments, today);
+  const [next, ...rest] = upcoming;
+  const weeks = groupExamsByWeek(rest, today);
+
+  const subtitle = loading
+    ? "Wird geladen …"
+    : tab === "pruefungen"
+      ? upcoming.length === 0
+        ? "Nichts steht an."
+        : `${upcoming.length} anstehend.`
+      : open.length === 0
+        ? "Nichts offen."
+        : `${open.length} offen über alle Fächer.`;
 
   return (
     // Gleiches Seiten-Geruest wie /settings: die Layout-Hoehe ist fix, gescrollt
@@ -70,55 +128,111 @@ export default function AssignmentsPage() {
             <ChevronLeft className="size-4" />
             Zurück zum Stundenplan
           </Link>
-          <div>
-            <h1 className="text-xl font-semibold leading-tight tracking-tight">Aufgaben</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {loading
-                ? "Wird geladen …"
-                : openCount === 0
-                  ? "Nichts offen."
-                  : `${openCount} offen über alle Fächer.`}
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold leading-tight tracking-tight">Aufgaben</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
+            </div>
+            {tab === "pruefungen" && !loading && !loadError && (
+              <Button size="sm" className="gap-1.5" onClick={() => setComposerOpen(true)}>
+                <Plus className="size-4" />
+                Neue Prüfung
+              </Button>
+            )}
           </div>
         </StaggerItem>
 
         <StaggerItem>
-          <AssignmentQuickAdd onCreated={onCreated} />
-        </StaggerItem>
-
-        <StaggerItem>
-          <div className="flex items-center justify-end">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={showCompleted}
-              onClick={() => setShowCompleted((v) => !v)}
-              className="relative inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <span
-                aria-hidden
+          <div
+            role="tablist"
+            aria-label="Aufgaben und Prüfungen"
+            className="flex gap-1 rounded-lg border bg-card p-1 shadow-card"
+          >
+            {(
+              [
+                { id: "offen", label: "Offen" },
+                { id: "pruefungen", label: "Prüfungen" },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                onClick={() => switchTab(t.id)}
                 className={cn(
-                  "flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 ease-[var(--ease-atlas)]",
-                  showCompleted ? "bg-primary" : "bg-border",
+                  "flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  tab === t.id
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span
-                  className={cn(
-                    "size-3 rounded-full bg-background transition-transform duration-150 ease-[var(--ease-atlas)]",
-                    showCompleted && "translate-x-3",
-                  )}
-                />
-              </span>
-              Erledigte zeigen
-            </button>
+                {t.label}
+              </button>
+            ))}
           </div>
         </StaggerItem>
+
+        {tab === "offen" && (
+          <StaggerItem>
+            <AssignmentQuickAdd onCreated={onCreated} />
+          </StaggerItem>
+        )}
+
+        {tab === "offen" && (
+          <StaggerItem>
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showCompleted}
+                onClick={() => setShowCompleted((v) => !v)}
+                className="relative inline-flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    "flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 ease-[var(--ease-atlas)]",
+                    showCompleted ? "bg-primary" : "bg-border",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-3 rounded-full bg-background transition-transform duration-150 ease-[var(--ease-atlas)]",
+                      showCompleted && "translate-x-3",
+                    )}
+                  />
+                </span>
+                Erledigte zeigen
+              </button>
+            </div>
+          </StaggerItem>
+        )}
 
         <StaggerItem>
           {loading ? (
-            <ListSkeleton />
+            tab === "pruefungen" ? (
+              <PruefungenSkeleton />
+            ) : (
+              <ListSkeleton />
+            )
           ) : loadError ? (
             <LoadErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+          ) : tab === "pruefungen" ? (
+            upcoming.length === 0 ? (
+              <PruefungenEmpty onAdd={() => setComposerOpen(true)} />
+            ) : (
+              next && (
+                <PruefungenView
+                  next={next}
+                  weeks={weeks}
+                  past={past}
+                  today={today}
+                  showPast={showPast}
+                  onTogglePast={() => setShowPast((v) => !v)}
+                />
+              )
+            )
           ) : (
             <AssignmentList
               assignments={assignments}
@@ -130,6 +244,14 @@ export default function AssignmentsPage() {
           )}
         </StaggerItem>
       </Stagger>
+
+      <ExamComposer
+        open={composerOpen}
+        onOpenChange={setComposerOpen}
+        subjects={subjects}
+        existingExams={upcoming}
+        onSaved={onCreated}
+      />
     </main>
   );
 }

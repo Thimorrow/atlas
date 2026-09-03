@@ -16,6 +16,7 @@ import { ExamComposer } from "@/components/exam-composer";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { LessonParticipationEditor, type LessonParticipationTarget } from "@/components/lesson-participation";
 import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
+import { MorgenPanel } from "@/components/morgen-panel";
 import { useToast } from "@/components/toast";
 import { UntisSyncNotice } from "@/components/untis-sync-notice";
 import { decideSync } from "@/lib/untis/sync-policy";
@@ -90,7 +91,6 @@ const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // nicht neben Pfeile und Woche-Knopf. Wochentag und Monat sind die beiden
 // Teile, die sich kuerzen lassen, ohne dass Bedeutung verloren geht; das
 // "· Heute" bleibt, denn es ist beim Blaettern die eigentliche Auskunft.
-const MONTHS_SHORT = ["Jan.", "Feb.", "März", "April", "Mai", "Juni", "Juli", "Aug.", "Sept.", "Okt.", "Nov.", "Dez."];
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 // Fallback-Zeitachse, wenn die Woche keine school_blocks hat (z.B. Ferien).
 const FALLBACK_DAY_START = 7;
@@ -122,23 +122,6 @@ function fachStyle(color: string | null): CSSProperties {
   return color ? ({ "--fach": color } as CSSProperties) : {};
 }
 
-// Entfallene Schulstunden werden nicht als eigener Block gezeigt, sondern als
-// leiser Chip an der ECHTEN Startzeit der Stunde -- statt Doppelung "Frei" +
-// "Entfall"-Block.
-// Leiser Entfall-Chip fuer die Heute-Liste.
-function CancelChip({ title }: { title: string }) {
-  return (
-    // A2 (Kontrast): /90 auf bg-muted/40 lag im Hellmodus bei ~3.8:1 -- unter
-    // der AA-Mindestgrenze fuer kleinen Text. Volle muted-foreground erreicht 4.6:1.
-    // Design-Audit: 10px auf 11px angehoben -- der Grid-Entfall-Chip (engerer
-    // Platz als hier in der Heute-Liste) lag bereits bei 11px, kleiner-bei-mehr-
-    // Platz war die falsche Richtung.
-    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
-      <span className="size-1 rounded-full bg-red-500/45" />
-      {title} entfällt
-    </span>
-  );
-}
 
 // Ein Klick auf eine Schulstunde legt eine Aufgabe fuer dieses Fach an. Das
 // Menue haengt per asChild AM Block selbst -- es kommt kein zusaetzliches
@@ -336,20 +319,6 @@ function buildSegments(packedDays: Packed[][], days: Day[], dayStart: number, da
   return segs;
 }
 
-// "in 25 min" / "in 1 h 10 min" / "läuft" -- relativ zu jetzt.
-function relLabel(deltaMin: number) {
-  if (deltaMin <= 0) return "läuft";
-  if (deltaMin < 60) return `in ${deltaMin} min`;
-  const h = Math.floor(deltaMin / 60);
-  const m = deltaMin % 60;
-  return m ? `in ${h} h ${m} min` : `in ${h} h`;
-}
-function durLabel(min: number) {
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
-}
 
 const WEEKDAYS_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 
@@ -409,295 +378,13 @@ function WeekSkeleton() {
   );
 }
 
-// --- Heute-Ansicht ----------------------------------------------------------
-
-type AgendaItem =
-  | { kind: "ev"; s: number; e: number; ev: Ev }
-  | { kind: "cancel"; s: number; e: number; ev: Ev };
-
-function TodayView({
-  day,
-  nowMin,
-  dayPast,
-  stagger,
-  firstPaint,
-  due,
-  onToggleAssignment,
-  onCreateAssignment,
-  onCreateNote,
-  onCreateCount,
-  fachFarbe,
-}: {
-  day: Day | undefined;
-  nowMin: number;
-  dayPast: boolean;
-  stagger: boolean;
-  // Fachfarbe zum Termintitel, null wenn kein Fach dazu passt. Die Zuordnung
-  // selbst kennt nur die Seite (sie haelt die Fachliste), nicht diese Ansicht.
-  fachFarbe: (title: string) => string | null;
-  // Aufgaben mit Faelligkeit an diesem Tag -- leere Liste rendert nichts.
-  due: AssignmentDTO[];
-  onToggleAssignment: (a: AssignmentDTO) => void;
-  onCreateAssignment: (ev: Ev, dayISO: string, type: AssignmentType) => void;
-  onCreateNote: (ev: Ev, dayISO: string) => void;
-  onCreateCount: (ev: Ev, dayISO: string) => void;
-  // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
-  // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
-  // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
-  // erneuten Auftritt.
-  firstPaint: boolean;
-}) {
-  // F10: Reduced-Motion explizit gaten -- sonst laufen opacity + filter:blur
-  // trotz globalem reducedMotion="user" weiter. Hook vor jedem Early-Return.
-  const reduce = useReducedMotion();
-  const animate = stagger && !reduce && firstPaint;
-  if (!day) {
-    return <div className="py-24 text-center text-sm text-muted-foreground">Keine Daten.</div>;
-  }
-
-  const isToday = nowMin >= 0;
-
-  const onTimeline = mergeSchool(day.events).filter((e) => e.startTime);
-  // Entfall (V3): nicht als Block, sondern als leiser Chip -- an der ECHTEN
-  // Startzeit der Stunde (eigene schlanke Agenda-Zeile), nicht am Frei-Anfang.
-  const cancelledEvs = onTimeline.filter((e) => e.status === "cancelled");
-  const evs = onTimeline
-    .filter((e) => e.status !== "cancelled")
-    .map((ev) => ({ ev, s: toMin(ev.startTime), e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45 }))
-    .sort((a, b) => a.s - b.s);
-
-  const upcoming = evs.filter((x) => x.e > nowMin);
-  const next = upcoming[0];
-  const ongoing = isToday && next ? next.s <= nowMin : false;
-  const nextKey = next ? `${next.ev.source}-${next.ev.refId}-${next.s}` : null;
-
-  // Events zu einer chronologischen Agenda.
-  const agenda: AgendaItem[] = [
-    ...evs.map((x): AgendaItem => ({ kind: "ev", s: x.s, e: x.e, ev: x.ev })),
-    ...cancelledEvs.map((ev): AgendaItem => ({
-      kind: "cancel",
-      s: toMin(ev.startTime),
-      e: ev.endTime ? toMin(ev.endTime) : toMin(ev.startTime) + 45,
-      ev,
-    })),
-  ].sort((a, b) => a.s - b.s || a.e - b.e);
-
-  // Status-Kopfzeile
-  let kicker: ReactNode;
-  if (next && ongoing) {
-    kicker = (
-      // A2 (Kontrast): reines red-500 liegt auf hellem Grund bei ~3.8:1 -- unter
-      // AA fuer 15px-Text. red-600/red-400 (wie beim Vertretung-Tag) tragen in
-      // beiden Themes.
-      <span className="inline-flex items-center gap-1.5 text-red-600 dark:text-red-400">
-        {/* I3: solider Punkt statt endlosem animate-pulse (AI-Slop-Tell + nervt
-            dauerhaft). Die rote Farbe + "Jetzt"-Text tragen die Aussage. */}
-        <span className="size-1.5 rounded-full bg-red-500" /> Jetzt · {next.ev.title}
-      </span>
-    );
-  } else if (next && isToday) {
-    kicker = (
-      <span className="text-foreground">
-        Als Nächstes · <span className="font-semibold">{next.ev.title}</span>
-        <span className="tabular-nums text-muted-foreground"> · {relLabel(next.s - nowMin)}</span>
-      </span>
-    );
-  } else if (next) {
-    kicker = (
-      <span className="text-foreground">
-        Erste Stunde · <span className="font-semibold">{next.ev.title}</span>
-        <span className="font-mono tabular-nums text-muted-foreground"> · {hm(next.ev.startTime)}</span>
-      </span>
-    );
-  } else {
-    kicker = <span className="text-muted-foreground">{isToday ? "Heute steht nichts mehr an." : "An diesem Tag stehen keine Stunden an."}</span>;
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-xl pb-10">
-      {/* Status-Kopf */}
-      <motion.div
-        initial={animate ? { opacity: 0, y: 6 } : false}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.22, ease: EASE }}
-        className="mb-5 flex items-center justify-between gap-3 text-[15px] font-medium"
-      >
-        <div>{kicker}</div>
-        {next && ongoing && <span className="shrink-0 font-mono text-[13px] tabular-nums text-red-600 dark:text-red-400">noch {durLabel(next.e - nowMin)}</span>}
-      </motion.div>
-
-      {/* Fällige Aufgaben: schlanke Zeile unter dem Kopf. Ohne fällige Aufgabe
-          rendert DayDueRow null -- der Tag sieht dann aus wie vorher. */}
-      <DayDueRow items={due} onToggle={onToggleAssignment} />
-
-      {/* Tages-Agenda: Stunden + freie Lücken verwoben */}
-      {agenda.length > 0 ? (
-        <ul className="space-y-1.5">
-          {agenda.map((it, i) => {
-            // Vergangener Tag (gestern & frueher) -> alles geblasst; heute nur
-            // das, was zeitlich schon vorbei ist; Zukunft -> nichts.
-            const past = dayPast || (isToday && it.e <= nowMin);
-            // Agenda cascadet beim Mount Item fuer Item klar nacheinander rein
-            // (groesserer Schritt + Basis-Delay -> spuerbar, nicht "alles auf einmal").
-            // Polish: Deckel lag bei 0.8s -- bei einem vollen Schultag fuehlte sich
-            // das letzte Item wie Warten an statt wie Kaskade. 0.35s haelt die
-            // Bewegung sichtbar, ohne zu ziehen.
-            const delay = animate ? 0.06 + Math.min(i * 0.04, 0.35) : 0;
-
-            if (it.kind === "cancel") {
-              return (
-                <motion.li
-                  key={`cancel-${it.ev.source}-${it.ev.refId}-${it.s}`}
-                  // Animations-Audit: filter:blur entfernt -- Skill-Prinzip 1
-                  // (nur transform/opacity animieren), Blur ist teuer und traegt
-                  // hier keine zusaetzliche Information gegenueber opacity+y.
-                  initial={animate ? { opacity: 0, y: 8 } : false}
-                  animate={{ opacity: past ? 0.4 : 1, y: 0 }}
-                  transition={{ duration: 0.42, delay, ease: EASE }}
-                  className="grid grid-cols-[52px_1fr] items-center gap-3"
-                >
-                  {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1 -- volle
-                      muted-foreground traegt in beiden Themes. */}
-                  <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
-                  <div className="flex items-center">
-                    <CancelChip title={it.ev.title} />
-                  </div>
-                </motion.li>
-              );
-            }
-
-            const isNext = `${it.ev.source}-${it.ev.refId}-${it.s}` === nextKey;
-            const meta = eventMeta(it.ev);
-            const farbe = fachFarbe(it.ev.title);
-            const vertretung = it.ev.status === "substituted";
-            return (
-              <motion.li
-                key={`${it.ev.source}-${it.ev.refId}-${it.s}`}
-                // Animations-Audit: filter:blur entfernt (Skill-Prinzip 1, nur
-                // transform/opacity). A3 (Reduced-Motion): `animate` gated bereits
-                // Reduced-Motion UND Erstauftritt.
-                initial={animate ? { opacity: 0, y: 8 } : false}
-                animate={{ opacity: past ? 0.45 : 1, y: 0 }}
-                transition={{ duration: 0.42, delay, ease: EASE }}
-                className="grid grid-cols-[52px_1fr] items-stretch gap-3"
-              >
-                {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
-                <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
-                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment} onNote={onCreateNote} onCount={onCreateCount}>
-                <div
-                  // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
-                  // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
-                  // breiter), title schadet aber nicht und Raum/Lehrer sollen
-                  // kopierbar bleiben.
-                  title={`${it.ev.title}${meta ? `, ${meta}` : ""}`}
-                  // Der Block ist jetzt zugleich Menue-Trigger (Aufgabe anlegen):
-                  // tabIndex + Fokusring machen ihn per Tastatur bedienbar, ohne
-                  // Groesse oder Position zu veraendern.
-                  role="button"
-                  tabIndex={0}
-                  className={cn(
-                    "relative select-text overflow-hidden rounded-lg px-3 py-2 text-left outline-none transition-[background-color,box-shadow] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                    BLOCK_CLS,
-                    farbe && "fachblock-akzent",
-                    vertretung && "fachblock-vertretung",
-                    isNext ? "ring-2 ring-primary/30" : "hover:ring-2 hover:ring-inset hover:ring-black/[0.1] dark:hover:ring-white/[0.14]",
-                  )}
-                  style={fachStyle(farbe)}
-                >
-                  <div className="flex items-baseline gap-2">
-                    <span className="flex-1 truncate text-[14px] font-semibold leading-tight">
-                      {it.ev.title}
-                    </span>
-                    {/* Punkt statt Icon: die App markiert faellige Aufgaben schon
-                        anderswo (WeekDayDots) als Punkt, nicht als Symbol -- ein
-                        Hausaufgabe-Icon waere hier zudem falsch, sobald die faellige
-                        Aufgabe eine Klassenarbeit oder ein Referat ist. */}
-                    {it.ev.hasAssignment && (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          title="Hier ist eine Aufgabe faellig"
-                          className="size-1.5 shrink-0 rounded-full bg-primary/70"
-                        />
-                        <span className="sr-only">Hier ist eine Aufgabe fällig.</span>
-                      </>
-                    )}
-                    {it.ev.hasNote && (
-                      <PenLine aria-hidden="true" className="size-3 shrink-0 text-foreground/50" />
-                    )}
-                    {/* Meldungs-Marker: gleiche Groesse/Kontrastregeln wie der
-                        Notiz-Marker daneben -- Hand-Icon plus Zahl, damit der
-                        Wert ohne Oeffnen sichtbar ist. */}
-                    {it.ev.participation != null && (
-                      <span
-                        className="flex shrink-0 items-center gap-0.5 text-[11px] tabular-nums text-foreground/50"
-                        title={`${it.ev.participation} Meldungen`}
-                      >
-                        <Hand aria-hidden="true" className="size-3" />
-                        <span aria-hidden="true">{it.ev.participation}</span>
-                        <span className="sr-only">{it.ev.participation} Meldungen</span>
-                      </span>
-                    )}
-                    {it.ev.endTime && (
-                      // A2 (Kontrast): volle muted-foreground liegt auf der
-                      // Fach-Block-Fuellung (blau) nur bei ~4:1 -- knapp unter AA.
-                      // foreground/70 traegt in beiden Themes deutlich (6:1+).
-                      <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground/70">
-                        {durLabel(it.e - it.s)}
-                      </span>
-                    )}
-                  </div>
-                  {(meta || it.ev.status === "substituted") && (
-                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-foreground/70">
-                      {it.ev.source === "school" && meta && <span>{meta}</span>}
-                      {it.ev.status === "substituted" && (
-                        <motion.span
-                          // Animations-Audit: filter:blur entfernt, scale+opacity
-                          // reichen fuer den kleinen Badge (Skill-Prinzip 1).
-                          initial={animate ? { opacity: 0, scale: 0.9 } : false}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.25, delay: delay + 0.1, ease: EASE }}
-                          // A2 (Kontrast): amber-600 auf amber/15+Block-Blau lag im
-                          // Hellmodus bei ~2.5:1 -- praktisch unlesbar. amber-800 +
-                          // etwas kraeftigerer Fuellung traegt (~5:1); Dark blieb schon gut.
-                          className="inline-flex rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400"
-                        >
-                          Vertretung
-                        </motion.span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                </LessonMenu>
-              </motion.li>
-            );
-          })}
-        </ul>
-      ) : (
-        // O8: seltener, ruhiger Moment -> ein kleiner Reveal + Icon ist hier
-        // willkommen statt nacktem Text.
-        <motion.div
-          // A3 (Reduced-Motion): nutzte nur `stagger`, nicht `animate` -- lief
-          // unter Reduced-Motion trotzdem mit opacity+y an.
-          initial={animate ? { opacity: 0, y: 6 } : false}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: EASE }}
-          className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground"
-        >
-          <CalendarCheck className="size-6 text-muted-foreground/50" />
-          {isToday ? "Heute keine Stunden. Genieß den freien Tag!" : "An diesem Tag stehen keine Stunden an."}
-        </motion.div>
-      )}
-    </div>
-  );
-}
 
 // --- Komponente -------------------------------------------------------------
 
 export default function Home() {
   const reduce = useReducedMotion();
   const [anchor, setAnchor] = useState(() => localISO(new Date()));
-  const [mode, setMode] = useState<"week" | "today">("week");
+  const [mode, setMode] = useState<"week" | "fokus">("week");
   const [data, setData] = useState<RangeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -708,12 +395,6 @@ export default function Home() {
   // Nur der allererste View-Mount blurrt NICHT (da traegt der StaggerItem-Auftritt).
   // Jeder spaetere Remount (Mode-Switch, Tageswechsel) blurrt als Block rein.
   const firstView = useRef(true);
-  // Animations-Audit: die Heute-Agenda cascadet nur, solange sie noch nie zu
-  // sehen war. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-Framework
-  // 1) -- ohne dieses Gate wuerde die ganze Liste bei JEDEM Pfeilklick erneut
-  // einfliegen.
-  const todayFirstPaint = useRef(true);
-
   // Sichtbare Hoehe des Wochen-Scrollbereichs -- damit das (durch Stauchung
   // kurze) Raster nach unten auf den Screen gezogen wird statt leer zu enden.
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -758,9 +439,9 @@ export default function Home() {
     // sich nicht selbst schon fuer eine Ansicht entschieden hat: URL-Parameter
     // und gemerkte Wahl behalten Vorrang, "Woche" bleibt einen Tipp entfernt.
     const schmal = window.matchMedia("(max-width: 767px)").matches;
-    if (urlView === "today" || (!urlView && (gemerkt === "today" || (!gemerkt && schmal)))) {
-      setMode("today");
-      if (urlView === "today") writeLocal("atlas:calMode", "today");
+    if (urlView === "fokus" || (!urlView && (gemerkt === "fokus" || gemerkt === "today" || (!gemerkt && schmal)))) {
+      setMode("fokus");
+      if (urlView === "fokus") writeLocal("atlas:calMode", "fokus");
     }
     const d = p.get("date");
     if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setAnchor(d);
@@ -899,25 +580,6 @@ export default function Home() {
   }, []);
 
   const label = data ? formatRange(data.start, data.end) : "";
-  const todayISO = now?.date ?? localISO(new Date());
-  const focusDay = data?.days.find((d) => d.date === anchor);
-  // Zwei Laengen desselben Datums. Auf dem Handy passt "Mittwoch, 2. September"
-  // nicht neben Pfeile und Woche-Knopf und endete als "Mittwoch, 2. Septemb...".
-  // Der Wochentag ist der Teil, der sich am billigsten kuerzen laesst: "Mi" sagt
-  // dasselbe. Ab sm steht wieder der ausgeschriebene Tag.
-  const heuteZusatz = anchor === todayISO ? " · Heute" : "";
-  const dayLabel = focusDay
-    ? `${WEEKDAYS_LONG[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS[monthOf(anchor)]}${heuteZusatz}`
-    : "";
-  const dayLabelKurz = focusDay
-    ? `${DAY_NAMES[focusDay.weekday]}, ${dayNum(anchor)}. ${MONTHS_SHORT[monthOf(anchor)]}${heuteZusatz}`
-    : "";
-
-  // Nach der ersten sichtbaren Heute-Agenda keine Cascade mehr -- Tages-Pfeile
-  // sind Hochfrequenz-Navigation.
-  useEffect(() => {
-    if (mode === "today" && focusDay) todayFirstPaint.current = false;
-  });
 
   // Aufgaben nach Fälligkeitsdatum. Ohne dueDate taucht eine Aufgabe im
   // Stundenplan nirgends auf.
@@ -931,20 +593,6 @@ export default function Home() {
     }
     return m;
   }, [assignments]);
-
-  // Abhaken in der Tagesansicht: optimistic, mit Rücksprung + Toast bei Fehler.
-  const toggleAssignment = async (a: AssignmentDTO) => {
-    const done = Boolean(a.completedAt);
-    const next = done ? null : new Date().toISOString();
-    setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: next } : x)));
-    try {
-      const res = await fetch(`/api/assignments/${a.id}/complete`, { method: done ? "DELETE" : "POST" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch {
-      setAssignments((prev) => prev.map((x) => (x.id === a.id ? { ...x, completedAt: a.completedAt } : x)));
-      toast("Die Aufgabe konnte nicht gespeichert werden.");
-    }
-  };
 
   // Fach zur Stunde: erst der exakte Untis-Wert, sonst der Anzeigename. Findet
   // sich keins, bleibt subjectId null -- der Server legt das Fach beim Speichern
@@ -1191,7 +839,7 @@ export default function Home() {
             Stundenplan
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {mode === "today" ? "Dein heutiger Tag auf einen Blick." : "Deine Schulwoche auf einen Blick."}
+            {mode === "fokus" ? "Was jetzt ansteht auf einen Blick." : "Deine Schulwoche auf einen Blick."}
           </p>
         </div>
 
@@ -1200,50 +848,36 @@ export default function Home() {
             der "Naechste Woche"-Pfeil verschwand hinter dem overflow-hidden --
             man kam nur noch rueckwaerts durch den Stundenplan. */}
         <div className="flex min-w-0 items-center gap-2">
-          {/* Polish: Text wechselt je nach Woche/Tag stark in der Laenge ("1.–7.
-              September 2026" vs. "29. September – 5. Oktober 2026") -- ohne
-              reservierte Breite ruckeln die Buttons rechts daneben beim Blaettern
-              mit. min-w + text-right haelt ihre Position fest, der Text waechst
-              nach links.
-              Handy: die 17ch (~186px) passten nicht mehr neben Pfeile und
-              Heute-Knopf. Die Zeile lief ueber, das Datum brach auf zwei Zeilen
-              um und die Pfeile wurden von 40px auf 33px zusammengequetscht --
-              unter der 44px-Trefferflaeche. Unterhalb von sm faellt die
-              reservierte Breite deshalb weg und der Titel darf schrumpfen
-              (min-w-0 + truncate); ab sm greift die feste Breite wie bisher. */}
-          <h2 className="mr-1 min-w-0 truncate text-right text-[15px] font-medium tabular-nums text-foreground sm:min-w-[17ch] sm:overflow-visible">
-            {mode === "today" ? (
-              <>
-                <span className="sm:hidden">{dayLabelKurz}</span>
-                <span className="hidden sm:inline">{dayLabel}</span>
-              </>
-            ) : (
-              label
-            )}
-          </h2>
+          {mode === "week" && (
+            <>
+              <h2 className="mr-1 min-w-0 truncate text-right text-[15px] font-medium tabular-nums text-foreground sm:min-w-[17ch] sm:overflow-visible">
+                {label}
+              </h2>
 
-          {/* Design-Audit (Knopf-Rangfolge): alle vier Kopf-Buttons standen bislang
-              gleichrangig auf variant="outline". Die Pfeile sind reine Schritt-
-              Navigation (Struktur, nicht Entscheidung) und treten jetzt als ghost
-              zurueck -- Heute/Woche bleibt outline und ist damit sichtbar der
-              gewichtigere der drei Aktionen. */}
-          {/* shrink-0 auf allen dreien: ohne das gibt Flex bei knappem Platz
-              zuerst bei den Buttons nach -- auf dem Handy schrumpften die Pfeile
-              real auf 33px und fielen unter die 44px-Trefferflaeche. Nachgeben
-              soll der Titel, nicht die Bedienelemente. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={() => {
-              // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
-              // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
-              setAnchor((a) => addDays(a, mode === "today" ? -1 : -7));
-            }}
-            aria-label={mode === "today" ? "Voriger Tag" : "Vorige Woche"}
-          >
-            <ChevronLeft />
-          </Button>
+              {/* Design-Audit (Knopf-Rangfolge): alle vier Kopf-Buttons standen bislang
+                  gleichrangig auf variant="outline". Die Pfeile sind reine Schritt-
+                  Navigation (Struktur, nicht Entscheidung) und treten jetzt als ghost
+                  zurueck -- Fokus/Woche bleibt outline und ist damit sichtbar der
+                  gewichtigere der drei Aktionen. */}
+              {/* shrink-0 auf allen dreien: ohne das gibt Flex bei knappem Platz
+                  zuerst bei den Buttons nach -- auf dem Handy schrumpften die Pfeile
+                  real auf 33px und fielen unter die 44px-Trefferflaeche. Nachgeben
+                  soll der Titel, nicht die Bedienelemente. */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                onClick={() => {
+                  // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
+                  // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
+                  setAnchor((a) => addDays(a, -7));
+                }}
+                aria-label="Vorige Woche"
+              >
+                <ChevronLeft />
+              </Button>
+            </>
+          )}
 
           {mode === "week" ? (
             <Button
@@ -1251,14 +885,13 @@ export default function Home() {
               size="sm"
               className="h-9 shrink-0"
               onClick={() => {
-                setMode("today");
-                setAnchor(localISO(new Date()));
-                writeLocal("atlas:calMode", "today");
-                // O5: bewusster "Heute"-Sprung -> Logo dreht voll durch als Feedback.
+                setMode("fokus");
+                writeLocal("atlas:calMode", "fokus");
+                // O5: bewusster Sprung -> Logo dreht voll durch als Feedback.
                 window.dispatchEvent(new CustomEvent("atlas:focus-today"));
               }}
             >
-              Heute
+              Fokus
             </Button>
           ) : (
             <Button
@@ -1275,19 +908,21 @@ export default function Home() {
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={() => {
-              // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
-              // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
-              setAnchor((a) => addDays(a, mode === "today" ? 1 : 7));
-            }}
-            aria-label={mode === "today" ? "Nächster Tag" : "Nächste Woche"}
-          >
-            <ChevronRight />
-          </Button>
+          {mode === "week" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => {
+                // Navigation mountet die View neu -> Items/Termine cascaden von selbst.
+                // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
+                setAnchor((a) => addDays(a, 7));
+              }}
+              aria-label="Nächste Woche"
+            >
+              <ChevronRight />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1304,44 +939,26 @@ export default function Home() {
 
       {/* Kalender -- scrollender Bereich, fuellt Resthoehe */}
       <StaggerItem className="min-h-0 flex-1 overflow-hidden px-6 pb-6 lg:px-8">
-      {/* Woche <-> Heute: beim Umschalten blurrt die neue View per keyed Remount
+      {/* Woche <-> Fokus: beim Umschalten blurrt die neue View per keyed Remount
           rein -- laeuft zuverlaessig bei JEDEM Klick durch (kein AnimatePresence-
           Haenger durch den Minuten-Tick). Erster Mount aus (firstView) -> da
           traegt der Section-Auftritt der StaggerItem. */}
       <motion.div
-        // key wechselt bei Mode-Switch UND bei Tages-Navigation -> die View mountet
-        // frisch. Der Wrapper macht nur einen ruhigen Opacity-Fade (Blur auf so
-        // grossen Flaechen glitcht/repaintet unzuverlaessig). Der "mit blur,
-        // nacheinander"-Effekt liegt auf den KLEINEN Elementen drin: Heute-Agenda
-        // cascadet Item fuer Item, Woche cascadet die einzelnen Termine.
-        key={mode === "today" ? `today-${anchor}` : "week"}
+        // key wechselt bei Mode-Switch -> die View mountet frisch. Der Wrapper
+        // macht nur einen ruhigen Opacity-Fade (Blur auf so grossen Flaechen
+        // glitcht/repaintet unzuverlaessig). Der "mit blur, nacheinander"-Effekt
+        // liegt auf den KLEINEN Elementen drin: Woche cascadet die einzelnen
+        // Termine, der Fokus seine Sections.
+        key={mode}
         // A3 (Reduced-Motion): kein manuelles Gate hier -- die globale
         // <MotionConfig reducedMotion="user"> kappt nur transform, opacity blieb an.
         initial={firstView.current || reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={mode === "today" ? "h-full overflow-y-auto pt-1" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-card"}
+        className={mode === "fokus" ? "h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-card"}
       >
-        {mode === "today" ? (
-          error && !data ? (
-            <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
-          ) : loading && !data ? (
-            <div className="py-24 text-center text-sm text-muted-foreground">Lade …</div>
-          ) : (
-            <TodayView
-              day={focusDay}
-              nowMin={anchor === todayISO ? (now?.min ?? 0) : -1}
-              dayPast={anchor < todayISO}
-              stagger
-              firstPaint={todayFirstPaint.current}
-              due={dueByDay.get(anchor) ?? []}
-              onToggleAssignment={toggleAssignment}
-              onCreateAssignment={openComposer}
-              onCreateNote={openNote}
-              onCreateCount={openCount}
-              fachFarbe={fachFarbe}
-            />
-          )
+        {mode === "fokus" ? (
+          <MorgenPanel />
         ) : error && !data ? (
           <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
         ) : loading && !data ? (
