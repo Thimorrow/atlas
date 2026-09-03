@@ -60,6 +60,7 @@ import dev.atlas.schule.ui.NeueAufgabeKnopf
 import dev.atlas.schule.ui.Reiter
 import dev.atlas.schule.ui.StandZeile
 import dev.atlas.schule.ui.StundenplanBildschirm
+import dev.atlas.schule.ui.StundenplanEingabeBlatt
 import dev.atlas.schule.ui.standText
 import dev.atlas.schule.ui.theme.AtlasTheme
 import dev.atlas.schule.ui.theme.Dauer
@@ -302,7 +303,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
     }
 
     zustand.blatt?.let { blatt ->
-        NeueAufgabeBlatt(
+        StundenplanEingabeBlatt(
             blatt = blatt,
             heute = zustand.heute,
             faecher = (zustand.start as? Ladung.Da)?.wert?.faecher.orEmpty(),
