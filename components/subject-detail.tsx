@@ -13,6 +13,7 @@ import { SubjectNotes, type SubjectLessonNoteDTO } from "@/components/subject-no
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { SubjectFiles } from "@/components/subject-files";
 import { SubjectGrades } from "@/components/subject-grades";
+import { SubjectParticipation, type SubjectParticipationDTO } from "@/components/subject-participation";
 import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
@@ -54,6 +55,7 @@ type Payload = {
   upcoming: LessonDTO[];
   grades: GradeDTO[];
   lessonNotes: LessonNoteEntryDTO[];
+  participation: SubjectParticipationDTO;
 };
 
 // 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus in jedes Feld
@@ -295,6 +297,15 @@ export function SubjectDetail({ id }: { id: string }) {
             initialGrades={data.grades}
             initialOralWeight={subject.oralWeight}
           />
+        </Section>
+      </StaggerItem>
+
+      {/* --- Meldungen ---
+          Direkt unter den Noten: der Meldungsschnitt gehoert zur muendlichen
+          Note, deshalb steht er nah dran statt weiter unten in der Seite. */}
+      <StaggerItem>
+        <Section title="Meldungen">
+          <SubjectParticipation data={data.participation} />
         </Section>
       </StaggerItem>
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, NotebookPen, PenLine } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, Hand, NotebookPen, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
+import { LessonParticipationEditor, type LessonParticipationTarget } from "@/components/lesson-participation";
 import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
 import { useToast } from "@/components/toast";
 import { UntisSyncNotice } from "@/components/untis-sync-notice";
@@ -36,6 +37,7 @@ type Ev = {
   teacher?: string | null;
   hasNote?: boolean;
   hasAssignment?: boolean;
+  participation?: number | null;
 };
 type Day = { date: string; weekday: number; events: Ev[] };
 type RangeData = { start: string; end: string; days: Day[] };
@@ -131,12 +133,14 @@ function LessonMenu({
   dayISO,
   onCreate,
   onNote,
+  onCount,
   children,
 }: {
   ev: Ev;
   dayISO: string;
   onCreate: (ev: Ev, dayISO: string, type: AssignmentType) => void;
   onNote: (ev: Ev, dayISO: string) => void;
+  onCount: (ev: Ev, dayISO: string) => void;
   children: ReactNode;
 }) {
   return (
@@ -151,6 +155,9 @@ function LessonMenu({
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onNote(ev, dayISO)}>
           <PenLine /> Notiz schreiben
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onCount(ev, dayISO)}>
+          <Hand /> Meldungen zählen
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -400,6 +407,7 @@ function TodayView({
   onToggleAssignment,
   onCreateAssignment,
   onCreateNote,
+  onCreateCount,
   fachFarbe,
 }: {
   day: Day | undefined;
@@ -414,6 +422,7 @@ function TodayView({
   onToggleAssignment: (a: AssignmentDTO) => void;
   onCreateAssignment: (ev: Ev, dayISO: string, type: AssignmentType) => void;
   onCreateNote: (ev: Ev, dayISO: string) => void;
+  onCreateCount: (ev: Ev, dayISO: string) => void;
   // Animations-Audit: nur beim allerersten Erscheinen der Heute-Ansicht cascadet
   // die Agenda ein. Die Tages-Pfeile sind Hochfrequenz-Navigation (Skill-
   // Framework 1) -- jeder weitere Tageswechsel zeigt die Liste sofort, ohne
@@ -556,7 +565,7 @@ function TodayView({
               >
                 {/* A2 (Kontrast): /70 faellt auf der Karte unter 4.5:1. */}
                 <span className="pt-2 text-right font-mono text-[11px] tabular-nums text-muted-foreground">{hm(it.ev.startTime)}</span>
-                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment} onNote={onCreateNote}>
+                <LessonMenu ev={it.ev} dayISO={day.date} onCreate={onCreateAssignment} onNote={onCreateNote} onCount={onCreateCount}>
                 <div
                   // Polish: gleiche Tooltip/Kopier-Logik wie im Wochenraster -- der
                   // Fachname kann hier zwar seltener abgeschnitten sein (Karte ist
@@ -597,6 +606,19 @@ function TodayView({
                     )}
                     {it.ev.hasNote && (
                       <PenLine aria-hidden="true" className="size-3 shrink-0 text-foreground/50" />
+                    )}
+                    {/* Meldungs-Marker: gleiche Groesse/Kontrastregeln wie der
+                        Notiz-Marker daneben -- Hand-Icon plus Zahl, damit der
+                        Wert ohne Oeffnen sichtbar ist. */}
+                    {it.ev.participation != null && (
+                      <span
+                        className="flex shrink-0 items-center gap-0.5 text-[11px] tabular-nums text-foreground/50"
+                        title={`${it.ev.participation} Meldungen`}
+                      >
+                        <Hand aria-hidden="true" className="size-3" />
+                        <span aria-hidden="true">{it.ev.participation}</span>
+                        <span className="sr-only">{it.ev.participation} Meldungen</span>
+                      </span>
                     )}
                     {it.ev.endTime && (
                       // A2 (Kontrast): volle muted-foreground liegt auf der
@@ -703,6 +725,7 @@ export default function Home() {
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [seed, setSeed] = useState<ComposerSeed | null>(null);
   const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
+  const [countTarget, setCountTarget] = useState<LessonParticipationTarget | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -968,6 +991,34 @@ export default function Home() {
             days: prev.days.map((d) => ({
               ...d,
               events: d.events.map((e) => (e.refId === schoolBlockId ? { ...e, hasNote } : e)),
+            })),
+          }
+        : prev,
+    );
+  };
+
+  // Meldungszaehler oeffnen -- gleiches Kopfzeilen-Muster wie openNote.
+  const openCount = (ev: Ev, dayISO: string) => {
+    const weekday = data?.days.find((d) => d.date === dayISO)?.weekday ?? weekdayOfLocal(dayISO);
+    setCountTarget({
+      schoolBlockId: ev.refId,
+      subject: ev.title,
+      dayLabel: `${WEEKDAYS_LONG[weekday]}, ${dayNum(dayISO)}. ${MONTHS[monthOf(dayISO)]}`,
+      time: ev.endTime ? `${hm(ev.startTime)}–${hm(ev.endTime)}` : hm(ev.startTime),
+      color: fachFarbe(ev.title),
+    });
+  };
+
+  // Marker im Raster ohne Reload aktualisieren, wie onNoteSaved -- count null
+  // bedeutet "nicht erfasst" (nach DELETE).
+  const onCountSaved = (schoolBlockId: string, count: number | null) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            days: prev.days.map((d) => ({
+              ...d,
+              events: d.events.map((e) => (e.refId === schoolBlockId ? { ...e, participation: count } : e)),
             })),
           }
         : prev,
@@ -1255,6 +1306,7 @@ export default function Home() {
               onToggleAssignment={toggleAssignment}
               onCreateAssignment={openComposer}
               onCreateNote={openNote}
+              onCreateCount={openCount}
               fachFarbe={fachFarbe}
             />
           )
@@ -1425,7 +1477,7 @@ export default function Home() {
                       // role="button" + tabIndex; das Label bleibt unveraendert.
                       const blockLabel = `${p.ev.title}, ${hm(p.ev.startTime)}${p.ev.endTime ? `–${hm(p.ev.endTime)} Uhr` : " Uhr"}${p.ev.room ? `, ${p.ev.room}` : ""}${p.ev.status === "substituted" ? ", Vertretung" : ""}`;
                       return (
-                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer} onNote={openNote}>
+                        <LessonMenu key={`${p.ev.source}-${p.ev.refId}-${i}`} ev={p.ev} dayISO={day.date} onCreate={openComposer} onNote={openNote} onCount={openCount}>
                         <motion.div
                           role="button"
                           tabIndex={0}
@@ -1488,6 +1540,24 @@ export default function Home() {
                               aria-hidden="true"
                               className="absolute right-1 top-1 size-1.5 rounded-full bg-foreground/40"
                             />
+                          )}
+                          {/* Meldungs-Marker: unten rechts, ausserhalb der oberen
+                              Ecke (die traegt schon Notiz-/Aufgaben-Punkt). Im
+                              engen Raster reicht die Zahl allein -- ein
+                              zusaetzliches Icon wuerde bei schmalen Spalten
+                              brechen, waehrend eine ein- bis zweistellige Zahl
+                              in jeder Breite Platz findet. */}
+                          {p.ev.participation != null && (
+                            <>
+                              <span
+                                aria-hidden="true"
+                                title={`${p.ev.participation} Meldungen`}
+                                className="absolute bottom-1 right-1 text-[10px] font-medium tabular-nums text-foreground/50"
+                              >
+                                {p.ev.participation}
+                              </span>
+                              <span className="sr-only">{p.ev.participation} Meldungen</span>
+                            </>
                           )}
                           <span aria-hidden="true" className="flex items-center gap-1.5">
                             {vertretung && !badgePasst && (
@@ -1593,6 +1663,14 @@ export default function Home() {
         target={noteTarget}
         onClose={() => setNoteTarget(null)}
         onSaved={onNoteSaved}
+      />
+
+      {/* Meldungszaehler: eigener Zaehlstand je Stunde, ausserhalb des
+          Rasters -- beeinflusst dessen Layout nicht. */}
+      <LessonParticipationEditor
+        target={countTarget}
+        onClose={() => setCountTarget(null)}
+        onSaved={onCountSaved}
       />
     </main>
   );

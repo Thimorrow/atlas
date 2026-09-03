@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { schoolBlocks, type SchoolBlock } from "@/lib/db/schema";
 import { normalizeSubject } from "@/lib/untis/adapter";
 import { lessonNoteBlockIds } from "@/lib/lesson-notes";
+import { participationCounts } from "@/lib/participation-store";
 import { assignmentDueBlockIds } from "@/lib/assignment-store";
 
 // Eine konkrete Event-Instanz an einem Tag (aus einer Untis-Stunde abgeleitet).
@@ -19,6 +20,7 @@ export type CalendarEvent = {
   teacher: string | null;
   hasNote: boolean;
   hasAssignment: boolean;
+  participation: number | null; // null = nicht erfasst, sonst der gezaehlte Wert (auch 0)
 };
 
 export type ExpandedDay = {
@@ -79,7 +81,12 @@ const hm = (t: string | null): string | null => (t ? t.slice(0, 5) : null);
 
 // --- Mapping -----------------------------------------------------------------
 
-function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>, dueBlockIds: Set<string>): CalendarEvent {
+function schoolToEvent(
+  b: SchoolBlock,
+  notedBlockIds: Set<string>,
+  dueBlockIds: Set<string>,
+  participationByBlock: Map<string, number>,
+): CalendarEvent {
   return {
     source: "school",
     refId: b.id,
@@ -92,6 +99,7 @@ function schoolToEvent(b: SchoolBlock, notedBlockIds: Set<string>, dueBlockIds: 
     teacher: b.teacher,
     hasNote: notedBlockIds.has(b.id),
     hasAssignment: dueBlockIds.has(b.id),
+    participation: participationByBlock.has(b.id) ? participationByBlock.get(b.id)! : null,
   };
 }
 
@@ -106,16 +114,19 @@ export async function expandRange(startISO: string, endISO: string): Promise<Exp
 
   // Zwei zusaetzliche Queries fuer die ganze Spanne statt eins pro Block --
   // sonst waere das ein N+1 bei jedem Wochenwechsel.
-  const notedBlockIds = await lessonNoteBlockIds(blocks.map((b) => b.id));
-  const dueBlockIds = await assignmentDueBlockIds(
-    blocks.map((b) => ({ id: b.id, date: b.date, subject: b.subject })),
-  );
+  // Parallel, nicht nacheinander: die drei haengen nicht voneinander ab, und
+  // hintereinander kostet jeder Wochenwechsel drei Roundtrips statt einem.
+  const [notedBlockIds, dueBlockIds, participationByBlock] = await Promise.all([
+    lessonNoteBlockIds(blocks.map((b) => b.id)),
+    assignmentDueBlockIds(blocks.map((b) => ({ id: b.id, date: b.date, subject: b.subject }))),
+    participationCounts(blocks.map((b) => b.id)),
+  ]);
 
   const days: ExpandedDay[] = eachDay(startISO, endISO).map((date) => {
     const weekday = weekdayOf(date);
     const dayEvents: CalendarEvent[] = blocks
       .filter((b) => b.date === date)
-      .map((b) => schoolToEvent(b, notedBlockIds, dueBlockIds));
+      .map((b) => schoolToEvent(b, notedBlockIds, dueBlockIds, participationByBlock));
     dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
     return { date, weekday, events: dayEvents };
   });
