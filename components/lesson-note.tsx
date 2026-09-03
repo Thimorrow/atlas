@@ -239,6 +239,11 @@ export function LessonNoteEditor({
             <textarea
               ref={textareaRef}
               data-autofocus
+              // Kein sichtbares <label> im randlosen Feld -- der Panel-Titel
+              // uebernimmt die Rolle, aria-label benennt das Feld selbst noch
+              // einmal explizit fuer Screenreader (Platzhalter allein zaehlt
+              // nicht als Name).
+              aria-label="Notiztext"
               value={body}
               onChange={(e) => {
                 typedRef.current = true;
@@ -248,8 +253,11 @@ export function LessonNoteEditor({
               placeholder="Was ist in dieser Stunde passiert?"
               rows={4}
               className={cn(
-                "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground",
-                !reduce && "transition-[height] duration-150 ease-[var(--ease-atlas)]",
+                // outline-none nie ohne Ersatz: ein weicher Tint statt Ring,
+                // der randlose Look bleibt erhalten, Tastaturnutzer sehen den
+                // Fokus trotzdem klar.
+                "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground focus-visible:bg-accent/40",
+                !reduce && "transition-[height,background-color] duration-150 ease-[var(--ease-atlas)]",
               )}
             />
           </div>
