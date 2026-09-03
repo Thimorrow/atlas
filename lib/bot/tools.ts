@@ -89,12 +89,22 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "aufgaben_lesen",
-      description: "Liest Aufgaben (Hausaufgaben, Klassenarbeiten, ...), optional gefiltert.",
+      description:
+        "Liest Aufgaben (Hausaufgaben, Klassenarbeiten, ...), optional gefiltert. Fuer eine Frage nach anstehenden Pruefungen setze typ auf [\"exam\", \"test\", \"presentation\"], statt alles zu lesen und selbst zu sortieren.",
       parameters: {
         type: "object",
         properties: {
           nurOffen: { type: "boolean", description: "Nur nicht erledigte Aufgaben. Standard: true." },
           fach: { type: "string", description: "Name des Fachs, z. B. \"Mathe\"." },
+          typ: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["homework", "exam", "test", "presentation", "other"],
+            },
+            description:
+              "Auf diese Arten einschraenken. homework = Hausaufgabe, exam = Klassenarbeit, test = Test, presentation = Referat.",
+          },
         },
       },
     },
@@ -359,7 +369,25 @@ async function aufgabenLesen(args: Record<string, unknown>) {
     subjectId = subject.id;
   }
   const list = await listAssignments({ includeCompleted: !nurOffen, subjectId });
-  return { aufgaben: list };
+
+  // Nach Art filtern erst hier, nicht im Store: der Store liefert die Aufgaben
+  // schon fertig sortiert und angereichert, und die Menge ist klein genug,
+  // dass sich dafuer keine zweite Abfrage lohnt. Unbekannte Werte werden
+  // stillschweigend ignoriert statt zu einem Fehler zu fuehren -- ein Modell,
+  // das sich eine Art ausdenkt, soll trotzdem eine brauchbare Antwort bekommen.
+  const erlaubt = new Set(["homework", "exam", "test", "presentation", "other"]);
+  const typen = Array.isArray(args.typ)
+    ? args.typ.filter((t): t is string => typeof t === "string" && erlaubt.has(t))
+    : [];
+  if (typen.length === 0) return { aufgaben: list };
+
+  const gefiltert = list.filter((a) => typen.includes(a.type));
+  return {
+    aufgaben: gefiltert,
+    ...(gefiltert.length === 0
+      ? { hinweis: `Keine Aufgaben dieser Art (${typen.join(", ")}) gefunden.` }
+      : {}),
+  };
 }
 
 async function faecherLesen() {

@@ -8,6 +8,7 @@ const updateNote = vi.fn();
 const createNote = vi.fn();
 const getAssignment = vi.fn();
 const updateAssignment = vi.fn();
+const listAssignments = vi.fn();
 const isUuid = (v: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
@@ -23,7 +24,7 @@ vi.mock("@/lib/calendar-expand", () => ({ expandRange: vi.fn() }));
 vi.mock("@/lib/assignment-store", () => ({
   createAssignment: vi.fn(),
   getAssignment,
-  listAssignments: vi.fn(),
+  listAssignments,
   updateAssignment,
   setAssignmentCompleted: vi.fn(),
   assignmentDueBlockIds: vi.fn(),
@@ -46,6 +47,7 @@ beforeEach(() => {
   createNote.mockReset();
   getAssignment.mockReset();
   updateAssignment.mockReset();
+  listAssignments.mockReset();
 });
 
 describe("notiz_aendern schuetzt den vorhandenen Text", () => {
@@ -111,6 +113,45 @@ describe("aufgabe_aendern schuetzt die vorhandene Faelligkeit", () => {
     await runTool("aufgabe_aendern", { aufgabeId: ID, titel: "   " });
     const patch = updateAssignment.mock.calls.at(-1)?.[1] ?? {};
     expect(patch).not.toHaveProperty("title");
+  });
+});
+
+describe("aufgaben_lesen filtert nach Art", () => {
+  const aufgaben = [
+    { id: "a", type: "homework", title: "Seite 84" },
+    { id: "b", type: "exam", title: "Klassenarbeit" },
+    { id: "c", type: "presentation", title: "Referat" },
+  ];
+
+  it("gibt ohne typ alles zurueck", async () => {
+    listAssignments.mockResolvedValue(aufgaben);
+    const e = (await runTool("aufgaben_lesen", {})) as { aufgaben: unknown[] };
+    expect(e.aufgaben).toHaveLength(3);
+  });
+
+  it("laesst nur die genannten Arten durch", async () => {
+    listAssignments.mockResolvedValue(aufgaben);
+    const e = (await runTool("aufgaben_lesen", { typ: ["exam", "presentation"] })) as {
+      aufgaben: { id: string }[];
+    };
+    expect(e.aufgaben.map((a) => a.id)).toEqual(["b", "c"]);
+  });
+
+  it("ignoriert eine erfundene Art, statt zu scheitern", async () => {
+    listAssignments.mockResolvedValue(aufgaben);
+    const e = (await runTool("aufgaben_lesen", { typ: ["klausur"] })) as { aufgaben: unknown[] };
+    // Nur Unsinn im Filter heisst: gar nicht filtern, nicht leer zurueckgeben.
+    expect(e.aufgaben).toHaveLength(3);
+  });
+
+  it("sagt Bescheid, wenn es zu der Art nichts gibt", async () => {
+    listAssignments.mockResolvedValue([aufgaben[0]]);
+    const e = (await runTool("aufgaben_lesen", { typ: ["exam"] })) as {
+      aufgaben: unknown[];
+      hinweis?: string;
+    };
+    expect(e.aufgaben).toHaveLength(0);
+    expect(e.hinweis).toBeTruthy();
   });
 });
 
