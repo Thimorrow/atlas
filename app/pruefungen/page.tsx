@@ -11,7 +11,7 @@ import { ChevronLeft, ChevronRight, GraduationCap, PartyPopper, Plus, Presentati
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AssignmentComposer } from "@/components/assignment-composer";
+import { ExamComposer } from "@/components/exam-composer";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import {
@@ -147,12 +147,11 @@ export default function PruefungenPage() {
         )}
       </Stagger>
 
-      <AssignmentComposer
+      <ExamComposer
         open={composerOpen}
         onOpenChange={setComposerOpen}
         subjects={subjects}
-        initial={{ type: "exam" }}
-        newHeading="Neue Prüfung"
+        existingExams={upcoming}
         onSaved={onCreated}
       />
     </main>
