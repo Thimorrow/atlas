@@ -11,6 +11,7 @@ import {
   GraduationCap,
   ListChecks,
   Library,
+  Sunrise,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -35,6 +36,7 @@ type Mod = { label: string; icon: typeof CalendarDays; href: string };
 // oben, das Halbjahresbild unten.
 const MODULES: Mod[] = [
   { label: "Stundenplan", icon: CalendarDays, href: "/" },
+  { label: "Morgen", icon: Sunrise, href: "/morgen" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
   { label: "Prüfungen", icon: GraduationCap, href: "/pruefungen" },
   { label: "Fächer", icon: Library, href: "/faecher" },

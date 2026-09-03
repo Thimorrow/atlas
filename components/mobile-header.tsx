@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, GraduationCap, ListChecks, Library, Settings } from "lucide-react";
+import { BarChart3, Bot, GraduationCap, ListChecks, Library, Settings, Sunrise } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { toggleBotOverlay } from "@/components/bot-overlay-host";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function MobileHeader() {
         <Bot className="size-[18px]" />
       </button>
       {[
+        { href: "/morgen", label: "Morgen", icon: Sunrise },
         { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
         { href: "/pruefungen", label: "Prüfungen", icon: GraduationCap },
         { href: "/faecher", label: "Fächer", icon: Library },
