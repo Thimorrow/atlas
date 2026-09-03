@@ -32,6 +32,6 @@ export const maxDuration = 60;
 // nur noch als Notfall-Handweg, falls doch mal von Hand nachgeholt werden muss.
 
 export async function POST() {
-  const ergebnis = await applyMigrations((anweisung) => db.execute(sql.raw(anweisung)));
+  const ergebnis = await applyMigrations((anweisung: string) => db.execute(sql.raw(anweisung)));
   return NextResponse.json(ergebnis, { status: ergebnis.ok ? 200 : 500 });
 }
