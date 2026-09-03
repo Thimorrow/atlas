@@ -203,6 +203,267 @@ type Editor = { id: string | null; title: string; body: string };
 // ohne sie klickt man ein zweites Mal, um zu pruefen, ob es geklappt hat.
 type SendState = "idle" | "sending" | "sent";
 
+// Eine Zeile der gemischten Liste (freie Notiz oder Stundennotiz). Aus dem
+// Return von SubjectNotes herausgezogen -- war dort als verschachteltes
+// Ternary in .map() kaum noch zu lesen, beide Varianten teilen ohnehin
+// dieselbe Button-Huelle.
+function MergedNoteRow({
+  entry,
+  onOpenNote,
+  onOpenLessonNote,
+}: {
+  entry: MergedEntry;
+  onOpenNote: (id: string) => void;
+  onOpenLessonNote: (n: SubjectLessonNoteDTO) => void;
+}) {
+  const rowClass =
+    "relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+  if (entry.kind === "note") {
+    return (
+      <li>
+        <button type="button" onClick={() => onOpenNote(entry.note.id)} className={rowClass}>
+          <span className="flex w-full items-baseline justify-between gap-3">
+            <span className="truncate text-[15px] font-medium leading-tight">{entry.note.title}</span>
+            <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
+              {fmtDate(entry.note.updatedAt)}
+            </span>
+          </span>
+          <span className="line-clamp-1 w-full text-[13px] text-muted-foreground">
+            {markdownPreview(entry.note.body) || "Kein Text"}
+          </span>
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <button type="button" onClick={() => onOpenLessonNote(entry.note)} className={rowClass}>
+        <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
+          {fmtLessonHeader(entry.note.date, entry.note.startTime)} · Stunde
+        </span>
+        <span className="line-clamp-2 w-full text-[13px] text-foreground">{entry.note.body}</span>
+      </button>
+    </li>
+  );
+}
+
+// Inhalt des Lese-Overlays. Bekommt `note` garantiert nicht-null -- der
+// Aufrufer rendert diese Komponente nur, wenn eine Notiz offen ist, damit
+// das umschliessende <Overlay> weiter dessen eigenen Open/Close-Zustand
+// steuert (AnimatePresence braucht die Kind-Identitaet stabil).
+function ReadNoteBody({
+  note,
+  html,
+  onClose,
+  onDelete,
+  onEdit,
+  onenoteReady,
+  send,
+  onSendToOnenote,
+}: {
+  note: NoteDTO;
+  html: string;
+  onClose: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onenoteReady: boolean;
+  send: SendState;
+  onSendToOnenote: () => void;
+}) {
+  return (
+    <>
+      <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <h3 id="note-read-title" className="text-[17px] font-semibold leading-tight tracking-tight">
+            {note.title}
+          </h3>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">Zuletzt geändert am {fmtDate(note.updatedAt)}</p>
+        </div>
+        <Button variant="ghost" size="icon" aria-label="Notiz schließen" onClick={onClose}>
+          <X className="size-4" />
+        </Button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {note.body.trim() ? (
+          <div className={PROSE} dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <p className="text-sm text-muted-foreground">Diese Notiz hat noch keinen Text.</p>
+        )}
+      </div>
+      <footer className="flex items-center justify-between gap-2 border-t px-5 py-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+          Löschen
+        </Button>
+        <div className="flex items-center gap-2">
+          {/* Der Text im Knopf aendert sich, das meldet kein Screenreader
+              von selbst -- deshalb dieselbe Auskunft noch einmal als
+              unsichtbare Live-Region. */}
+          <span role="status" aria-live="polite" className="sr-only">
+            {send === "sending"
+              ? "Notiz wird an OneNote gesendet."
+              : send === "sent"
+                ? "Notiz wurde in OneNote angelegt."
+                : ""}
+          </span>
+          {onenoteReady && (
+            <Button variant="outline" size="sm" disabled={send === "sending"} onClick={onSendToOnenote}>
+              {send === "sending" ? (
+                <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              ) : send === "sent" ? (
+                <Check aria-hidden="true" className="size-4" />
+              ) : (
+                <Send aria-hidden="true" className="size-4" />
+              )}
+              {/* Alle drei Beschriftungen liegen in derselben Grid-Zelle:
+                  der Knopf reserviert die Breite des laengsten Texts und
+                  springt beim Wechsel nicht. */}
+              <span className="relative inline-grid">
+                <span className={cn("col-start-1 row-start-1", send !== "idle" && "invisible")}>
+                  An OneNote senden
+                </span>
+                <span className={cn("col-start-1 row-start-1", send !== "sending" && "invisible")}>
+                  Wird gesendet …
+                </span>
+                <span className={cn("col-start-1 row-start-1", send !== "sent" && "invisible")}>
+                  In OneNote angelegt
+                </span>
+              </span>
+            </Button>
+          )}
+          <Button size="sm" onClick={onEdit}>
+            <Pencil className="size-4" />
+            Bearbeiten
+          </Button>
+        </div>
+      </footer>
+    </>
+  );
+}
+
+// Inhalt des Anlegen-/Bearbeiten-Overlays.
+function EditNoteBody({
+  editor,
+  busy,
+  onChange,
+  onKeyDown,
+  onCancel,
+  onSave,
+}: {
+  editor: Editor;
+  busy: boolean;
+  onChange: (editor: Editor) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <>
+      <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
+        <h3 id="note-edit-title" className="flex-1 text-[17px] font-semibold leading-tight tracking-tight">
+          {editor.id ? "Notiz bearbeiten" : "Neue Notiz"}
+        </h3>
+        <Button variant="ghost" size="icon" aria-label="Abbrechen" onClick={onCancel}>
+          <X className="size-4" />
+        </Button>
+      </header>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="note-title" className="text-[13px] font-medium">
+            Titel
+          </label>
+          <input
+            id="note-title"
+            data-autofocus
+            value={editor.title}
+            onChange={(e) => onChange({ ...editor, title: e.target.value })}
+            onKeyDown={onKeyDown}
+            placeholder="Worum geht es?"
+            autoComplete="off"
+            className="h-11 w-full rounded-lg border bg-background px-3 text-[16px] outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="note-body" className="text-[13px] font-medium">
+            Text
+          </label>
+          {/* Bewusst ein einfaches Textfeld statt Rich-Text: Markdown
+              bleibt sichtbar und lesbar, auch auf dem Handy. 16px
+              Schriftgroesse verhindert den Auto-Zoom in iOS Safari. */}
+          <textarea
+            id="note-body"
+            value={editor.body}
+            onChange={(e) => onChange({ ...editor, body: e.target.value })}
+            onKeyDown={onKeyDown}
+            rows={10}
+            placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
+            className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          />
+          <p className="text-[12px] text-muted-foreground">
+            Markdown wird unterstützt: Überschriften, Listen, Fett, Kursiv, Code und Links.
+          </p>
+        </div>
+      </div>
+      <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Abbrechen
+        </Button>
+        <Button size="sm" onClick={onSave} disabled={busy || !editor.title.trim()}>
+          {busy ? "Speichert…" : "Speichern"}
+        </Button>
+      </footer>
+    </>
+  );
+}
+
+// Inhalt des Loesch-Bestaetigungs-Overlays.
+function DeleteNoteBody({
+  note,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  note: NoteDTO;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="px-5 py-5">
+      <h3 id="note-delete-title" className="text-[16px] font-semibold leading-tight tracking-tight">
+        Notiz löschen?
+      </h3>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        „{note.title}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen.
+      </p>
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Abbrechen
+        </Button>
+        <Button
+          size="sm"
+          data-autofocus
+          onClick={onConfirm}
+          disabled={busy}
+          // Es gibt kein --destructive-foreground-Token: text-background
+          // traegt in beiden Themes. Weiss waere im Dunkelmodus zu blass,
+          // dort ist --destructive ein helles Rot.
+          className="bg-destructive text-background hover:bg-destructive/90"
+        >
+          {busy ? "Löscht…" : "Löschen"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function SubjectNotes({
   subjectId,
   initialNotes,
@@ -362,196 +623,51 @@ export function SubjectNotes({
       {merged.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center">
           <NotebookPen className="size-6 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Hier landen deine Notizen zum Fach: eine freie Notiz legst du über „Neue Notiz" an, eine
-            Stundennotiz schreibst du direkt an der Stunde im Stundenplan.
+          <p className="text-sm font-medium">Noch keine Notizen</p>
+          <p className="max-w-[38ch] text-[13px] text-muted-foreground">
+            Lege oben eine freie Notiz an oder schreib direkt an einer Stunde im Stundenplan.
           </p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
-          {merged.map((entry) =>
-            entry.kind === "note" ? (
-              <li key={`note-${entry.note.id}`}>
-                <button
-                  type="button"
-                  onClick={() => setOpenId(entry.note.id)}
-                  className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <span className="flex w-full items-baseline justify-between gap-3">
-                    <span className="truncate text-[15px] font-medium leading-tight">{entry.note.title}</span>
-                    <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
-                      {fmtDate(entry.note.updatedAt)}
-                    </span>
-                  </span>
-                  <span className="line-clamp-1 w-full text-[13px] text-muted-foreground">
-                    {markdownPreview(entry.note.body) || "Kein Text"}
-                  </span>
-                </button>
-              </li>
-            ) : (
-              <li key={`lesson-${entry.note.id}`}>
-                <button
-                  type="button"
-                  onClick={() => onOpenLessonNote(entry.note)}
-                  className="relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                >
-                  <span className="text-[12px] font-medium tabular-nums text-muted-foreground">
-                    {fmtLessonHeader(entry.note.date, entry.note.startTime)} · Stunde
-                  </span>
-                  <span className="line-clamp-2 w-full text-[13px] text-foreground">{entry.note.body}</span>
-                </button>
-              </li>
-            ),
-          )}
+          {merged.map((entry) => (
+            <MergedNoteRow
+              key={entry.kind === "note" ? `note-${entry.note.id}` : `lesson-${entry.note.id}`}
+              entry={entry}
+              onOpenNote={setOpenId}
+              onOpenLessonNote={onOpenLessonNote}
+            />
+          ))}
         </ul>
       )}
 
       {/* Lesen */}
       <Overlay open={!!open} onClose={() => setOpenId(null)} labelledBy="note-read-title">
         {open ? (
-          <>
-            <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
-              <div className="min-w-0 flex-1">
-                <h3 id="note-read-title" className="text-[17px] font-semibold leading-tight tracking-tight">
-                  {open.title}
-                </h3>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  Zuletzt geändert am {fmtDate(open.updatedAt)}
-                </p>
-              </div>
-              <Button variant="ghost" size="icon" aria-label="Notiz schließen" onClick={() => setOpenId(null)}>
-                <X className="size-4" />
-              </Button>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-              {open.body.trim() ? (
-                <div className={PROSE} dangerouslySetInnerHTML={{ __html: html }} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Diese Notiz hat noch keinen Text.</p>
-              )}
-            </div>
-            <footer className="flex items-center justify-between gap-2 border-t px-5 py-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmId(open.id)}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-                Löschen
-              </Button>
-              <div className="flex items-center gap-2">
-                {/* Der Text im Knopf aendert sich, das meldet kein Screenreader
-                    von selbst -- deshalb dieselbe Auskunft noch einmal als
-                    unsichtbare Live-Region. */}
-                <span role="status" aria-live="polite" className="sr-only">
-                  {send === "sending"
-                    ? "Notiz wird an OneNote gesendet."
-                    : send === "sent"
-                      ? "Notiz wurde in OneNote angelegt."
-                      : ""}
-                </span>
-                {onenoteReady && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={send === "sending"}
-                    onClick={() => void sendToOnenote(open.id)}
-                  >
-                    {send === "sending" ? (
-                      <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-                    ) : send === "sent" ? (
-                      <Check aria-hidden="true" className="size-4" />
-                    ) : (
-                      <Send aria-hidden="true" className="size-4" />
-                    )}
-                    {/* Alle drei Beschriftungen liegen in derselben Grid-Zelle:
-                        der Knopf reserviert die Breite des laengsten Texts und
-                        springt beim Wechsel nicht. */}
-                    <span className="relative inline-grid">
-                      <span className={cn("col-start-1 row-start-1", send !== "idle" && "invisible")}>
-                        An OneNote senden
-                      </span>
-                      <span className={cn("col-start-1 row-start-1", send !== "sending" && "invisible")}>
-                        Wird gesendet …
-                      </span>
-                      <span className={cn("col-start-1 row-start-1", send !== "sent" && "invisible")}>
-                        In OneNote angelegt
-                      </span>
-                    </span>
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  onClick={() => setEditor({ id: open.id, title: open.title, body: open.body })}
-                >
-                  <Pencil className="size-4" />
-                  Bearbeiten
-                </Button>
-              </div>
-            </footer>
-          </>
+          <ReadNoteBody
+            note={open}
+            html={html}
+            onClose={() => setOpenId(null)}
+            onDelete={() => setConfirmId(open.id)}
+            onEdit={() => setEditor({ id: open.id, title: open.title, body: open.body })}
+            onenoteReady={onenoteReady}
+            send={send}
+            onSendToOnenote={() => void sendToOnenote(open.id)}
+          />
         ) : null}
       </Overlay>
 
       {/* Anlegen und Bearbeiten */}
       <Overlay open={!!editor} onClose={() => setEditor(null)} labelledBy="note-edit-title">
         {editor ? (
-          <>
-            <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
-              <h3 id="note-edit-title" className="flex-1 text-[17px] font-semibold leading-tight tracking-tight">
-                {editor.id ? "Notiz bearbeiten" : "Neue Notiz"}
-              </h3>
-              <Button variant="ghost" size="icon" aria-label="Abbrechen" onClick={() => setEditor(null)}>
-                <X className="size-4" />
-              </Button>
-            </header>
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="note-title" className="text-[13px] font-medium">
-                  Titel
-                </label>
-                <input
-                  id="note-title"
-                  data-autofocus
-                  value={editor.title}
-                  onChange={(e) => setEditor({ ...editor, title: e.target.value })}
-                  onKeyDown={onEditorKeyDown}
-                  placeholder="Worum geht es?"
-                  autoComplete="off"
-                  className="h-11 w-full rounded-lg border bg-background px-3 text-[16px] outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="note-body" className="text-[13px] font-medium">
-                  Text
-                </label>
-                {/* Bewusst ein einfaches Textfeld statt Rich-Text: Markdown
-                    bleibt sichtbar und lesbar, auch auf dem Handy. 16px
-                    Schriftgroesse verhindert den Auto-Zoom in iOS Safari. */}
-                <textarea
-                  id="note-body"
-                  value={editor.body}
-                  onChange={(e) => setEditor({ ...editor, body: e.target.value })}
-                  onKeyDown={onEditorKeyDown}
-                  rows={10}
-                  placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
-                  className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                />
-                <p className="text-[12px] text-muted-foreground">
-                  Markdown wird unterstützt: Überschriften, Listen, Fett, Kursiv, Code und Links.
-                </p>
-              </div>
-            </div>
-            <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
-              <Button variant="ghost" size="sm" onClick={() => setEditor(null)} disabled={busy}>
-                Abbrechen
-              </Button>
-              <Button size="sm" onClick={() => void save()} disabled={busy || !editor.title.trim()}>
-                {busy ? "Speichert…" : "Speichern"}
-              </Button>
-            </footer>
-          </>
+          <EditNoteBody
+            editor={editor}
+            busy={busy}
+            onChange={setEditor}
+            onKeyDown={onEditorKeyDown}
+            onCancel={() => setEditor(null)}
+            onSave={() => void save()}
+          />
         ) : null}
       </Overlay>
 
@@ -563,31 +679,12 @@ export function SubjectNotes({
         className="sm:max-w-sm"
       >
         {confirmNote ? (
-          <div className="px-5 py-5">
-            <h3 id="note-delete-title" className="text-[16px] font-semibold leading-tight tracking-tight">
-              Notiz löschen?
-            </h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              „{confirmNote.title}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen.
-            </p>
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setConfirmId(null)} disabled={busy}>
-                Abbrechen
-              </Button>
-              <Button
-                size="sm"
-                data-autofocus
-                onClick={() => void remove(confirmNote.id)}
-                disabled={busy}
-                // Es gibt kein --destructive-foreground-Token: text-background
-                // traegt in beiden Themes. Weiss waere im Dunkelmodus zu blass,
-                // dort ist --destructive ein helles Rot.
-                className="bg-destructive text-background hover:bg-destructive/90"
-              >
-                {busy ? "Löscht…" : "Löschen"}
-              </Button>
-            </div>
-          </div>
+          <DeleteNoteBody
+            note={confirmNote}
+            busy={busy}
+            onCancel={() => setConfirmId(null)}
+            onConfirm={() => void remove(confirmNote.id)}
+          />
         ) : null}
       </Overlay>
     </div>
