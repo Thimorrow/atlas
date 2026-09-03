@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AlertCircle, Check, Loader2, NotebookPen, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/toast";
+import { TOAST_DURATION, useToast } from "@/components/toast";
 import { markdownPreview, renderMarkdown } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
 
@@ -551,6 +551,35 @@ export function SubjectNotes({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
+  // Schwebende Loeschungen (id -> Notiz + Timer), solange die Undo-Frist
+  // laeuft. Ein blosser window.setTimeout allein ist nicht genug: verlaesst
+  // der Nutzer die Seite (Reload, Tab schliessen, harte Navigation) bevor er
+  // ablaeuft, feuert er nie, die Notiz ist optimistisch aus der Liste weg,
+  // aber serverseitig nie geloescht -- stille Inkonsistenz beim naechsten
+  // Laden. Der Effekt unten holt jede noch offene Loeschung beim Unmount und
+  // bei "pagehide" sofort nach.
+  const pendingDeletesRef = useRef<Map<string, { note: NoteDTO; timer: number }>>(
+    new Map(),
+  );
+
+  useEffect(() => {
+    // keepalive haelt den Request am Leben, auch wenn die Seite im selben
+    // Moment abgebaut wird -- ohne das Flag wuerde fetch beim Reload/Schliessen
+    // abgebrochen, genau der Fall, den dieser Effekt abfangen soll.
+    function flushPendingDeletes() {
+      for (const [id, entry] of pendingDeletesRef.current) {
+        clearTimeout(entry.timer);
+        void fetch(`/api/notes/${id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      }
+      pendingDeletesRef.current.clear();
+    }
+    window.addEventListener("pagehide", flushPendingDeletes);
+    return () => {
+      window.removeEventListener("pagehide", flushPendingDeletes);
+      flushPendingDeletes();
+    };
+  }, []);
+
   const open = useMemo(() => notes.find((n) => n.id === openId) ?? null, [notes, openId]);
 
   // Beide Notizarten chronologisch gemischt, neuste zuerst. Bei einer
@@ -651,10 +680,14 @@ export function SubjectNotes({
 
   // Optimistisches Loeschen mit Undo-Toast statt Bestaetigungsdialog: die
   // Notiz verschwindet sofort aus der Liste, der tatsaechliche DELETE-Request
-  // laeuft erst nach der Undo-Frist (an die 4s-Anzeigedauer des Toasts in
-  // components/toast.tsx gekoppelt). Klickt der Nutzer "Rueckgaengig", wird
-  // der Request nie ausgeloest -- kein Server-Rundweg fuer die Undo-Faelle,
-  // die in der Praxis die meisten sein duerften.
+  // laeuft erst nach TOAST_DURATION (echt importiert aus components/toast.tsx,
+  // nicht nur zufaellig dieselbe Zahl -- die Undo-Aktion verschwindet mit dem
+  // Toast, die Frist muss exakt dazu passen). Klickt der Nutzer "Rueckgaengig",
+  // wird der zugehoerige Timer geloescht, der Request also nie ausgeloest --
+  // kein Server-Rundweg fuer die Undo-Faelle, die in der Praxis die meisten
+  // sein duerften. Verlaesst der Nutzer die Seite vor Ablauf der Frist, holt
+  // der Effekt oben (pendingDeletesRef) die Loeschung sofort nach, statt sie
+  // stillschweigend zu verlieren.
   function remove(id: string) {
     const note = notes.find((n) => n.id === id);
     if (!note) return;
@@ -662,17 +695,8 @@ export function SubjectNotes({
     setNotes((prev) => prev.filter((n) => n.id !== id));
     setOpenId((cur) => (cur === id ? null : cur));
 
-    let undone = false;
-    toast("Notiz gelöscht", "success", {
-      label: "Rückgängig",
-      onClick: () => {
-        undone = true;
-        setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
-      },
-    });
-
-    window.setTimeout(() => {
-      if (undone) return;
+    const timer = window.setTimeout(() => {
+      pendingDeletesRef.current.delete(id);
       void (async () => {
         try {
           const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
@@ -689,7 +713,21 @@ export function SubjectNotes({
           toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
         }
       })();
-    }, 4000);
+    }, TOAST_DURATION);
+
+    pendingDeletesRef.current.set(id, { note, timer });
+
+    toast("Notiz gelöscht", "success", {
+      label: "Rückgängig",
+      onClick: () => {
+        const pending = pendingDeletesRef.current.get(id);
+        if (pending) {
+          clearTimeout(pending.timer);
+          pendingDeletesRef.current.delete(id);
+        }
+        setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
+      },
+    });
   }
 
   // Beim Wechsel der geoeffneten Notiz zurueck auf Anfang: eine stehengebliebene
