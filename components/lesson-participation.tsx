@@ -23,10 +23,17 @@ import { cn } from "@/lib/utils";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 // Haptik-Analogon: ein sehr kurzer Vibrationsimpuls beim Hochzaehlen, als
-// koerperliches Feedback zusaetzlich zur visuellen Zahlen-Animation --
-// genau dann wichtig, wenn waehrend des Unterrichts nicht hingesehen wird.
-// Feature-Detection + try/catch, weil iOS Safari die API nicht kennt und
-// manche Browser sie hinter einem User-Gesture drosseln.
+// zusaetzliches Feedback neben der visuellen Zahlen-Animation. Ein Bonus,
+// keine tragende Saeule: iOS Safari kennt die Vibration API ueberhaupt
+// nicht (dort passiert schlicht nichts, sauber abgefangen durch die
+// Feature-Detection), nur auf Android-Browsern kommt sie an. Das eigentliche
+// "sicher ohne Hinsehen zaehlen" traegt deshalb allein die Geometrie: der
+// +1-Knopf ist gross und gut vom -1-Knopf abgesetzt, ein Fehltipp ist billig
+// (Rueckgaengig-Chip, siehe bump()) -- nicht die Vibration.
+// Wer prefers-reduced-motion gesetzt hat, will in aller Regel weniger
+// sensorische Reize insgesamt, nicht nur weniger Bewegung auf dem Bildschirm
+// -- deshalb entscheidet der Aufrufer per reduce-Flag, ob ueberhaupt
+// vibriert wird (siehe bump()).
 function tick() {
   try {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -212,8 +219,10 @@ export function LessonParticipationEditor({
     if (delta === 1) {
       // Haptik-Analogon nur beim Hochzaehlen -- das ist die haeufige,
       // bestaetigende Aktion; -1 ist schon die Korrektur und braucht keinen
-      // zusaetzlichen Impuls.
-      tick();
+      // zusaetzlichen Impuls. An reduce gekoppelt wie die visuelle Motion:
+      // prefers-reduced-motion heisst in aller Regel "weniger Reize
+      // insgesamt", nicht nur "weniger Bewegung auf dem Bildschirm".
+      if (!reduce) tick();
       setShowUndo(true);
       undoTimerRef.current = setTimeout(() => setShowUndo(false), 2500);
     } else {
