@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { GraduationCap, Presentation, X } from "lucide-react";
+import { ChevronDown, GraduationCap, Presentation, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
@@ -66,16 +66,16 @@ type SubjectOption = { id: string; name: string; color: string | null };
 // unter 16px und verlaesst den Dialog optisch (siehe assignment-composer.tsx).
 const FIELD =
   "w-full rounded-lg border bg-background px-3 py-2 text-[16px] leading-snug outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card";
-const LABEL = "mb-1.5 block text-[13px] font-medium text-muted-foreground";
+const LABEL = "block text-[13px] font-medium text-muted-foreground";
 
 // Schnellauswahl fuer den Termin -- bei einer Pruefung liegt das Datum fast
 // immer in der naeheren Zukunft, ein Tippen spart den Umweg ueber den
 // nativen Datepicker.
-function dateShortcuts(today: string): { label: string; date: string }[] {
+function dateShortcuts(today: string): { label: string; title: string; date: string }[] {
   return [
-    { label: "In 1 Woche", date: addDays(today, 7) },
-    { label: "In 2 Wochen", date: addDays(today, 14) },
-    { label: "In 4 Wochen", date: addDays(today, 28) },
+    { label: "1 Wo.", title: "In 1 Woche", date: addDays(today, 7) },
+    { label: "2 Wo.", title: "In 2 Wochen", date: addDays(today, 14) },
+    { label: "4 Wo.", title: "In 4 Wochen", date: addDays(today, 28) },
   ];
 }
 
@@ -114,7 +114,7 @@ export function ExamComposer({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dateRef = useRef<HTMLInputElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
-  const subjectGroupRef = useRef<HTMLDivElement | null>(null);
+  const subjectRef = useRef<HTMLSelectElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
   const [type, setType] = useState<AssignmentType>("exam");
@@ -136,6 +136,7 @@ export function ExamComposer({
     subjectRequired && subjectTouched && !subjectId ? "Bitte ein Fach wählen." : null;
   const titleError = titleTouched && !title.trim() ? "Titel darf nicht leer sein." : null;
   const collisions = dueDate ? sameDayCount(existingExams, dueDate) : 0;
+  const selectedSubject = subjects.find((s) => s.id === subjectId) ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -203,7 +204,7 @@ export function ExamComposer({
     const subjectMissing = subjectRequired && !subjectId;
     if (subjectMissing) {
       setSubjectTouched(true);
-      subjectGroupRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      subjectRef.current?.focus();
       if (trimmed) return;
     }
     if (!trimmed) {
@@ -269,7 +270,7 @@ export function ExamComposer({
             transition={{ duration: 0.24, ease: EASE }}
             className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border bg-card shadow-popover sm:max-h-[85dvh] sm:rounded-2xl"
           >
-            <header className="shrink-0 border-b bg-muted/30 px-5 py-4">
+            <header className="shrink-0 border-b bg-muted/30 px-5 py-3">
               <div className="flex items-start justify-between gap-3">
                 <h2 id={`${uid}-title`} className="text-[15px] font-semibold leading-tight tracking-tight">
                   {NEW_HEADING[type]}
@@ -287,7 +288,7 @@ export function ExamComposer({
                   Formular-Block: drei fast gleichwertige Werte brauchen kein
                   volles Feld mit Label, ein Icon-Toggle traegt die gleiche
                   Information in einer Zeile. */}
-              <div role="group" aria-label="Art der Prüfung" className="mt-2.5 flex gap-1.5">
+              <div role="group" aria-label="Art der Prüfung" className="mt-2 flex gap-1.5">
                 {EXAM_TYPES.map((t) => {
                   const Icon = TYPE_ICON[t];
                   const active = type === t;
@@ -301,7 +302,7 @@ export function ExamComposer({
                         // Sichtbar bleibt der Chip klein, das Pseudo-Element hebt die
                         // Trefferflaeche ueber die 44px-Mindestgroesse (22px Chip +
                         // 2x12px Polster).
-                        "relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
+                        "relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
                         active
                           ? "border-foreground/25 bg-background text-foreground"
                           : "border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground",
@@ -321,48 +322,58 @@ export function ExamComposer({
                 weil das Blatt auf dem Handy bis an die Kante reicht. */}
             <form
               onSubmit={save}
-              className="space-y-4 overflow-y-auto px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+              className="space-y-3.5 overflow-y-auto px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
             >
               {/* Termin zuerst und am groessten: das ist die eigentliche
                   Frage bei einer Pruefung, nicht ein Faelligkeitsdatum wie
-                  bei einer Hausaufgabe -- die Arbeit findet an dem Tag statt. */}
+                  bei einer Hausaufgabe -- die Arbeit findet an dem Tag statt.
+                  Die Schnellauswahl sitzt neben dem Label statt in einer
+                  eigenen Zeile darunter: sie kostet so keine Bauhoehe. */}
               <div>
-                <label className={LABEL} htmlFor={`${uid}-due`}>
-                  Termin
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className={LABEL} htmlFor={`${uid}-due`}>
+                    Termin
+                  </label>
+                  <div className="flex gap-1">
+                    {dateShortcuts(today).map((s) => (
+                      <button
+                        key={s.label}
+                        type="button"
+                        title={s.title}
+                        onClick={() => setDueDate((cur) => (cur === s.date ? "" : s.date))}
+                        aria-pressed={dueDate === s.date}
+                        className={cn(
+                          // Trefferflaeche knapp ueber 44px: 30px Chip plus 2x8px
+                          // Polster. Mehr Polster ginge nicht -- die Flaeche wuerde
+                          // sonst die Typ-Chips im Kopf ueberlappen und deren untere
+                          // Kante unklickbar machen.
+                          "relative rounded-full border px-2 py-1.5 text-[12px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
+                          dueDate === s.date
+                            ? "border-foreground/25 bg-accent text-foreground"
+                            : "border-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+                        )}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <input
                   id={`${uid}-due`}
                   ref={dateRef}
                   type="date"
-                  className={cn(FIELD, "text-[17px] font-medium")}
+                  // relative z-10: die Trefferflaechen-Pseudoelemente der
+                  // Schnellauswahl darueber reichen bis in dieses Feld hinein
+                  // und wuerden sonst Klicks auf seine obere Kante schlucken.
+                  className={cn(FIELD, "relative z-10 font-medium")}
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                 />
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {dateShortcuts(today).map((s) => (
-                    <button
-                      key={s.label}
-                      type="button"
-                      onClick={() => setDueDate((cur) => (cur === s.date ? "" : s.date))}
-                      aria-pressed={dueDate === s.date}
-                      className={cn(
-                        // Sichtbar bleibt der Chip klein, die Trefferflaeche wird per
-                        // Pseudo-Element auf die 44px-Mindestgroesse angehoben.
-                        "relative rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
-                        dueDate === s.date
-                          ? "border-foreground/25 bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
-                      )}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
                 {/* Vorlauf und Kollision: beides Information, die eine reine
                     Datumseingabe verschluckt -- wie lange noch, und ob an dem
                     Tag schon etwas anderes ansteht. */}
                 {dueDate && (
-                  <p className="mt-1.5 text-[12.5px] text-muted-foreground">
+                  <p className="mt-1 text-[12.5px] text-muted-foreground">
                     {weekdayDateLabel(dueDate)} · {daysUntilLabel(dueDate, today)}
                     {collisions > 0 && (
                       <span className="font-medium text-foreground/70">
@@ -374,50 +385,72 @@ export function ExamComposer({
                 )}
               </div>
 
-              {/* Fach als Chip-Raster statt Select, und Pflichtfeld: eine
-                  Klassenarbeit ohne Fach ist der Ausnahmefall, nicht die
-                  Regel -- anders als bei einer Hausaufgabe. Ohne ein einziges
-                  angelegtes Fach waere ein Pflichtfeld aber eine Sackgasse,
+              {/* Fach als Auswahlfeld statt Chip-Raster, und Pflichtfeld:
+                  eine Klassenarbeit ohne Fach ist der Ausnahmefall, nicht die
+                  Regel -- anders als bei einer Hausaufgabe. Bei zwoelf oder
+                  mehr Faechern fuellt ein Chip-Raster den halben Dialog, ein
+                  Select bleibt bei einer Zeile; der Farbpunkt links zeigt das
+                  gewaehlte Fach weiterhin auf einen Blick. Ohne ein einziges
+                  angelegtes Fach waere ein Pflichtfeld eine Sackgasse,
                   deshalb bleibt die Auswahl dann optional (subjectRequired). */}
               <div>
-                <span className={LABEL} id={`${uid}-subject-label`}>
+                <label className={cn(LABEL, "mb-1")} htmlFor={`${uid}-subject`}>
                   Fach{subjectRequired && <span aria-hidden> *</span>}
-                </span>
+                </label>
                 {subjects.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
                     Noch kein Fach angelegt. Die Prüfung wird ohne Fach gespeichert.
                   </p>
                 ) : (
-                  <div
-                    ref={subjectGroupRef}
-                    role="group"
-                    aria-labelledby={`${uid}-subject-label`}
-                    aria-describedby={subjectError ? `${uid}-subject-error` : undefined}
-                    className="flex flex-wrap gap-1.5"
-                  >
-                    {subjects.map((s) => (
-                      <SubjectChip
-                        key={s.id}
-                        label={s.name}
-                        color={colorValue(s.color)}
-                        active={subjectId === s.id}
-                        onClick={() => {
-                          setSubjectId(s.id);
-                          setSubjectTouched(false);
-                        }}
+                  <div className="relative">
+                    {selectedSubject && (
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-3 top-1/2 size-2.5 -translate-y-1/2 rounded-full"
+                        style={{ backgroundColor: colorValue(selectedSubject.color) }}
                       />
-                    ))}
+                    )}
+                    <select
+                      id={`${uid}-subject`}
+                      ref={subjectRef}
+                      className={cn(
+                        FIELD,
+                        "appearance-none pr-9",
+                        selectedSubject && "pl-7",
+                        !subjectId && "text-muted-foreground",
+                        subjectError &&
+                          "border-destructive focus-visible:border-destructive focus-visible:ring-destructive",
+                      )}
+                      value={subjectId}
+                      onChange={(e) => {
+                        setSubjectId(e.target.value);
+                        setSubjectTouched(false);
+                      }}
+                      aria-invalid={Boolean(subjectError)}
+                      aria-describedby={subjectError ? `${uid}-subject-error` : undefined}
+                    >
+                      <option value="">Fach wählen …</option>
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      aria-hidden
+                      className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    />
                   </div>
                 )}
                 {subjectError && (
-                  <p id={`${uid}-subject-error`} className="mt-1.5 text-[12px] text-destructive">
+                  <p id={`${uid}-subject-error`} className="mt-1 text-[12px] text-destructive">
                     {subjectError}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className={LABEL} htmlFor={`${uid}-title-input`}>
+                <label className={cn(LABEL, "mb-1")} htmlFor={`${uid}-title-input`}>
                   Titel
                 </label>
                 <input
@@ -434,19 +467,19 @@ export function ExamComposer({
                   aria-describedby={titleError ? `${uid}-title-error` : undefined}
                 />
                 {titleError && (
-                  <p id={`${uid}-title-error`} className="mt-1.5 text-[12px] text-destructive">
+                  <p id={`${uid}-title-error`} className="mt-1 text-[12px] text-destructive">
                     {titleError}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className={LABEL} htmlFor={`${uid}-notes`}>
+                <label className={cn(LABEL, "mb-1")} htmlFor={`${uid}-notes`}>
                   Notiz
                 </label>
                 <textarea
                   id={`${uid}-notes`}
-                  rows={3}
+                  rows={2}
                   className={cn(FIELD, "resize-none")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -468,36 +501,5 @@ export function ExamComposer({
         </div>
       )}
     </AnimatePresence>
-  );
-}
-
-function SubjectChip({
-  label,
-  color,
-  active,
-  onClick,
-}: {
-  label: string;
-  color: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        // Wie bei den Datums-Chips: klein bleiben, aber ueber ein
-        // Pseudo-Element auf 44px Mindest-Trefferflaeche kommen.
-        "relative flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
-        active
-          ? "border-foreground/25 bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
-      )}
-    >
-      <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-      <span className="max-w-32 truncate">{label}</span>
-    </button>
   );
 }
