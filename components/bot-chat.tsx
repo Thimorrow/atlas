@@ -2,34 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Bot,
-  GraduationCap,
-  ListChecks,
-  NotebookPen,
-  Send,
-  Square,
-  Undo2,
-} from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, GraduationCap, Send, Square, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
-import { renderMarkdown, markdownPreview, repairMissingParagraphBreaks } from "@/lib/markdown";
+import { renderMarkdown, repairMissingParagraphBreaks } from "@/lib/markdown";
 import { parseBotEvent, splitNDJSON } from "@/lib/bot/stream";
-import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
-import { TYPE_LABEL, type AssignmentDTO } from "@/lib/assignments-view";
+import {
+  ActionCard,
+  fmtDate,
+  isAssignmentResult,
+  type AssignmentActionResult,
+  type NoteActionResult,
+} from "@/components/bot-action-card";
 import { cn } from "@/lib/utils";
 
-// Typ-only-Import wie in subject-notes.tsx: der Typ selbst wird beim Build
-// wegkompiliert, `lib/subject-store` zieht die DB aber nicht in den
-// Client-Bundle, solange nur der Typ verwendet wird.
-import type { NoteDTO } from "@/lib/subject-store";
-
 // --- Zustandsformen -----------------------------------------------------
-
-type AssignmentActionResult = { aufgabe: AssignmentDTO; hinweisFaellig?: string };
-type NoteActionResult = { notiz: NoteDTO };
 
 type ActionItem = {
   kind: "action";
@@ -83,13 +70,6 @@ type BotInfo = {
 
 const CREATE_TOOLS = new Set(["aufgabe_anlegen", "notiz_anlegen"]);
 
-function isAssignmentResult(
-  tool: string,
-  _result: AssignmentActionResult | NoteActionResult,
-): _result is AssignmentActionResult {
-  return tool === "aufgabe_anlegen" || tool === "aufgabe_aendern";
-}
-
 function actionToastText(tool: string): string {
   switch (tool) {
     case "aufgabe_anlegen":
@@ -107,12 +87,6 @@ function actionToastText(tool: string): string {
 
 // Atlas-Signaturkurve, wie in components/stagger.tsx und assignment-list.tsx.
 const EASE = [0.22, 1, 0.36, 1] as const;
-
-function fmtDate(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
 
 // --- Hauptkomponente ------------------------------------------------------
 
@@ -530,7 +504,32 @@ function TurnView({
 
         {turn.items.map((item) =>
           item.kind === "action" ? (
-            <ActionCard key={item.id} item={item} onUndo={() => onUndo(item)} />
+            <ActionCard
+              key={item.id}
+              tool={item.tool}
+              result={item.result}
+              dimmed={item.state === "undone"}
+              footer={
+                CREATE_TOOLS.has(item.tool) ? (
+                  item.state === "undone" ? (
+                    <p className="mt-2 text-[12px] text-muted-foreground">Zurückgenommen.</p>
+                  ) : (
+                    <div className="mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={item.busy}
+                        onClick={() => onUndo(item)}
+                        className="h-7 px-2 text-[12.5px]"
+                      >
+                        <Undo2 className="size-3.5" />
+                        {item.busy ? "Wird zurückgenommen …" : "Rückgängig"}
+                      </Button>
+                    </div>
+                  )
+                ) : null
+              }
+            />
           ) : (
             <ProposalCard
               key={item.id}
@@ -553,91 +552,6 @@ function TurnView({
 }
 
 // --- Karten -----------------------------------------------------------------
-
-function ActionCard({ item, onUndo }: { item: ActionItem; onUndo: () => void }) {
-  const isAssignment = isAssignmentResult(item.tool, item.result);
-  const canUndo = CREATE_TOOLS.has(item.tool);
-  const undone = item.state === "undone";
-  const reduce = useReducedMotion();
-  const enter = {
-    initial: reduce ? false : ({ opacity: 0, y: 6 } as const),
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.22, ease: EASE },
-  };
-
-  if (isAssignment) {
-    const a = (item.result as AssignmentActionResult).aufgabe;
-    const tint = a.subjectId ? colorValue(a.subjectColor) : NEUTRAL_COLOR;
-    return (
-      <motion.div {...enter} className={cn("max-w-[92%] rounded-xl border bg-card px-4 py-3", undone && "opacity-55")}>
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <ListChecks className="size-3.5" />
-          {item.tool === "aufgabe_anlegen" ? "Aufgabe angelegt" : "Aufgabe geändert"}
-        </div>
-        <p className={cn("mt-1.5 text-[15px] font-medium leading-snug", undone && "line-through decoration-foreground/30")}>
-          {a.title}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: tint }} />
-            {a.subjectName ?? "Allgemein"}
-          </span>
-          {a.type !== "homework" && (
-            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]">
-              {(a.type === "exam" || a.type === "test") && <GraduationCap className="size-3" strokeWidth={2.25} />}
-              {TYPE_LABEL[a.type]}
-            </span>
-          )}
-          {a.dueDate && <span className="tabular-nums">Fällig am {fmtDate(a.dueDate)}</span>}
-        </div>
-        <CardFooter canUndo={canUndo} undone={undone} busy={item.busy} onUndo={onUndo} />
-      </motion.div>
-    );
-  }
-
-  const n = (item.result as NoteActionResult).notiz;
-  return (
-    <motion.div {...enter} className={cn("max-w-[92%] rounded-xl border bg-card px-4 py-3", undone && "opacity-55")}>
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <NotebookPen className="size-3.5" />
-        {item.tool === "notiz_anlegen" ? "Notiz angelegt" : "Notiz geändert"}
-      </div>
-      <p className={cn("mt-1.5 text-[15px] font-medium leading-snug", undone && "line-through decoration-foreground/30")}>
-        {n.title}
-      </p>
-      {n.body.trim() && (
-        <p className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">{markdownPreview(n.body)}</p>
-      )}
-      <CardFooter canUndo={canUndo} undone={undone} busy={item.busy} onUndo={onUndo} />
-    </motion.div>
-  );
-}
-
-function CardFooter({
-  canUndo,
-  undone,
-  busy,
-  onUndo,
-}: {
-  canUndo: boolean;
-  undone: boolean;
-  busy: boolean;
-  onUndo: () => void;
-}) {
-  if (!canUndo) return null;
-  return (
-    <div className="mt-2">
-      {undone ? (
-        <p className="text-[12px] text-muted-foreground">Zurückgenommen.</p>
-      ) : (
-        <Button variant="ghost" size="sm" disabled={busy} onClick={onUndo} className="h-7 px-2 text-[12.5px]">
-          <Undo2 className="size-3.5" />
-          {busy ? "Wird zurückgenommen …" : "Rückgängig"}
-        </Button>
-      )}
-    </div>
-  );
-}
 
 function ProposalCard({
   item,

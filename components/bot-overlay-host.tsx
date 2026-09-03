@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import Link from "next/link";
+import { History, X } from "lucide-react";
 import { Overlay } from "@/components/subject-notes";
 import { BotChat } from "@/components/bot-chat";
 
@@ -56,6 +57,14 @@ export function BotOverlayHost() {
         <h2 id="bot-overlay-title" className="flex-1 text-[15px] font-semibold leading-tight tracking-tight">
           Atlas-Bot
         </h2>
+        <Link
+          href="/bot/verlauf"
+          onClick={() => setOpen(false)}
+          className="relative flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        >
+          <History className="size-3.5" />
+          Verlauf
+        </Link>
         <button
           type="button"
           onClick={() => setOpen(false)}
