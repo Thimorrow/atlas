@@ -50,6 +50,13 @@ data class Stand(
     val ohneVerbindung: Boolean = false,
 )
 
+enum class StundenplanEingabe {
+    AUSWAHL,
+    HAUSAUFGABE,
+    TEST,
+    NOTIZ,
+}
+
 /**
  * Was schon feststeht, wenn das Blatt aus einer Schulstunde heraus aufgeht.
  * null heisst: ueber das Pluszeichen geoeffnet, also ohne Vorgabe.
