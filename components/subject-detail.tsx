@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Archive, ArchiveRestore, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Archive, ArchiveRestore, GraduationCap, Loader2, Plus, Trash2 } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { ColorPicker, EmptyPanel, Modal, ButtonLink } from "@/components/subject-setup";
 import type { SubjectDTO } from "@/components/subject-card";
 import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
+import { ExamComposer } from "@/components/exam-composer";
 import { SubjectNotes, type SubjectLessonNoteDTO } from "@/components/subject-notes";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { SubjectFiles } from "@/components/subject-files";
@@ -20,7 +21,7 @@ import { colorValue } from "@/lib/subject-colors";
 import { TEACHER_TITLES } from "@/lib/teacher";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dueLabel, type AssignmentDTO } from "@/lib/assignments-view";
+import { dueLabel, isExamPageType, type AssignmentDTO } from "@/lib/assignments-view";
 import type { GradeDTO } from "@/lib/grade-store";
 
 export type LessonDTO = {
@@ -150,6 +151,10 @@ export function SubjectDetail({ id }: { id: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
+  // Zweiter Einstieg neben "Aufgabe hinzufuegen": eine Klassenarbeit ist kein
+  // Formularfeld mehr in AssignmentComposer (siehe exam-composer.tsx), das
+  // Fach ist hier aber bereits bekannt und wird direkt vorbelegt.
+  const [examComposing, setExamComposing] = useState(false);
   const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
   // date/startTime der gerade geoeffneten Stundennotiz -- gebraucht, um einen
   // Eintrag nach dem Leeren+Wiederbeschreiben an der richtigen Stelle zurueck
@@ -453,11 +458,23 @@ export function SubjectDetail({ id }: { id: string }) {
       <StaggerItem>
         <Section
           title="Aufgaben"
+          // gap-2 statt gap-1: beide Buttons blaehen ihre Trefferflaeche
+          // unsichtbar per before-Pseudo-Element auf (siehe ui/button.tsx),
+          // bei zu wenig Abstand ueberlappen sich die beiden Zonen. Beide
+          // Beschriftungen bewusst kurz gehalten -- der Section-Header
+          // umbricht nicht, und "Aufgabe hinzufuegen" plus ein zweiter Button
+          // sprengt auf schmalen Handys die Breite neben dem Titel.
           action={
-            <Button variant="ghost" size="sm" onClick={() => setComposing(true)}>
-              <Plus className="size-4" />
-              Aufgabe hinzufügen
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setExamComposing(true)}>
+                <GraduationCap className="size-4" />
+                Prüfung
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setComposing(true)}>
+                <Plus className="size-4" />
+                Aufgabe
+              </Button>
+            </div>
           }
         >
           <AssignmentList
@@ -535,6 +552,17 @@ export function SubjectDetail({ id }: { id: string }) {
         onOpenChange={setComposing}
         subjects={[{ id: subject.id, name: subject.name, color: subject.color }]}
         initial={{ subjectId: subject.id }}
+        onSaved={(a) =>
+          setData((prev) => (prev ? { ...prev, assignments: [a, ...prev.assignments] } : prev))
+        }
+      />
+
+      <ExamComposer
+        open={examComposing}
+        onOpenChange={setExamComposing}
+        subjects={[{ id: subject.id, name: subject.name, color: subject.color }]}
+        initialSubjectId={subject.id}
+        existingExams={data.assignments.filter((a) => isExamPageType(a.type))}
         onSaved={(a) =>
           setData((prev) => (prev ? { ...prev, assignments: [a, ...prev.assignments] } : prev))
         }

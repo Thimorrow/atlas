@@ -87,12 +87,17 @@ export function ExamComposer({
   // Kollisions-Hinweis ("2 weitere an diesem Tag") -- die neue Arbeit selbst
   // ist darin nicht enthalten.
   existingExams,
+  // Additiv fuer Aufrufer mit bereits bekanntem Fach (z.B. die Fach-Seite):
+  // vorbelegt, aber weiterhin aenderbar. Ohne Angabe verhaelt sich der
+  // Composer wie bisher -- leer, bis eine Auswahl getroffen wird.
+  initialSubjectId,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   subjects: SubjectOption[];
   existingExams: AssignmentDTO[];
+  initialSubjectId?: string;
   onSaved: (a: AssignmentDTO) => void;
 }): React.JSX.Element {
   const reduce = useReducedMotion();
@@ -127,7 +132,7 @@ export function ExamComposer({
   useEffect(() => {
     if (!open) return;
     setType("exam");
-    setSubjectId("");
+    setSubjectId(initialSubjectId ?? "");
     setTitle("");
     setDueDate("");
     setNotes("");
