@@ -25,7 +25,10 @@ const nextConfig: NextConfig = {
     ],
     // Die Migrationsdateien selbst, damit /api/admin/migrate sie zur Laufzeit
     // findet. Ohne diesen Eintrag liegt der Ordner nicht in der Funktion.
-    "/api/admin/migrate": ["./drizzle/**/*"],
+    // scripts/migrate.mjs kommt normalerweise ueber den JS-Import automatisch
+    // mit in die Funktion, steht hier aber trotzdem ausdruecklich, weil die
+    // Ausfuehrungslogik seit kurzem dort liegt und nicht mehr in der Route.
+    "/api/admin/migrate": ["./drizzle/**/*", "./scripts/migrate.mjs"],
   },
 };
 
