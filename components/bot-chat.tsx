@@ -11,9 +11,14 @@ import { parseBotEvent, splitNDJSON } from "@/lib/bot/stream";
 import { isWriteToolMessage } from "@/lib/bot/verlauf";
 import {
   BOT_NEW_EVENT,
+  getChatSnapshot,
   loadStoredConversationId,
+  loadStoredDraft,
   saveStoredConversationId,
+  saveStoredDraft,
+  setChatSnapshot,
 } from "@/lib/bot/chat-session";
+import { cachedGetJSON } from "@/lib/fetch-cache";
 import type { MessageDTO } from "@/lib/bot/store";
 import {
   ActionCard,
@@ -61,6 +66,12 @@ type Turn = {
   userText: string;
   assistantText: string;
   statusText: string | null;
+  // Gedankengang der laufenden Runde, nur live -- wird nicht gespeichert
+  // und beim Laden aus dem Verlauf nie befuellt.
+  thinkingText: string;
+  // Ob der Gedankengang eingeklappt ist. Startet offen und klappt zu,
+  // sobald der erste Antworttext eintrifft.
+  thinkingCollapsed: boolean;
   items: TurnItem[];
   errorText: string | null;
   streaming: boolean;
@@ -110,6 +121,8 @@ function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }
         userText: "",
         assistantText: "",
         statusText: null,
+        thinkingText: "",
+        thinkingCollapsed: true,
         items: [],
         errorText: null,
         streaming: false,
@@ -127,6 +140,8 @@ function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }
         userText: m.content,
         assistantText: "",
         statusText: null,
+        thinkingText: "",
+        thinkingCollapsed: true,
         items: [],
         errorText: null,
         streaming: false,
@@ -192,14 +207,80 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const streaming = turns.length > 0 && turns[turns.length - 1].streaming;
+  // Lebendige Referenz für die Hintergrund-Auffrischung: sie darf den
+  // sofort gezeigten Stand nur anfassen, solange niemand Neues kam.
+  const turnsRef = useRef<Turn[]>([]);
+  turnsRef.current = turns;
+
+  // Stand nach jeder Aenderung in den Sofort-Cache spiegeln -- das ist es,
+  // was das Wiedereroeffnen ohne Nachladen zeigt. Solange noch die
+  // Erstladung laeuft (restoring), nichts schreiben: sonst wuerde der leere
+  // Anfangszustand einen vorhandenen Cache ueberschreiben, bevor er gelesen
+  // und angezeigt ist.
+  useEffect(() => {
+    if (restoring) return;
+    setChatSnapshot<BotInfo, Turn>({ info, conversationId, turns, savedAt: Date.now() });
+  }, [info, conversationId, turns, restoring]);
+
+  // Entwurf nach jedem Tastenschlag sichern -- ueberlebt Schliessen, Reload,
+  // Navigation. Absenden leert das Feld und damit den gespeicherten Entwurf.
+  useEffect(() => {
+    if (restoring) return;
+    saveStoredDraft(input);
+  }, [input, restoring]);
 
   useEffect(() => {
     let alive = true;
+    // Wiedereroeffnen: sofort zeigen, was im Sofort-Cache steht -- kein
+    // Spinner, kein verlorener Entwurf. Die Auffrischung laeuft danach leise
+    // im Hintergrund. Ein beim Schliessen noch laufender Stream ist nach dem
+    // Remount tot und wird als beendet markiert.
+    const cached = getChatSnapshot<BotInfo, Turn>();
+    if (cached && (cached.turns.length > 0 || cached.info)) {
+      setInfo(cached.info);
+      setConversationId(cached.conversationId);
+      setTurns(
+        cached.turns.map((t) => (t.streaming ? { ...t, streaming: false, statusText: null } : t)),
+      );
+      setInput(loadStoredDraft());
+      setRestoring(false);
+      const before = cached.turns;
+      (async () => {
+        try {
+          const d = await cachedGetJSON<BotInfo>("/api/bot");
+          if (!alive) return;
+          setInfo(d);
+        } catch {
+          // Cache bleibt stehen -- lieber alt zeigen als gar nichts.
+        }
+        const stored = loadStoredConversationId();
+        if (!stored) return;
+        try {
+          const hr = await fetch(`/api/bot/verlauf/${stored}`);
+          if (!hr.ok || !alive || turnsRef.current !== before) return;
+          const data = (await hr.json()) as {
+            conversation: { id: string };
+            messages: Array<MessageDTO & { stillExists?: boolean }>;
+          };
+          const restored = turnsFromHistory(data.messages);
+          if (!alive || turnsRef.current !== before || restored.length === 0) return;
+          setTurns(restored);
+          setConversationId(data.conversation.id);
+          saveStoredConversationId(data.conversation.id);
+        } catch {
+          // Ebenfalls: der gezeigte Stand bleibt, Fehler sind unsichtbar.
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }
     (async () => {
       const stored = loadStoredConversationId();
+      // Entwurf aus einer frueheren Sitzung (Reload, Navigation) zurueckholen.
+      setInput(loadStoredDraft());
       try {
-        const res = await fetch("/api/bot");
-        const d = (await res.json()) as BotInfo;
+        const d = await cachedGetJSON<BotInfo>("/api/bot");
         if (!alive) return;
         setInfo(d);
         // Gespeichertes Gespräch zuerst versuchen -- erst wenn es weg ist
@@ -237,6 +318,10 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     })();
     return () => {
       alive = false;
+      // Beim Schliessen des Panels wird ausgehaengt: einen noch laufenden
+      // Stream abbrechen, statt ihn unsichtbar weiterlaufen zu lassen. Der
+      // bis dahin gestreamte Text steht bereits im Sofort-Cache.
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -296,7 +381,18 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
             assistantText: t.assistantText + (t.needsBreak && t.assistantText ? "\n\n" : "") + evt.delta,
             statusText: null,
             needsBreak: false,
+            // Sobald Antworttext eintrifft, klappt der Gedankengang zu --
+            // der ist ab hier nur noch bei Bedarf ueber den Hinweis sichtbar.
+            thinkingCollapsed: true,
           }));
+          break;
+        case "thinking":
+          updateTurn(turnId, (t) => ({ ...t, thinkingText: t.thinkingText + evt.delta }));
+          break;
+        case "round":
+          // Neue Modell-Runde: Gedankengang der vorigen Runde ersetzen statt
+          // anzuhaengen, wieder aufklappen bis Text da ist.
+          updateTurn(turnId, (t) => ({ ...t, thinkingText: "", thinkingCollapsed: false }));
           break;
         case "action": {
           const result = evt.result as AssignmentActionResult | NoteActionResult;
@@ -343,6 +439,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           userText: trimmed,
           assistantText: "",
           statusText: null,
+          thinkingText: "",
+          thinkingCollapsed: true,
           items: [],
           errorText: null,
           streaming: true,
@@ -466,6 +564,13 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     [toast, updateTurn],
   );
 
+  const toggleThinking = useCallback(
+    (turnId: string) => {
+      updateTurn(turnId, (t) => ({ ...t, thinkingCollapsed: !t.thinkingCollapsed }));
+    },
+    [updateTurn],
+  );
+
   const discardGrade = useCallback(
     (turnId: string, itemId: string) => {
       updateTurn(turnId, (t) => ({
@@ -578,6 +683,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
               onUndo={(item) => void undoAction(t.id, item)}
               onEnterGrade={(item) => void enterGrade(t.id, item)}
               onDiscardGrade={(itemId) => discardGrade(t.id, itemId)}
+              onToggleThinking={() => toggleThinking(t.id)}
             />
           ))
         )}
@@ -636,11 +742,13 @@ function TurnView({
   onUndo,
   onEnterGrade,
   onDiscardGrade,
+  onToggleThinking,
 }: {
   turn: Turn;
   onUndo: (item: ActionItem) => void;
   onEnterGrade: (item: ProposalItem) => void;
   onDiscardGrade: (itemId: string) => void;
+  onToggleThinking: () => void;
 }) {
   // Gestreamter Bot-Text kommt manchmal ohne Trennzeichen zwischen zwei
   // Saetzen an -- repairMissingParagraphBreaks setzt die fehlende Leerzeile
@@ -650,6 +758,15 @@ function TurnView({
     [turn.assistantText],
   );
   const showStatus = turn.streaming && turn.statusText && !turn.assistantText;
+  // Live-Gedankengang nur solange die Runde noch keinen Antworttext hat --
+  // die Werkzeug-Statuszeile hat Vorrang, falls beides gleichzeitig zutraefe.
+  const showThinkingLive =
+    turn.streaming && !turn.thinkingCollapsed && turn.thinkingText.length > 0 && !turn.assistantText && !showStatus;
+  // Manuell aufgeklappt, nachdem die Runde fertig ist (oder waehrend der
+  // Werkzeug-Status die Live-Ansicht gerade verdraengt) -- dann scrollbar
+  // statt am unteren Rand ausgerichtet, das Layout muss nicht mehr wachsen.
+  const showThinkingExpandedAtRest = turn.thinkingText.length > 0 && !turn.thinkingCollapsed && !showThinkingLive && !showStatus;
+  const showThinkingHint = turn.thinkingText.length > 0 && turn.thinkingCollapsed;
   const reduce = useReducedMotion();
 
   return (
@@ -671,6 +788,37 @@ function TurnView({
             <TypingDots />
             {turn.statusText}
           </p>
+        )}
+
+        {showThinkingLive && (
+          // Live-Gedankengang: gedaempft, nur die letzten Zeilen (max-height +
+          // Ausrichtung am unteren Rand), damit das Layout nicht springt.
+          // aria-live bewusst weggelassen -- das darf Screenreader nicht
+          // zuspammen, der Live-Bereich fuer die Antwort bleibt der wichtige.
+          <div aria-live="off" className="flex max-h-24 flex-col justify-end overflow-hidden">
+            <p className="whitespace-pre-wrap text-[12.5px] italic leading-snug text-muted-foreground">
+              {turn.thinkingText}
+            </p>
+          </div>
+        )}
+
+        {showThinkingHint && (
+          <button
+            type="button"
+            onClick={onToggleThinking}
+            aria-expanded={!turn.thinkingCollapsed}
+            className="flex w-fit items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Gedankengang
+          </button>
+        )}
+
+        {showThinkingExpandedAtRest && (
+          <div aria-live="off" className="max-h-40 overflow-y-auto">
+            <p className="whitespace-pre-wrap text-[12.5px] italic leading-snug text-muted-foreground">
+              {turn.thinkingText}
+            </p>
+          </div>
         )}
 
         {turn.assistantText ? (
