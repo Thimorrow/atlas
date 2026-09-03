@@ -713,7 +713,10 @@ export function SubjectNotes({
           toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
         }
       })();
-    }, TOAST_DURATION);
+    // +300ms Sicherheitsmarge wie im Hausaufgaben-Modul: der Toast ist bis
+    // TOAST_DURATION sichtbar, ein Klick auf "Rueckgaengig" in der letzten
+    // Millisekunde darf nicht gegen den bereits gestarteten Loeschtimer laufen.
+    }, TOAST_DURATION + 300);
 
     pendingDeletesRef.current.set(id, { note, timer });
 
