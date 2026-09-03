@@ -338,6 +338,13 @@ Vor dem Push liefen die drei Pruefungen **auf `main` selbst** noch einmal, alle
 gruen: `npx tsc --noEmit` ohne Fehler, `npm test` mit 277 Tests, `npm run build`
 erfolgreich. Kein Commit hat eine Datei unter `android/` beruehrt.
 
+Ein Hinweis, damit dich die Zahl nicht stutzen laesst: laesst du `npm test`
+jetzt laufen, meldet es **263 bestanden und 14 uebersprungen**. Die
+uebersprungenen sind Datenbank-Integrationstests, die sich ohne gesetzte
+`DATABASE_URL` selbst abschalten. Das Muster gab es im Projekt schon vorher,
+und weil `.env.local` wieder im Zustand vor der Nacht ist, greift es. Mit
+Datenbank laufen alle 277 durch.
+
 Reihenfolge wie vorgesehen: `nacht/2026-09-03` -> `schule-scope` (sauberes
 Fast-Forward) -> `main` (ohne einen einzigen Konflikt). Alle drei Branches
 stehen jetzt auf `61d35a5`.
