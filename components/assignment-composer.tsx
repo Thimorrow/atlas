@@ -241,10 +241,25 @@ export function AssignmentComposer({
                   <span id={`${uid}-type-label`} className={LABEL}>
                     Typ
                   </span>
-                  {/* Kein role="radiogroup" -- das verspricht Pfeiltasten-
-                      Navigation zwischen den Optionen, die hier niemand
-                      einbaut. Zwei simple Toggle-Buttons mit aria-pressed
-                      sind ehrlicher und brauchen kein eigenes Tastaturmodell. */}
+                  {/* Bearbeitet jemand eine Pruefung, die in dieser Liste
+                      mitlaeuft, kommt ein Typ herein, den dieses Formular
+                      nicht mehr anbietet. Dann als feste Angabe zeigen statt
+                      als Auswahl, die den Wert nicht darstellen kann -- ein
+                      Segmented Control ohne sichtbare Auswahl waere gelogen.
+                      Der Typ bleibt beim Speichern erhalten, geaendert wird er
+                      dort, wo Pruefungen zuhause sind. */}
+                  {!FORM_TYPES.includes(type) ? (
+                    <p
+                      aria-labelledby={`${uid}-type-label`}
+                      className="flex min-h-10 items-center rounded-lg border bg-muted/40 px-3 text-[13px] font-medium text-muted-foreground"
+                    >
+                      {TYPE_LABEL[type]}
+                    </p>
+                  ) : (
+                  /* Kein role="radiogroup" -- das verspricht Pfeiltasten-
+                     Navigation zwischen den Optionen, die hier niemand
+                     einbaut. Zwei simple Toggle-Buttons mit aria-pressed
+                     sind ehrlicher und brauchen kein eigenes Tastaturmodell. */
                   <div aria-labelledby={`${uid}-type-label`} className="inline-flex rounded-lg border bg-muted/40 p-0.5">
                     {FORM_TYPES.map((t) => (
                       <button
@@ -263,6 +278,7 @@ export function AssignmentComposer({
                       </button>
                     ))}
                   </div>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <label className={LABEL} htmlFor={`${uid}-subject`}>
