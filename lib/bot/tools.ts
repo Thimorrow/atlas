@@ -519,7 +519,14 @@ async function aufgabeAendern(args: Record<string, unknown>) {
   if (typeof args.notiz === "string") patch.notes = args.notiz;
   if (typeof args.faellig === "string") {
     const d = resolveDate(args.faellig);
-    patch.dueDate = d.iso;
+    // Ein nicht erkanntes Datum ("nach den Ferien") wuerde als null die
+    // vorhandene Faelligkeit entfernen. Die Aufgabe verschwaende damit
+    // stillschweigend aus dem Pruefungsplan und der Morgen-Ansicht. Beim
+    // Aendern bleibt eine unverstandene Angabe deshalb wirkungslos, der
+    // Hinweis dazu geht an das Modell zurueck.
+    if (d.iso) {
+      patch.dueDate = d.iso;
+    }
     hinweisFaellig = d.hint;
   }
 

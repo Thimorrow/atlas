@@ -6,6 +6,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const updateNote = vi.fn();
 const createNote = vi.fn();
+const getAssignment = vi.fn();
+const updateAssignment = vi.fn();
 const isUuid = (v: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
@@ -20,8 +22,9 @@ vi.mock("@/lib/subject-store", () => ({
 vi.mock("@/lib/calendar-expand", () => ({ expandRange: vi.fn() }));
 vi.mock("@/lib/assignment-store", () => ({
   createAssignment: vi.fn(),
+  getAssignment,
   listAssignments: vi.fn(),
-  updateAssignment: vi.fn(),
+  updateAssignment,
   setAssignmentCompleted: vi.fn(),
   assignmentDueBlockIds: vi.fn(),
 }));
@@ -41,6 +44,8 @@ const ID = "11111111-2222-3333-4444-555555555555";
 beforeEach(() => {
   updateNote.mockReset();
   createNote.mockReset();
+  getAssignment.mockReset();
+  updateAssignment.mockReset();
 });
 
 describe("notiz_aendern schuetzt den vorhandenen Text", () => {
@@ -80,6 +85,32 @@ describe("notiz_aendern schuetzt den vorhandenen Text", () => {
     const ergebnis = await runTool("notiz_aendern", { notizId: "keine-id", text: "x" });
     expect(ergebnis).toHaveProperty("error");
     expect(updateNote).not.toHaveBeenCalled();
+  });
+});
+
+describe("aufgabe_aendern schuetzt die vorhandene Faelligkeit", () => {
+  it("laesst eine unverstandene Datumsangabe wirkungslos, statt sie zu entfernen", async () => {
+    getAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
+    updateAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
+    await runTool("aufgabe_aendern", { aufgabeId: ID, faellig: "nach den Ferien" });
+    // Entscheidend: dueDate taucht im Patch gar nicht auf.
+    const patch = updateAssignment.mock.calls.at(-1)?.[1] ?? {};
+    expect(patch).not.toHaveProperty("dueDate");
+  });
+
+  it("uebernimmt ein erkanntes Datum ganz normal", async () => {
+    getAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
+    updateAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-15" });
+    await runTool("aufgabe_aendern", { aufgabeId: ID, faellig: "2026-09-15" });
+    expect(updateAssignment.mock.calls.at(-1)?.[1]).toMatchObject({ dueDate: "2026-09-15" });
+  });
+
+  it("laesst den Titel nicht leeren", async () => {
+    getAssignment.mockResolvedValue({ id: ID, title: "Alt" });
+    updateAssignment.mockResolvedValue({ id: ID, title: "Alt" });
+    await runTool("aufgabe_aendern", { aufgabeId: ID, titel: "   " });
+    const patch = updateAssignment.mock.calls.at(-1)?.[1] ?? {};
+    expect(patch).not.toHaveProperty("title");
   });
 });
 
