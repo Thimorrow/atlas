@@ -217,13 +217,17 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "notiz_aendern",
-      description: "Aendert Titel und/oder Text einer bestehenden Fach-Notiz.",
+      description:
+        "Aendert Titel und/oder Text einer bestehenden Fach-Notiz. Der neue Text ersetzt den alten vollstaendig, gib also immer den kompletten gewuenschten Inhalt an. Ein leerer Text wird abgelehnt, weil er die Notiz loeschen wuerde. Soll nur der Titel geaendert werden, lass text weg.",
       parameters: {
         type: "object",
         properties: {
           notizId: { type: "string", description: "id der Notiz." },
           titel: { type: "string" },
-          text: { type: "string" },
+          text: {
+            type: "string",
+            description: "Der vollstaendige neue Inhalt. Darf nicht leer sein.",
+          },
         },
         required: ["notizId"],
       },
@@ -549,9 +553,25 @@ async function notizAendern(args: Record<string, unknown>) {
   const notizId = typeof args.notizId === "string" ? args.notizId : "";
   if (!isUuid(notizId)) return { error: "notizId ist keine gueltige id." };
 
+  // Ein leerer Text ist faktisch ein Loeschen: der bisherige Inhalt waere weg,
+  // ohne Rueckgaengig und ohne dass jemand es bemerkt. Der Bot darf nicht
+  // loeschen, also wird ein leerer Text abgelehnt statt durchgeschrieben. Ein
+  // Modell, das versehentlich ein leeres text-Feld mitschickt, richtet damit
+  // keinen Schaden mehr an.
+  if (typeof args.text === "string" && !args.text.trim()) {
+    return {
+      error:
+        "Ein leerer Text wuerde die Notiz loeschen. Das ist nicht erlaubt. Lass text weg, wenn nur der Titel geaendert werden soll.",
+    };
+  }
+
   const patch: Partial<NewSubjectNote> = {};
   if (typeof args.titel === "string" && args.titel.trim()) patch.title = args.titel.trim();
   if (typeof args.text === "string") patch.body = args.text;
+
+  if (Object.keys(patch).length === 0) {
+    return { error: "Es wurde nichts zum Aendern angegeben." };
+  }
 
   const notiz = await updateNote(notizId, patch);
   if (!notiz) return { error: "Notiz nicht gefunden." };
