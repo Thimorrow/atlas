@@ -1,7 +1,7 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-09-01T21:00:00Z
+last_updated: 2026-09-02T16:55:00Z
 current_milestone: M003
 active_slice: null
 active_task: null
@@ -9,60 +9,91 @@ active_task: null
 
 # State
 
-**Status:** Atlas ist nach der Scope-Reduktion vom 2026-09-01 (Commits `0461c9b`,
-`f120a38`, `36f031b`, Branch `schule-scope`) ein reiner Stundenplan: Tabelle
-`school_blocks`, Routen `/api/calendar` und `/api/sync/untis`, Seiten `/` und
-`/settings`, ein Sidebar-Eintrag. Das M002-To-Dos-Modul samt Auto-Planer, Routinen,
-manuellen Events und Kalender-Integration wurde dabei **vollstaendig entfernt** --
-M002 und dessen Slices S02 bis S04 sind damit hinfaellig, nicht offen. Die letzten
-sechs Commits waren reine Design-Politur (Foundations, Motion, Surfaces, Elevation).
+**Status:** M003 ist abgeschlossen und ueber seinen urspruenglichen Zuschnitt
+hinausgewachsen. Atlas ist heute kein reiner Stundenplan mehr, sondern eine
+Web-App mit fuenf Modulen plus eine eigenstaendige native Android-App.
 
-## Next action
+Stand belegt am 2026-09-02 durch einen Durchgang durch den echten Code, nicht
+durch Fortschreibung dieser Datei. Zwischen dem vorigen Stand (2026-09-01) und
+heute liegen **51 Commits**, die hier vorher nicht abgebildet waren.
 
-**M003 ist umgesetzt** (Schritte 1 bis 6 der `.ytstack/SPEC.md`). Neu: Tabellen
-`subjects`, `subject_notes`, `assignments`, `subject_files` (Migration
-`drizzle/0005_deep_nuke.sql`, auf Neon angewendet), elf API-Routen, die Module
-`/aufgaben` und `/faecher` samt Detailseite, Notizen mit Markdown, Anlegen aus
-der Schulstunde heraus, subtile Aufgaben-Spur im Stundenplan und Datei-Anhaenge
-ueber Vercel Blob (laeuft ohne `BLOB_READ_WRITE_TOKEN` im Hinweis-Zustand).
+## Was tatsaechlich steht
 
-Basis gruen: `npx tsc --noEmit` fehlerfrei, `npm test` 65 Tests in 6 Dateien,
-`npm run build` listet alle neuen Routen. Verhaltens- und Sichtkriterien wurden
-im laufenden `next dev` per Playwright belegt (Screenshots liegen im
-Session-Scratchpad).
+**Datenbank** (Neon, Drizzle, 11 Migrationen, alle angewendet): sieben Tabellen
+`school_blocks`, `subjects`, `subject_notes`, `assignments`, `subject_files`,
+`grades`, `microsoft_accounts`; vier Enums `school_block_status`,
+`teacher_title`, `assignment_type`, `grade_kind`.
 
-Faecher sind eingerichtet: 13 aktive Faecher mit Sids Wunschfarben,
-`Informatik/ang. Mathematik` archiviert. Die Farbzuordnung ist als Vorbelegung
-in `lib/subject-colors.ts` (`PRESETS`) hinterlegt, nicht fest verdrahtet.
+**Web-App** (Next.js 16, App Router): 6 Seiten (`/`, `/aufgaben`, `/faecher`,
+`/faecher/[id]`, `/settings`, `/login`) und **29 API-Routen**.
 
-Live auf Vercel: https://atlas-ten-orpin.vercel.app (Projekt `atlas`, GitHub
-`Thimorrow/atlas`, oeffentlich). Zwei Stolpersteine dabei geloest:
+- *Stundenplan* -- Untis-Spiegel, Aufgaben nur als subtile Spur.
+- *Aufgaben* -- Hausaufgaben, Arbeiten, Referate nach Faelligkeit.
+- *Faecher* -- Stammdaten, Markdown-Notizen, Dateien, Aufgaben des Fachs.
+- *Noten* -- `grades`-Tabelle, Gewichtung muendlich/schriftlich
+  (`oral_weight` je Fach), Schnitt je Fach; `lib/grades.ts`,
+  `components/subject-grades.tsx`, Routen `/api/grades`, `/api/grades/[id]`,
+  `/api/subjects/[id]/grades`.
+- *Microsoft / OneNote* -- OAuth-Anbindung, Sections abrufen, Notizen
+  verknuepfen; `lib/microsoft.ts`, fuenf Routen unter `/api/microsoft` und
+  `/api/notes/[id]/onenote`.
 
-1. `lib/db/index.ts` rief `neon(process.env.DATABASE_URL!)` beim Modul-Laden
-   auf. `neon()` validiert sofort, deshalb scheiterte jeder Build ohne die
-   Variable. Jetzt ein Proxy, der die Verbindung erst bei der ersten Query
-   aufbaut -- belegt mit `env -u DATABASE_URL npx next build`.
-2. Die Bereitstellung war ohne jede Pruefung erreichbar, die Deploy-URLs stehen
-   ohne Login in der GitHub-Deployments-API. Vercel Authentication gibt es im
-   Hobby-Plan nicht fuer Production, daher `proxy.ts` + `lib/gate.ts`: ein
-   Passwort, danach ein HMAC-signiertes Cookie. Ohne `ATLAS_PASSWORD` bleibt
-   alles offen, das ist der lokale Fall.
+**Android-App** (`android/`, Kotlin + Compose, 46 Kotlin-Dateien, 11 eigene
+Testdateien): eigenstaendige native App mit Anmelde-, Stundenplan-, Aufgaben-,
+Faecher-, Fachdetail- und Einstellungs-Bildschirm, dazu Bloecke fuer neue
+Aufgabe und neue Note, eigener Markdown-Renderer, Offline-Stundenplan,
+Barrierefreiheits-Durchgang. Daneben ein schlanker WebView-Wrapper
+(`android/wrap`). Die App spricht die fuenf dafuer gebauten Endpunkte
+(`/api/home`, `/api/session`, `/api/colors` und die Modul-Routen).
 
-Env bei Vercel gesetzt (Production und Preview): DATABASE_URL, WEBUNTIS_*,
-ATLAS_PASSWORD, ATLAS_SESSION_SECRET. `BLOB_READ_WRITE_TOKEN` fehlt weiterhin,
-der Dateibereich laeuft im Hinweis-Zustand.
+**Faecher-Abgleich:** Faecher werden aus dem Stundenplan abgeleitet statt von
+Hand gepflegt (`/api/subjects/candidates`, `/api/subjects/reconcile`,
+`/api/subjects/setup`). Lehrer erscheinen mit Nachname und Anrede statt mit dem
+Untis-Kuerzel (`lib/teacher.ts`, Enum `teacher_title`). Handeingaben sind gegen
+den Abgleich geschuetzt; `untis_teacher` / `untis_room` merken sich, was Untis
+zuletzt lieferte.
+
+**Betrieb:** Live auf https://atlas-ten-orpin.vercel.app, Projekt
+`zapkothimofej-2616s-projects/atlas`, GitHub `Thimorrow/atlas`. Passwort-Gate
+ueber `proxy.ts` + `lib/gate.ts` (HMAC-signiertes Cookie). Die App wendet ihre
+Migrationen selbst an (`/api/admin/migrate`).
+
+## Verifikation (2026-09-02, selbst ausgefuehrt)
+
+- `npx tsc --noEmit` -- fehlerfrei.
+- `npm run build` -- durch, alle 29 Routen gelistet.
+- `npm test` -- 142 Tests gruen in 11 Dateien; die beiden Neon-Integrationsdateien
+  werden ohne `DATABASE_URL` sauber uebersprungen (siehe unten).
+- Live-Gate -- `/` antwortet 307 auf `/login?weiter=%2F`, `/login` 200.
+- Letzter Production-Deploy `atlas-r15tuac2f` Status Ready.
+- Dateibereich live geprueft: `GET /api/subjects/<id>/files` liefert
+  `{"enabled":true,...}` -- der Blob-Store ist aktiv.
+
+## Env
+
+Bei Vercel gesetzt fuer Production und Preview: `DATABASE_URL`, `WEBUNTIS_*`,
+`ATLAS_PASSWORD`, `ATLAS_SESSION_SECRET` und **`BLOB_READ_WRITE_TOKEN`**
+(seit 2026-09-01 gesetzt, live wirksam). Der frueher hier notierte
+"Hinweis-Zustand" des Dateibereichs ist damit erledigt.
 
 ## Open decisions
 
-- ~~Fehlermeldungen im UI~~: entschieden, schlanke Eigenloesung `components/toast.tsx`,
-  `sonner` bleibt draussen.
-- ~~Markdown-Bibliothek~~: entschieden, `marked` mit escape-first in `lib/markdown.ts`
-  (HTML im Body wird als Text dargestellt, nicht ausgefuehrt).
-- Vercel-Deploy bleibt weiter zurueckgestellt; ohne `.vercel` und ohne
-  `BLOB_READ_WRITE_TOKEN` laeuft Schritt 6 im Hinweis-Zustand.
+- ~~Fehlermeldungen im UI~~: entschieden, schlanke Eigenloesung `components/toast.tsx`.
+- ~~Markdown-Bibliothek~~: entschieden, `marked` mit escape-first in `lib/markdown.ts`.
+- ~~Vercel-Deploy~~: erledigt, laeuft in Production.
+- ~~`BLOB_READ_WRITE_TOKEN`~~: erledigt, live `enabled: true`.
+- **Offen:** naechstes Modul ist noch nicht gewaehlt. Noten sind bereits gebaut --
+  Kandidaten waeren Pruefungen/Termine, Fehlzeiten oder Lernkarten.
+
+## Lehre aus diesem Durchgang
+
+Diese Datei hing 51 Commits hinterher und hat eine Session in die Irre gefuehrt
+(sie behauptete "drei Module, 65 Tests" bei tatsaechlich fuenf Modulen, einer
+Android-App und 142 Tests). Beim naechsten groesseren Block: STATE.md
+mitschreiben, nicht nachtraeglich rekonstruieren.
 
 ## Historie
 
-M001 (Stundenplan) funktional fertig. M002 (To-Dos) gebaut und in der Scope-Reduktion
-wieder entfernt -- der Code liegt in der History bei `b34dab2` und dient M003 als
-Vorlage, nicht als Basis.
+M001 (Stundenplan) fertig. M002 (To-Dos) gebaut und in der Scope-Reduktion vom
+2026-09-01 wieder entfernt -- der Code liegt in der History bei `b34dab2`.
+M003 (Schul-Module) fertig, siehe `M003-null-null-SUMMARY.md`.
