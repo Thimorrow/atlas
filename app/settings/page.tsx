@@ -32,10 +32,13 @@ const THEMES = [
 ] as const;
 
 // Mini-Vorschau pro Theme -> Tiles wirken weniger leer, man "sieht" die Wahl.
+// System ist bewusst eine harte Halb/Halb-Teilung statt Verlauf: alle drei
+// Kacheln zeigen dann dieselbe flaechige Konstruktion, und System liest sich
+// als "beide Modi" statt als "die aktive, weil als einzige mit Verlauf".
 const PREVIEW: Record<string, { box: string; bar: string; barDim: string }> = {
   light: { box: "bg-white", bar: "bg-zinc-800/80", barDim: "bg-zinc-300" },
   dark: { box: "bg-zinc-900", bar: "bg-zinc-100/80", barDim: "bg-zinc-600" },
-  system: { box: "bg-gradient-to-br from-white to-zinc-900", bar: "bg-zinc-500", barDim: "bg-zinc-400/60" },
+  system: { box: "bg-gradient-to-r from-white from-50% to-zinc-900 to-50%", bar: "bg-zinc-500", barDim: "bg-zinc-400/60" },
 };
 
 type SyncState =

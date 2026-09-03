@@ -124,7 +124,8 @@ export default function AssignmentsPage() {
               assignments={assignments}
               onChange={setAssignments}
               grouped
-              emptyLabel="Keine offenen Aufgaben. Neue legst du oben in der Zeile an."
+              emptyLabel="Nichts offen."
+              emptyHint="Neue legst du oben in der Zeile an."
             />
           )}
         </StaggerItem>

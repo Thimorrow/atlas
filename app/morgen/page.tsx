@@ -316,8 +316,14 @@ function LessonRow({ ev }: { ev: MorgenLessonDTO }) {
           </div>
         )}
       </div>
+      {/* Ein Chevron pro Zeile rauscht beim Scannen -- sechs identische Pfeile
+          sagen sechsmal dasselbe. Die Klickbarkeit bleibt (ganze Zeile + Hover-
+          Flaeche), der Pfeil erscheint nur als Bestaetigung bei Hover und
+          Tastaturfokus. Opacity statt Conditional-Rendering, damit die Zeilen
+          nicht um ein paar Pixel springen. Touch bekommt dafuer ein
+          Press-Feedback (active:bg, siehe className unten). */}
       {ev.subjectId ? (
-        <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100 group-focus-visible:opacity-100" />
       ) : (
         <span aria-hidden className="size-4 shrink-0" />
       )}
@@ -325,7 +331,7 @@ function LessonRow({ ev }: { ev: MorgenLessonDTO }) {
   );
 
   const className =
-    "group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors [touch-action:manipulation] hover:bg-accent/40 active:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <li>
@@ -334,7 +340,7 @@ function LessonRow({ ev }: { ev: MorgenLessonDTO }) {
           {inner}
         </Link>
       ) : (
-        <div className={cn(className, "hover:bg-transparent")}>{inner}</div>
+        <div className={cn(className, "hover:bg-transparent active:bg-transparent")}>{inner}</div>
       )}
     </li>
   );

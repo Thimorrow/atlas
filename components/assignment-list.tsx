@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { GraduationCap, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { GraduationCap, MoreHorizontal, PartyPopper, Pencil, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -35,12 +35,17 @@ export function AssignmentList({
   onChange,
   grouped = false,
   emptyLabel = "Nichts offen.",
+  // Erklaerung unter dem Titel, nur wo sie wirklich weiterhilft (etwa der
+  // Hinweis auf die Eingabezeile auf /aufgaben). Standardmäßig kein
+  // Zweit-Satz -- ein Titel ohne Anhang ist auch eine fertige Aussage.
+  emptyHint,
   showSubject = true,
 }: {
   assignments: AssignmentDTO[];
   onChange: (next: AssignmentDTO[]) => void;
   grouped?: boolean;
   emptyLabel?: string;
+  emptyHint?: string;
   showSubject?: boolean;
 }): React.JSX.Element {
   const reduce = useReducedMotion();
@@ -223,9 +228,17 @@ export function AssignmentList({
   return (
     <div>
       {open.length === 0 && done.length === 0 ? (
-        <p className="rounded-xl border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
-          {emptyLabel}
-        </p>
+        // Gleiches Muster wie der Prüfungen-Leerzustand (Icon + Titel + optionaler
+        // Hinweis), damit leere Seiten sich wie EINE App anfühlen. Bewusst KEIN
+        // Anlege-Button hier: Auf /aufgaben steht die Eingabezeile direkt darueber,
+        // ein zweiter CTA waere derselbe Knopf zweimal.
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-10 text-center">
+          <PartyPopper className="size-5 text-muted-foreground/60" />
+          <div>
+            <p className="text-[14px] font-medium">{emptyLabel}</p>
+            {emptyHint && <p className="mt-0.5 text-sm text-muted-foreground">{emptyHint}</p>}
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           {grouped

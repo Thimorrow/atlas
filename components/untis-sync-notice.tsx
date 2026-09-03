@@ -50,22 +50,34 @@ export function UntisSyncNotice({
       // muted-Flaeche statt Warnfarbe, damit der Plan selbst der Hauptinhalt bleibt.
       // Die Auskunft von Untis teilt sich diese Flaeche: sie ist noch weniger ein
       // Problem als ein Fehlschlag, eine zweite Gestaltung waere lauter statt klarer.
-      className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground"
+      // Mobil stapelt das Banner bewusst: Icon+Text in einer Reihe, der Knopf
+      // vollbreit darunter. Ein halb umgebrochener Outline-Button neben dem
+      // Text sah nach kaputtem Layout aus, vollbreit liest er sich als
+      // beabsichtigte zweite Zeile. Ab sm wieder alles in einer Reihe.
+      className="mb-5 flex flex-col gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2"
       role="status"
       aria-live="polite"
     >
       {hinweis ? (
-        <>
-          <Info className="size-4 shrink-0" aria-hidden="true" />
+        <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p className="min-w-0 flex-1">{hinweis}</p>
-        </>
+        </div>
       ) : (
         <>
-          <CloudOff className="size-4 shrink-0" aria-hidden="true" />
-          <p className="min-w-0 flex-1">
-            Der Stundenplan kann gerade nicht mit Untis abgeglichen werden, {age}.
-          </p>
-          <Button variant="outline" size="sm" className="h-8" onClick={onRetry} disabled={retrying}>
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p className="min-w-0 flex-1">
+              Der Stundenplan kann gerade nicht mit Untis abgeglichen werden, {age}.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-full sm:w-auto"
+            onClick={onRetry}
+            disabled={retrying}
+          >
             {retrying ? "Wird versucht …" : "Erneut versuchen"}
           </Button>
         </>
