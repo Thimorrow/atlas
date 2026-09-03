@@ -9,12 +9,40 @@
 // (components/subject-detail.tsx) geoeffnet.
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Minus, Plus, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Loader2, Minus, Plus, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Overlay } from "@/components/subject-notes";
 import { useToast } from "@/components/toast";
 import { MAX_COUNT } from "@/lib/participation";
 import { cn } from "@/lib/utils";
+
+// Atlas-Signaturkurve, identisch zu components/stagger.tsx und der
+// --ease-atlas-Custom-Property, die components/ui/button.tsx fuer den
+// Press-State nutzt.
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+// Haptik-Analogon: ein sehr kurzer Vibrationsimpuls beim Hochzaehlen, als
+// zusaetzliches Feedback neben der visuellen Zahlen-Animation. Ein Bonus,
+// keine tragende Saeule: iOS Safari kennt die Vibration API ueberhaupt
+// nicht (dort passiert schlicht nichts, sauber abgefangen durch die
+// Feature-Detection), nur auf Android-Browsern kommt sie an. Das eigentliche
+// "sicher ohne Hinsehen zaehlen" traegt deshalb allein die Geometrie: der
+// +1-Knopf ist gross und gut vom -1-Knopf abgesetzt, ein Fehltipp ist billig
+// (Rueckgaengig-Chip, siehe bump()) -- nicht die Vibration.
+// Wer prefers-reduced-motion gesetzt hat, will in aller Regel weniger
+// sensorische Reize insgesamt, nicht nur weniger Bewegung auf dem Bildschirm
+// -- deshalb entscheidet der Aufrufer per reduce-Flag, ob ueberhaupt
+// vibriert wird (siehe bump()).
+function tick() {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(10);
+    }
+  } catch {
+    // Vibration ist ein Bonus, kein Pflichtfeedback -- Fehler ignorieren.
+  }
+}
 
 // Identische Felder wie LessonNoteTarget -- gleiche Kopfzeile, gleicher Aufrufer.
 export type LessonParticipationTarget = {
@@ -40,9 +68,20 @@ export function LessonParticipationEditor({
   onSaved: (schoolBlockId: string, count: number | null) => void;
 }) {
   const toast = useToast();
+  const reduce = useReducedMotion();
   const open = target !== null;
 
   const [count, setCount] = useState(0);
+  // Zeigt kurz nach einem +1-Tap eine "Rueckgaengig"-Chip -- die schnelle
+  // Korrektur eines Fehlklicks, ohne dass der Blick zum -1-Knopf wandern
+  // muss. Reserviert eigenen Platz (siehe unten), damit ihr Erscheinen
+  // nichts verschiebt.
+  const [showUndo, setShowUndo] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Treibt den Skalen-Puls der Zahl an -- siehe bump(). Absichtlich nicht
+  // an target gebunden zurueckgesetzt, ein Wechsel der Stunde soll ohnehin
+  // nicht pulsen (nur echte Taps sollen es).
+  const [pulse, setPulse] = useState(0);
   // Solange nichts erfasst ist (kein GET-Treffer, noch nicht gespeichert),
   // legt der erste Tastendruck die Zeile erst an -- der "Nicht erfasst"-Knopf
   // erscheint erst danach.
@@ -95,6 +134,8 @@ export function LessonParticipationEditor({
     setCount(0);
     setRecorded(false);
     savedCountRef.current = null;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setShowUndo(false);
     fetch(`/api/lessons/${target.schoolBlockId}/participation`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { participation: { count: number } | null }) => {
@@ -153,6 +194,10 @@ export function LessonParticipationEditor({
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+        undoTimerRef.current = null;
+      }
       const id = blockIdRef.current;
       const current = countRef.current;
       if (id && typedRef.current && savedCountRef.current !== current) {
@@ -164,6 +209,33 @@ export function LessonParticipationEditor({
   function bump(delta: 1 | -1) {
     typedRef.current = true;
     setCount((c) => Math.min(MAX_COUNT, Math.max(0, c + delta)));
+    // pulse zaehlt bei jedem NUTZER-Tap hoch (Plus, Minus, Rueckgaengig) und
+    // treibt ausschliesslich den Skalen-Puls unten an -- getrennt von count
+    // selbst, weil count sich auch beim Laden (GET-Antwort) aendert. Ohne
+    // diese Trennung wuerde die Zahl beim OEFFNEN des Dialogs mitpulsen,
+    // sobald der geladene Stand eintrifft, statt nur bei echten Taps.
+    setPulse((p) => p + 1);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    if (delta === 1) {
+      // Haptik-Analogon nur beim Hochzaehlen -- das ist die haeufige,
+      // bestaetigende Aktion; -1 ist schon die Korrektur und braucht keinen
+      // zusaetzlichen Impuls. An reduce gekoppelt wie die visuelle Motion:
+      // prefers-reduced-motion heisst in aller Regel "weniger Reize
+      // insgesamt", nicht nur "weniger Bewegung auf dem Bildschirm".
+      if (!reduce) tick();
+      setShowUndo(true);
+      undoTimerRef.current = setTimeout(() => setShowUndo(false), 2500);
+    } else {
+      // Manuelles -1 ist selbst schon die Korrektur -- die Chip fuer die
+      // vorherige waere jetzt nur noch verwirrend.
+      setShowUndo(false);
+    }
+  }
+
+  // Rueckgaengig ist funktional identisch zu einem manuellen -1 -- geht
+  // deshalb durch dieselbe Funktion statt eigene Logik zu duplizieren.
+  function undoLast() {
+    bump(-1);
   }
 
   // Eine erfasste 0 ist der Kern des Schnitts (Stunde da gewesen, nie gemeldet),
@@ -235,13 +307,22 @@ export function LessonParticipationEditor({
             {/* Grosse zentrale Zahl -- das Einzige, wonach beim Melden waehrend
                 des Unterrichts geschaut wird. aria-live meldet Aenderungen auch
                 Screenreader-Nutzern, ohne dass sie den Dialog neu abtasten
-                muessen. */}
-            <span
-              className="text-5xl font-semibold leading-none tabular-nums"
-              role="status"
-              aria-live="polite"
-            >
-              {count}
+                muessen. tabular-nums + fester Zeilenraum halten die Breite und
+                Hoehe konstant, ein zusaetzlicher Skalen-Puls (nicht Layout!)
+                bestaetigt jeden Tap sichtbar, ohne die Zahl zu verschieben. */}
+            <span role="status" aria-live="polite" className="text-5xl font-semibold leading-none tabular-nums">
+              <motion.span
+                key={pulse}
+                // pulse === 0 ist der Ausgangszustand vor jedem Tap (auch
+                // direkt nach dem Oeffnen des Dialogs) -- der darf nicht
+                // pulsen, sonst animiert die Zahl beim blossen Oeffnen mit.
+                initial={reduce || pulse === 0 ? false : { opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.18, ease: EASE }}
+                className="inline-block"
+              >
+                {count}
+              </motion.span>
             </span>
             <span className="text-[13px] text-muted-foreground">Meldungen</span>
           </div>
@@ -250,13 +331,16 @@ export function LessonParticipationEditor({
             {/* +1 gross und ueber die volle Breite, -1 kleiner daneben -- in der
                 Stunde wird fast nur hochgezaehlt, das Zuruecknehmen ist der
                 seltene Korrekturfall. 56px Mindesthoehe = mit einem Daumen
-                sicher zu treffen, auch ohne hinzusehen. */}
+                sicher zu treffen, auch ohne hinzusehen. active:scale ist das
+                gleiche Press-Feedback wie components/ui/button.tsx (Atlas-
+                Kurve, scale in der Transition-Liste), motion-safe: haelt es
+                aus prefers-reduced-motion raus. */}
             <button
               type="button"
               onClick={() => bump(-1)}
               disabled={count <= 0}
               aria-label="Eine Meldung abziehen"
-              className="grid h-14 w-16 shrink-0 place-items-center rounded-xl border bg-background text-muted-foreground transition-colors [touch-action:manipulation] hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="grid h-14 w-16 shrink-0 place-items-center rounded-xl border bg-background text-muted-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <Minus className="size-5" />
             </button>
@@ -265,21 +349,50 @@ export function LessonParticipationEditor({
               onClick={() => bump(1)}
               disabled={count >= MAX_COUNT}
               aria-label="Eine Meldung hinzufügen"
-              className="grid h-14 flex-1 place-items-center rounded-xl bg-primary text-2xl font-semibold text-primary-foreground transition-colors [touch-action:manipulation] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="grid h-14 flex-1 place-items-center rounded-xl bg-primary text-2xl font-semibold text-primary-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <Plus className="size-6" />
             </button>
           </div>
 
-          {/* Zwei Zustaende an derselben Stelle: solange nichts erfasst ist,
-              legt "0 erfassen" die Zeile mit dem Wert 0 an; danach nimmt
-              "Nicht erfasst" sie wieder ganz raus. Ein Loeschen-Knopf vor der
-              ersten Erfassung waere irrefuehrend, es gaebe nichts zu loeschen. */}
-          <div className="flex justify-center px-5 pb-2">
+          {/* Rueckgaengig-Chip direkt ueber dem Erfassungs-Link, in einer Spalte
+              mit echtem gap-2 (8px) dazwischen -- beide haben eine per
+              before:-inset-1 aufgeblaehte Treffflaeche (gleiches Mass wie
+              components/ui/button.tsx), 4px Ueberstand je Seite bleibt damit
+              innerhalb der 8px Luecke: die beiden Trefflaechen beruehren sich
+              hoechstens, sie ueberlappen nie -- kein Fehlklick zwischen
+              "Rueckgaengig" und "Nicht erfasst" moeglich. Der Chip-Slot hat
+              eine feste Mindesthoehe, ihr Ein-/Ausblenden verschiebt darunter
+              nichts (kein Layout-Shift). */}
+          <div className="flex flex-col items-center gap-2 px-5 pb-2">
+            <div className="flex min-h-9 items-center justify-center">
+              <AnimatePresence>
+                {showUndo && (
+                  <motion.button
+                    type="button"
+                    onClick={undoLast}
+                    initial={reduce ? false : { opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                    transition={{ duration: 0.16, ease: EASE }}
+                    aria-label="Letzte Meldung rückgängig machen"
+                    className="relative flex items-center gap-1 rounded-full bg-muted px-2.5 py-3 text-[12px] font-medium text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Undo2 className="size-3" aria-hidden="true" />
+                    Rückgängig
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Zwei Zustaende an derselben Stelle: solange nichts erfasst ist,
+                legt "0 erfassen" die Zeile mit dem Wert 0 an; danach nimmt
+                "Nicht erfasst" sie wieder ganz raus. Ein Loeschen-Knopf vor der
+                ersten Erfassung waere irrefuehrend, es gaebe nichts zu loeschen. */}
             <button
               type="button"
               onClick={recorded ? () => void clear() : recordZero}
-              className="rounded px-2 py-1 text-[12px] text-muted-foreground underline-offset-2 transition-colors [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative rounded px-2 py-3 text-[12px] text-muted-foreground underline-offset-2 transition-colors [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {recorded ? "Nicht erfasst" : "0 erfassen"}
             </button>
