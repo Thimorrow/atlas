@@ -27,7 +27,7 @@ export async function GET() {
   if (!botEnabled()) {
     return NextResponse.json({
       enabled: false,
-      greeting: "Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel AI_GATEWAY_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.",
+      greeting: "Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.",
       suggestions: [],
       conversationId: null,
     });
@@ -66,7 +66,7 @@ function toModelMessages(history: MessageDTO[]): ChatMessage[] {
 // POST /api/bot -- { conversationId?, message } -> NDJSON-Stream.
 export async function POST(req: Request) {
   if (!botEnabled()) {
-    return errorStream("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel AI_GATEWAY_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.");
+    return errorStream("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.");
   }
 
   const body = await req.json().catch(() => null);
