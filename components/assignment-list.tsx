@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { GraduationCap, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import {
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AssignmentCheckbox } from "@/components/assignment-checkbox";
 import { AssignmentComposer, type AssignmentComposerInitial } from "@/components/assignment-composer";
-import { useToast } from "@/components/toast";
+import { TOAST_DURATION, useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import {
   type AssignmentDTO,
@@ -108,17 +108,47 @@ export function AssignmentList({
     [assignments, onChange, toast],
   );
 
+  // Die aktuelle Liste als Ref: der verzoegerte DELETE-Request und ein
+  // spaeter geklicktes "Rueckgaengig" duerfen nicht auf einen laengst
+  // veralteten Stand von `assignments` zurueckfallen.
+  const assignmentsRef = useRef(assignments);
+  useEffect(() => {
+    assignmentsRef.current = assignments;
+  }, [assignments]);
+
+  // Ein Zeitfenster statt eines Bestaetigungsdialogs: die Zeile verschwindet
+  // sofort, der eigentliche DELETE-Request lauft erst nach der Toast-Dauer
+  // (plus kleiner Puffer, damit "Rueckgaengig" bis zum letzten Frame des
+  // Toasts greift) tatsaechlich los. So kostet Loeschen keinen Klick mehr,
+  // ist aber genauso rueckholbar wie ein Dialog es waere.
+  const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   const remove = useCallback(
-    async (a: AssignmentDTO) => {
-      const before = assignments;
+    (a: AssignmentDTO) => {
       onChange(assignments.filter((x) => x.id !== a.id));
-      try {
-        const res = await fetch(`/api/assignments/${a.id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("delete failed");
-      } catch {
-        onChange(before);
-        toast("Die Aufgabe konnte nicht gelöscht werden.");
-      }
+      const timer = setTimeout(async () => {
+        pendingDeletes.current.delete(a.id);
+        try {
+          const res = await fetch(`/api/assignments/${a.id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("delete failed");
+        } catch {
+          // Die Zeile ist schon lange aus der Liste raus -- best-effort
+          // zurueckhaengen, ohne zwischenzeitliche Aenderungen zu verwerfen.
+          onChange([...assignmentsRef.current, a]);
+          toast("Die Aufgabe konnte nicht gelöscht werden.");
+        }
+      }, TOAST_DURATION + 300);
+      pendingDeletes.current.set(a.id, timer);
+      toast(`„${a.title}“ gelöscht.`, "success", {
+        label: "Rückgängig",
+        onClick: () => {
+          const t = pendingDeletes.current.get(a.id);
+          if (!t) return;
+          clearTimeout(t);
+          pendingDeletes.current.delete(a.id);
+          onChange([...assignmentsRef.current, a]);
+        },
+      });
     },
     [assignments, onChange, toast],
   );
@@ -291,12 +321,10 @@ function RowMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="py-2.5 text-destructive [&_svg]:text-destructive focus:bg-destructive/10 focus:text-destructive"
-          onClick={() => {
-            // confirm() ist die Untergrenze fuer eine zerstoerende Aktion --
-            // reicht hier, ein eigener Dialog waere fuer eine einzelne Zeile
-            // in einer Dropdown ueberbaut.
-            if (window.confirm(`„${a.title}" wirklich löschen?`)) onDelete(a);
-          }}
+          // Kein Bestaetigungsdialog: die Zeile verschwindet sofort, `remove()`
+          // haengt selbst einen Toast mit "Rueckgaengig" an (gleiches Muster
+          // wie das Undo im Bot-Chat), erst danach greift der DELETE-Request.
+          onClick={() => onDelete(a)}
         >
           <Trash2 />
           Löschen
@@ -340,7 +368,10 @@ function Row({
     >
       <div
         className={cn(
-          "group flex items-center gap-3.5 rounded-lg px-2.5 py-3 transition-colors hover:bg-accent/40",
+          // opacity gehoert mit in die Transition-Liste -- sonst springt die
+          // Zeile beim Abhaken hart auf 55%, statt mit dem Haken zusammen
+          // ruhig einzublenden.
+          "group flex items-center gap-3.5 rounded-lg px-2.5 py-3 transition-[color,background-color,opacity] duration-200 ease-[var(--ease-atlas)] hover:bg-accent/40",
           checked && "opacity-55",
         )}
       >

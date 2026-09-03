@@ -12,10 +12,19 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 // "success" mit eigenem Symbol, statt ueberall das Fehler-Rot zu zeigen.
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+// Exportiert, damit ein Aufrufer mit "Rueckgaengig"-Aktion (z.B. das
+// Loeschen einer Aufgabe) seine eigene Frist exakt auf die sichtbare Dauer
+// des Toasts abstimmen kann, statt eine zweite Zahl zu raten.
+export const TOAST_DURATION = 4000;
+const DURATION = TOAST_DURATION;
 type ToastVariant = "error" | "success";
-type Toast = { id: number; message: string; variant: ToastVariant };
+// action ist additiv: ein Toast kann eine einzelne Aktion tragen (z.B.
+// "Rueckgaengig"), die verschwindet, sobald der Toast selbst verschwindet --
+// darum kein eigener Timer fuer die Aktion, sie teilt sich den des Toasts.
+type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; message: string; variant: ToastVariant; action?: ToastAction };
 
-const ToastCtx = createContext<(message: string, variant?: ToastVariant) => void>(() => {});
+const ToastCtx = createContext<(message: string, variant?: ToastVariant, action?: ToastAction) => void>(() => {});
 
 export function useToast() {
   return useContext(ToastCtx);
@@ -25,10 +34,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const reduce = useReducedMotion();
 
-  const show = useCallback((message: string, variant: ToastVariant = "error") => {
+  const show = useCallback((message: string, variant: ToastVariant = "error", action?: ToastAction) => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, message, variant }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
+    setToasts((t) => [...t, { id, message, variant, action }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), DURATION);
   }, []);
 
   return (
@@ -59,7 +68,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               ) : (
                 <AlertCircle className="mt-px size-4 shrink-0 text-destructive" />
               )}
-              <span>{t.message}</span>
+              <span className="flex-1">{t.message}</span>
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.action!.onClick();
+                    setToasts((cur) => cur.filter((x) => x.id !== t.id));
+                  }}
+                  className="relative -my-1 -mr-1 shrink-0 rounded px-1.5 py-1 font-medium text-primary underline-offset-2 outline-none before:absolute before:-inset-2.5 before:content-[''] hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t.action.label}
+                </button>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>

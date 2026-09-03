@@ -6,15 +6,18 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
-import {
-  ASSIGNMENT_TYPES,
-  TYPE_LABEL,
-  type AssignmentDTO,
-  type AssignmentType,
-} from "@/lib/assignments-view";
+import { TYPE_LABEL, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+// Klassenarbeiten, Tests und Referate haben ein eigenes Modul
+// (components/exam-composer.tsx) -- dieser Composer ist reine
+// Hausaufgaben-Eingabe. Absichtlich lokal statt in lib/assignments-view.ts:
+// ASSIGNMENT_TYPES bleibt dort vollstaendig, weil Liste, Stundenplan und
+// Sortierung weiterhin alle Typen kennen muessen. Getrennt wird nur, was
+// dieses Formular anbietet.
+const FORM_TYPES: AssignmentType[] = ["homework", "other"];
 
 // Eingabefelder: text-[16px] ist Pflicht, nicht Geschmack -- iOS-Safari zoomt
 // beim Fokus in jedes Feld unter 16px hinein und verlaesst den Dialog optisch.
@@ -46,9 +49,10 @@ export function AssignmentComposer({
   // sich der Composer wie bisher.
   dueHint,
   onSaved,
-  // Additiv wie dueHint: andere Seiten (z. B. /pruefungen) koennen die
-  // Ueberschrift im Neu-Anlegen-Zustand anpassen, ohne dass bestehende
-  // Aufrufer etwas davon merken -- ohne Angabe bleibt der Text wie bisher.
+  // Additiv wie dueHint: ein Aufrufer kann die Ueberschrift im
+  // Neu-Anlegen-Zustand anpassen (z.B. der Kalender fuer "Hausaufgabe aus
+  // Stunde XY"), ohne dass bestehende Aufrufer etwas davon merken -- ohne
+  // Angabe bleibt der Text wie bisher.
   newHeading = "Neue Aufgabe",
 }: {
   open: boolean;
@@ -92,7 +96,10 @@ export function AssignmentComposer({
     // Touch-Geraeten: dort reisst Autofokus die Tastatur unangekuendigt hoch,
     // noch bevor die Einblend-Animation fertig ist.
     restoreRef.current = document.activeElement as HTMLElement | null;
-    const isTouch = typeof window !== "undefined" && "ontouchstart" in window;
+    // "ontouchstart" in window ist auf Hybridgeraeten immer wahr und auf
+    // manchen Touch-Notebooks falsch -- die eigentliche Frage ist, ob der
+    // Zeiger grob ist (Finger), nicht ob das Geraet ueberhaupt Touch kann.
+    const isTouch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
     const t = isTouch ? undefined : window.setTimeout(() => titleRef.current?.focus(), 20);
     // Die Seite hinter dem Overlay darf nicht mitscrollen: auf dem Handy liegt
     // der Dialog als Blatt unten auf, und eine wischende Hand trifft sonst den
@@ -225,25 +232,39 @@ export function AssignmentComposer({
             </header>
 
             <form ref={formRef} onSubmit={save} className="space-y-4 px-5 py-5">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={LABEL} htmlFor={`${uid}-type`}>
+              <div className="flex gap-3">
+                {/* Nur noch zwei Werte -- dafuer kein Dropdown mehr, sondern
+                    ein Segmented Control, das den Normalfall (Hausaufgabe) auf
+                    den ersten Blick zeigt statt ihn hinter einem Klick zu
+                    verstecken. */}
+                <div className="shrink-0">
+                  <span id={`${uid}-type-label`} className={LABEL}>
                     Typ
-                  </label>
-                  <select
-                    id={`${uid}-type`}
-                    className={FIELD}
-                    value={type}
-                    onChange={(e) => setType(e.target.value as AssignmentType)}
-                  >
-                    {ASSIGNMENT_TYPES.map((t) => (
-                      <option key={t} value={t}>
+                  </span>
+                  {/* Kein role="radiogroup" -- das verspricht Pfeiltasten-
+                      Navigation zwischen den Optionen, die hier niemand
+                      einbaut. Zwei simple Toggle-Buttons mit aria-pressed
+                      sind ehrlicher und brauchen kein eigenes Tastaturmodell. */}
+                  <div aria-labelledby={`${uid}-type-label`} className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+                    {FORM_TYPES.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-pressed={type === t}
+                        onClick={() => setType(t)}
+                        className={cn(
+                          "relative min-h-10 rounded-md px-3 text-[13px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          type === t
+                            ? "bg-card text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
                         {TYPE_LABEL[t]}
-                      </option>
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <label className={LABEL} htmlFor={`${uid}-subject`}>
                     Fach
                   </label>
