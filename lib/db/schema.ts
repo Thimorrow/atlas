@@ -154,6 +154,35 @@ export const lessonNotes = pgTable(
 export type LessonNote = typeof lessonNotes.$inferSelect;
 export type NewLessonNote = typeof lessonNotes.$inferInsert;
 
+// Meldungen pro konkreter Schulstunde -- strukturell die Zwillingsschwester von
+// lessonNotes (gleiche school_block_id-Bindung, gleiche subject_id/date-
+// Denormalisierung fuer die Fach-Chronik). Der entscheidende Unterschied: eine
+// erfasste 0 ist ein echter Datenpunkt (Stunde da gewesen, nie gemeldet) und
+// wird NICHT wie eine leere Notiz automatisch geloescht -- die Zeile
+// verschwindet nur durch ein explizites DELETE. Der Nenner des Meldungsschnitts
+// sind genau die Zeilen, die hier stehen.
+export const lessonParticipations = pgTable(
+  "lesson_participations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolBlockId: uuid("school_block_id")
+      .notNull()
+      .references(() => schoolBlocks.id, { onDelete: "cascade" }),
+    subjectId: uuid("subject_id").references(() => subjects.id, { onDelete: "set null" }),
+    date: date("date").notNull(),
+    count: integer("count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_participations_school_block_uq").on(t.schoolBlockId),
+    index("lesson_participations_subject_date_idx").on(t.subjectId, t.date),
+  ],
+);
+
+export type LessonParticipation = typeof lessonParticipations.$inferSelect;
+export type NewLessonParticipation = typeof lessonParticipations.$inferInsert;
+
 // Typ steuert ausschliesslich Darstellung und Gewicht -- kein eigenes Modell,
 // weil Hausaufgabe und Klassenarbeit sich alle Felder teilen.
 export const assignmentType = pgEnum("assignment_type", [

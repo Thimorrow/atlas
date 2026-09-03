@@ -40,7 +40,7 @@ export async function getLessonNote(schoolBlockId: string): Promise<LessonNoteDT
 // Namens-Fallback blieb subjectId bei manuell angelegten Faechern (deren
 // untisSubject null ist, Match nur ueber den Namen) dauerhaft null, und die
 // Notiz tauchte nie im Fachdetail auf.
-async function subjectIdFor(blockSubject: string): Promise<string | null> {
+export async function subjectIdFor(blockSubject: string): Promise<string | null> {
   const [byUntis] = await db
     .select({ id: subjects.id })
     .from(subjects)
