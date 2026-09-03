@@ -54,33 +54,103 @@ fun StundenplanEingabeBlatt(
                     Button(onClick = { auswahl = StundenplanEingabe.TEST }, modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement)) { Text("Test eintragen") }
                     OutlinedButton(onClick = { auswahl = StundenplanEingabe.NOTIZ }, modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement)) { Text("Notiz machen") }
                 }
-                StundenplanEingabe.HAUSAUFGABE -> NeueAufgabeBlattInhalt(blatt, heute, faecher, "Hausaufgabe eintragen", "homework", beimAnlegen)
-                StundenplanEingabe.TEST -> NeueAufgabeBlattInhalt(blatt, heute, faecher, "Test eintragen", "exam", beimAnlegen)
-                StundenplanEingabe.NOTIZ -> NeueAufgabeBlattInhalt(blatt, heute, faecher, "Notiz machen", "other", beimAnlegen)
+                StundenplanEingabe.HAUSAUFGABE -> NeueHausaufgabeScreen(blatt, heute, beimAnlegen)
+                StundenplanEingabe.TEST -> NeuerTestScreen(blatt, heute, beimAnlegen)
+                StundenplanEingabe.NOTIZ -> NeueNotizScreen(blatt, heute, beimAnlegen)
             }
         }
     }
 }
 
 @Composable
-private fun NeueAufgabeBlattInhalt(
+private fun NeueHausaufgabeScreen(
     blatt: BlattZustand,
     heute: LocalDate,
-    faecher: List<SubjectDTO>,
-    titel: String,
-    typ: String,
     beimAnlegen: (String, String, LocalDate?, String?, String?) -> Unit,
 ) {
-    var text by remember { mutableStateOf("") }
+    SpezialisierteEingabe(
+        blatt = blatt,
+        heute = heute,
+        typ = "homework",
+        ueberschrift = "Hausaufgabe",
+        erklaerung = "Was musst du bis zur nächsten Stunde erledigen?",
+        feldLabel = "Aufgabe beschreiben",
+        buttonLabel = "Hausaufgabe speichern",
+        beimAnlegen = beimAnlegen,
+    )
+}
+
+@Composable
+private fun NeuerTestScreen(
+    blatt: BlattZustand,
+    heute: LocalDate,
+    beimAnlegen: (String, String, LocalDate?, String?, String?) -> Unit,
+) {
+    SpezialisierteEingabe(
+        blatt = blatt,
+        heute = heute,
+        typ = "exam",
+        ueberschrift = "Test / Klassenarbeit",
+        erklaerung = "Plane den Test mit dem Datum deiner Stunde ein.",
+        feldLabel = "Thema des Tests",
+        buttonLabel = "Test speichern",
+        beimAnlegen = beimAnlegen,
+    )
+}
+
+@Composable
+private fun NeueNotizScreen(
+    blatt: BlattZustand,
+    heute: LocalDate,
+    beimAnlegen: (String, String, LocalDate?, String?, String?) -> Unit,
+) {
+    SpezialisierteEingabe(
+        blatt = blatt,
+        heute = heute,
+        typ = "other",
+        ueberschrift = "Notiz zur Stunde",
+        erklaerung = "Halte hier etwas Wichtiges zu dieser Stunde fest.",
+        feldLabel = "Notiz schreiben",
+        buttonLabel = "Notiz speichern",
+        beimAnlegen = beimAnlegen,
+    )
+}
+
+@Composable
+private fun SpezialisierteEingabe(
+    blatt: BlattZustand,
+    heute: LocalDate,
+    typ: String,
+    ueberschrift: String,
+    erklaerung: String,
+    feldLabel: String,
+    buttonLabel: String,
+    beimAnlegen: (String, String, LocalDate?, String?, String?) -> Unit,
+) {
+    var text by remember(typ) { mutableStateOf("") }
     val vorgabe = blatt.vorbelegung
-    Text(titel, style = MaterialTheme.typography.headlineSmall)
-    Text("${vorgabe?.untisFach ?: "Allgemein"} · ${vorgabe?.faellig ?: heute}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    AtlasTextfeld(wert = text, beimAendern = { text = it }, beschriftung = if (typ == "other") "Notiz" else "Titel", modifier = Modifier.fillMaxWidth())
-    Button(
-        onClick = { beimAnlegen(text.trim(), typ, vorgabe?.faellig ?: heute.plusDays(1), vorgabe?.fachId, vorgabe?.untisFach) },
-        enabled = text.isNotBlank() && !blatt.laeuft,
-        modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement),
-    ) { Text(if (typ == "other") "Notiz speichern" else titel) }
-    blatt.fehler?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    Column(verticalArrangement = Arrangement.spacedBy(Abstand.normal)) {
+        Text(ueberschrift, style = MaterialTheme.typography.headlineSmall)
+        Text(erklaerung, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = "${vorgabe?.untisFach ?: "Allgemein"} · ${vorgabe?.faellig ?: heute}",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        AtlasTextfeld(
+            wert = text,
+            beimAendern = { text = it },
+            beschriftung = feldLabel,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(
+            onClick = { beimAnlegen(text.trim(), typ, vorgabe?.faellig ?: heute.plusDays(1), vorgabe?.fachId, vorgabe?.untisFach) },
+            enabled = text.isNotBlank() && !blatt.laeuft,
+            modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement),
+        ) {
+            Text(buttonLabel)
+        }
+        blatt.fehler?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+    }
 }
 
