@@ -45,3 +45,8 @@ android/local.properties
 android/.cxx/
 *.keystore
 *.jks
+
+# Screenshots aus dem Nacht-Loop, nur lokal
+.ytstack/shots/
+# Echter Datenschnappschuss fuer den Nacht-Loop, bleibt lokal
+.ytstack/nacht-snapshot/
