@@ -114,7 +114,7 @@ export async function* streamChat(
   model: string = BOT_MODEL,
 ): AsyncGenerator<StreamEvent> {
   const key = process.env.AI_GATEWAY_API_KEY;
-  if (!key) throw new Error("Der Bot ist nicht eingerichtet (kein AI_GATEWAY_API_KEY).");
+  if (!key) throw new Error("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel AI_GATEWAY_API_KEY.");
 
   const idleController = new AbortController();
   const onOuterAbort = () => idleController.abort();
