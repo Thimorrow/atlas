@@ -123,6 +123,29 @@ export function AssignmentList({
   // ist aber genauso rueckholbar wie ein Dialog es waere.
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // Unmount und Seitenabbau duerfen eine schwebende Loeschung nicht
+  // verschlucken: ohne das haette "loeschen und sofort wegnavigieren" nie
+  // einen DELETE abgesetzt, die Zeile waere beim naechsten Laden wieder da.
+  // pagehide deckt den Tab-Schliessen/Reload-Fall ab (dort unmountet React
+  // oft nicht rechtzeitig), das Effect-Cleanup den Fall der clientseitigen
+  // Navigation innerhalb der App.
+  useEffect(() => {
+    const flush = () => {
+      for (const [id, timer] of pendingDeletes.current) {
+        clearTimeout(timer);
+        // keepalive: der Request muss den Seitenabbau ueberleben -- ein
+        // gewoehnlicher fetch wird sonst mit der Seite selbst abgebrochen.
+        fetch(`/api/assignments/${id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      }
+      pendingDeletes.current.clear();
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
+
   const remove = useCallback(
     (a: AssignmentDTO) => {
       onChange(assignments.filter((x) => x.id !== a.id));
