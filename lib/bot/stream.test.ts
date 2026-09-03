@@ -16,6 +16,17 @@ describe("parseBotEvent", () => {
     });
   });
 
+  it("liest ein thinking-Ereignis", () => {
+    expect(parseBotEvent('{"type":"thinking","delta":"Ich ueberlege"}')).toEqual({
+      type: "thinking",
+      delta: "Ich ueberlege",
+    });
+  });
+
+  it("liest ein round-Ereignis", () => {
+    expect(parseBotEvent('{"type":"round"}')).toEqual({ type: "round" });
+  });
+
   it("liest ein action-Ereignis mit beliebigem result", () => {
     expect(parseBotEvent('{"type":"action","tool":"aufgabe_anlegen","result":{"aufgabe":{"id":"1"}}}')).toEqual({
       type: "action",

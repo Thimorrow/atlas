@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyToolCallDelta,
   finishedToolCalls,
+  streamChat,
   toAnthropicRequest,
   type ToolCallAccumulator,
   type ChatMessage,
   type ChatTool,
+  type StreamEvent,
 } from "./model";
 
 // Die Argumente eines Werkzeugaufrufs kommen beim Streamen stueckweise als
@@ -164,6 +166,77 @@ describe("toAnthropicRequest", () => {
         description: "Liste der Faecher.",
         input_schema: { type: "object", properties: {} },
       },
+    ]);
+  });
+});
+
+// streamChat parst das SSE-Protokoll vom Z.ai-Endpoint selbst -- ein echter
+// Netzwerkaufruf laesst sich in Tests nicht sinnvoll fuehren, deshalb wird
+// hier nur fetch gemockt und ein rohes SSE-Chunk zurueckgegeben.
+describe("streamChat / SSE-Parser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function sseResponse(lines: string[]): Response {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(lines.map((l) => `data: ${l}\n\n`).join("")));
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200 });
+  }
+
+  async function collect(messages: ChatMessage[]): Promise<StreamEvent[]> {
+    const out: StreamEvent[] = [];
+    for await (const evt of streamChat(messages, [])) out.push(evt);
+    return out;
+  }
+
+  it("liefert thinking_delta als eigenes thinking-Ereignis, verwirft es nicht", async () => {
+    vi.stubEnv("ZAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse([
+          JSON.stringify({
+            type: "content_block_delta",
+            index: 0,
+            delta: { type: "thinking_delta", thinking: "Ich ueberlege kurz." },
+          }),
+          JSON.stringify({ type: "message_stop" }),
+        ]),
+      ),
+    );
+
+    const events = await collect([{ role: "system", content: "sys" }, { role: "user", content: "Hallo" }]);
+    expect(events).toEqual([
+      { type: "thinking", delta: "Ich ueberlege kurz." },
+      { type: "done" },
+    ]);
+  });
+
+  it("liefert text_delta weiterhin unveraendert als text-Ereignis", async () => {
+    vi.stubEnv("ZAI_API_KEY", "test-key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse([
+          JSON.stringify({
+            type: "content_block_delta",
+            index: 0,
+            delta: { type: "text_delta", text: "Antwort." },
+          }),
+          JSON.stringify({ type: "message_stop" }),
+        ]),
+      ),
+    );
+
+    const events = await collect([{ role: "system", content: "sys" }, { role: "user", content: "Hallo" }]);
+    expect(events).toEqual([
+      { type: "text", delta: "Antwort." },
+      { type: "done" },
     ]);
   });
 });

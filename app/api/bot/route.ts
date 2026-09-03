@@ -115,9 +115,15 @@ export async function POST(req: Request) {
           let roundText = "";
           const toolCalls: ChatToolCall[] = [];
 
+          // Markiert den Beginn einer neuen Runde, damit die Oberflaeche den
+          // Gedankengang der vorigen Runde ersetzt statt endlos anzuhaengen.
+          send({ type: "round" });
+
           for await (const event of streamChatWithFallback(chatMessages, botTools, signal)) {
             if (signal.aborted) break;
-            if (event.type === "text") {
+            if (event.type === "thinking") {
+              send({ type: "thinking", delta: event.delta });
+            } else if (event.type === "text") {
               roundText += event.delta;
               send({ type: "text", delta: event.delta });
             } else if (event.type === "tool_calls") {

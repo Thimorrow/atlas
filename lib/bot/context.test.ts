@@ -11,7 +11,7 @@ const listAssignments = vi.fn();
 vi.mock("@/lib/calendar-expand", () => ({ expandRange }));
 vi.mock("@/lib/assignment-store", () => ({ listAssignments }));
 
-const { buildGreeting } = await import("./context");
+const { buildGreeting, buildSystemPrompt } = await import("./context");
 
 function heuteLokal(offset = 0): string {
   const d = new Date();
@@ -56,5 +56,12 @@ describe("buildGreeting", () => {
     expect(greeting.text).toContain("Mathe");
     expect(greeting.text).toContain("Arbeit");
     expect(greeting.suggestions[0]).toContain("morgen");
+  });
+});
+
+describe("buildSystemPrompt", () => {
+  it("weist das Modell an, auch auf Deutsch zu denken", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("Denke auf Deutsch. Auch deine internen Ueberlegungen formulierst du ausschliesslich auf Deutsch.");
   });
 });

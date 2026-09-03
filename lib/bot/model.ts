@@ -78,6 +78,7 @@ export type ChatTool = {
 // ein oder mehrere Werkzeugaufrufe (nie beides gleichzeitig bei diesem Modell).
 export type StreamEvent =
   | { type: "text"; delta: string }
+  | { type: "thinking"; delta: string }
   | { type: "tool_calls"; toolCalls: ChatToolCall[] }
   | { type: "done" };
 
@@ -335,9 +336,12 @@ export async function* streamChat(
           const index = parsed.index;
           if (!isObj(delta) || typeof index !== "number") continue;
 
-          // thinking-Bloecke (delta.type "thinking_delta") werden verworfen --
-          // duerfen nicht als sichtbarer Text an die Oberflaeche gehen.
-          if (delta.type === "text_delta" && typeof delta.text === "string" && delta.text.length > 0) {
+          // thinking-Bloecke (delta.type "thinking_delta") werden als eigenes
+          // Ereignis durchgereicht -- die Oberflaeche zeigt den Gedankengang
+          // gedaempft an, waehrend die eigentliche Antwort noch laedt.
+          if (delta.type === "thinking_delta" && typeof delta.thinking === "string" && delta.thinking.length > 0) {
+            yield { type: "thinking", delta: delta.thinking };
+          } else if (delta.type === "text_delta" && typeof delta.text === "string" && delta.text.length > 0) {
             yield { type: "text", delta: delta.text };
           } else if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
             applyToolCallDelta(toolAcc, index, { arguments: delta.partial_json });

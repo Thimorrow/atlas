@@ -5,6 +5,10 @@
 export type BotStreamEvent =
   | { type: "status"; text: string }
   | { type: "text"; delta: string }
+  | { type: "thinking"; delta: string }
+  // Markiert den Beginn einer neuen Modell-Runde -- die Oberflaeche ersetzt
+  // damit den Gedankengang der vorigen Runde statt ihn endlos anzuhaengen.
+  | { type: "round" }
   | { type: "action"; tool: string; result: unknown }
   | { type: "proposal"; kind: "grade"; data: unknown }
   | { type: "error"; text: string }
@@ -23,7 +27,10 @@ function isValidEvent(v: unknown): v is BotStreamEvent {
     case "error":
       return typeof v.text === "string";
     case "text":
+    case "thinking":
       return typeof v.delta === "string";
+    case "round":
+      return true;
     case "action":
       return typeof v.tool === "string" && "result" in v;
     case "proposal":
