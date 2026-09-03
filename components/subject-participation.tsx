@@ -38,7 +38,14 @@ export function SubjectParticipation({ data }: { data: SubjectParticipationDTO }
   return (
     <div className="space-y-4">
       {/* Grosse Kennzahl wie AverageBlock in subject-grades.tsx -- der Schnitt
-          ist die Zahl, wegen der dieser Abschnitt geoeffnet wird. */}
+          ist die Zahl, wegen der dieser Abschnitt geoeffnet wird. text-2xl
+          bleibt bewusst identisch zu AverageBlock (Noten-Abschnitt direkt
+          darueber, gleiche Kartenform) -- zwei benachbarte KPI-Karten mit
+          unterschiedlich grosser Zahl wuerden die Hierarchie verwaschen. Die
+          drei Nebenwerte (Stunden, Summe, Bestwert) stehen als kompakte
+          Statzeile darunter statt als drei fast gleich aussehende
+          Fliesstextzeilen -- jede Zahl foreground+medium, das Label bleibt
+          muted, dadurch bleibt der Schnitt oben klar die dominante Zahl. */}
       <div className="rounded-xl border bg-muted/30 px-4 py-3">
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-semibold leading-none tracking-tight tabular-nums">
@@ -46,15 +53,25 @@ export function SubjectParticipation({ data }: { data: SubjectParticipationDTO }
           </span>
           <span className="text-[13px] text-muted-foreground">Meldungen je Stunde</span>
         </div>
-        <p className="mt-1.5 text-[12px] tabular-nums text-muted-foreground">
-          {summary.lessons} {summary.lessons === 1 ? "Stunde" : "Stunden"} erfasst, {summary.total}{" "}
-          {summary.total === 1 ? "Meldung" : "Meldungen"} gesamt
-        </p>
-        {summary.best !== null && (
-          <p className="mt-0.5 text-[12px] tabular-nums text-muted-foreground">
-            Bestwert: {summary.best} in einer Stunde
-          </p>
-        )}
+        <dl className="mt-2.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t pt-2.5 text-[12px] text-muted-foreground">
+          <div className="flex items-baseline gap-1">
+            <dt className="sr-only">Erfasste Stunden</dt>
+            <dd className="font-medium tabular-nums text-foreground">{summary.lessons}</dd>
+            <span>{summary.lessons === 1 ? "Stunde" : "Stunden"}</span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <dt className="sr-only">Meldungen gesamt</dt>
+            <dd className="font-medium tabular-nums text-foreground">{summary.total}</dd>
+            <span>gesamt</span>
+          </div>
+          {summary.best !== null && (
+            <div className="flex items-baseline gap-1">
+              <dt className="sr-only">Bestwert einer Stunde</dt>
+              <dd className="font-medium tabular-nums text-foreground">{summary.best}</dd>
+              <span>Bestwert</span>
+            </div>
+          )}
+        </dl>
       </div>
 
       {recent.length === 0 ? (
