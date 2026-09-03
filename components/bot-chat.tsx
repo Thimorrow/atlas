@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { AlertTriangle, ArrowRight, Bot, GraduationCap, Send, Square, Undo2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUp, GraduationCap, Square, Undo2 } from "lucide-react";
+import { AtlasBotMark } from "@/components/atlas-bot-mark";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { renderMarkdown, repairMissingParagraphBreaks } from "@/lib/markdown";
@@ -125,8 +126,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   }, []);
 
   useEffect(() => {
-    if (autoFocus && info?.enabled) inputRef.current?.focus();
-  }, [autoFocus, info?.enabled]);
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   // Beim Eintreffen neuer Inhalte ans Ende scrollen -- ein wachsendes
   // Gespraech soll immer die aktuelle Antwort zeigen, nicht den Anfang.
@@ -191,7 +192,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || streaming || !info?.enabled) return;
+      if (!trimmed || streaming || info?.enabled === false) return;
       const turnId = crypto.randomUUID();
       setTurns((prev) => [
         ...prev,
@@ -207,6 +208,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         },
       ]);
       setInput("");
+      // Das mitgewachsene Feld faellt sonst auf voller Hoehe stehen.
+      if (inputRef.current) inputRef.current.style.height = "auto";
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -338,6 +341,16 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     void send(input);
   };
 
+  // Das Feld waechst mit dem Text bis zur Hoehe aus max-h und scrollt erst
+  // danach -- eine feste Zeile zwingt sonst zum Scrollen in einem 44px hohen
+  // Fenster, sobald jemand mehr als einen Satz schreibt.
+  const onInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -345,26 +358,25 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     }
   };
 
-  // --- Ladezustand / kein Key hinterlegt ---------------------------------
+  // --- Kein Key hinterlegt -----------------------------------------------
 
-  if (!info && !loadError) {
-    return (
-      <div className={cn("flex h-full items-center justify-center", className)}>
-        <p className="text-[13px] text-muted-foreground">Wird geladen …</p>
-      </div>
-    );
-  }
-
-  if (loadError || info?.enabled === false) {
+  // Bewusst kein Ladezustand fuer den noch laufenden GET: der Startblock
+  // steht sofort mit einer allgemeinen Begruessung, die personalisierte
+  // ersetzt sie, sobald sie da ist. Ein Panel, das sich mit "Wird geladen …"
+  // oeffnet, wirkt langsamer als es ist. Faellt der GET ganz aus, bleibt der
+  // Startblock stehen -- der erste Sendeversuch meldet den Fehler dann
+  // konkret, statt hier pauschal die Tuer zuzumachen.
+  if (info?.enabled === false) {
     return (
       <div className={cn("flex h-full flex-col items-center justify-center gap-3 px-6 text-center", className)}>
         <AlertTriangle className="size-6 text-muted-foreground" />
-        <p className="max-w-sm text-[13px] text-muted-foreground">
-          {info?.greeting ?? "Der Atlas-Bot ist gerade nicht erreichbar. Versuch es später noch einmal."}
-        </p>
+        <p className="max-w-sm text-[13px] text-muted-foreground">{info.greeting}</p>
       </div>
     );
   }
+
+  const greeting = info?.greeting ?? "Wie kann ich dir helfen?";
+  const suggestions = info?.suggestions ?? [];
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
@@ -375,27 +387,33 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           // der erste Eindruck des Features und braucht Gewicht. Sobald die
           // erste Nachricht da ist (turns.length > 0), uebernimmt der normale,
           // oben beginnende Verlauf unten.
-          <div className="flex h-full flex-col items-center justify-center gap-6 px-2 text-center">
-            <span className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <Bot className="size-5" />
+          <div className="flex h-full flex-col items-center justify-center gap-5 px-2 text-center">
+            {/* Das Zeichen bekommt einen weichen Hof statt einer harten
+                Kachel -- im leeren Panel ist es das einzige Bildelement und
+                darf ruhig atmen. */}
+            <span className="relative grid size-14 place-items-center">
+              <span
+                aria-hidden
+                className="absolute inset-0 rounded-full bg-primary/15 blur-md"
+              />
+              <span className="relative grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <AtlasBotMark className="size-6" />
+              </span>
             </span>
-            <p className="max-w-md text-balance text-[19px] font-semibold leading-snug tracking-tight text-foreground">
-              {info!.greeting}
+            <p className="max-w-md text-balance text-[18px] font-semibold leading-snug tracking-tight text-foreground">
+              {greeting}
             </p>
-            {info!.suggestions.length > 0 && (
-              <div className="flex w-full max-w-md flex-col gap-2">
-                <p className="px-1 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Frag zum Beispiel
-                </p>
-                {info!.suggestions.map((s) => (
+            {suggestions.length > 0 && (
+              <div className="flex w-full max-w-md flex-col gap-1.5">
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
                     onClick={() => void send(s)}
-                    className="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-left text-[14px] font-medium leading-snug text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="group flex items-center justify-between gap-3 rounded-xl border bg-card px-3.5 py-2.5 text-left text-[13.5px] font-medium leading-snug text-foreground transition-colors hover:border-primary/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     {s}
-                    <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+                    <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                   </button>
                 ))}
               </div>
@@ -414,29 +432,47 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         )}
       </div>
 
-      <form onSubmit={onSubmit} className="flex items-end gap-2 border-t bg-card/40 px-4 py-3 sm:px-5">
-        <textarea
-          ref={inputRef}
-          data-autofocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          rows={1}
-          placeholder="Frag den Atlas-Bot …"
-          className="min-h-[44px] flex-1 resize-none rounded-lg border bg-background px-3 py-2.5 text-[16px] leading-snug outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        />
-        {streaming ? (
-          // "Square" pur als Umriss verschwindet neben dem eigenen
-          // quadratischen Button-Rahmen -- gefuellt liest es sich sofort als
-          // das klassische Stop-Symbol.
-          <Button type="button" variant="outline" size="icon" aria-label="Antwort abbrechen" title="Antwort abbrechen" onClick={abort}>
-            <Square className="size-3.5" fill="currentColor" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" aria-label="Absenden" disabled={!input.trim()}>
-            <Send className="size-4" />
-          </Button>
-        )}
+      {/* Eingabe als eine Flaeche statt Feld-plus-Knopf: der Rahmen umfasst
+          beides und reagiert auf den Fokus des Feldes darin (focus-within),
+          damit die Zeile als ein Bauteil liest. */}
+      <form onSubmit={onSubmit} className="px-3 pb-3 pt-2">
+        <div className="flex items-end gap-1.5 rounded-2xl border bg-background p-1.5 pl-3 shadow-sm transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/25">
+          <textarea
+            ref={inputRef}
+            data-autofocus
+            value={input}
+            onChange={onInputChange}
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder="Frag Atlas …"
+            // 16px sind Pflicht: kleinere Felder loesen auf iOS den
+            // Auto-Zoom aus, der das ganze Panel verschiebt.
+            className="max-h-[8.5rem] min-h-[1.75rem] flex-1 resize-none self-center bg-transparent py-1.5 text-[16px] leading-snug outline-none placeholder:text-muted-foreground"
+          />
+          {streaming ? (
+            // "Square" pur als Umriss verschwindet neben dem eigenen runden
+            // Rahmen -- gefuellt liest es sich sofort als das klassische
+            // Stop-Symbol.
+            <button
+              type="button"
+              onClick={abort}
+              aria-label="Antwort abbrechen"
+              title="Antwort abbrechen"
+              className="grid size-9 shrink-0 place-items-center rounded-xl border bg-card text-foreground transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <Square className="size-3" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              aria-label="Absenden"
+              disabled={!input.trim()}
+              className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground transition-[opacity,transform] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] disabled:pointer-events-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:active:scale-95"
+            >
+              <ArrowUp className="size-4" strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
@@ -480,8 +516,8 @@ function TurnView({
 
       <div className="flex flex-col gap-2.5">
         {showStatus && (
-          <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-            <span className="size-1.5 rounded-full bg-muted-foreground motion-safe:animate-pulse" aria-hidden />
+          <p className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            <TypingDots />
             {turn.statusText}
           </p>
         )}
@@ -499,7 +535,7 @@ function TurnView({
             dangerouslySetInnerHTML={{ __html: html }}
           />
         ) : turn.streaming && !showStatus && !turn.errorText ? (
-          <p className="text-[13px] text-muted-foreground">Denkt nach …</p>
+          <TypingDots />
         ) : null}
 
         {turn.items.map((item) =>
@@ -603,5 +639,23 @@ function ProposalCard({
       {item.state === "entered" && <p className="mt-2 text-[12px] text-muted-foreground">Eingetragen.</p>}
       {item.state === "discarded" && <p className="mt-2 text-[12px] text-muted-foreground">Verworfen.</p>}
     </motion.div>
+  );
+}
+
+// Drei versetzt pulsierende Punkte -- das eingefuehrte Zeichen dafuer, dass
+// gerade etwas entsteht. Bei reduzierter Bewegung bleibt ein ruhiger Punkt
+// stehen, damit der Zustand trotzdem sichtbar ist.
+function TypingDots() {
+  return (
+    <span className="flex items-center gap-1" role="status" aria-label="Atlas antwortet">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="size-1.5 rounded-full bg-muted-foreground/70 motion-safe:animate-bounce"
+          style={{ animationDelay: `${i * 0.14}s`, animationDuration: "0.9s" }}
+        />
+      ))}
+    </span>
   );
 }

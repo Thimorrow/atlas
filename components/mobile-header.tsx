@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, GraduationCap, ListChecks, Library, Settings, Sunrise } from "lucide-react";
+import { BarChart3, GraduationCap, ListChecks, Library, Settings, Sunrise } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
-import { toggleBotOverlay } from "@/components/bot-overlay-host";
 import { cn } from "@/lib/utils";
 
 // Schlanke Kopfleiste fuer Mobile (< md) -- die Sidebar ist dort ausgeblendet,
@@ -33,14 +32,6 @@ export function MobileHeader() {
         </span>
       </Link>
       <nav className="flex items-center gap-0.5">
-      <button
-        type="button"
-        onClick={toggleBotOverlay}
-        aria-label="Atlas-Bot öffnen (Strg+K)"
-        className={cn(tap, "text-muted-foreground hover:bg-accent hover:text-foreground")}
-      >
-        <Bot className="size-[18px]" />
-      </button>
       {[
         { href: "/morgen", label: "Morgen", icon: Sunrise },
         { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
