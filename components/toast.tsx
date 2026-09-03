@@ -13,9 +13,16 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 type ToastVariant = "error" | "success";
-type Toast = { id: number; message: string; variant: ToastVariant };
+// Additiv fuer optimistisches Loeschen mit Undo (Notiz-Modul): ein Toast
+// kann eine Aktion tragen, die ihn beim Klick sofort wegraeumt -- ohne
+// Undo-Absicht bleibt das Feld einfach weg, bestehende Aufrufer aendern sich
+// nicht.
+type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; message: string; variant: ToastVariant; action?: ToastAction };
 
-const ToastCtx = createContext<(message: string, variant?: ToastVariant) => void>(() => {});
+const ToastCtx = createContext<(message: string, variant?: ToastVariant, action?: ToastAction) => void>(
+  () => {},
+);
 
 export function useToast() {
   return useContext(ToastCtx);
@@ -25,9 +32,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const reduce = useReducedMotion();
 
-  const show = useCallback((message: string, variant: ToastVariant = "error") => {
+  const show = useCallback((message: string, variant: ToastVariant = "error", action?: ToastAction) => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, message, variant }]);
+    setToasts((t) => [...t, { id, message, variant, action }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }, []);
 
@@ -59,7 +66,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               ) : (
                 <AlertCircle className="mt-px size-4 shrink-0 text-destructive" />
               )}
-              <span>{t.message}</span>
+              <span className="flex-1">{t.message}</span>
+              {t.action ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.action?.onClick();
+                    setToasts((cur) => cur.filter((x) => x.id !== t.id));
+                  }}
+                  className="relative shrink-0 font-medium text-primary underline underline-offset-2 before:absolute before:-inset-2 before:content-['']"
+                >
+                  {t.action.label}
+                </button>
+              ) : null}
             </motion.div>
           ))}
         </AnimatePresence>

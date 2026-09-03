@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Loader2, NotebookPen, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, Loader2, NotebookPen, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { markdownPreview, renderMarkdown } from "@/lib/markdown";
@@ -72,6 +72,27 @@ function fmtLessonHeader(dateISO: string, startTime: string) {
 type MergedEntry =
   | { kind: "note"; ts: string; note: NoteDTO }
   | { kind: "lesson"; ts: string; note: SubjectLessonNoteDTO };
+
+// Monatsschluessel ("2026-09") fuer die Gruppierung -- getrennt vom Label,
+// weil zwei verschiedene Monate nie denselben Schluessel teilen duerfen, ihr
+// Label (z. B. bei einem Jahreswechsel) aber schon identisch aussehen kann.
+function monthKey(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "unbekannt";
+  return `${d.getFullYear()}-${d.getMonth()}`;
+}
+
+function monthLabel(ts: string): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "Unbekannt";
+  return d.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+}
+
+// Text, nach dem eine Notiz durchsucht wird: bei freien Notizen Titel plus
+// Text, bei Stundennotizen nur der Text (kein eigener Titel vorhanden).
+function searchText(entry: MergedEntry): string {
+  return entry.kind === "note" ? `${entry.note.title} ${entry.note.body}` : entry.note.body;
+}
 
 // Ein einziges Overlay-Gehaeuse fuer Lesen, Bearbeiten und Loeschbestaetigung.
 // window.confirm ist bewusst nicht im Spiel: es laesst sich nicht gestalten,
@@ -217,7 +238,7 @@ function MergedNoteRow({
   onOpenLessonNote: (n: SubjectLessonNoteDTO) => void;
 }) {
   const rowClass =
-    "relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]";
 
   if (entry.kind === "note") {
     return (
@@ -246,6 +267,20 @@ function MergedNoteRow({
         <span className="line-clamp-2 w-full text-[13px] text-foreground">{entry.note.body}</span>
       </button>
     </li>
+  );
+}
+
+// Monats-Ueberschrift ueber einer Gruppe von Notizen. Gleiches Muster wie
+// GroupHeading in components/assignment-list.tsx (uppercase + geloeste
+// tracking-wide, siehe design-foundations "Uppercase labels need loosened
+// tracking") -- lokal nachgebaut statt importiert, weil GroupHeading dort
+// nicht exportiert ist und eine zweite Notiz-spezifische Zeile (kein Zaehler,
+// kein Fehlerfarbton) ohnehin einfacher als eigene, kleine Komponente bleibt.
+function MonthHeading({ label }: { label: string }) {
+  return (
+    <h3 className="px-2.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      {label}
+    </h3>
   );
 }
 
@@ -348,10 +383,14 @@ function ReadNoteBody({
   );
 }
 
-// Inhalt des Anlegen-/Bearbeiten-Overlays.
+// Inhalt des Anlegen-/Bearbeiten-Overlays. `error` ist ein persistenter
+// Hinweis (fehlender Titel, fehlgeschlagenes Speichern) -- bleibt anders als
+// der Toast stehen, bis der naechste Speicherversuch oder eine Aenderung ihn
+// ersetzt bzw. loescht (siehe SubjectNotes: onChange raeumt ihn live weg).
 function EditNoteBody({
   editor,
   busy,
+  error,
   onChange,
   onKeyDown,
   onCancel,
@@ -359,11 +398,17 @@ function EditNoteBody({
 }: {
   editor: Editor;
   busy: boolean;
+  error: string | null;
   onChange: (editor: Editor) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
+  // Bearbeiten/Vorschau ist rein lokaler UI-Zustand -- muss den Dialog nicht
+  // ueberleben, deshalb kein Prop von aussen.
+  const [mode, setMode] = useState<"write" | "preview">("write");
+  const previewHtml = useMemo(() => renderMarkdown(editor.body), [editor.body]);
+
   return (
     <>
       <header className="flex items-start gap-2 border-b bg-muted/30 px-5 py-4">
@@ -387,29 +432,85 @@ function EditNoteBody({
             onKeyDown={onKeyDown}
             placeholder="Worum geht es?"
             autoComplete="off"
-            className="h-11 w-full rounded-lg border bg-background px-3 text-[16px] outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="h-11 w-full rounded-lg border bg-background px-3 text-[16px] outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="note-body" className="text-[13px] font-medium">
-            Text
-          </label>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="note-body" className="text-[13px] font-medium">
+              Text
+            </label>
+            {/* Segmented Control statt echtem ARIA-Tab: es fehlt die
+                Pfeiltasten-Navigation, die role="tablist" verspricht --
+                zwei Umschalt-Knoepfe mit aria-pressed geben ehrlich wieder,
+                was tatsaechlich unterstuetzt wird. Sachlich derselbe Fall wie
+                die Tabs-Ausnahme in design-foundations: zwei Ansichten
+                desselben Inhalts (roh vs. gerendert). */}
+            <div role="group" aria-label="Ansicht" className="flex items-center gap-0.5 rounded-md border p-0.5">
+              {/* Sichtbar bleibt der schlanke Knopf (px-2 py-1) -- die reale
+                  Trefferflaeche zieht das before-Pseudo-Element per -inset auf
+                  >=40px hoch, derselbe Trick wie beim Button-Primitive
+                  (components/ui/button.tsx). Ohne das waeren die 20px hohen
+                  Knoepfe auf dem Handy kaum zu treffen. */}
+              <button
+                type="button"
+                aria-pressed={mode === "write"}
+                onClick={() => setMode("write")}
+                className={cn(
+                  "relative rounded px-2 py-1 text-[12px] font-medium transition-colors duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] before:absolute before:-inset-y-2.5 before:content-['']",
+                  mode === "write" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Bearbeiten
+              </button>
+              <button
+                type="button"
+                aria-pressed={mode === "preview"}
+                onClick={() => setMode("preview")}
+                className={cn(
+                  "relative rounded px-2 py-1 text-[12px] font-medium transition-colors duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] before:absolute before:-inset-y-2.5 before:content-['']",
+                  mode === "preview" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Vorschau
+              </button>
+            </div>
+          </div>
           {/* Bewusst ein einfaches Textfeld statt Rich-Text: Markdown
               bleibt sichtbar und lesbar, auch auf dem Handy. 16px
-              Schriftgroesse verhindert den Auto-Zoom in iOS Safari. */}
-          <textarea
-            id="note-body"
-            value={editor.body}
-            onChange={(e) => onChange({ ...editor, body: e.target.value })}
-            onKeyDown={onKeyDown}
-            rows={10}
-            placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
-            className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          />
+              Schriftgroesse verhindert den Auto-Zoom in iOS Safari. Die
+              Vorschau daneben zeigt, was aus der Syntax wird, statt sie
+              blind zu tippen und das Ergebnis erst nach dem Speichern in
+              der Lese-Ansicht zu sehen. */}
+          {mode === "write" ? (
+            <textarea
+              id="note-body"
+              value={editor.body}
+              onChange={(e) => onChange({ ...editor, body: e.target.value })}
+              onKeyDown={onKeyDown}
+              rows={10}
+              placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
+              className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
+            />
+          ) : (
+            <div className="min-h-[180px] w-full rounded-lg border bg-background px-3 py-2.5">
+              {editor.body.trim() ? (
+                <div className={PROSE} dangerouslySetInnerHTML={{ __html: previewHtml }} />
+              ) : (
+                <p className="text-sm text-muted-foreground">Noch kein Text.</p>
+              )}
+            </div>
+          )}
           <p className="text-[12px] text-muted-foreground">
             Markdown wird unterstützt: Überschriften, Listen, Fett, Kursiv, Code und Links.
           </p>
         </div>
+        {error ? (
+          <p role="alert" className="flex items-start gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+            <AlertCircle className="mt-px size-4 shrink-0" />
+            {error}
+          </p>
+        ) : null}
       </div>
       <footer className="flex items-center justify-end gap-2 border-t px-5 py-3">
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
@@ -420,47 +521,6 @@ function EditNoteBody({
         </Button>
       </footer>
     </>
-  );
-}
-
-// Inhalt des Loesch-Bestaetigungs-Overlays.
-function DeleteNoteBody({
-  note,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  note: NoteDTO;
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="px-5 py-5">
-      <h3 id="note-delete-title" className="text-[16px] font-semibold leading-tight tracking-tight">
-        Notiz löschen?
-      </h3>
-      <p className="mt-1.5 text-sm text-muted-foreground">
-        „{note.title}“ wird endgültig entfernt. Das lässt sich nicht rückgängig machen.
-      </p>
-      <div className="mt-5 flex items-center justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
-          Abbrechen
-        </Button>
-        <Button
-          size="sm"
-          data-autofocus
-          onClick={onConfirm}
-          disabled={busy}
-          // Es gibt kein --destructive-foreground-Token: text-background
-          // traegt in beiden Themes. Weiss waere im Dunkelmodus zu blass,
-          // dort ist --destructive ein helles Rot.
-          className="bg-destructive text-background hover:bg-destructive/90"
-        >
-          {busy ? "Löscht…" : "Löschen"}
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -486,12 +546,12 @@ export function SubjectNotes({
   const [notes, setNotes] = useState<NoteDTO[]>(() => [...initialNotes].sort(byUpdatedDesc));
   const [openId, setOpenId] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [send, setSend] = useState<SendState>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const open = useMemo(() => notes.find((n) => n.id === openId) ?? null, [notes, openId]);
-  const confirmNote = useMemo(() => notes.find((n) => n.id === confirmId) ?? null, [notes, confirmId]);
 
   // Beide Notizarten chronologisch gemischt, neuste zuerst. Bei einer
   // Stundennotiz zaehlt der Termin der Stunde (Datum + Uhrzeit), nicht
@@ -507,6 +567,35 @@ export function SubjectNotes({
     return [...freeItems, ...lessonItems].sort((a, b) => b.ts.localeCompare(a.ts));
   }, [notes, lessonNotes]);
 
+  // Lokale Substring-Suche ueber Titel + Text -- kein Debounce noetig: es
+  // filtert ein bereits im Speicher liegendes Array (typischerweise wenige
+  // Dutzend Eintraege), kein Request pro Tastendruck wie bei einer serverseitigen
+  // Suche, fuer die die 300ms-Regel gedacht ist.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return merged;
+    return merged.filter((entry) => searchText(entry).toLowerCase().includes(q));
+  }, [merged, search]);
+
+  // Nach Monat gruppiert, in derselben (schon absteigend sortierten)
+  // Reihenfolge -- gleiche Monate liegen dadurch garantiert hintereinander,
+  // ein zweiter Sortierschritt ist nicht noetig. Bei nur einer Gruppe bleibt
+  // die Ueberschrift weg (siehe Render): bei drei Notizen aus demselben Monat
+  // waere ein einzelnes "September 2026" ueber der Liste nur Rauschen.
+  const groups = useMemo(() => {
+    const out: { key: string; label: string; items: MergedEntry[] }[] = [];
+    for (const entry of filtered) {
+      const key = monthKey(entry.ts);
+      const last = out[out.length - 1];
+      if (last && last.key === key) {
+        last.items.push(entry);
+      } else {
+        out.push({ key, label: monthLabel(entry.ts), items: [entry] });
+      }
+    }
+    return out;
+  }, [filtered]);
+
   const html = useMemo(() => (open ? renderMarkdown(open.body) : ""), [open]);
 
   const upsert = useCallback((note: NoteDTO) => {
@@ -517,10 +606,14 @@ export function SubjectNotes({
     if (!editor || busy) return;
     const title = editor.title.trim();
     if (!title) {
-      toast("Die Notiz braucht einen Titel.");
+      // Persistenter Hinweis im Dialog statt nur ein Toast: der Toast ist
+      // nach 4s weg, das Formular bleibt aber offen -- ohne feste Anzeige
+      // koennte man den Grund fuer den blockierten Speichern-Knopf verpassen.
+      setSaveError("Die Notiz braucht einen Titel.");
       return;
     }
     setBusy(true);
+    setSaveError(null);
     try {
       const res = editor.id
         ? await fetch(`/api/notes/${editor.id}`, {
@@ -535,37 +628,68 @@ export function SubjectNotes({
           });
       const data = (await res.json().catch(() => null)) as { note?: NoteDTO; error?: string } | null;
       if (!res.ok || !data?.note) {
-        toast(data?.error ?? "Die Notiz konnte nicht gespeichert werden.");
+        // Getippter Text bleibt im Editor-State stehen (kein setEditor(null))
+        // -- ein fehlgeschlagenes Speichern darf niemals loeschen, was der
+        // Nutzer schon geschrieben hat.
+        const message = data?.error ?? "Die Notiz konnte nicht gespeichert werden.";
+        setSaveError(message);
+        toast(message);
         return;
       }
       upsert(data.note);
       setEditor(null);
+      setSaveError(null);
       setOpenId(data.note.id);
     } catch {
-      toast("Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.");
+      const message = "Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.";
+      setSaveError(message);
+      toast(message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function remove(id: string) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        toast(data?.error ?? "Die Notiz konnte nicht gelöscht werden.");
-        return;
-      }
-      setNotes((prev) => prev.filter((n) => n.id !== id));
-      setConfirmId(null);
-      setOpenId((cur) => (cur === id ? null : cur));
-    } catch {
-      toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
-    } finally {
-      setBusy(false);
-    }
+  // Optimistisches Loeschen mit Undo-Toast statt Bestaetigungsdialog: die
+  // Notiz verschwindet sofort aus der Liste, der tatsaechliche DELETE-Request
+  // laeuft erst nach der Undo-Frist (an die 4s-Anzeigedauer des Toasts in
+  // components/toast.tsx gekoppelt). Klickt der Nutzer "Rueckgaengig", wird
+  // der Request nie ausgeloest -- kein Server-Rundweg fuer die Undo-Faelle,
+  // die in der Praxis die meisten sein duerften.
+  function remove(id: string) {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    setOpenId((cur) => (cur === id ? null : cur));
+
+    let undone = false;
+    toast("Notiz gelöscht", "success", {
+      label: "Rückgängig",
+      onClick: () => {
+        undone = true;
+        setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
+      },
+    });
+
+    window.setTimeout(() => {
+      if (undone) return;
+      void (async () => {
+        try {
+          const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
+          if (!res.ok) {
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            // Server hat abgelehnt (z. B. schon geloescht) -- die Notiz war
+            // lokal schon weg, jetzt zurueckholen statt sie stillschweigend
+            // verloren zu geben.
+            setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
+            toast(data?.error ?? "Die Notiz konnte nicht gelöscht werden.");
+          }
+        } catch {
+          setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
+          toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
+        }
+      })();
+    }, 4000);
   }
 
   // Beim Wechsel der geoeffneten Notiz zurueck auf Anfang: eine stehengebliebene
@@ -602,6 +726,14 @@ export function SubjectNotes({
     }
   }
 
+  // Editor mit leerem Formular oder mit einer bestehenden Notiz oeffnen --
+  // an beiden Stellen dieselbe Aufraeumarbeit (alter Fehler weg), deshalb ein
+  // gemeinsamer Helfer statt zwei fast identischer Inline-Arrows.
+  function openEditor(next: Editor) {
+    setSaveError(null);
+    setEditor(next);
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
@@ -610,15 +742,33 @@ export function SubjectNotes({
             ? "Noch keine Notizen"
             : `${merged.length} ${merged.length === 1 ? "Notiz" : "Notizen"}`}
         </p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setEditor({ id: null, title: "", body: "" })}
-        >
+        <Button size="sm" variant="outline" onClick={() => openEditor({ id: null, title: "", body: "" })}>
           <Plus className="size-4" />
           Neue Notiz
         </Button>
       </div>
+
+      {/* Suche: erst ab ein paar Notizen sichtbar -- bei zwei, drei Eintraegen
+          waere ein Suchfeld reine Flaeche ohne Nutzen. Lokale Filterung ueber
+          ein Array im Speicher, kein Request pro Tastendruck. */}
+      {merged.length > 4 ? (
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Notizen durchsuchen…"
+            aria-label="Notizen durchsuchen"
+            spellCheck={false}
+            autoComplete="off"
+            className="h-10 w-full rounded-lg border bg-background pl-9 pr-3 text-[16px] outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
+          />
+        </div>
+      ) : null}
 
       {merged.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center">
@@ -628,17 +778,35 @@ export function SubjectNotes({
             Lege oben eine freie Notiz an oder schreib direkt an einer Stunde im Stundenplan.
           </p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-10 text-center">
+          <Search className="size-6 text-muted-foreground" />
+          <p className="text-sm font-medium">Keine Treffer</p>
+          <p className="max-w-[38ch] text-[13px] text-muted-foreground">
+            Keine Notiz enthält „{search.trim()}“. Prüf die Schreibweise oder such nach einem anderen Begriff.
+          </p>
+        </div>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {merged.map((entry) => (
-            <MergedNoteRow
-              key={entry.kind === "note" ? `note-${entry.note.id}` : `lesson-${entry.note.id}`}
-              entry={entry}
-              onOpenNote={setOpenId}
-              onOpenLessonNote={onOpenLessonNote}
-            />
+        <div className="flex flex-col gap-3">
+          {groups.map((g) => (
+            <div key={g.key} className="flex flex-col gap-2">
+              {/* Nur bei mehr als einer Monatsgruppe -- ein einzelnes
+                  "September 2026" ueber der ganzen Liste waere blosse
+                  Wiederholung, keine neue Information. */}
+              {groups.length > 1 ? <MonthHeading label={g.label} /> : null}
+              <ul className="flex flex-col gap-2">
+                {g.items.map((entry) => (
+                  <MergedNoteRow
+                    key={entry.kind === "note" ? `note-${entry.note.id}` : `lesson-${entry.note.id}`}
+                    entry={entry}
+                    onOpenNote={setOpenId}
+                    onOpenLessonNote={onOpenLessonNote}
+                  />
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {/* Lesen */}
@@ -648,8 +816,8 @@ export function SubjectNotes({
             note={open}
             html={html}
             onClose={() => setOpenId(null)}
-            onDelete={() => setConfirmId(open.id)}
-            onEdit={() => setEditor({ id: open.id, title: open.title, body: open.body })}
+            onDelete={() => remove(open.id)}
+            onEdit={() => openEditor({ id: open.id, title: open.title, body: open.body })}
             onenoteReady={onenoteReady}
             send={send}
             onSendToOnenote={() => void sendToOnenote(open.id)}
@@ -663,27 +831,14 @@ export function SubjectNotes({
           <EditNoteBody
             editor={editor}
             busy={busy}
-            onChange={setEditor}
+            error={saveError}
+            onChange={(next) => {
+              setSaveError(null);
+              setEditor(next);
+            }}
             onKeyDown={onEditorKeyDown}
             onCancel={() => setEditor(null)}
             onSave={() => void save()}
-          />
-        ) : null}
-      </Overlay>
-
-      {/* Loeschen bestaetigen */}
-      <Overlay
-        open={!!confirmNote}
-        onClose={() => setConfirmId(null)}
-        labelledBy="note-delete-title"
-        className="sm:max-w-sm"
-      >
-        {confirmNote ? (
-          <DeleteNoteBody
-            note={confirmNote}
-            busy={busy}
-            onCancel={() => setConfirmId(null)}
-            onConfirm={() => void remove(confirmNote.id)}
           />
         ) : null}
       </Overlay>
