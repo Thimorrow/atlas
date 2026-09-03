@@ -2,50 +2,53 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus } from "lucide-react";
+import { ChevronLeft, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
-import { Button } from "@/components/ui/button";
 import { AssignmentList } from "@/components/assignment-list";
-import { AssignmentComposer } from "@/components/assignment-composer";
+import { AssignmentQuickAdd } from "@/components/assignment-quick-add";
 import { useToast } from "@/components/toast";
 import { type AssignmentDTO } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type SubjectOption = { id: string; name: string; color: string | null };
-
 export default function AssignmentsPage() {
   const toast = useToast();
   const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
-  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [loading, setLoading] = useState(true);
+  // Getrennt vom Toast: der Toast verschwindet nach ein paar Sekunden von
+  // selbst, aber solange gar keine Daten da sind, braucht die Seite einen
+  // Zustand, der bleibt -- sonst sieht ein Fehlschlag genauso aus wie "keine
+  // offenen Aufgaben" und die Erklaerung dazu ist laengst weg.
+  const [loadError, setLoadError] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Die Erledigten kommen nicht mit der Standardantwort, sondern erst mit
   // ?completed=1 -- der Umschalter laedt deshalb neu, statt lokal zu filtern.
+  // Die Faecherliste holt sich jetzt jede Eingabe-Komponente selbst und erst
+  // beim ersten Fokus (AssignmentQuickAdd, AssignmentList-Editor) -- ein
+  // Seitenbesuch ohne Neuanlage/Bearbeitung braucht sie gar nicht.
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([
-      fetch(`/api/assignments${showCompleted ? "?completed=1" : ""}`).then((r) => r.json()),
-      fetch("/api/subjects").then((r) => r.json()),
-    ])
-      .then(([a, s]) => {
+    setLoadError(false);
+    fetch(`/api/assignments${showCompleted ? "?completed=1" : ""}`)
+      .then((r) => r.json())
+      .then((a) => {
         if (!alive) return;
         setAssignments((a.assignments ?? []) as AssignmentDTO[]);
-        setSubjects((s.subjects ?? []) as SubjectOption[]);
         setLoading(false);
       })
       .catch(() => {
         if (!alive) return;
         setLoading(false);
+        setLoadError(true);
         toast("Die Aufgaben konnten nicht geladen werden.");
       });
     return () => {
       alive = false;
     };
-  }, [showCompleted, toast]);
+  }, [showCompleted, toast, reloadKey]);
 
   const onCreated = useCallback((a: AssignmentDTO) => {
     setAssignments((prev) => [...prev, a]);
@@ -67,22 +70,20 @@ export default function AssignmentsPage() {
             <ChevronLeft className="size-4" />
             Zurück zum Stundenplan
           </Link>
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-semibold leading-tight tracking-tight">Aufgaben</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {loading
-                  ? "Wird geladen …"
-                  : openCount === 0
-                    ? "Nichts offen."
-                    : `${openCount} offen über alle Fächer.`}
-              </p>
-            </div>
-            <Button size="sm" className="gap-1.5" onClick={() => setComposerOpen(true)}>
-              <Plus className="size-4" />
-              Neue Aufgabe
-            </Button>
+          <div>
+            <h1 className="text-xl font-semibold leading-tight tracking-tight">Aufgaben</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {loading
+                ? "Wird geladen …"
+                : openCount === 0
+                  ? "Nichts offen."
+                  : `${openCount} offen über alle Fächer.`}
+            </p>
           </div>
+        </StaggerItem>
+
+        <StaggerItem>
+          <AssignmentQuickAdd onCreated={onCreated} />
         </StaggerItem>
 
         <StaggerItem>
@@ -116,24 +117,38 @@ export default function AssignmentsPage() {
         <StaggerItem>
           {loading ? (
             <ListSkeleton />
+          ) : loadError ? (
+            <LoadErrorState onRetry={() => setReloadKey((k) => k + 1)} />
           ) : (
             <AssignmentList
               assignments={assignments}
               onChange={setAssignments}
               grouped
-              emptyLabel="Keine offenen Aufgaben. Neue legst du oben rechts an."
+              emptyLabel="Keine offenen Aufgaben. Neue legst du oben in der Zeile an."
             />
           )}
         </StaggerItem>
       </Stagger>
-
-      <AssignmentComposer
-        open={composerOpen}
-        onOpenChange={setComposerOpen}
-        subjects={subjects}
-        onSaved={onCreated}
-      />
     </main>
+  );
+}
+
+// Eigener Zustand statt eines leeren AssignmentList mit generischem
+// emptyLabel -- sonst sieht ein Fehlschlag beim Laden optisch genauso aus
+// wie "keine offenen Aufgaben", und der erklaerende Toast ist nach 4s weg.
+function LoadErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-10 text-center">
+      <p className="text-sm text-muted-foreground">Die Aufgaben konnten nicht geladen werden.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="relative inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-[13px] font-medium transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        <RefreshCw className="size-3.5" />
+        Erneut versuchen
+      </button>
+    </div>
   );
 }
 
