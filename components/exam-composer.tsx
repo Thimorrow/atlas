@@ -87,10 +87,16 @@ export function ExamComposer({
   // Kollisions-Hinweis ("2 weitere an diesem Tag") -- die neue Arbeit selbst
   // ist darin nicht enthalten.
   existingExams,
-  // Additiv fuer Aufrufer mit bereits bekanntem Fach (z.B. die Fach-Seite):
-  // vorbelegt, aber weiterhin aenderbar. Ohne Angabe verhaelt sich der
-  // Composer wie bisher -- leer, bis eine Auswahl getroffen wird.
+  // Additiv fuer Aufrufer mit bereits bekanntem Fach (z.B. die Fach-Seite)
+  // oder bekanntem Tag (z.B. der Kalender, aus einer konkreten Stunde
+  // heraus): vorbelegt, aber weiterhin aenderbar. Ohne Angabe verhaelt sich
+  // der Composer wie bisher -- leer, bis eine Auswahl getroffen wird.
   initialSubjectId,
+  initialDueDate,
+  // Traegt das Untis-Kuerzel mit, wenn initialSubjectId (noch) keins ist --
+  // der Server legt das Fach beim Speichern still darueber an, genau wie im
+  // Hausaufgaben-Composer (siehe assignment-composer.tsx).
+  initialUntisSubject,
   onSaved,
 }: {
   open: boolean;
@@ -98,6 +104,8 @@ export function ExamComposer({
   subjects: SubjectOption[];
   existingExams: AssignmentDTO[];
   initialSubjectId?: string;
+  initialDueDate?: string;
+  initialUntisSubject?: string | null;
   onSaved: (a: AssignmentDTO) => void;
 }): React.JSX.Element {
   const reduce = useReducedMotion();
@@ -134,7 +142,7 @@ export function ExamComposer({
     setType("exam");
     setSubjectId(initialSubjectId ?? "");
     setTitle("");
-    setDueDate("");
+    setDueDate(initialDueDate ?? "");
     setNotes("");
     setSaving(false);
     setSubjectTouched(false);
@@ -142,9 +150,17 @@ export function ExamComposer({
     setToday(localISO());
     restoreRef.current = document.activeElement as HTMLElement | null;
     // Auf Touch-Geraeten poppt Autofokus die Tastatur ungefragt hoch --
-    // dort bleibt der Termin unfokussiert, bis der Finger ihn beruehrt.
-    const isTouch = typeof window !== "undefined" && "ontouchstart" in window;
-    const t = isTouch ? null : window.setTimeout(() => dateRef.current?.focus(), 20);
+    // dort bleibt das Feld unfokussiert, bis der Finger es beruehrt. Ist der
+    // Termin schon vorbelegt (Kalender-Einstieg), ist der Titel das naechste
+    // offene Feld statt eines bereits ausgefuellten Datums.
+    // ontouchstart liegt auf Hybridgeraeten und manchen Touch-Notebooks
+    // falsch -- die eigentliche Frage ist, ob der Zeiger grob ist (Finger),
+    // nicht ob das Geraet ueberhaupt Touch kann. Gleiche Erkennung wie in
+    // assignment-composer.tsx.
+    const isTouch =
+      typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+    const target = initialDueDate ? titleRef : dateRef;
+    const t = isTouch ? null : window.setTimeout(() => target.current?.focus(), 20);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -204,7 +220,7 @@ export function ExamComposer({
           title: trimmed,
           type,
           subjectId: subjectId || null,
-          untisSubject: null,
+          untisSubject: initialUntisSubject ?? null,
           dueDate: dueDate || null,
           notes: notes.trim() || null,
         }),

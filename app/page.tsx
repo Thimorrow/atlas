@@ -12,13 +12,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { AssignmentComposer } from "@/components/assignment-composer";
+import { ExamComposer } from "@/components/exam-composer";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { LessonParticipationEditor, type LessonParticipationTarget } from "@/components/lesson-participation";
 import { DayDueRow, WeekDayDots } from "@/components/calendar-assignments";
 import { useToast } from "@/components/toast";
 import { UntisSyncNotice } from "@/components/untis-sync-notice";
 import { decideSync } from "@/lib/untis/sync-policy";
-import { TYPE_LABEL, weekdayDateLabel, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
+import {
+  TYPE_LABEL,
+  isExamPageType,
+  weekdayDateLabel,
+  type AssignmentDTO,
+  type AssignmentType,
+} from "@/lib/assignments-view";
 import { colorValue } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 import { readLocal, writeLocal } from "@/lib/safe-storage";
@@ -52,6 +59,17 @@ type ComposerSeed = {
   // Fuer den Hinweistext unterm Faelligkeits-Feld ("Naechste Mathestunde: ...").
   subjectName: string;
   // Ursprungsstunde, damit onSaved den Marker gezielt an ihr setzen kann.
+  originBlockId: string;
+};
+// Vorbelegung des ExamComposer aus einer Schulstunde heraus. Anders als bei
+// ComposerSeed zaehlt hier der angeklickte Tag selbst, nicht die naechste
+// Stunde dieses Fachs -- eine Klassenarbeit findet an einem festen Termin
+// statt, sie ist nicht "faellig zur naechsten Stunde".
+type ExamSeed = {
+  subjectId: string | null;
+  untisSubject: string | null;
+  dueDate: string;
+  subjectName: string;
   originBlockId: string;
 };
 
@@ -724,6 +742,7 @@ export default function Home() {
   const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [seed, setSeed] = useState<ComposerSeed | null>(null);
+  const [examSeed, setExamSeed] = useState<ExamSeed | null>(null);
   const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
   const [countTarget, setCountTarget] = useState<LessonParticipationTarget | null>(null);
 
@@ -948,6 +967,19 @@ export default function Home() {
   // lieber ehrlich leer als geraten (Composer zeigt das im Hinweistext).
   const openComposer = async (ev: Ev, dayISO: string, type: AssignmentType) => {
     const subject = subjectFor(ev.title);
+    // Klassenarbeit: Fach und Tag stehen schon fest, kein Nachladen noetig --
+    // anders als bei der Hausaufgabe zaehlt hier der angeklickte Tag selbst,
+    // nicht die naechste Stunde dieses Fachs.
+    if (type === "exam") {
+      setExamSeed({
+        subjectId: subject?.id ?? null,
+        untisSubject: ev.title,
+        dueDate: dayISO,
+        subjectName: subject?.name ?? ev.title,
+        originBlockId: ev.refId,
+      });
+      return;
+    }
     let dueDate: string | null = null;
     try {
       const res = await fetch(`/api/lessons/${ev.refId}/next-due`);
@@ -1654,6 +1686,33 @@ export default function Home() {
             setReloadKey((k) => k + 1);
           }
           setSeed(null);
+        }}
+      />
+
+      {/* Klassenarbeit aus der Stunde heraus eintragen -- eigenstaendiger
+          Composer statt AssignmentComposer (siehe exam-composer.tsx), der
+          Termin ist hier der angeklickte Tag, kein Nachladen noetig. */}
+      <ExamComposer
+        open={examSeed !== null}
+        onOpenChange={(open) => {
+          if (!open) setExamSeed(null);
+        }}
+        subjects={subjects.map((s) => ({ id: s.id, name: s.name, color: s.color }))}
+        existingExams={assignments.filter((a) => isExamPageType(a.type))}
+        initialSubjectId={examSeed?.subjectId ?? undefined}
+        initialDueDate={examSeed?.dueDate}
+        initialUntisSubject={examSeed?.untisSubject}
+        onSaved={(a) => {
+          setAssignments((prev) => [...prev, a]);
+          if (examSeed) {
+            const subjectName = a.subjectName ?? examSeed.subjectName;
+            const meldung = a.dueDate
+              ? `${TYPE_LABEL[a.type]} für ${subjectName} am ${weekdayDateLabel(a.dueDate)} eingetragen.`
+              : `${TYPE_LABEL[a.type]} für ${subjectName} eingetragen.`;
+            toast(meldung);
+            setReloadKey((k) => k + 1);
+          }
+          setExamSeed(null);
         }}
       />
 
