@@ -120,6 +120,13 @@
       "when": 1788511540034,
       "tag": "0016_lernkarten",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788516696123,
+      "tag": "0017_lernthemen",
+      "breakpoints": true
     }
   ]
 }

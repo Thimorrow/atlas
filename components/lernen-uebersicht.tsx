@@ -1,8 +1,8 @@
 "use client";
 
-// Uebersicht des Lernbereichs (/lernen): faellige Karten heute, Pruefungen
-// mit Lernplan, und die Liste aller Faecher. Reine Anzeige -- alles kommt aus
-// GET /api/lernen, das Fach selbst laedt erst auf /lernen/[subjectId].
+// Uebersicht des Lernbereichs (/lernen): was heute ansteht (Heute), welche
+// Pruefungen bevorstehen (mit Bereitschaft je Thema), und alle Faecher.
+// Reine Anzeige -- alles kommt aus GET /api/lernen.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -12,13 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
-import type { SubjectOverview } from "@/lib/study-store";
-
-type OverviewResponse = { today: string; heuteGelernt: number; faecher: SubjectOverview[] };
+import type { HeuteItem, OverviewResponse, PlanDTO, PruefungOverview, SubjectOverview } from "@/lib/lernen-types";
 
 // "pro Tag" ergibt am Pruefungstag keinen Sinn mehr -- dann zaehlt nur noch,
-// was offen ist.
-export function planText(total: number, plan: { tageBis: number; proTag: number; offen: number } | null): string {
+// was offen ist. Von Fach- und Themenseite genutzt (Pruefungszeile).
+export function planText(total: number, plan: PlanDTO | null): string {
   if (total === 0) return "Noch keine Karten";
   if (!plan) return "";
   if (plan.offen === 0) return "Alle Karten sicher";
@@ -27,10 +25,15 @@ export function planText(total: number, plan: { tageBis: number; proTag: number;
   return `${plan.proTag} Karten pro Tag, ${plan.offen} noch offen`;
 }
 
-function tageBisLabel(tageBis: number): string {
+export function tageBisLabel(tageBis: number): string {
   if (tageBis <= 0) return "heute";
   if (tageBis === 1) return "morgen";
   return `in ${tageBis} Tagen`;
+}
+
+function grundText(item: HeuteItem): string {
+  if (item.grund === "pruefung" && item.pruefung) return `Arbeit ${tageBisLabel(item.pruefung.tageBis)}`;
+  return "fällig";
 }
 
 export function LernenUebersicht() {
@@ -84,35 +87,40 @@ export function LernenUebersicht() {
     );
   }
 
-  const faelligGesamt = data.faecher.reduce((sum, f) => sum + f.faellig, 0);
-  const pruefungen = data.faecher
-    .filter((f) => f.naechstePruefung !== null)
-    .sort((a, b) => a.naechstePruefung!.tageBis - b.naechstePruefung!.tageBis);
-  const faecherSortiert = [...data.faecher].sort((a, b) => {
-    if (a.faellig > 0 !== b.faellig > 0) return a.faellig > 0 ? -1 : 1;
-    return 0;
-  });
-  const leer = data.faecher.every((f) => f.total === 0) && pruefungen.length === 0;
+  const leer = data.faecher.every((f) => f.progress.total === 0) && data.pruefungen.length === 0;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Lernen</h1>
         <p className="text-sm text-muted-foreground">
-          {faelligGesamt > 0
-            ? `Heute ${faelligGesamt} ${faelligGesamt === 1 ? "Karte" : "Karten"} fällig · ${data.heuteGelernt} gelernt`
-            : `Nichts fällig, ${data.heuteGelernt} heute gelernt`}
+          {data.heute.karten > 0
+            ? `Heute ${data.heute.karten} ${data.heute.karten === 1 ? "Karte" : "Karten"}, etwa ${data.heute.minuten} ${
+                data.heute.minuten === 1 ? "Minute" : "Minuten"
+              } · ${data.heuteGelernt} gelernt`
+            : `Heute nichts fällig · ${data.heuteGelernt} gelernt`}
         </p>
       </div>
 
-      {pruefungen.length > 0 && (
+      {data.heute.items.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Heute</h2>
+          <ul className="space-y-2">
+            {data.heute.items.map((item, i) => (
+              <HeuteZeile key={`${item.subjectId}-${item.topicId ?? "allgemein"}`} item={item} first={i === 0} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {data.pruefungen.length > 0 && (
         <section className="space-y-2">
           <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Prüfungen bald
           </h2>
           <div className="space-y-2">
-            {pruefungen.map((f) => (
-              <PruefungCard key={f.subjectId} fach={f} />
+            {data.pruefungen.map((p) => (
+              <PruefungCard key={p.id} pruefung={p} />
             ))}
           </div>
         </section>
@@ -131,35 +139,47 @@ export function LernenUebersicht() {
           Alle Fächer
         </h2>
         <ul className="divide-y rounded-xl border">
-          {faecherSortiert.map((f) => (
-            <li key={f.subjectId}>
-              <Link
-                href={`/lernen/${f.subjectId}`}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-              >
-                <span
-                  aria-hidden
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: colorValue(f.color) }}
-                />
-                <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{f.name}</span>
-                <span className="shrink-0 tabular-nums text-[12.5px] text-muted-foreground">
-                  {f.total === 0 ? "Keine Karten" : `${f.faellig} fällig · ${f.sicher}/${f.total} sicher`}
-                </span>
-                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              </Link>
-            </li>
-          ))}
+          {[...data.faecher]
+            .sort((a, b) => {
+              if (a.progress.faellig > 0 !== b.progress.faellig > 0) return a.progress.faellig > 0 ? -1 : 1;
+              return 0;
+            })
+            .map((f) => (
+              <FachZeile key={f.subjectId} fach={f} />
+            ))}
         </ul>
       </section>
     </div>
   );
 }
 
-function PruefungCard({ fach }: { fach: SubjectOverview }) {
-  const exam = fach.naechstePruefung!;
-  const tint = colorValue(fach.color) || NEUTRAL_COLOR;
-  const anteil = fach.total > 0 ? Math.round((fach.sicher / fach.total) * 100) : 0;
+function HeuteZeile({ item, first }: { item: HeuteItem; first: boolean }) {
+  return (
+    <li className="flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card">
+      <span
+        aria-hidden
+        className="size-2.5 shrink-0 rounded-full"
+        style={{ backgroundColor: colorValue(item.color) }}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-medium">{item.titel}</p>
+        <p className="text-[12.5px] text-muted-foreground">
+          {grundText(item)} · {item.anzahl} {item.anzahl === 1 ? "Karte" : "Karten"}
+        </p>
+      </div>
+      <Link
+        href={`/lernen/${item.subjectId}/session?thema=${item.topicId ?? "allgemein"}`}
+        className={cn(buttonVariants({ size: "sm", variant: first ? "default" : "outline" }), "shrink-0")}
+      >
+        Los
+      </Link>
+    </li>
+  );
+}
+
+function PruefungCard({ pruefung }: { pruefung: PruefungOverview }) {
+  const tint = colorValue(pruefung.color) || NEUTRAL_COLOR;
+  const anteil = pruefung.total > 0 ? Math.round((pruefung.bereit / pruefung.total) * 100) : 0;
 
   return (
     <div className="rounded-xl border bg-card px-4 py-3 shadow-card">
@@ -167,41 +187,77 @@ function PruefungCard({ fach }: { fach: SubjectOverview }) {
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
-            <span className="truncate text-[13px] font-medium text-muted-foreground">{fach.name}</span>
+            <span className="truncate text-[13px] font-medium text-muted-foreground">{pruefung.subjectName}</span>
           </div>
-          <p className="mt-0.5 truncate text-[14px] font-medium">{exam.title}</p>
-          <p className="text-[12.5px] tabular-nums text-muted-foreground">{tageBisLabel(exam.tageBis)}</p>
+          <p className="mt-0.5 truncate text-[14px] font-medium">{pruefung.title}</p>
+          <p className="text-[12.5px] tabular-nums text-muted-foreground">{tageBisLabel(pruefung.tageBis)}</p>
         </div>
-        {/* Mit Karten fuehrt der Knopf immer in die Sitzung: sind keine
-            faellig, wiederholt sie die schwaechsten -- dieselbe Regel wie auf
-            der Fachseite. Ohne Karten fuehrt er dorthin, wo welche entstehen. */}
-        {fach.total === 0 ? (
+        {pruefung.themen.length === 0 ? (
           <Link
-            href={`/lernen/${fach.subjectId}`}
+            href={`/lernen/${pruefung.subjectId}`}
             className={cn(buttonVariants({ size: "sm", variant: "outline" }), "shrink-0")}
           >
-            Karten anlegen
+            Themen festlegen
           </Link>
         ) : (
-          <Link
-            href={`/lernen/${fach.subjectId}/session`}
-            className={cn(buttonVariants({ size: "sm", variant: fach.faellig > 0 ? "default" : "outline" }), "shrink-0")}
-          >
-            {fach.faellig > 0 ? "Lernen" : "Wiederholen"}
-          </Link>
+          <div className="flex shrink-0 gap-1.5">
+            <Link
+              href={`/lernen/${pruefung.subjectId}/session?pruefung=${pruefung.id}`}
+              className={cn(buttonVariants({ size: "sm" }))}
+            >
+              Lernen
+            </Link>
+            <Link
+              href={`/lernen/${pruefung.subjectId}/session?pruefung=${pruefung.id}&modus=probe`}
+              className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+            >
+              Probe
+            </Link>
+          </div>
         )}
       </div>
 
-      <p className="mt-2 text-[12px] text-muted-foreground">
-        {planText(fach.total, fach.plan)}
-      </p>
+      {pruefung.total > 0 && (
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full" style={{ width: `${anteil}%`, backgroundColor: tint }} />
+        </div>
+      )}
 
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${anteil}%`, backgroundColor: tint }}
-        />
-      </div>
+      {pruefung.themen.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {pruefung.themen.map((t) => (
+            <span
+              key={t.id}
+              className="rounded-full border px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground"
+            >
+              {t.title} · {t.total > 0 ? Math.round((t.bereit / t.total) * 100) : 0}%
+            </span>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+function FachZeile({ fach }: { fach: SubjectOverview }) {
+  const { progress } = fach;
+  return (
+    <li>
+      <Link
+        href={`/lernen/${fach.subjectId}`}
+        className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        <span
+          aria-hidden
+          className="size-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: colorValue(fach.color) }}
+        />
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{fach.name}</span>
+        <span className="shrink-0 tabular-nums text-[12.5px] text-muted-foreground">
+          {progress.total === 0 ? "Keine Karten" : `${progress.faellig} fällig · ${progress.bereit}% bereit`}
+        </span>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      </Link>
+    </li>
   );
 }

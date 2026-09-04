@@ -31,7 +31,7 @@ import { listSubjectLessonNotes } from "@/lib/lesson-notes";
 import { gradeOverview, listGrades, summarize } from "@/lib/grade-store";
 import { pointsToGradeLabel } from "@/lib/grades";
 import { ladeStundeKontext } from "@/lib/stunde-kontext";
-import { overview, subjectDetail, createCards } from "@/lib/study-store";
+import { overview, subjectDetail, createCards, createTopic, listTopics } from "@/lib/study-store";
 import { generateCards, type GenerateInput } from "@/lib/lernen-generieren";
 import type { ChatTool } from "@/lib/bot/model";
 import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
@@ -808,11 +808,11 @@ async function lernstandLesen(args: Record<string, unknown>) {
       heuteGelernt: ov.heuteGelernt,
       faecher: ov.faecher.map((f) => ({
         fach: f.name,
-        total: f.total,
-        faellig: f.faellig,
-        neu: f.neu,
-        lernend: f.lernend,
-        sicher: f.sicher,
+        total: f.progress.total,
+        faellig: f.progress.faellig,
+        neu: f.progress.neu,
+        lernend: f.progress.lernend,
+        sicher: f.progress.sicher,
         naechstePruefung: f.naechstePruefung,
         plan: f.plan,
         seite: `/lernen/${f.subjectId}`,
@@ -826,15 +826,22 @@ async function lernstandLesen(args: Record<string, unknown>) {
   const detail = await subjectDetail(subject.id);
   if (!detail) return { hinweis: `Fach "${fach}" wurde nicht gefunden.` };
 
+  const ov = await overview();
+  const pruefungen = ov.pruefungen
+    .filter((p) => p.subjectId === subject.id)
+    .map((p) => ({ titel: p.title, tageBis: p.tageBis, bereit: p.bereit }));
+
   const result: Record<string, unknown> = {
     fach: detail.subject.name,
     total: detail.progress.total,
-    faellig: detail.faellig,
+    faellig: detail.progress.faellig,
     neu: detail.progress.neu,
     lernend: detail.progress.lernend,
     sicher: detail.progress.sicher,
     naechstePruefung: detail.naechstePruefung,
     plan: detail.plan,
+    themen: detail.themen.map((t) => ({ titel: t.title, bereit: t.progress.bereit, faellig: t.progress.faellig })),
+    pruefungen,
     seite: `/lernen/${subject.id}`,
   };
 
@@ -871,11 +878,22 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
   const anzahlRoh = typeof args.anzahl === "number" ? args.anzahl : Number(args.anzahl);
   const anzahl = Number.isFinite(anzahlRoh) ? Math.min(Math.max(Math.round(anzahlRoh), 1), 30) : 12;
 
+  // thema: existiert im Fach schon ein Thema mit diesem Titel (case-
+  // insensitiv), wird es genutzt, sonst still angelegt.
+  const themaTitel = typeof args.thema === "string" ? args.thema.trim() : "";
+  let topicId: string | null = null;
+  if (themaTitel) {
+    const themen = await listTopics(subject.id);
+    const needle = themaTitel.toLowerCase();
+    const bestehend = themen.find((t) => t.title.toLowerCase() === needle);
+    topicId = bestehend ? bestehend.id : (await createTopic({ subjectId: subject.id, title: themaTitel })).id;
+  }
+
   const input: GenerateInput = {
     subjectId: subject.id,
     quelle: quelle as GenerateInput["quelle"],
     anzahl,
-    thema: typeof args.thema === "string" ? args.thema : undefined,
+    topicId,
   };
 
   try {
@@ -898,6 +916,8 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
       subject.id,
       generated.cards,
       quelleForStore as Parameters<typeof createCards>[2],
+      null,
+      topicId,
     );
 
     return {

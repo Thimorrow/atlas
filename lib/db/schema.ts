@@ -106,6 +106,9 @@ export const subjects = pgTable(
     curriculum: text("curriculum"),
     curriculumSource: text("curriculum_source"),
     curriculumUpdatedAt: timestamp("curriculum_updated_at", { withTimezone: true }),
+    // Lernart-Override fuer den Lernbereich (aufgaben/vokabeln/wissen/texte).
+    // null = automatisch aus dem Fachnamen (lernartFor in lib/lernen.ts).
+    lernart: text("lernart"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -371,6 +374,34 @@ export const studyCardSource = pgEnum("study_card_source", [
   "lehrplan",
 ]);
 
+// Art einer Karte -- steuert Prompt und Darstellung in der Sitzung, siehe
+// lib/lernen-types.ts (CardKind).
+export const studyCardKind = pgEnum("study_card_kind", ["wissen", "vokabel", "aufgabe"]);
+
+// Ein Thema buendelt Karten und traegt den Lernzettel (Markdown). Optional an
+// eine Pruefung (assignments.id) gebunden -- set null, ein geloeschter Termin
+// soll das Thema nicht mitreissen.
+export const studyTopics = pgTable(
+  "study_topics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    summary: text("summary").notNull().default(""),
+    assignmentId: uuid("assignment_id").references(() => assignments.id, { onDelete: "set null" }),
+    position: integer("position").notNull().default(0),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("study_topics_subject_idx").on(t.subjectId)],
+);
+
+export type StudyTopic = typeof studyTopics.$inferSelect;
+export type NewStudyTopic = typeof studyTopics.$inferInsert;
+
 export const studyCards = pgTable(
   "study_cards",
   {
@@ -378,6 +409,9 @@ export const studyCards = pgTable(
     subjectId: uuid("subject_id")
       .notNull()
       .references(() => subjects.id, { onDelete: "cascade" }),
+    // null = Karte ohne Thema ("Allgemein").
+    topicId: uuid("topic_id").references(() => studyTopics.id, { onDelete: "set null" }),
+    kind: studyCardKind("kind").notNull().default("wissen"),
     question: text("question").notNull(),
     answer: text("answer").notNull().default(""),
     source: studyCardSource("source").notNull().default("manuell"),
@@ -395,12 +429,16 @@ export const studyCards = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("study_cards_subject_due_idx").on(t.subjectId, t.due)],
+  (t) => [
+    index("study_cards_subject_due_idx").on(t.subjectId, t.due),
+    index("study_cards_topic_idx").on(t.topicId),
+  ],
 );
 
 export type StudyCard = typeof studyCards.$inferSelect;
 export type NewStudyCard = typeof studyCards.$inferInsert;
 export type StudyCardSource = StudyCard["source"];
+export type StudyCardKind = StudyCard["kind"];
 
 export const studyReviews = pgTable(
   "study_reviews",
