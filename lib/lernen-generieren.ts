@@ -8,7 +8,7 @@ import { listSubjectLessonNotes } from "@/lib/lesson-notes";
 import { listFiles } from "@/lib/subject-file-store";
 import { readSubjectFile } from "@/lib/bot/files";
 import { botEnabled, streamChatWithFallback, type ChatMessage } from "@/lib/bot/model";
-import { defaultKindFor, lernartFor, parseGeneratedCards, parseGeneratedVariant } from "@/lib/lernen";
+import { defaultKindFor, lernartFor, parseGeneratedCards, parseGeneratedVariant, parseUrteil } from "@/lib/lernen";
 import { getCard, getTopic } from "@/lib/study-store";
 import type { CardKind, Lernart } from "@/lib/lernen-types";
 
@@ -38,6 +38,7 @@ const MAX_ANZAHL = 30;
 const TIMEOUT_MS = 90_000;
 const SUMMARY_TIMEOUT_MS = 90_000;
 const EXPLAIN_TIMEOUT_MS = 60_000;
+const BEWERTEN_TIMEOUT_MS = 30_000;
 
 // Kontext fuer eine der vier Quellen einsammeln. Notizen zuerst, weil sie beim
 // Kuerzen auf MAX_CONTEXT_CHARS Vorrang haben. Mit noteIds werden nur diese
