@@ -5,6 +5,9 @@ import {
   parseNewAssignment,
 } from "@/lib/assignment-store";
 import { isUuid } from "@/lib/subject-store";
+import { isExam } from "@/lib/assignments-view";
+import { lernplanFuerAssignments } from "@/lib/lernplan-store";
+import { heuteISO } from "@/lib/zeit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +24,17 @@ export async function GET(req: Request) {
     includeCompleted: Boolean(url.searchParams.get("completed")),
     subjectId: subjectId ?? undefined,
   });
-  return NextResponse.json({ assignments });
+
+  // Lernplan-Block nur bei Pruefungen (exam/test), eine Batch-Abfrage fuer
+  // alle statt einer je Pruefung. Siehe SPEC.md "Bloecke in Pruefungen,
+  // Fokus, Cockpit".
+  const examIds = assignments.filter((a) => isExam(a.type)).map((a) => a.id);
+  const lernplaene = await lernplanFuerAssignments(examIds, heuteISO());
+  const mitLernplan = assignments.map((a) =>
+    isExam(a.type) ? { ...a, lernplan: lernplaene.get(a.id) ?? null } : a,
+  );
+
+  return NextResponse.json({ assignments: mitLernplan });
 }
 
 // POST /api/assignments -- { title, type?, subjectId?, untisSubject?, dueDate?, notes? }

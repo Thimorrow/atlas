@@ -22,12 +22,15 @@ import { LessonNoteField } from "@/components/lesson-note";
 import { ParticipationCounter } from "@/components/lesson-participation";
 import { SubjectFiles } from "@/components/subject-files";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PhaseChip, balkenTextFarbe } from "@/components/lernplan-ui";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { lessonProgress, minutesLeft, minutesUntil } from "@/lib/jetzt-stunde";
 import { dueLabel, overdueLabel, weekdayDateLabel, type AssignmentDTO } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
 import type { StundeResponse } from "@/app/api/stunde/route";
+import type { ItemDTO } from "@/lib/lernplan-types";
+import type { LernenFuerTagEintrag } from "@/lib/lernplan-store";
 
 // Wie oft Restzeit und Fortschritt clientseitig nachgerechnet werden, ohne
 // dafuer neu zu laden. Gleiches Mass wie der frueherer Vollbild-Stundenmodus.
@@ -212,6 +215,8 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
   useEffect(() => setFaellig(data.faellig), [data.faellig]);
   const [ohneTermin, setOhneTermin] = useState(data.ohneTermin);
   useEffect(() => setOhneTermin(data.ohneTermin), [data.ohneTermin]);
+  const [lernen, setLernen] = useState(data.lernen);
+  useEffect(() => setLernen(data.lernen), [data.lernen]);
 
   return (
     <div className="space-y-6">
@@ -299,6 +304,18 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
               />
             ))}
           </ul>
+        </Abschnitt>
+      )}
+
+      {/* Kontext-Bereich, ohne Eintraege kein Block (SPEC.md "Bloecke in
+          Pruefungen, Fokus, Cockpit"). */}
+      {lernen.length > 0 && (
+        <Abschnitt titel="Heute lernen">
+          <div className="flex flex-col gap-3">
+            {lernen.map((plan) => (
+              <CockpitLernenCard key={plan.planId} plan={plan} />
+            ))}
+          </div>
         </Abschnitt>
       )}
 
@@ -403,6 +420,118 @@ function FaelligRow({ a, today, onDone }: { a: AssignmentDTO; today: string; onD
       </span>
     </li>
   );
+}
+
+// --- Heute lernen --------------------------------------------------------------
+
+function CockpitLernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
+  const toast = useToast();
+  const [items, setItems] = useState(plan.items);
+
+  async function toggle(item: ItemDTO) {
+    const neuErledigt = item.doneAt === null;
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: neuErledigt ? new Date().toISOString() : null } : i)));
+    try {
+      const res = await fetch(`/api/lernen/plan/items/${item.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ done: neuErledigt }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: item.doneAt } : i)));
+      toast("Einheit konnte nicht aktualisiert werden.");
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-card px-3.5 py-3 shadow-card">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 flex-1 truncate text-[14px] font-medium leading-snug">{plan.examTitle}</p>
+        <Link
+          href={`/lernen/${plan.subjectId}/plan/${plan.assignmentId}`}
+          className={cn(
+            "relative shrink-0 rounded px-1 py-1 text-[12.5px] font-medium tabular-nums before:absolute before:-inset-2 before:content-[''] hover:underline",
+            balkenTextFarbe(plan.sicherheit),
+          )}
+        >
+          {plan.sicherheit}%
+        </Link>
+      </div>
+      <ul className="mt-2 flex flex-col gap-1">
+        {items.map((item) => (
+          <CockpitLernenEinheitZeile
+            key={item.id}
+            subjectId={plan.subjectId}
+            assignmentId={plan.assignmentId}
+            item={item}
+            onToggle={toggle}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CockpitLernenEinheitZeile({
+  subjectId,
+  assignmentId,
+  item,
+  onToggle,
+}: {
+  subjectId: string;
+  assignmentId: string;
+  item: ItemDTO;
+  onToggle: (item: ItemDTO) => void;
+}) {
+  const erledigt = item.doneAt !== null;
+  const titel = item.punktTitel ?? (item.phase === "simulation" ? "Simulation" : "Thema fehlt");
+  const manuell = item.phase === "probe" || item.phase === "simulation";
+
+  const inhalt = (
+    <>
+      {!manuell && (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={erledigt}
+          aria-label={erledigt ? `${titel} als offen markieren` : `${titel} als erledigt markieren`}
+          onClick={() => onToggle(item)}
+          className={cn(
+            "relative grid size-5 shrink-0 place-items-center rounded border transition-colors before:absolute before:-inset-3 before:content-[''] [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            erledigt ? "border-primary bg-primary text-primary-foreground" : "border-border",
+          )}
+        >
+          {erledigt && (
+            <span aria-hidden className="text-[11px] leading-none">
+              ✓
+            </span>
+          )}
+        </button>
+      )}
+      <PhaseChip phase={item.phase} />
+      <span className={cn("min-w-0 flex-1 truncate text-[13px]", erledigt && !manuell && "text-muted-foreground line-through")}>
+        {titel}
+      </span>
+      <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">{item.minuten} Min</span>
+      {manuell && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+    </>
+  );
+
+  if (manuell) {
+    return (
+      <li>
+        <Link
+          href={`/lernen/${subjectId}/plan/${assignmentId}`}
+          className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          {inhalt}
+        </Link>
+      </li>
+    );
+  }
+
+  return <li className="flex items-center gap-2 px-1 py-1.5">{inhalt}</li>;
 }
 
 // --- Kleinteile --------------------------------------------------------------

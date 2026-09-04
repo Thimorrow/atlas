@@ -12,6 +12,7 @@ import {
   parseGeneratedCards,
   parseGeneratedVariant,
   parseUrteil,
+  parseUrteile,
   planForExam,
   progress,
   progressOf,
@@ -508,5 +509,46 @@ describe("parseUrteil", () => {
 
   it("fehlendes JSON ergibt null", () => {
     expect(parseUrteil("kein json hier")).toBeNull();
+  });
+});
+
+describe("parseUrteile", () => {
+  it("parst ein JSON-Array mehrerer Urteile", () => {
+    const text =
+      '[{"urteil":"richtig","feedback":"Passt."},{"urteil":"falsch","feedback":"Nicht ganz."}]';
+    expect(parseUrteile(text)).toEqual([
+      { urteil: "richtig", feedback: "Passt." },
+      { urteil: "falsch", feedback: "Nicht ganz." },
+    ]);
+  });
+
+  it("findet das JSON-Array in umgebendem Text / Codefence", () => {
+    const text = 'Hier die Bewertung:\n```json\n[{"urteil":"teilweise","feedback":"Halb."}]\n```\nDanke.';
+    expect(parseUrteile(text)).toEqual([{ urteil: "teilweise", feedback: "Halb." }]);
+  });
+
+  it("fehlendes feedback ergibt eine leere Zeichenkette", () => {
+    expect(parseUrteile('[{"urteil":"falsch"}]')).toEqual([{ urteil: "falsch", feedback: "" }]);
+  });
+
+  it("Eintraege mit unbekanntem/fehlendem urteil werden verworfen, der Rest bleibt", () => {
+    const text = '[{"urteil":"richtig","feedback":"a"},{"urteil":"keine_ahnung","feedback":"b"},{"feedback":"c"}]';
+    expect(parseUrteile(text)).toEqual([{ urteil: "richtig", feedback: "a" }]);
+  });
+
+  it("fehlendes JSON-Array ergibt null", () => {
+    expect(parseUrteile("kein json hier")).toBeNull();
+  });
+
+  it("kaputtes JSON ergibt null", () => {
+    expect(parseUrteile("[{urteil: richtig}]")).toBeNull();
+  });
+
+  it("gibt das index-Feld zurueck, wenn vorhanden", () => {
+    const text = '[{"index":2,"urteil":"richtig","feedback":"a"},{"index":0,"urteil":"falsch","feedback":"b"}]';
+    expect(parseUrteile(text)).toEqual([
+      { index: 2, urteil: "richtig", feedback: "a" },
+      { index: 0, urteil: "falsch", feedback: "b" },
+    ]);
   });
 });

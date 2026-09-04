@@ -118,12 +118,17 @@ export function LernenTutor({
   modus,
   cardId,
   sessionId,
+  einheitId,
+  pruefung,
 }: {
   subjectId: string;
-  topicId: string;
+  // null = Simulation ueber einen ganzen Lernplan (pruefung gesetzt, kein Thema).
+  topicId: string | null;
   modus: TutorModusDTO;
   cardId: string | null;
   sessionId: string | null;
+  einheitId?: string | null;
+  pruefung?: string | null;
 }) {
   const toast = useToast();
 
@@ -150,7 +155,9 @@ export function LernenTutor({
   const startedRef = useRef(false);
 
   // Thema-Titel: eigener kleiner Ladevorgang, unabhaengig von der Session.
+  // Simulation (kein Thema): kein Ladevorgang, der Header zeigt "Simulation".
   useEffect(() => {
+    if (!topicId) return;
     let cancelled = false;
     fetch(`/api/lernen/${subjectId}`)
       .then((r) => (r.ok ? (r.json() as Promise<SubjectDetail>) : null))
@@ -320,7 +327,13 @@ export function LernenTutor({
         const res = await fetch("/api/lernen/tutor", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ topicId, modus, ...(cardId ? { cardId } : {}) }),
+          body: JSON.stringify({
+            ...(topicId ? { topicId } : {}),
+            modus,
+            ...(cardId ? { cardId } : {}),
+            ...(einheitId ? { einheitId } : {}),
+            ...(pruefung ? { pruefung } : {}),
+          }),
         });
         if (res.status === 503) {
           setPhase("no-bot");
@@ -340,11 +353,17 @@ export function LernenTutor({
         // history.replaceState statt router.replace: der App-Router remountet
         // sonst ueber den key={session}-Wechsel auf der Seite und bricht den
         // gerade gestarteten ersten Turn ab.
-        window.history.replaceState(
-          null,
-          "",
-          `/lernen/${subjectId}/tutor?thema=${topicId}&modus=${modus}${cardId ? `&karte=${cardId}` : ""}&session=${data.conversation.id}`,
-        );
+        const query = [
+          topicId ? `thema=${topicId}` : null,
+          `modus=${modus}`,
+          cardId ? `karte=${cardId}` : null,
+          einheitId ? `einheit=${einheitId}` : null,
+          pruefung ? `pruefung=${pruefung}` : null,
+          `session=${data.conversation.id}`,
+        ]
+          .filter(Boolean)
+          .join("&");
+        window.history.replaceState(null, "", `/lernen/${subjectId}/tutor?${query}`);
         await runTurn({});
       } catch {
         setPhase("not-found");
@@ -450,10 +469,10 @@ export function LernenTutor({
         <AlertTriangle className="size-6 text-muted-foreground" />
         <p className="max-w-sm text-[13px] text-muted-foreground">Der Tutor ist nicht eingerichtet: ZAI_API_KEY fehlt.</p>
         <Link
-          href={`/lernen/${subjectId}/themen/${topicId}`}
+          href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
           className="text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          Zurück zum Thema
+          {topicId ? "Zurück zum Thema" : "Zum Fach"}
         </Link>
       </div>
     );
@@ -477,13 +496,15 @@ export function LernenTutor({
     <div className="mx-auto flex h-full max-w-5xl min-w-0 flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
       <header className="flex min-w-0 items-center gap-2">
         <Link
-          href={`/lernen/${subjectId}/themen/${topicId}`}
+          href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
           className="relative flex shrink-0 items-center gap-1 rounded-md py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft aria-hidden className="size-3.5" />
           Zurück
         </Link>
-        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">{topicTitle ?? "Thema"}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">
+          {topicId ? (topicTitle ?? "Thema") : "Simulation"}
+        </h1>
         <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {modus === "probe" ? "Probe" : "Tutor"}
         </span>
@@ -753,7 +774,7 @@ function FazitCard({
   anlegend,
 }: {
   subjectId: string;
-  topicId: string;
+  topicId: string | null;
   modus: TutorModusDTO;
   ergebnis: TutorErgebnis;
   kartenAngelegt: boolean;
@@ -774,6 +795,13 @@ function FazitCard({
           <p className="text-[13px] text-muted-foreground">
             {ergebnis.prozent ?? 0} % · Note {ergebnis.note ?? "-"}
           </p>
+        </div>
+      )}
+
+      {modus === "probe" && (ergebnis.punkte === undefined || ergebnis.gesamt === undefined) && typeof ergebnis.prozent === "number" && (
+        <div className="rounded-lg bg-accent px-3 py-3 text-center">
+          <p className="text-2xl font-semibold tabular-nums">{ergebnis.prozent} %</p>
+          <p className="text-[13px] text-muted-foreground">Note {ergebnis.note ?? "-"}</p>
         </div>
       )}
 
@@ -805,21 +833,23 @@ function FazitCard({
             {anlegend ? "Legt an …" : `${ergebnis.neueKarten.length} Karten zu deinen Lücken anlegen`}
           </Button>
         )}
-        <button
-          type="button"
-          // Voller Reload statt Link/router: garantiert eine neue Session --
-          // ein Remount ueber key={session} wuerde die alte Session nur
-          // "neu" starten, wenn die URL sich tatsaechlich aendert.
-          onClick={() => window.location.assign(`/lernen/${subjectId}/tutor?thema=${topicId}&modus=lernen`)}
-          className="inline-flex min-h-11 items-center rounded-md border px-3 text-[13px] font-medium transition-colors hover:bg-accent"
-        >
-          Nochmal üben
-        </button>
+        {topicId && (
+          <button
+            type="button"
+            // Voller Reload statt Link/router: garantiert eine neue Session --
+            // ein Remount ueber key={session} wuerde die alte Session nur
+            // "neu" starten, wenn die URL sich tatsaechlich aendert.
+            onClick={() => window.location.assign(`/lernen/${subjectId}/tutor?thema=${topicId}&modus=lernen`)}
+            className="inline-flex min-h-11 items-center rounded-md border px-3 text-[13px] font-medium transition-colors hover:bg-accent"
+          >
+            Nochmal üben
+          </button>
+        )}
         <Link
-          href={`/lernen/${subjectId}/themen/${topicId}`}
+          href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
           className="inline-flex min-h-11 items-center rounded-md px-3 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          Zurück zum Thema
+          {topicId ? "Zurück zum Thema" : "Zum Fach"}
         </Link>
       </div>
     </div>

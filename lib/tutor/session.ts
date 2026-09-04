@@ -7,7 +7,7 @@
 
 import { streamChatWithFallback, type ChatMessage, type ChatToolCall } from "@/lib/bot/model";
 import { noteFuerProzent } from "@/lib/tutor/note";
-import { buildSystemPrompt } from "@/lib/tutor/prompt";
+import { buildSystemPrompt, type TutorContextCard, type TutorContextInput } from "@/lib/tutor/prompt";
 import {
   appendTutorMessage,
   getTutorConversation,
@@ -25,9 +25,14 @@ import {
 } from "@/lib/tutor/tools";
 import type { Checkliste, TutorErgebnis, TutorMessageDTO } from "@/lib/tutor/types";
 import { getCard, getTopic, subjectDetail } from "@/lib/study-store";
+import { aktualisiereAusFazit, planLaden, punktMitBlaettern } from "@/lib/lernplan-store";
+import { readSubjectFile } from "@/lib/bot/files";
 
 const MAX_ROUNDS = 6;
 const ROUND_TIMEOUT_MS = 110_000;
+// Gesamtlaenge aller Arbeitsblaetter eines Punkts im Prompt, siehe SPEC.md
+// "Tutor kennt die Blätter des Punkts".
+const MAX_BLAETTER_CHARS = 15_000;
 
 export type TutorEvent =
   | { type: "text"; delta: string }
@@ -48,6 +53,12 @@ export type TutorSessionDeps = {
   getTopic: typeof getTopic;
   subjectDetail: typeof subjectDetail;
   getCard: typeof getCard;
+  // Lernplan-Anbindung (SPEC.md "Tutor kennt die Blätter des Punkts") --
+  // optional, damit session.test.ts nur stubbt, was ein Test wirklich braucht.
+  ladePunktMitBlaettern?: typeof punktMitBlaettern;
+  ladePlan?: typeof planLaden;
+  sicherheitAusFazit?: typeof aktualisiereAusFazit;
+  readSubjectFile?: typeof readSubjectFile;
 };
 
 export const defaultDeps: TutorSessionDeps = {
@@ -61,6 +72,10 @@ export const defaultDeps: TutorSessionDeps = {
   getTopic,
   subjectDetail,
   getCard,
+  ladePunktMitBlaettern: punktMitBlaettern,
+  ladePlan: planLaden,
+  sicherheitAusFazit: aktualisiereAusFazit,
+  readSubjectFile,
 };
 
 // --- Verlauf -> Modell-Nachrichten -------------------------------------------
@@ -161,28 +176,90 @@ export async function* runTutorTurn(
     return;
   }
 
-  const [topic, detail] = await Promise.all([deps.getTopic(conversation.topicId), deps.subjectDetail(conversation.subjectId)]);
-  if (!topic || !detail) {
+  // Simulation (SPEC.md "Tutor kennt die Blätter des Punkts"): keine
+  // topicId, dafuer assignmentId -- Thema/Karten bleiben leer, stattdessen
+  // alle Punkte des Plans im Kontext.
+  const detail = await deps.subjectDetail(conversation.subjectId);
+  if (!detail) {
     yield { type: "error", text: "Thema oder Fach nicht gefunden." };
     return;
   }
 
-  const entryCard = conversation.cardId ? await deps.getCard(conversation.cardId) : undefined;
+  let topicTitle: string | null = null;
+  let summary: string | null = null;
+  let cards: TutorContextCard[] = [];
+  let entryCard: Awaited<ReturnType<typeof deps.getCard>> | undefined;
+  const naechstePruefung: { title: string; tageBis: number } | null = detail.naechstePruefung
+    ? { title: detail.naechstePruefung.title, tageBis: detail.naechstePruefung.tageBis }
+    : null;
 
-  const cards = detail.cards
-    .filter((c) => c.topicId === conversation.topicId)
-    .map((c) => ({ question: c.question, answer: c.answer, box: c.box, kind: c.kind }));
+  if (conversation.topicId) {
+    const topic = await deps.getTopic(conversation.topicId);
+    if (!topic) {
+      yield { type: "error", text: "Thema oder Fach nicht gefunden." };
+      return;
+    }
+    topicTitle = topic.title;
+    summary = topic.summary;
+    cards = detail.cards
+      .filter((c) => c.topicId === conversation.topicId)
+      .map((c) => ({ question: c.question, answer: c.answer, box: c.box, kind: c.kind }));
+    entryCard = conversation.cardId ? await deps.getCard(conversation.cardId) : undefined;
+  }
+
+  let simulation: TutorContextInput["simulation"] = null;
+  if (conversation.assignmentId && deps.ladePlan) {
+    try {
+      const plan = await deps.ladePlan(conversation.assignmentId);
+      if (plan) {
+        simulation = { punkte: plan.punkte.map((p) => ({ pointId: p.id, titel: p.titel, sicherheit: p.sicherheit })) };
+      }
+    } catch (err) {
+      console.warn("[tutor] Simulation: Plan konnte nicht geladen werden:", err);
+    }
+  }
+
+  let blaetter: TutorContextInput["blaetter"] = null;
+  if (conversation.itemId && deps.ladePunktMitBlaettern && deps.readSubjectFile) {
+    try {
+      const result = await deps.ladePunktMitBlaettern(conversation.itemId);
+      if (result && result.punkt.blaetter.length > 0) {
+        const fehlend: string[] = [];
+        let text = "";
+        for (const b of result.punkt.blaetter) {
+          const file = await deps.readSubjectFile(b.id);
+          if (!file || file.content.kind !== "text") {
+            fehlend.push(b.name);
+            console.warn(`[tutor] Blatt konnte nicht gelesen werden: ${b.name}`);
+            continue;
+          }
+          text += (text ? "\n\n" : "") + `--- ${b.name} ---\n${file.content.text}`;
+        }
+        if (text || fehlend.length > 0) {
+          const gekuerzt = text.length > MAX_BLAETTER_CHARS;
+          blaetter = {
+            text: gekuerzt ? text.slice(0, MAX_BLAETTER_CHARS) : text,
+            seiten: result.punkt.seiten,
+            gekuerzt,
+            fehlend,
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("[tutor] Blaetter konnten nicht geladen werden:", err);
+    }
+  }
 
   const system = buildSystemPrompt(conversation.modus, {
     subjectName: detail.subject.name,
     lernart: detail.subject.lernart,
-    topicTitle: topic.title,
-    summary: topic.summary,
+    topicTitle,
+    summary,
     cards,
-    pruefung: detail.naechstePruefung
-      ? { title: detail.naechstePruefung.title, tageBis: detail.naechstePruefung.tageBis }
-      : null,
+    pruefung: naechstePruefung,
     card: entryCard ? { question: entryCard.question, answer: entryCard.answer } : null,
+    blaetter,
+    simulation,
   });
 
   const history = await deps.listTutorMessages(conversationId);
@@ -335,13 +412,26 @@ export async function* runTutorTurn(
         let note: number | undefined;
 
         if (conversation.modus === "probe") {
-          if (punkte === undefined || gesamt === undefined) {
-            const aufgaben = currentCheckliste?.aufgaben ?? [];
-            punkte = aufgaben.filter((a) => a.status === "richtig").reduce((sum, a) => sum + a.schwierigkeit, 0);
-            gesamt = aufgaben.reduce((sum, a) => sum + a.schwierigkeit, 0);
+          if (conversation.topicId === null && conversation.assignmentId) {
+            // Simulation ueber mehrere Lernplan-Punkte: keine Checkliste, also
+            // kein Punkte/Gesamt-Bruch -- Prozent kommt aus dem Durchschnitt
+            // der punktePlan-Eintraege.
+            punkte = undefined;
+            gesamt = undefined;
+            const planEintraege = parsed.value.punktePlan ?? [];
+            if (planEintraege.length > 0) {
+              prozent = Math.round(planEintraege.reduce((sum, p) => sum + p.prozent, 0) / planEintraege.length);
+              note = noteFuerProzent(prozent);
+            }
+          } else {
+            if (punkte === undefined || gesamt === undefined) {
+              const aufgaben = currentCheckliste?.aufgaben ?? [];
+              punkte = aufgaben.filter((a) => a.status === "richtig").reduce((sum, a) => sum + a.schwierigkeit, 0);
+              gesamt = aufgaben.reduce((sum, a) => sum + a.schwierigkeit, 0);
+            }
+            prozent = gesamt > 0 ? Math.round((punkte / gesamt) * 100) : 0;
+            note = noteFuerProzent(prozent);
           }
-          prozent = gesamt > 0 ? Math.round((punkte / gesamt) * 100) : 0;
-          note = noteFuerProzent(prozent);
         }
 
         const ergebnis: TutorErgebnis = {
@@ -352,11 +442,23 @@ export async function* runTutorTurn(
           ...(gesamt !== undefined ? { gesamt } : {}),
           ...(prozent !== undefined ? { prozent } : {}),
           ...(note !== undefined ? { note } : {}),
+          ...(parsed.value.punktePlan ? { punktePlan: parsed.value.punktePlan } : {}),
         };
 
         await deps.setErgebnis(conversationId, ergebnis);
         await saveToolCallAndResult(deps, conversationId, name, args, { ok: true });
         chatMessages.push({ role: "tool", tool_call_id: call.id, name, content: JSON.stringify({ ok: true }) });
+
+        // Sicherheit schreibt sich zurueck (SPEC.md), try/catch-isoliert --
+        // Fehler duerfen die Tutor-Antwort nicht kaputt machen.
+        if (conversation.itemId && conversation.modus === "probe" && deps.sicherheitAusFazit) {
+          try {
+            await deps.sicherheitAusFazit(conversation.itemId, ergebnis.prozent ?? null, ergebnis.punktePlan);
+          } catch (err) {
+            console.warn("[lernplan] Fazit-Hook:", err);
+          }
+        }
+
         yield { type: "fazit", ergebnis };
         continue;
       }

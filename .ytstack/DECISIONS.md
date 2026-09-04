@@ -79,3 +79,10 @@ Format for each entry:
 **Chose:** 16.2.9 stable, Floor `^16.2.0`.
 **Reason:** 16.3 gibt es nur als canary/preview, nicht stable. Die 16.3-Aenderungen (Cache Components, instant()-Prefetch-Tuning, Turbopack-Internals) betreffen nichts, was Atlas in M001 nutzt, also kein Vorteil bei Preview-Instabilitaet. Bump auf 16.3, sobald stable.
 **Supersedes:** die Initial-Wahl next ^15.0.0 (war Auto-Resolve auf 15.5.19).
+
+## 2026-09-04: Lernplan = Lernpfad mit Sicherheit je Punkt als Plattform (Ansatz C)
+
+**Context:** Feature "Lernplan zur Pruefung aus Checkliste, Arbeitsblaettern und Diagnosetest" (SPEC.md v3). Drei Ansaetze im CEO-Review: A minimal (eine Tabelle, JSON), B Spec wie geschrieben (4 Tabellen, Phasen), C Plattform (B plus automatisches Rueckschreiben der Sicherheit aus Karten-Reviews und Tutor-Fazit, Bot-Tool, Cockpit).
+**Options considered:** A / B / C.
+**Chose:** C. Sicherheit 0..100 je Checklisten-Punkt ist das zentrale Modell; `reviewCard` und das Tutor-`fazit`-Widget schreiben sie zurueck, juengste Quelle gewinnt. Verteilung auf Tage deterministisch in `lib/lernplan.ts`, das Modell liest nur, schaetzt Minuten, stellt Diagnosefragen und bewertet. Karten je Punkt per Client-Queue (Vercel hat keine Hintergrundjobs). Bilder werden im Browser verkleinert. Doppel-Submit: Button-Sperre plus 409 am Server.
+**Reason:** Der Pfad mit Sicherheit ist die Grundlage fuer den spaeteren Auto-Planer und den Hermes-Agenten; ohne Rueckschreiben bleibt der Plan eine statische Liste. Deterministische Verteilung ist testbar und vermeidet Datumsfehler des Modells.

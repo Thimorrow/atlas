@@ -1,7 +1,22 @@
 // Geteilte Typen + reine Gruppier-/Sortierlogik fuer das Aufgaben-Modul.
 // Bewusst ohne DB-Import: laeuft im Client, im Server-Component und im Test.
 
+import type { ItemDTO } from "@/lib/lernplan-types";
+
 export type AssignmentType = "homework" | "exam" | "test" | "presentation" | "other";
+
+// Lernplan-Kurzfassung an einer Pruefung, siehe SPEC.md "Bloecke in
+// Pruefungen, Fokus, Cockpit". Nur bei type exam/test befuellt (isExam),
+// sonst fehlt das Feld ganz -- ein Android-Client, der es nicht kennt, sieht
+// keinen Unterschied.
+export type AssignmentLernplan = {
+  planId: string;
+  total: number;
+  done: number;
+  sicherheit: number;
+  heute: ItemDTO[];
+  heuteLeer: boolean;
+};
 
 // Serialisierte Form, wie sie ueber /api/assignments geht (Timestamps als ISO).
 export type AssignmentDTO = {
@@ -14,6 +29,9 @@ export type AssignmentDTO = {
   notes: string | null;
   dueDate: string | null; // YYYY-MM-DD
   completedAt: string | null; // ISO oder null = offen
+  // Optional, damit alte/native Aufrufer, die das Feld nicht kennen, nicht
+  // brechen. Nur bei Pruefungen (isExam) gesetzt: null ohne Plan, sonst der Block.
+  lernplan?: AssignmentLernplan | null;
 };
 
 export const ASSIGNMENT_TYPES: AssignmentType[] = [

@@ -102,3 +102,13 @@ Patterns, rules, and lessons learned while building Atlas. This file is read by 
 - **Bot-Kontext = Lagebild.** `lib/bot/lagebild.ts` schreibt Faecher, Stundenplan heute/naechster
   Schultag, offene Aufgaben (14 Tage), Pruefungen (30 Tage) und letzte Notizen mit ids in den
   System-Prompt. Neue Datenarten, die der Bot "wissen" soll, gehoeren dorthin, nicht in neue Regeln.
+- **Keine DB-Transaktionen:** `lib/db` nutzt in Produktion `drizzle-orm/neon-http`, das kann kein
+  `db.transaction`. Mehrschrittige Schreibvorgaenge sequentiell mit Aufraeumen im catch bauen
+  (Muster `planAnlegen` in `lib/lernplan-store.ts`).
+- **Lib-Funktionen lokal gegen das Modell probieren:** `.mts`-Datei im Projektroot (nicht im
+  Scratchpad, sonst fehlen node_modules) mit `import "dotenv/config"` und
+  `DOTENV_CONFIG_PATH=.env.local npx tsx ./datei.mts`; `@/`-Alias loest tsx aus tsconfig auf.
+- **Vitest ist node-only:** kein jsdom, keine testing-library. Client-Logik (Queues, Zuordnung)
+  als reine Funktion in `lib/` mit injiziertem `fetch` testen, die Komponente bleibt duenn
+  (Muster `lib/lernplan-karten-queue.ts`).
+

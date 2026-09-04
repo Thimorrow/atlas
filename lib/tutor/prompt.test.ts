@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSystemPrompt, buildTutorContext, PROBE_PROMPT_BLOCK, type TutorContextInput } from "@/lib/tutor/prompt";
+import { buildSystemPrompt, buildTutorContext, PROBE_PROMPT_BLOCK, SIMULATION_PROMPT_BLOCK, type TutorContextInput } from "@/lib/tutor/prompt";
 
 const baseInput: TutorContextInput = {
   subjectName: "Mathe",
@@ -12,6 +12,8 @@ const baseInput: TutorContextInput = {
   ],
   pruefung: null,
   card: null,
+  blaetter: null,
+  simulation: null,
 };
 
 describe("buildTutorContext", () => {
@@ -42,11 +44,63 @@ describe("buildTutorContext", () => {
   });
 });
 
+describe("buildTutorContext: Arbeitsblätter", () => {
+  it("haengt den Blaetter-Abschnitt mit Seiten und Text an", () => {
+    const context = buildTutorContext({
+      ...baseInput,
+      blaetter: { text: "Inhalt des Arbeitsblatts.", seiten: "12-14", gekuerzt: false, fehlend: [] },
+    });
+    expect(context).toContain("Arbeitsblätter zu diesem Punkt (Seiten: 12-14)");
+    expect(context).toContain("Inhalt des Arbeitsblatts.");
+  });
+
+  it("nennt fehlende Blaetter", () => {
+    const context = buildTutorContext({
+      ...baseInput,
+      blaetter: { text: "", seiten: null, gekuerzt: false, fehlend: ["Zettel.pdf"] },
+    });
+    expect(context).toContain("Blatt Zettel.pdf konnte nicht gelesen werden.");
+  });
+});
+
+describe("buildTutorContext: Simulation", () => {
+  it("listet die Punkte mit Titel, Sicherheit und pointId statt eines Themas", () => {
+    const context = buildTutorContext({
+      ...baseInput,
+      topicTitle: null,
+      summary: null,
+      cards: [],
+      simulation: {
+        punkte: [
+          { pointId: "p1", titel: "Bruchrechnen", sicherheit: 40 },
+          { pointId: "p2", titel: "Gleichungen", sicherheit: 70 },
+        ],
+      },
+    });
+    expect(context).not.toContain("Thema:");
+    expect(context).toContain("Bruchrechnen");
+    expect(context).toContain("Sicherheit 40 %");
+    expect(context).toContain("pointId: p2");
+    expect(context).not.toContain("Es gibt noch kein Material");
+  });
+});
+
 describe("buildSystemPrompt", () => {
   it("enthaelt den Probe-Block nur im Modus probe", () => {
     const lernen = buildSystemPrompt("lernen", baseInput);
     const probe = buildSystemPrompt("probe", baseInput);
     expect(lernen).not.toContain(PROBE_PROMPT_BLOCK.trim());
     expect(probe).toContain("Diese Session ist eine Probe");
+  });
+
+  it("ersetzt den Probe-Block durch den Simulation-Block bei Simulation", () => {
+    const simulation = buildSystemPrompt("probe", {
+      ...baseInput,
+      topicTitle: null,
+      simulation: { punkte: [{ pointId: "p1", titel: "Bruchrechnen", sicherheit: 40 }] },
+    });
+    expect(simulation).not.toContain("Diese Session ist eine Probe.");
+    expect(simulation).toContain("Diese Session ist eine Simulation");
+    expect(simulation).toContain(SIMULATION_PROMPT_BLOCK.trim());
   });
 });

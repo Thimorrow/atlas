@@ -109,6 +109,18 @@ export const tutorTools: ChatTool[] = [
           },
           punkte: { type: "number", description: "Nur Modus probe: erreichte Punkte." },
           gesamt: { type: "number", description: "Nur Modus probe: maximale Punkte." },
+          punktePlan: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                pointId: { type: "string", description: "id des Lernplan-Punkts." },
+                prozent: { type: "number", description: "0 bis 100." },
+              },
+              required: ["pointId", "prozent"],
+            },
+            description: "Nur Simulation: je gelisteten Lernplan-Punkt ein Prozentwert.",
+          },
         },
         required: ["gutWar", "schwach", "neueKarten"],
       },
@@ -215,12 +227,14 @@ export function isAufgabeStatus(v: unknown): v is AufgabeStatus {
 // --- fazit --------------------------------------------------------------------
 
 export type FazitKarte = { question: string; answer: string; kind: CardKind };
+export type FazitPunktPlan = { pointId: string; prozent: number };
 export type FazitInput = {
   gutWar: string[];
   schwach: string[];
   neueKarten: FazitKarte[];
   punkte?: number;
   gesamt?: number;
+  punktePlan?: FazitPunktPlan[];
 };
 
 function stringListe(v: unknown): string[] {
@@ -248,6 +262,13 @@ export function parseFazit(args: unknown): ParseResult<FazitInput> {
   const punkte = typeof args.punkte === "number" ? args.punkte : undefined;
   const gesamt = typeof args.gesamt === "number" ? args.gesamt : undefined;
 
+  const punktePlanRaw = Array.isArray(args.punktePlan) ? args.punktePlan : [];
+  const punktePlan: FazitPunktPlan[] = [];
+  for (const p of punktePlanRaw) {
+    if (!isObj(p) || typeof p.pointId !== "string" || !p.pointId.trim() || typeof p.prozent !== "number") continue;
+    punktePlan.push({ pointId: p.pointId, prozent: p.prozent });
+  }
+
   return {
     ok: true,
     value: {
@@ -256,6 +277,7 @@ export function parseFazit(args: unknown): ParseResult<FazitInput> {
       neueKarten,
       ...(punkte !== undefined ? { punkte } : {}),
       ...(gesamt !== undefined ? { gesamt } : {}),
+      ...(punktePlan.length > 0 ? { punktePlan } : {}),
     },
   };
 }
