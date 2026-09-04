@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Archive, ArchiveRestore, GraduationCap, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, Archive, ArchiveRestore, GraduationCap, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
 import { ColorPicker, EmptyPanel, Modal, ButtonLink } from "@/components/subject-setup";
@@ -10,13 +10,14 @@ import type { SubjectDTO } from "@/components/subject-card";
 import { AssignmentList } from "@/components/assignment-list";
 import { AssignmentComposer } from "@/components/assignment-composer";
 import { ExamComposer } from "@/components/exam-composer";
-import { SubjectNotes, type SubjectLessonNoteDTO } from "@/components/subject-notes";
+import { PROSE, SubjectNotes, type SubjectLessonNoteDTO } from "@/components/subject-notes";
 import { LessonNoteEditor, type LessonNoteTarget } from "@/components/lesson-note";
 import { SubjectFiles } from "@/components/subject-files";
 import { SubjectGrades } from "@/components/subject-grades";
 import { SubjectParticipation, type SubjectParticipationDTO } from "@/components/subject-participation";
 import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote";
 import { useToast } from "@/components/toast";
+import { renderMarkdown } from "@/lib/markdown";
 import { colorValue } from "@/lib/subject-colors";
 import { TEACHER_TITLES } from "@/lib/teacher";
 import { cn } from "@/lib/utils";
@@ -487,6 +488,24 @@ export function SubjectDetail({ id }: { id: string }) {
         </Section>
       </StaggerItem>
 
+      {/* --- Lehrplan ---
+          Steht vor den Notizen: er beantwortet "was kommt dran", die Notizen
+          "was war". Der Abschnitt holt sich seinen Stand selbst nach, weil nur
+          die Lehrplan-Route weiss, ob es zu dem Fach eine Vorlage gibt. */}
+      <StaggerItem>
+        <Section title="Lehrplan">
+          <SubjectCurriculum
+            subjectId={subject.id}
+            subjectName={subject.name}
+            initial={{
+              curriculum: subject.curriculum,
+              curriculumSource: subject.curriculumSource,
+              curriculumUpdatedAt: subject.curriculumUpdatedAt,
+            }}
+          />
+        </Section>
+      </StaggerItem>
+
       {/* --- Notizen ---
           Freie Notizen und Stundennotizen sind zwei getrennte Datenmodelle,
           stehen dem Nutzer aber als EIN chronologisch gemischter Abschnitt
@@ -642,6 +661,218 @@ export function SubjectDetail({ id }: { id: string }) {
         }
       />
     </Shell>
+  );
+}
+
+// "04.09.2026" fuer die Herkunftszeile -- curriculumUpdatedAt kommt als ISO
+// mit Uhrzeit, die Uhrzeit interessiert bei einem Lehrplan nicht.
+function fmtStamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+type CurriculumState = {
+  curriculum: string | null;
+  curriculumSource: string | null;
+  curriculumUpdatedAt: string | null;
+};
+
+function SubjectCurriculum({
+  subjectId,
+  subjectName,
+  initial,
+}: {
+  subjectId: string;
+  subjectName: string;
+  initial: CurriculumState;
+}) {
+  const toast = useToast();
+  const [data, setData] = useState<CurriculumState>(initial);
+  // undefined = noch nicht bekannt, null = die Vorlage kennt dieses Fach nicht.
+  // Solange es unbekannt ist, wird kein Knopf angeboten, der ins Leere liefe.
+  const [vorlage, setVorlage] = useState<{ fach: string } | null | undefined>(undefined);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    let abgebrochen = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/subjects/${subjectId}/curriculum`);
+        if (!res.ok) return;
+        const json = (await res.json()) as CurriculumState & { vorlage: { fach: string } | null };
+        if (abgebrochen) return;
+        setVorlage(json.vorlage);
+        setData({
+          curriculum: json.curriculum,
+          curriculumSource: json.curriculumSource,
+          curriculumUpdatedAt: json.curriculumUpdatedAt,
+        });
+      } catch {
+        // Der Abschnitt zeigt weiter den Stand aus dem Fach-Payload -- nur die
+        // Knoepfe fehlen, weil unbekannt bleibt, ob es eine Vorlage gibt.
+      }
+    })();
+    return () => {
+      abgebrochen = true;
+    };
+  }, [subjectId]);
+
+  const html = useMemo(
+    () => (data.curriculum ? renderMarkdown(data.curriculum) : ""),
+    [data.curriculum],
+  );
+
+  async function speichern(body: string) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/subjects/${subjectId}/curriculum`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
+      setData(json as CurriculumState);
+      setEditing(false);
+    } catch (e) {
+      toast((e as Error).message || "Der Lehrplan konnte nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ausVorlage() {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/subjects/${subjectId}/curriculum/seed`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Das hat nicht geklappt");
+      setData(json as CurriculumState);
+      setEditing(false);
+      setConfirmReset(false);
+    } catch (e) {
+      toast((e as Error).message || "Der Kernlehrplan konnte nicht geladen werden.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-3">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={14}
+          placeholder={"## Inhaltsfeld\n- Schwerpunkt\n**fett**, [Link](https://…)"}
+          className="min-h-[260px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" disabled={busy} onClick={() => setEditing(false)}>
+            Abbrechen
+          </Button>
+          <Button disabled={busy} onClick={() => void speichern(draft)}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Speichern
+          </Button>
+        </div>
+        <p className="text-[12px] text-muted-foreground">
+          Markdown wird unterstützt. Ein leerer Text löscht den Lehrplan.
+        </p>
+      </div>
+    );
+  }
+
+  if (!data.curriculum) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[13px] text-muted-foreground">
+          {vorlage === null
+            ? `Für „${subjectName}“ kennt der Kernlehrplan NRW keine Vorlage. Du kannst den Lehrplan selbst eintragen.`
+            : "Noch kein Lehrplan hinterlegt."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {vorlage && (
+            <Button variant="outline" disabled={busy} onClick={() => void ausVorlage()}>
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              Aus dem Kernlehrplan NRW füllen
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setDraft("");
+              setEditing(true);
+            }}
+          >
+            <Pencil className="size-4" />
+            Selbst schreiben
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className={PROSE} dangerouslySetInnerHTML={{ __html: html }} />
+      {(data.curriculumSource || data.curriculumUpdatedAt) && (
+        <p className="mt-4 text-[12px] text-muted-foreground">
+          {[data.curriculumSource, data.curriculumUpdatedAt ? fmtStamp(data.curriculumUpdatedAt) : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            setDraft(data.curriculum ?? "");
+            setEditing(true);
+          }}
+        >
+          <Pencil className="size-4" />
+          Bearbeiten
+        </Button>
+        {vorlage && (
+          <Button variant="ghost" disabled={busy} onClick={() => setConfirmReset(true)}>
+            <RotateCcw className="size-4" />
+            Auf den Kernlehrplan zurücksetzen
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          disabled={busy}
+          onClick={() => void speichern("")}
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+          Löschen
+        </Button>
+      </div>
+
+      <Modal
+        open={confirmReset}
+        onClose={() => setConfirmReset(false)}
+        title="Auf den Kernlehrplan zurücksetzen?"
+        description="Der jetzige Text wird dabei überschrieben."
+      >
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setConfirmReset(false)}>
+            Abbrechen
+          </Button>
+          <Button disabled={busy} onClick={() => void ausVorlage()}>
+            {busy && <Loader2 className="size-4 animate-spin" />}
+            Zurücksetzen
+          </Button>
+        </div>
+      </Modal>
+    </div>
   );
 }
 

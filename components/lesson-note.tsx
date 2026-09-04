@@ -4,6 +4,11 @@
 // Titel und ohne Dialog-Geruest -- sofort tippbar, speichert sich per
 // Autosave selbst. Wird sowohl vom Stundenplan (app/page.tsx) als auch vom
 // Fachdetail (components/subject-detail.tsx) geoeffnet.
+//
+// Zwei Ebenen: LessonNoteField ist das Feld selbst (Laden, Autosave,
+// Statuszeile) und weiss nichts von einem Overlay -- der Vollbild-Stundenmodus
+// (components/jetzt-stunde.tsx) setzt es direkt in die Seite. Der
+// LessonNoteEditor darunter ist nur noch das Dialog-Geruest drumherum.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
@@ -28,20 +33,35 @@ export type LessonNoteTarget = {
 
 type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
 
-export function LessonNoteEditor({
-  target,
-  onClose,
+// Das Notizfeld ohne jedes Dialog-Geruest. Ein Wechsel der Stunde laeuft ueber
+// ein Remount (key={schoolBlockId} beim Aufrufer) statt ueber einen
+// Ziel-Wechsel im laufenden Zustand: so greift derselbe Weg, der auch beim
+// Schliessen einen offenen Autosave noch wegschreibt (Cleanup unten).
+export function LessonNoteField({
+  schoolBlockId,
   onSaved,
+  placeholder = "Was ist in dieser Stunde passiert?",
+  autoFocus = false,
+  onRequestClose,
+  className,
+  footerClassName,
 }: {
-  target: LessonNoteTarget | null;
-  onClose: () => void;
+  schoolBlockId: string;
   // Meldet nach jedem erfolgreichen Speichern den neuen Stand -- der Aufrufer
   // aktualisiert damit Marker (Stundenplan) bzw. Eintrag (Fachdetail) ohne
   // vollen Reload.
   onSaved: (schoolBlockId: string, hasNote: boolean, body: string) => void;
+  placeholder?: string;
+  // Nur im Dialog: dort ist das Feld das Einzige, was der Nutzer will. In der
+  // Seite wuerde ein Autofokus ungefragt die Tastatur hochziehen.
+  autoFocus?: boolean;
+  // Cmd/Ctrl+Enter. Ohne Handler bleibt das Kuerzel weg -- in der Seite gibt
+  // es nichts zu schliessen.
+  onRequestClose?: () => void;
+  className?: string;
+  footerClassName?: string;
 }) {
   const toast = useToast();
-  const open = target !== null;
   const reduce = useReducedMotion();
 
   const [body, setBody] = useState("");
@@ -60,7 +80,7 @@ export function LessonNoteEditor({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [body, open]);
+  }, [body]);
 
   // Tastenkuerzel-Anzeige ist plattformabhaengig (⌘ auf macOS, Strg sonst).
   // navigator ist erst nach der Hydration verlaesslich bekannt -- ein direktes
@@ -77,17 +97,16 @@ export function LessonNoteEditor({
   const savedBodyRef = useRef("");
   const bodyRef = useRef("");
   bodyRef.current = body;
-  const blockIdRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Race-Schutz: das Feld ist von der ersten Sekunde an tippbar (siehe unten,
   // kein disabled mehr) -- laeuft die GET-Antwort erst NACH dem ersten
   // Tastendruck ein, darf sie den schon getippten Text nicht ueberschreiben.
   const typedRef = useRef(false);
 
-  async function persist(schoolBlockId: string, value: string) {
+  async function persist(id: string, value: string) {
     setState("saving");
     try {
-      const res = await fetch(`/api/lessons/${schoolBlockId}/note`, {
+      const res = await fetch(`/api/lessons/${id}/note`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ body: value }),
@@ -100,22 +119,19 @@ export function LessonNoteEditor({
       }
       savedBodyRef.current = value;
       setState("saved");
-      onSaved(schoolBlockId, value.trim().length > 0, value);
+      onSaved(id, value.trim().length > 0, value);
     } catch {
       toast("Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.");
       setState("error");
     }
   }
 
-  // Notiz laden, sobald sich das Ziel aendert (neue Stunde geoeffnet).
+  // Notiz laden.
   useEffect(() => {
-    if (!target) return;
     let alive = true;
-    blockIdRef.current = target.schoolBlockId;
     typedRef.current = false;
     setState("loading");
-    setBody("");
-    fetch(`/api/lessons/${target.schoolBlockId}/note`)
+    fetch(`/api/lessons/${schoolBlockId}/note`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { note: { body: string } | null }) => {
         if (!alive) return;
@@ -141,52 +157,137 @@ export function LessonNoteEditor({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target?.schoolBlockId]);
+  }, [schoolBlockId]);
 
   // Autosave: 700ms nach der letzten Eingabe, nur wenn sich der Text vom
   // zuletzt gespeicherten Stand unterscheidet.
   useEffect(() => {
-    if (!target || state === "loading") return;
+    if (state === "loading") return;
     if (body === savedBodyRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      void persist(target.schoolBlockId, body);
+      void persist(schoolBlockId, body);
     }, 700);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [body, target?.schoolBlockId]);
+  }, [body, schoolBlockId]);
 
-  // Speichern beim Schliessen: ein pending Debounce wird sofort ausgeloest
-  // statt verworfen -- sonst ginge Text verloren, der noch keine 700ms alt
-  // war. Fokus, Escape und Body-Scroll-Sperre uebernimmt Overlay bereits.
+  // Speichern beim Verschwinden (Dialog zu, Stunde gewechselt, Seite
+  // umgeschaltet): ein pending Debounce wird sofort ausgeloest statt verworfen
+  // -- sonst ginge Text verloren, der noch keine 700ms alt war.
   useEffect(() => {
-    if (!open) return;
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      const id = blockIdRef.current;
       const current = bodyRef.current;
-      if (id && current !== savedBodyRef.current) {
-        void persist(id, current);
+      if (current !== savedBodyRef.current) {
+        void persist(schoolBlockId, current);
       }
     };
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolBlockId]);
 
   // Cmd/Ctrl+Enter speichert (Autosave laeuft ohnehin) und schliesst gleich
   // mit -- Escape schliesst schon ueber Overlay.
   function onKeyDown(e: React.KeyboardEvent) {
+    if (!onRequestClose) return;
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      onClose();
+      onRequestClose();
     }
   }
 
   const statusLabel =
     state === "saving" ? "Speichert …" : state === "saved" ? "Gespeichert" : state === "error" ? "Fehler" : "";
+
+  return (
+    <div className={className}>
+      <div className="flex flex-col pt-2 pb-4">
+        {/* 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus
+            in jedes kleinere Feld hinein. data-autofocus: Overlay holt sich
+            dieses Element beim Oeffnen -- KEIN disabled hier, sonst nimmt
+            das Feld gar keinen Fokus an und "sofort tippbar" stimmt nicht.
+            Keine feste Hoehe mehr: min-h-24 (~4 Zeilen) ist der Start,
+            der useLayoutEffect oben zieht die Hoehe danach am Inhalt
+            nach -- max-h-[40svh]+overflow-y-auto fangen sehr lange
+            Notizen auf, statt das Panel endlos wachsen zu lassen. Die
+            Transition auf height haelt das Wachsen ruhig, respektiert
+            aber prefers-reduced-motion. resize-none: der Ziehgriff war in
+            diesem randlosen Feld ohnehin kaum zu treffen und auf Touch
+            nutzlos. touch-action manipulation verhindert den
+            Doppeltipp-Zoom beim Tippen mitten im Text. */}
+        <textarea
+          ref={textareaRef}
+          data-autofocus={autoFocus ? "" : undefined}
+          // Kein sichtbares <label> im randlosen Feld -- der Panel-Titel
+          // uebernimmt die Rolle, aria-label benennt das Feld selbst noch
+          // einmal explizit fuer Screenreader (Platzhalter allein zaehlt
+          // nicht als Name).
+          aria-label="Notiztext"
+          value={body}
+          onChange={(e) => {
+            typedRef.current = true;
+            setBody(e.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          rows={4}
+          className={cn(
+            // outline-none nie ohne Ersatz: ein weicher Tint statt Ring,
+            // der randlose Look bleibt erhalten, Tastaturnutzer sehen den
+            // Fokus trotzdem klar.
+            "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground focus-visible:bg-accent/40",
+            !reduce && "transition-[height,background-color] duration-150 ease-[var(--ease-atlas)]",
+          )}
+        />
+      </div>
+      {/* min-h-11 statt von statusLabel bestimmt: bei state "idle" ist
+          statusLabel anfangs ein leerer String, ohne Mindesthoehe waere
+          die Fusszeile dann rund 16px niedriger und spraenge beim ersten
+          Speichern auf. Kein eigenes Band (weder Trennlinie noch Toenung)
+          -- der Status steht ruhig unter dem Feld. */}
+      <footer className={cn("flex min-h-11 items-center justify-between gap-2", footerClassName)}>
+        {state === "idle" && !statusLabel ? (
+          <p className="truncate text-[11px] text-muted-foreground">
+            Speichert automatisch{onRequestClose ? ` · ${modKey} + Enter zum Schließen` : ""}
+          </p>
+        ) : (
+          <span />
+        )}
+        <span
+          className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          {/* Spinner-Slot immer vorhanden statt nur bei state "saving"
+              gerendert: sonst schiebt sein Erscheinen den Text mit an --
+              invisible haelt den Platz, ohne ihn zu zeigen. */}
+          <Loader2 className={cn("size-3 animate-spin", state !== "saving" && "invisible")} />
+          {/* Feste Mindestbreite auf den laengsten moeglichen Text, sonst
+              wandert die ganze Zeile bei jedem Statuswechsel. */}
+          <span className={cn("inline-block min-w-[11ch]", state === "error" && "text-destructive")}>
+            {statusLabel}
+          </span>
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+export function LessonNoteEditor({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: LessonNoteTarget | null;
+  onClose: () => void;
+  onSaved: (schoolBlockId: string, hasNote: boolean, body: string) => void;
+}) {
+  const open = target !== null;
 
   return (
     <Overlay open={open} onClose={onClose} labelledBy="lesson-note-title">
@@ -222,79 +323,23 @@ export function LessonNoteEditor({
               <X className="size-4" />
             </Button>
           </header>
-          <div className="flex flex-col px-5 pt-2 pb-4">
-            {/* 16px ist Pflicht, nicht Geschmack: iOS-Safari zoomt beim Fokus
-                in jedes kleinere Feld hinein. data-autofocus: Overlay holt sich
-                dieses Element beim Oeffnen -- KEIN disabled hier, sonst nimmt
-                das Feld gar keinen Fokus an und "sofort tippbar" stimmt nicht.
-                Keine feste Hoehe mehr: min-h-24 (~4 Zeilen) ist der Start,
-                der useLayoutEffect oben zieht die Hoehe danach am Inhalt
-                nach -- max-h-[40svh]+overflow-y-auto fangen sehr lange
-                Notizen auf, statt das Panel endlos wachsen zu lassen. Die
-                Transition auf height haelt das Wachsen ruhig, respektiert
-                aber prefers-reduced-motion. resize-none: der Ziehgriff war in
-                diesem randlosen Feld ohnehin kaum zu treffen und auf Touch
-                nutzlos. touch-action manipulation verhindert den
-                Doppeltipp-Zoom beim Tippen mitten im Text. */}
-            <textarea
-              ref={textareaRef}
-              data-autofocus
-              // Kein sichtbares <label> im randlosen Feld -- der Panel-Titel
-              // uebernimmt die Rolle, aria-label benennt das Feld selbst noch
-              // einmal explizit fuer Screenreader (Platzhalter allein zaehlt
-              // nicht als Name).
-              aria-label="Notiztext"
-              value={body}
-              onChange={(e) => {
-                typedRef.current = true;
-                setBody(e.target.value);
-              }}
-              onKeyDown={onKeyDown}
-              placeholder="Was ist in dieser Stunde passiert?"
-              rows={4}
-              className={cn(
-                // outline-none nie ohne Ersatz: ein weicher Tint statt Ring,
-                // der randlose Look bleibt erhalten, Tastaturnutzer sehen den
-                // Fokus trotzdem klar.
-                "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground focus-visible:bg-accent/40",
-                !reduce && "transition-[height,background-color] duration-150 ease-[var(--ease-atlas)]",
-              )}
-            />
-          </div>
-          {/* min-h-11 statt von statusLabel bestimmt: bei state "idle" ist
-              statusLabel anfangs ein leerer String, ohne Mindesthoehe waere
-              die Fusszeile dann rund 16px niedriger und spraenge beim ersten
-              Speichern auf. pb ergaenzt das untere Safe-Area-Inset (min-h
-              statt h, damit dieses Polster die Zeile wachsen laesst statt
-              ihren Inhalt zu clippen) -- das Overlay liegt fixed inset-0 und
-              damit ausserhalb des Layout-Containers aus app/layout.tsx, der
-              dieses Polster traegt (siehe dort), sonst klebt die Fusszeile
-              auf dem iPhone am Home-Balken. Kein eigenes Band mehr (weder
-              Trennlinie noch Toenung) -- der Status steht ruhig unter dem Feld. */}
-          <footer className="flex min-h-11 items-center justify-between gap-2 px-5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
-            {state === "idle" && !statusLabel ? (
-              <p className="truncate text-[11px] text-muted-foreground">
-                Speichert automatisch · {modKey} + Enter zum Schließen
-              </p>
-            ) : (
-              <span />
-            )}
-            <span
-              className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              {/* Spinner-Slot immer vorhanden statt nur bei state "saving"
-                  gerendert: sonst schiebt sein Erscheinen den Text mit an --
-                  invisible haelt den Platz, ohne ihn zu zeigen. */}
-              <Loader2 className={cn("size-3 animate-spin", state !== "saving" && "invisible")} />
-              {/* Feste Mindestbreite auf den laengsten moeglichen Text, sonst
-                  wandert die ganze Zeile bei jedem Statuswechsel. */}
-              <span className={cn("inline-block min-w-[11ch]", state === "error" && "text-destructive")}>
-                {statusLabel}
-              </span>
-            </span>
-          </footer>
+          {/* key: ein Wechsel der Stunde bei offenem Dialog setzt das Feld
+              komplett neu auf -- und schreibt dabei ueber das Unmount-Cleanup
+              einen noch offenen Autosave der vorherigen Stunde weg. */}
+          <LessonNoteField
+            key={target.schoolBlockId}
+            schoolBlockId={target.schoolBlockId}
+            onSaved={onSaved}
+            autoFocus
+            onRequestClose={onClose}
+            className="px-5"
+            // pb ergaenzt das untere Safe-Area-Inset (min-h statt h, damit
+            // dieses Polster die Zeile wachsen laesst statt ihren Inhalt zu
+            // clippen) -- das Overlay liegt fixed inset-0 und damit ausserhalb
+            // des Layout-Containers aus app/layout.tsx, der dieses Polster
+            // traegt, sonst klebt die Fusszeile auf dem iPhone am Home-Balken.
+            footerClassName="pb-[calc(0.625rem+env(safe-area-inset-bottom))]"
+          />
         </>
       ) : null}
     </Overlay>

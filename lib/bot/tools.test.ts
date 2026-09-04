@@ -9,6 +9,7 @@ const createNote = vi.fn();
 const getAssignment = vi.fn();
 const updateAssignment = vi.fn();
 const listAssignments = vi.fn();
+const listSubjects = vi.fn().mockResolvedValue([]);
 const isUuid = (v: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
@@ -17,7 +18,7 @@ vi.mock("@/lib/subject-store", () => ({
   ensureSubjectForUntis: vi.fn(),
   isUuid,
   listNotes: vi.fn(),
-  listSubjects: vi.fn().mockResolvedValue([]),
+  listSubjects,
   updateNote,
 }));
 vi.mock("@/lib/calendar-expand", () => ({ expandRange: vi.fn() }));
@@ -48,6 +49,9 @@ beforeEach(() => {
   getAssignment.mockReset();
   updateAssignment.mockReset();
   listAssignments.mockReset();
+  // Standardfall "es gibt keine Faecher" -- die Lehrplan-Tests setzen ihn um.
+  listSubjects.mockReset();
+  listSubjects.mockResolvedValue([]);
 });
 
 describe("notiz_aendern schuetzt den vorhandenen Text", () => {
@@ -152,6 +156,54 @@ describe("aufgaben_lesen filtert nach Art", () => {
     };
     expect(e.aufgaben).toHaveLength(0);
     expect(e.hinweis).toBeTruthy();
+  });
+});
+
+describe("lehrplan_lesen bleibt ehrlich", () => {
+  const mathe = {
+    id: ID,
+    name: "Mathe",
+    untisSubject: "M",
+    curriculum: "## Funktionen\n\n- Quadratische Funktionen",
+    curriculumSource: "Kernlehrplan NRW G9, Klasse 10",
+    curriculumUpdatedAt: "2026-09-04T10:00:00.000Z",
+  };
+
+  it("gibt Lehrplantext und Quelle zurueck", async () => {
+    listSubjects.mockResolvedValue([mathe]);
+    const e = (await runTool("lehrplan_lesen", { fach: "Mathe" })) as {
+      lehrplan: string | null;
+      quelle: string | null;
+    };
+    expect(e.lehrplan).toContain("Quadratische Funktionen");
+    expect(e.quelle).toBe("Kernlehrplan NRW G9, Klasse 10");
+  });
+
+  it("findet das Fach auch ueber den Untis-Wert", async () => {
+    listSubjects.mockResolvedValue([mathe]);
+    const e = (await runTool("lehrplan_lesen", { fach: "M" })) as { fach: string };
+    expect(e.fach).toBe("Mathe");
+  });
+
+  it("sagt Bescheid, statt zu scheitern, wenn kein Lehrplan hinterlegt ist", async () => {
+    listSubjects.mockResolvedValue([{ ...mathe, curriculum: null, curriculumSource: null }]);
+    const e = (await runTool("lehrplan_lesen", { fach: "Mathe" })) as {
+      lehrplan: string | null;
+      hinweis?: string;
+      error?: string;
+    };
+    expect(e.lehrplan).toBeNull();
+    expect(e.hinweis).toBeTruthy();
+    expect(e.error).toBeUndefined();
+  });
+
+  it("meldet ein unbekanntes Fach als Hinweis, nicht als Fehler", async () => {
+    const e = (await runTool("lehrplan_lesen", { fach: "Astronomie" })) as {
+      hinweis?: string;
+      error?: string;
+    };
+    expect(e.hinweis).toContain("Astronomie");
+    expect(e.error).toBeUndefined();
   });
 });
 

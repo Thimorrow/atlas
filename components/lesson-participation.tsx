@@ -7,6 +7,11 @@
 // Unterschied ist die Eingabe: kein Textfeld, sondern +1/-1 auf einer Zahl.
 // Wird sowohl vom Stundenplan (app/page.tsx) als auch vom Fachdetail
 // (components/subject-detail.tsx) geoeffnet.
+//
+// Zwei Ebenen: ParticipationCounter ist der Zaehler selbst (Laden, Autosave,
+// Knoepfe) und weiss nichts von einem Overlay -- der Vollbild-Stundenmodus
+// (components/jetzt-stunde.tsx) setzt ihn direkt in die Seite. Der
+// LessonParticipationEditor darunter ist nur noch das Dialog-Geruest drumherum.
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -55,21 +60,28 @@ export type LessonParticipationTarget = {
 
 type SaveState = "idle" | "loading" | "saving" | "saved" | "error";
 
-export function LessonParticipationEditor({
-  target,
-  onClose,
+// Der Zaehler ohne jedes Dialog-Geruest. Ein Wechsel der Stunde laeuft ueber
+// ein Remount (key={schoolBlockId} beim Aufrufer) statt ueber einen
+// Ziel-Wechsel im laufenden Zustand: so greift derselbe Weg, der auch beim
+// Schliessen einen offenen Autosave noch wegschreibt (Cleanup unten).
+export function ParticipationCounter({
+  schoolBlockId,
   onSaved,
+  className,
+  footerClassName,
 }: {
-  target: LessonParticipationTarget | null;
-  onClose: () => void;
+  schoolBlockId: string;
   // Meldet nach jedem erfolgreichen Speichern/Loeschen den neuen Stand --
   // null bedeutet "nicht erfasst" (nach DELETE). Der Aufrufer aktualisiert
   // damit Marker (Stundenplan) bzw. Eintrag (Fachdetail) ohne vollen Reload.
   onSaved: (schoolBlockId: string, count: number | null) => void;
+  className?: string;
+  // Zusatzklassen fuer die Statuszeile -- im Overlay traegt sie das
+  // Safe-Area-Polster, in der Seite braucht sie es nicht.
+  footerClassName?: string;
 }) {
   const toast = useToast();
   const reduce = useReducedMotion();
-  const open = target !== null;
 
   const [count, setCount] = useState(0);
   // Zeigt kurz nach einem +1-Tap eine "Rueckgaengig"-Chip -- die schnelle
@@ -78,9 +90,7 @@ export function LessonParticipationEditor({
   // nichts verschiebt.
   const [showUndo, setShowUndo] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Treibt den Skalen-Puls der Zahl an -- siehe bump(). Absichtlich nicht
-  // an target gebunden zurueckgesetzt, ein Wechsel der Stunde soll ohnehin
-  // nicht pulsen (nur echte Taps sollen es).
+  // Treibt den Skalen-Puls der Zahl an -- siehe bump().
   const [pulse, setPulse] = useState(0);
   // Solange nichts erfasst ist (kein GET-Treffer, noch nicht gespeichert),
   // legt der erste Tastendruck die Zeile erst an -- der "Nicht erfasst"-Knopf
@@ -91,17 +101,16 @@ export function LessonParticipationEditor({
   const countRef = useRef(0);
   countRef.current = count;
   const savedCountRef = useRef<number | null>(null);
-  const blockIdRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Race-Schutz wie typedRef in lesson-note.tsx: kommt die GET-Antwort erst
   // NACH dem ersten Tippen an, darf sie den schon gezaehlten Stand nicht
   // ueberschreiben.
   const typedRef = useRef(false);
 
-  async function persist(schoolBlockId: string, value: number) {
+  async function persist(id: string, value: number) {
     setState("saving");
     try {
-      const res = await fetch(`/api/lessons/${schoolBlockId}/participation`, {
+      const res = await fetch(`/api/lessons/${id}/participation`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ count: value }),
@@ -117,26 +126,19 @@ export function LessonParticipationEditor({
       savedCountRef.current = value;
       setRecorded(true);
       setState("saved");
-      onSaved(schoolBlockId, value);
+      onSaved(id, value);
     } catch {
       toast("Keine Verbindung zum Server. Die Meldungen wurden nicht gespeichert.");
       setState("error");
     }
   }
 
-  // Zaehlstand laden, sobald sich das Ziel aendert (neue Stunde geoeffnet).
+  // Zaehlstand laden.
   useEffect(() => {
-    if (!target) return;
     let alive = true;
-    blockIdRef.current = target.schoolBlockId;
     typedRef.current = false;
     setState("loading");
-    setCount(0);
-    setRecorded(false);
-    savedCountRef.current = null;
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    setShowUndo(false);
-    fetch(`/api/lessons/${target.schoolBlockId}/participation`)
+    fetch(`/api/lessons/${schoolBlockId}/participation`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { participation: { count: number } | null }) => {
         if (!alive) return;
@@ -167,28 +169,27 @@ export function LessonParticipationEditor({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target?.schoolBlockId]);
+  }, [schoolBlockId]);
 
   // Autosave: ~600ms nach der letzten Aenderung, nur wenn sich der Stand vom
   // zuletzt gespeicherten unterscheidet (auch null -> Zahl zaehlt als Aenderung).
   useEffect(() => {
-    if (!target || state === "loading") return;
+    if (state === "loading") return;
     if (!typedRef.current) return;
     if (savedCountRef.current === count) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      void persist(target.schoolBlockId, count);
+      void persist(schoolBlockId, count);
     }, 600);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count, target?.schoolBlockId]);
+  }, [count, schoolBlockId]);
 
-  // Speichern beim Schliessen: ein pending Debounce wird sofort ausgeloest
-  // statt verworfen. Fokus, Escape und Body-Scroll-Sperre uebernimmt Overlay.
+  // Speichern beim Verschwinden (Dialog zu, Stunde gewechselt, Seite
+  // umgeschaltet): ein pending Debounce wird sofort ausgeloest statt verworfen.
   useEffect(() => {
-    if (!open) return;
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -198,13 +199,13 @@ export function LessonParticipationEditor({
         clearTimeout(undoTimerRef.current);
         undoTimerRef.current = null;
       }
-      const id = blockIdRef.current;
       const current = countRef.current;
-      if (id && typedRef.current && savedCountRef.current !== current) {
-        void persist(id, current);
+      if (typedRef.current && savedCountRef.current !== current) {
+        void persist(schoolBlockId, current);
       }
     };
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolBlockId]);
 
   function bump(delta: 1 | -1) {
     typedRef.current = true;
@@ -242,30 +243,26 @@ export function LessonParticipationEditor({
   // sie muss deshalb mit EINEM Griff erreichbar sein. Ueber die Knoepfe ginge
   // sie nur als Umweg (+1 dann -1), weil -1 bei 0 gesperrt ist.
   function recordZero() {
-    const id = target?.schoolBlockId;
-    if (!id) return;
     typedRef.current = true;
     setCount(0);
-    void persist(id, 0);
+    void persist(schoolBlockId, 0);
   }
 
   async function clear() {
-    const id = target?.schoolBlockId;
-    if (!id) return;
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
       debounceRef.current = null;
     }
     setState("saving");
     try {
-      const res = await fetch(`/api/lessons/${id}/participation`, { method: "DELETE" });
+      const res = await fetch(`/api/lessons/${schoolBlockId}/participation`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       savedCountRef.current = null;
       typedRef.current = false;
       setCount(0);
       setRecorded(false);
       setState("idle");
-      onSaved(id, null);
+      onSaved(schoolBlockId, null);
     } catch {
       toast("Die Erfassung konnte nicht entfernt werden.");
       setState("error");
@@ -274,6 +271,130 @@ export function LessonParticipationEditor({
 
   const statusLabel =
     state === "saving" ? "Speichert …" : state === "saved" ? "Gespeichert" : state === "error" ? "Fehler" : "";
+
+  return (
+    <div className={className}>
+      <div className="flex flex-col items-center gap-1 pt-4 pb-2">
+        {/* Grosse zentrale Zahl -- das Einzige, wonach beim Melden waehrend
+            des Unterrichts geschaut wird. aria-live meldet Aenderungen auch
+            Screenreader-Nutzern, ohne dass sie den Dialog neu abtasten
+            muessen. tabular-nums + fester Zeilenraum halten die Breite und
+            Hoehe konstant, ein zusaetzlicher Skalen-Puls (nicht Layout!)
+            bestaetigt jeden Tap sichtbar, ohne die Zahl zu verschieben. */}
+        <span role="status" aria-live="polite" className="text-5xl font-semibold leading-none tabular-nums">
+          <motion.span
+            key={pulse}
+            // pulse === 0 ist der Ausgangszustand vor jedem Tap (auch
+            // direkt nach dem Oeffnen des Dialogs) -- der darf nicht
+            // pulsen, sonst animiert die Zahl beim blossen Oeffnen mit.
+            initial={reduce || pulse === 0 ? false : { opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="inline-block"
+          >
+            {count}
+          </motion.span>
+        </span>
+        <span className="text-[13px] text-muted-foreground">Meldungen</span>
+      </div>
+
+      <div className="flex items-stretch gap-2 pb-3">
+        {/* +1 gross und ueber die volle Breite, -1 kleiner daneben -- in der
+            Stunde wird fast nur hochgezaehlt, das Zuruecknehmen ist der
+            seltene Korrekturfall. 56px Mindesthoehe = mit einem Daumen
+            sicher zu treffen, auch ohne hinzusehen. active:scale ist das
+            gleiche Press-Feedback wie components/ui/button.tsx (Atlas-
+            Kurve, scale in der Transition-Liste), motion-safe: haelt es
+            aus prefers-reduced-motion raus. */}
+        <button
+          type="button"
+          onClick={() => bump(-1)}
+          disabled={count <= 0}
+          aria-label="Eine Meldung abziehen"
+          className="grid h-14 w-16 shrink-0 place-items-center rounded-xl border bg-background text-muted-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <Minus className="size-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => bump(1)}
+          disabled={count >= MAX_COUNT}
+          aria-label="Eine Meldung hinzufügen"
+          className="grid h-14 flex-1 place-items-center rounded-xl bg-primary text-2xl font-semibold text-primary-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <Plus className="size-6" />
+        </button>
+      </div>
+
+      {/* Rueckgaengig-Chip direkt ueber dem Erfassungs-Link, in einer Spalte
+          mit echtem gap-2 (8px) dazwischen -- beide haben eine per
+          before:-inset-1 aufgeblaehte Treffflaeche (gleiches Mass wie
+          components/ui/button.tsx), 4px Ueberstand je Seite bleibt damit
+          innerhalb der 8px Luecke: die beiden Trefflaechen beruehren sich
+          hoechstens, sie ueberlappen nie -- kein Fehlklick zwischen
+          "Rueckgaengig" und "Nicht erfasst" moeglich. Der Chip-Slot hat
+          eine feste Mindesthoehe, ihr Ein-/Ausblenden verschiebt darunter
+          nichts (kein Layout-Shift). */}
+      <div className="flex flex-col items-center gap-2 pb-2">
+        <div className="flex min-h-9 items-center justify-center">
+          <AnimatePresence>
+            {showUndo && (
+              <motion.button
+                type="button"
+                onClick={undoLast}
+                initial={reduce ? false : { opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                transition={{ duration: 0.16, ease: EASE }}
+                aria-label="Letzte Meldung rückgängig machen"
+                className="relative flex items-center gap-1 rounded-full bg-muted px-2.5 py-3 text-[12px] font-medium text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Undo2 className="size-3" aria-hidden="true" />
+                Rückgängig
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Zwei Zustaende an derselben Stelle: solange nichts erfasst ist,
+            legt "0 erfassen" die Zeile mit dem Wert 0 an; danach nimmt
+            "Nicht erfasst" sie wieder ganz raus. Ein Loeschen-Knopf vor der
+            ersten Erfassung waere irrefuehrend, es gaebe nichts zu loeschen. */}
+        <button
+          type="button"
+          onClick={recorded ? () => void clear() : recordZero}
+          className="relative rounded px-2 py-3 text-[12px] text-muted-foreground underline-offset-2 transition-colors [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {recorded ? "Nicht erfasst" : "0 erfassen"}
+        </button>
+      </div>
+
+      <footer className={cn("flex min-h-11 items-center justify-end gap-2", footerClassName)}>
+        <span
+          className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className={cn("size-3 animate-spin", state !== "saving" && "invisible")} />
+          <span className={cn("inline-block min-w-[11ch]", state === "error" && "text-destructive")}>
+            {statusLabel}
+          </span>
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+export function LessonParticipationEditor({
+  target,
+  onClose,
+  onSaved,
+}: {
+  target: LessonParticipationTarget | null;
+  onClose: () => void;
+  onSaved: (schoolBlockId: string, count: number | null) => void;
+}) {
+  const open = target !== null;
 
   return (
     <Overlay open={open} onClose={onClose} labelledBy="lesson-participation-title">
@@ -303,113 +424,19 @@ export function LessonParticipationEditor({
             </Button>
           </header>
 
-          <div className="flex flex-col items-center gap-1 px-5 pt-4 pb-2">
-            {/* Grosse zentrale Zahl -- das Einzige, wonach beim Melden waehrend
-                des Unterrichts geschaut wird. aria-live meldet Aenderungen auch
-                Screenreader-Nutzern, ohne dass sie den Dialog neu abtasten
-                muessen. tabular-nums + fester Zeilenraum halten die Breite und
-                Hoehe konstant, ein zusaetzlicher Skalen-Puls (nicht Layout!)
-                bestaetigt jeden Tap sichtbar, ohne die Zahl zu verschieben. */}
-            <span role="status" aria-live="polite" className="text-5xl font-semibold leading-none tabular-nums">
-              <motion.span
-                key={pulse}
-                // pulse === 0 ist der Ausgangszustand vor jedem Tap (auch
-                // direkt nach dem Oeffnen des Dialogs) -- der darf nicht
-                // pulsen, sonst animiert die Zahl beim blossen Oeffnen mit.
-                initial={reduce || pulse === 0 ? false : { opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.18, ease: EASE }}
-                className="inline-block"
-              >
-                {count}
-              </motion.span>
-            </span>
-            <span className="text-[13px] text-muted-foreground">Meldungen</span>
-          </div>
-
-          <div className="flex items-stretch gap-2 px-5 pb-3">
-            {/* +1 gross und ueber die volle Breite, -1 kleiner daneben -- in der
-                Stunde wird fast nur hochgezaehlt, das Zuruecknehmen ist der
-                seltene Korrekturfall. 56px Mindesthoehe = mit einem Daumen
-                sicher zu treffen, auch ohne hinzusehen. active:scale ist das
-                gleiche Press-Feedback wie components/ui/button.tsx (Atlas-
-                Kurve, scale in der Transition-Liste), motion-safe: haelt es
-                aus prefers-reduced-motion raus. */}
-            <button
-              type="button"
-              onClick={() => bump(-1)}
-              disabled={count <= 0}
-              aria-label="Eine Meldung abziehen"
-              className="grid h-14 w-16 shrink-0 place-items-center rounded-xl border bg-background text-muted-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-muted disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <Minus className="size-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => bump(1)}
-              disabled={count >= MAX_COUNT}
-              aria-label="Eine Meldung hinzufügen"
-              className="grid h-14 flex-1 place-items-center rounded-xl bg-primary text-2xl font-semibold text-primary-foreground transition-[color,background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] motion-safe:active:scale-[0.96] hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-            >
-              <Plus className="size-6" />
-            </button>
-          </div>
-
-          {/* Rueckgaengig-Chip direkt ueber dem Erfassungs-Link, in einer Spalte
-              mit echtem gap-2 (8px) dazwischen -- beide haben eine per
-              before:-inset-1 aufgeblaehte Treffflaeche (gleiches Mass wie
-              components/ui/button.tsx), 4px Ueberstand je Seite bleibt damit
-              innerhalb der 8px Luecke: die beiden Trefflaechen beruehren sich
-              hoechstens, sie ueberlappen nie -- kein Fehlklick zwischen
-              "Rueckgaengig" und "Nicht erfasst" moeglich. Der Chip-Slot hat
-              eine feste Mindesthoehe, ihr Ein-/Ausblenden verschiebt darunter
-              nichts (kein Layout-Shift). */}
-          <div className="flex flex-col items-center gap-2 px-5 pb-2">
-            <div className="flex min-h-9 items-center justify-center">
-              <AnimatePresence>
-                {showUndo && (
-                  <motion.button
-                    type="button"
-                    onClick={undoLast}
-                    initial={reduce ? false : { opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                    transition={{ duration: 0.16, ease: EASE }}
-                    aria-label="Letzte Meldung rückgängig machen"
-                    className="relative flex items-center gap-1 rounded-full bg-muted px-2.5 py-3 text-[12px] font-medium text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <Undo2 className="size-3" aria-hidden="true" />
-                    Rückgängig
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Zwei Zustaende an derselben Stelle: solange nichts erfasst ist,
-                legt "0 erfassen" die Zeile mit dem Wert 0 an; danach nimmt
-                "Nicht erfasst" sie wieder ganz raus. Ein Loeschen-Knopf vor der
-                ersten Erfassung waere irrefuehrend, es gaebe nichts zu loeschen. */}
-            <button
-              type="button"
-              onClick={recorded ? () => void clear() : recordZero}
-              className="relative rounded px-2 py-3 text-[12px] text-muted-foreground underline-offset-2 transition-colors [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {recorded ? "Nicht erfasst" : "0 erfassen"}
-            </button>
-          </div>
-
-          <footer className="flex min-h-11 items-center justify-end gap-2 px-5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
-            <span
-              className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              <Loader2 className={cn("size-3 animate-spin", state !== "saving" && "invisible")} />
-              <span className={cn("inline-block min-w-[11ch]", state === "error" && "text-destructive")}>
-                {statusLabel}
-              </span>
-            </span>
-          </footer>
+          {/* key: ein Wechsel der Stunde bei offenem Dialog setzt den Zaehler
+              komplett neu auf -- und schreibt dabei ueber das Unmount-Cleanup
+              einen noch offenen Autosave der vorherigen Stunde weg. */}
+          <ParticipationCounter
+            key={target.schoolBlockId}
+            schoolBlockId={target.schoolBlockId}
+            onSaved={onSaved}
+            className="px-5"
+            // Das Overlay liegt fixed inset-0 und damit ausserhalb des
+            // Layout-Containers aus app/layout.tsx, der das Safe-Area-Polster
+            // traegt -- sonst klebt die Fusszeile auf dem iPhone am Home-Balken.
+            footerClassName="pb-[calc(0.625rem+env(safe-area-inset-bottom))]"
+          />
         </>
       ) : null}
     </Overlay>

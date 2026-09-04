@@ -99,6 +99,20 @@
       "when": 1788422274423,
       "tag": "0013_familiar_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788508674423,
+      "tag": "0014_lehrplan_am_fach",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788512274423,
+      "tag": "0015_lehrplan_vorbelegen",
+      "breakpoints": true
     }
   ]
 }

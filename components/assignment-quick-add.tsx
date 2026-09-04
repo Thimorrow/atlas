@@ -20,8 +20,15 @@ type SubjectOption = { id: string; name: string; color: string | null };
 // will, wechselt ueber "Mehr Optionen" in den vollen Dialog.
 export function AssignmentQuickAdd({
   onCreated,
+  defaultSubjectId = null,
+  placeholder = "Hausaufgabe hinzufügen …",
 }: {
   onCreated: (a: AssignmentDTO) => void;
+  // Vorbelegtes Fach, wenn der Kontext es schon kennt -- im
+  // Vollbild-Stundenmodus (components/jetzt-stunde.tsx) ist das Fach der
+  // laufenden Stunde gesetzt, sonst bleibt es wie bisher "Allgemein".
+  defaultSubjectId?: string | null;
+  placeholder?: string;
 }) {
   const reduce = useReducedMotion();
   const toast = useToast();
@@ -30,7 +37,7 @@ export function AssignmentQuickAdd({
 
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
-  const [subjectId, setSubjectId] = useState("");
+  const [subjectId, setSubjectId] = useState(defaultSubjectId ?? "");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
@@ -38,8 +45,10 @@ export function AssignmentQuickAdd({
 
   // Faecher erst laden, wenn die Zeile wirklich aufklappt -- auf /aufgaben
   // sonst ein zweiter Request, den ein Besuch ohne Neuanlage nie braucht.
+  // Ausnahme: ist ein Fach vorbelegt, muss die Liste sofort da sein, sonst
+  // steht im Select eine leere Auswahl statt des vorbelegten Fachs.
   useEffect(() => {
-    if (!expanded || subjects.length > 0) return;
+    if ((!expanded && !defaultSubjectId) || subjects.length > 0) return;
     let alive = true;
     fetch("/api/subjects")
       .then((r) => r.json())
@@ -50,7 +59,7 @@ export function AssignmentQuickAdd({
     return () => {
       alive = false;
     };
-  }, [expanded, subjects.length]);
+  }, [expanded, subjects.length, defaultSubjectId]);
 
   const today = localISO();
   const chips: { label: string; value: string }[] = [
@@ -137,7 +146,7 @@ export function AssignmentQuickAdd({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onFocus={() => setExpanded(true)}
-            placeholder="Hausaufgabe hinzufügen …"
+            placeholder={placeholder}
             aria-label="Neue Hausaufgabe"
             autoComplete="off"
             // text-[16px] ist Pflicht (iOS-Zoom), s. assignment-composer.tsx.

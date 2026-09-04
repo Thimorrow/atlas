@@ -4,6 +4,7 @@ import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
 import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
+import { minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // nicht toISOString() (das springt abends schon auf den naechsten Tag).
 function heuteLokal(): string {
   return new Date().toLocaleDateString("sv-SE");
+}
+
+// Die LOKALE Uhrzeit des Servers als "HH:MM" -- dasselbe Format, in dem die
+// Events ihre Zeiten tragen, damit sich beides direkt vergleichen laesst.
+function jetztLokal(): string {
+  return new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
 // Wie weit die Suche nach dem naechsten Schultag vorausschaut. 14 Tage decken
@@ -52,6 +59,11 @@ export type MorgenLessonDTO = {
   subjectId: string | null;
   subjectColor: string | null;
 };
+
+// Die Stunde, die JETZT gerade laeuft -- Grundlage des Vollbild-Stundenmodus
+// im Fokus. endTime ist hier nicht mehr optional: ohne Endzeit laesst sich
+// gar nicht sagen, dass etwas noch laeuft (siehe lib/jetzt-stunde.ts).
+export type LiveLessonDTO = MorgenLessonDTO & { endTime: string; minutesLeft: number };
 
 // GET /api/morgen?date=JJJJ-MM-TT
 //
@@ -136,9 +148,22 @@ export async function GET(req: Request) {
     }),
   );
 
+  // Der Vollbild-Stundenmodus gilt nur fuer das echte Jetzt: ein erzwungenes
+  // ?date= ist eine Nachschau (Test, Debug, kuenftiger Tag) und darf nie eine
+  // laufende Stunde behaupten -- auch dann nicht, wenn zufaellig das heutige
+  // Datum uebergeben wurde.
+  const live: LiveLessonDTO | null = (() => {
+    if (forcedDate || target.date !== today) return null;
+    const nowHM = jetztLokal();
+    const hit = pickLiveLesson(events, nowHM);
+    if (!hit || hit.endTime === null) return null;
+    return { ...hit, endTime: hit.endTime, minutesLeft: minutesLeft(hit.endTime, nowHM) };
+  })();
+
   return NextResponse.json({
     today,
     target: { date: target.date, isTomorrow: target.isTomorrow, label: targetDayLabel(target, today) },
+    live,
     day: day ? { date: day.date, weekday: day.weekday, events } : null,
     due,
     exams,
@@ -162,7 +187,7 @@ function todayRemaining(
 ): boolean {
   if (!lookahead) return false;
   const events = lookahead.days.find((d) => d.date === today)?.events ?? [];
-  const nowHM = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const nowHM = jetztLokal();
   return events.some(
     (ev) => ev.status !== "cancelled" && typeof ev.endTime === "string" && ev.endTime > nowHM,
   );
