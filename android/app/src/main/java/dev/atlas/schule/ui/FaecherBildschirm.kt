@@ -22,7 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +34,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
@@ -43,6 +47,7 @@ fun FaecherBildschirm(
     zustand: AtlasZustand.App,
     beimOeffnen: (String) -> Unit,
     beimErneutLaden: () -> Unit,
+    ansichtsmodell: AtlasViewModel? = null,
     modifier: Modifier = Modifier,
 ) {
     when (val start = zustand.start) {
@@ -64,6 +69,11 @@ fun FaecherBildschirm(
 
         is Ladung.Da -> {
             val faecher = start.wert.faecher
+            val uebersicht = ansichtsmodell?.notenUebersicht?.collectAsStateWithLifecycle()?.value
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                if (uebersicht?.ladung == null) ansichtsmodell?.ladeNotenUebersicht()
+            }
+            var fachNeu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             LazyColumn(
                 modifier = modifier.fillMaxSize(),
                 contentPadding = PaddingValues(Abstand.weit),
@@ -77,12 +87,36 @@ fun FaecherBildschirm(
                     Spacer(Modifier.height(Abstand.gross))
                 }
 
+                (uebersicht?.ladung as? Ladung.Da)?.wert?.overall?.let { schnitt ->
+                    item("schnitt") {
+                        androidx.compose.material3.Card(modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(Abstand.normal)) {
+                                Text("Gesamtschnitt", style = MaterialTheme.typography.labelLarge)
+                                Text(
+                                    "${schnitt.points.toString().replace(".", ",")} Punkte · Note ${schnitt.label}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(Abstand.normal))
+                    }
+                }
+
+                if (ansichtsmodell != null) {
+                    item("aktionen") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+                            androidx.compose.material3.OutlinedButton(onClick = { fachNeu = true }) { Text("Fach anlegen") }
+                            androidx.compose.material3.OutlinedButton(onClick = { ansichtsmodell.faecherReconcile() }) { Text("Abgleichen") }
+                        }
+                        Spacer(Modifier.height(Abstand.normal))
+                    }
+                }
+
                 if (faecher.isEmpty()) {
                     item("leer") {
                         LeerZustand(
                             titel = "Noch kein Fach eingerichtet",
-                            text = "Die Ersteinrichtung läuft im Browser: dort schlägt Atlas " +
-                                "die Fächer aus deinem Untis-Stundenplan vor.",
+                            text = "Lege unten ein Fach an oder gleiche mit Untis ab (Einstellungen).",
                         )
                     }
                 }
@@ -90,6 +124,16 @@ fun FaecherBildschirm(
                 items(faecher, key = { it.id }) { fach ->
                     Fachzeile(fach) { beimOeffnen(fach.id) }
                 }
+            }
+            if (fachNeu && ansichtsmodell != null) {
+                FachBlatt(
+                    bestehend = null,
+                    beimSchliessen = { fachNeu = false },
+                    beimAnlegen = { name, lehrer, raum, farbe ->
+                        ansichtsmodell.fachAnlegen(name, lehrer, raum, farbe)
+                        fachNeu = false
+                    },
+                )
             }
         }
     }

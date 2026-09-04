@@ -46,19 +46,24 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.atlas.schule.ui.AnmeldeBildschirm
 import dev.atlas.schule.ui.AtlasViewModel
 import dev.atlas.schule.ui.AtlasZustand
+import dev.atlas.schule.ui.AufgabeBearbeitenBlatt
 import dev.atlas.schule.ui.AufgabenBildschirm
+import dev.atlas.schule.ui.BotBildschirm
 import dev.atlas.schule.ui.EinstellungenBildschirm
 import dev.atlas.schule.ui.FachDetailBildschirm
 import dev.atlas.schule.ui.FaecherBildschirm
 import dev.atlas.schule.ui.IkoneAufgaben
+import dev.atlas.schule.ui.IkoneBot
 import dev.atlas.schule.ui.IkoneEinstellungen
 import dev.atlas.schule.ui.IkoneFaecher
 import dev.atlas.schule.ui.IkoneStundenplan
 import dev.atlas.schule.ui.Ladung
+import dev.atlas.schule.ui.MorgenPanel
 import dev.atlas.schule.ui.NeueAufgabeBlatt
 import dev.atlas.schule.ui.NeueAufgabeKnopf
 import dev.atlas.schule.ui.Reiter
 import dev.atlas.schule.ui.StandZeile
+import dev.atlas.schule.ui.StundeDetailBlatt
 import dev.atlas.schule.ui.StundenplanBildschirm
 import dev.atlas.schule.ui.StundenplanEingabeBlatt
 import dev.atlas.schule.ui.standText
@@ -87,6 +92,7 @@ class MainActivity : ComponentActivity() {
 private fun ikoneVon(reiter: Reiter): ImageVector = when (reiter) {
     Reiter.STUNDENPLAN -> IkoneStundenplan
     Reiter.AUFGABEN -> IkoneAufgaben
+    Reiter.BOT -> IkoneBot
     Reiter.FAECHER -> IkoneFaecher
     Reiter.EINSTELLUNGEN -> IkoneEinstellungen
 }
@@ -126,6 +132,10 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
     // Fach, nicht am Geruest, und eine spaete Antwort fuer ein inzwischen
     // geschlossenes Fach darf den Rest der App nicht anfassen.
     val noten by ansichtsmodell.notenZustand.collectAsStateWithLifecycle()
+    val bearbeitung by ansichtsmodell.aufgabenBearbeitung.collectAsStateWithLifecycle()
+    val morgen by ansichtsmodell.morgenZustand.collectAsStateWithLifecycle()
+    val bot by ansichtsmodell.botZustand.collectAsStateWithLifecycle()
+    val stundeDetail by ansichtsmodell.stundeDetail.collectAsStateWithLifecycle()
 
     // Ein Hinweis wird genau einmal gezeigt und dann aus dem Zustand geraeumt,
     // sonst taucht er nach jeder Drehung erneut auf.
@@ -238,24 +248,41 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                         label = "reiter",
                     ) { reiter ->
                         when (reiter) {
-                            Reiter.STUNDENPLAN -> StundenplanBildschirm(
-                                zustand = zustand,
-                                beimWochenwechsel = ansichtsmodell::zeigeWoche,
-                                beimWocheLaden = ansichtsmodell::ladeWoche,
-                                beimStundeTippen = ansichtsmodell::oeffneBlattFuerStunde,
-                            )
+                            Reiter.STUNDENPLAN -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                                MorgenPanel(
+                                    zustand = morgen,
+                                    beimLaden = ansichtsmodell::ladeMorgen,
+                                    beimHaken = ansichtsmodell::setzeHaken,
+                                    beimFachOeffnen = ansichtsmodell::oeffneFach,
+                                )
+                                StundenplanBildschirm(
+                                    zustand = zustand,
+                                    beimWochenwechsel = ansichtsmodell::zeigeWoche,
+                                    beimWocheLaden = ansichtsmodell::ladeWoche,
+                                    beimStundeTippen = ansichtsmodell::oeffneBlattFuerStunde,
+                                )
+                            }
 
                             Reiter.AUFGABEN -> AufgabenBildschirm(
                                 zustand = zustand,
                                 beimHaken = ansichtsmodell::setzeHaken,
                                 beimErneutLaden = ansichtsmodell::ladeNeu,
                                 beimErledigtAusklappen = ansichtsmodell::wechsleErledigtOffen,
+                                beimBearbeiten = ansichtsmodell::oeffneAufgabeBearbeitung,
+                            )
+
+                            Reiter.BOT -> BotBildschirm(
+                                zustand = bot,
+                                beimLaden = ansichtsmodell::ladeBot,
+                                beimVerlaufOeffnen = ansichtsmodell::oeffneBotVerlauf,
+                                beimVerlaufSchliessen = ansichtsmodell::schliesseBotVerlauf,
                             )
 
                             Reiter.FAECHER -> FaecherBildschirm(
                                 zustand = zustand,
                                 beimOeffnen = ansichtsmodell::oeffneFach,
                                 beimErneutLaden = ansichtsmodell::ladeNeu,
+                                ansichtsmodell = ansichtsmodell,
                             )
 
                             Reiter.EINSTELLUNGEN -> EinstellungenBildschirm(
@@ -297,6 +324,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                             ansichtsmodell.noteAnlegen(it, punkte, bezeichnung, art, datum)
                         }
                     },
+                    ansichtsmodell = ansichtsmodell,
                 )
             }
         }
@@ -309,6 +337,34 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
             faecher = (zustand.start as? Ladung.Da)?.wert?.faecher.orEmpty(),
             beimSchliessen = ansichtsmodell::schliesseBlatt,
             beimAnlegen = ansichtsmodell::legeAufgabeAn,
+        )
+    }
+
+    // Aufgabe bearbeiten / löschen.
+    bearbeitung.editId?.let { editId ->
+        val alle = (zustand.start as? Ladung.Da)?.wert?.aufgaben.orEmpty()
+        alle.firstOrNull { it.id == editId }?.let { aufgabe ->
+            AufgabeBearbeitenBlatt(
+                aufgabe = aufgabe,
+                faecher = (zustand.start as? Ladung.Da)?.wert?.faecher.orEmpty(),
+                bearbeitung = bearbeitung,
+                beimSchliessen = ansichtsmodell::schliesseAufgabeBearbeitung,
+                beimSpeichern = { titel, typ, faellig, notizen, fachId, clearDue, clearFach ->
+                    ansichtsmodell.aufgabeAendern(editId, titel, typ, faellig, notizen, fachId, clearDue, clearFach)
+                },
+                beimLoeschen = { ansichtsmodell.aufgabeLoeschen(editId) },
+            )
+        }
+    }
+
+    // Stunden-Detail (Notiz + Meldung).
+    stundeDetail.lessonId?.let {
+        StundeDetailBlatt(
+            zustand = stundeDetail,
+            beimSchliessen = ansichtsmodell::schliesseStunde,
+            beimNotizSpeichern = ansichtsmodell::stundenNotizSpeichern,
+            beimMeldungSpeichern = ansichtsmodell::meldungSpeichern,
+            beimMeldungLoeschen = ansichtsmodell::meldungLoeschen,
         )
     }
 }

@@ -58,6 +58,7 @@ fun AufgabenBildschirm(
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
     beimErneutLaden: () -> Unit,
     beimErledigtAusklappen: () -> Unit,
+    beimBearbeiten: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when (val start = zustand.start) {
@@ -120,6 +121,7 @@ fun AufgabenBildschirm(
                             gruppe = block.gruppe,
                             zeigeFach = true,
                             beimHaken = { beimHaken(aufgabe, true) },
+                            beimBearbeiten = { beimBearbeiten(aufgabe.id) },
                         )
                     }
                     item("${block.gruppe.schluessel}-luft") {
@@ -261,6 +263,7 @@ fun Aufgabenzeile(
     gruppe: Aufgabengruppe,
     zeigeFach: Boolean,
     beimHaken: () -> Unit,
+    beimBearbeiten: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val farbe = fachfarbe(aufgabe.subjectColor)
@@ -281,7 +284,13 @@ fun Aufgabenzeile(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = Abstand.normal),
+            .padding(vertical = Abstand.normal)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = "Bearbeiten",
+                onClick = { beimBearbeiten?.invoke() },
+                enabled = beimBearbeiten != null,
+            ),
         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -319,6 +328,15 @@ fun Aufgabenzeile(
                     color = if (gruppe == Aufgabengruppe.UEBERFAELLIG) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            aufgabe.notes?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

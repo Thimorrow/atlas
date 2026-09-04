@@ -6,11 +6,21 @@ import androidx.lifecycle.viewModelScope
 import dev.atlas.schule.data.AssignmentDTO
 import dev.atlas.schule.data.AtlasApi
 import dev.atlas.schule.data.AtlasErgebnis
+import dev.atlas.schule.data.AufgabePatchAnfrage
+import dev.atlas.schule.data.BotStartAntwort
+import dev.atlas.schule.data.BotVerlaufDetailAntwort
+import dev.atlas.schule.data.BotVerlaufEintragDTO
 import dev.atlas.schule.data.ExpandedRange
 import dev.atlas.schule.data.FachDetailAntwort
+import dev.atlas.schule.data.FachPatchAnfrage
+import dev.atlas.schule.data.FileDTO
+import dev.atlas.schule.data.GradeOverviewAntwort
 import dev.atlas.schule.data.GradesAntwort
+import dev.atlas.schule.data.MorgenAntwort
 import dev.atlas.schule.data.NeueAufgabeAnfrage
 import dev.atlas.schule.data.NeueNoteAnfrage
+import dev.atlas.schule.data.NeuesFachAnfrage
+import dev.atlas.schule.data.NoteDTO
 import dev.atlas.schule.data.SubjectDTO
 import dev.atlas.schule.data.SyncDTO
 import kotlinx.coroutines.async
@@ -27,6 +37,7 @@ import java.time.LocalDate
 enum class Reiter(val bezeichnung: String) {
     STUNDENPLAN("Stundenplan"),
     AUFGABEN("Aufgaben"),
+    BOT("Atlas"),
     FAECHER("Fächer"),
     EINSTELLUNGEN("Einstellungen"),
 }
@@ -36,6 +47,57 @@ data class Startdaten(
     val aufgaben: List<AssignmentDTO>,
     val faecher: List<SubjectDTO>,
     val sync: SyncDTO?,
+)
+
+/** Aufgaben-Bearbeitung: welche Aufgabe wird gerade editiert / gelöscht. */
+data class AufgabenBearbeitung(
+    val editId: String? = null,
+    val laeuft: Boolean = false,
+    val fehler: String? = null,
+)
+
+/** Notizen-Zustand je offenem Fach. */
+data class NotizenZustand(
+    val fachId: String? = null,
+    val laeuft: Boolean = false,
+    val fehler: String? = null,
+)
+
+/** Dateien je offenem Fach. */
+data class DateienZustand(
+    val fachId: String? = null,
+    val dateien: Ladung<List<FileDTO>>? = null,
+)
+
+/** Morgen/Fokus-Panel. */
+data class MorgenZustand(
+    val ladung: Ladung<MorgenAntwort>? = null,
+)
+
+/** Bot-Start + Verlauf (Chat selbst läuft vorerst als Web-Weiterleitung, Verlauf nativ). */
+data class BotZustand(
+    val start: Ladung<BotStartAntwort>? = null,
+    val verlauf: Ladung<List<BotVerlaufEintragDTO>>? = null,
+    val detail: Ladung<BotVerlaufDetailAntwort>? = null,
+    val detailId: String? = null,
+)
+
+/** Gesamtschnitt für die Fächer-Übersicht. */
+data class NotenUebersichtZustand(
+    val ladung: Ladung<GradeOverviewAntwort>? = null,
+)
+
+/** Stunden-Detail: Notiz + Meldung der gewählten Stunde. */
+data class StundeDetailZustand(
+    val lessonId: String? = null,
+    val titel: String? = null,
+    val datum: LocalDate? = null,
+    val uhrzeit: String? = null,
+    val notiz: String? = null,
+    val meldung: Int? = null,
+    val naechsteFaelligkeit: LocalDate? = null,
+    val laeuft: Boolean = false,
+    val fehler: String? = null,
 )
 
 /**
@@ -179,6 +241,27 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     private val _faecherAbgleichZustand = MutableStateFlow(FaecherAbgleichZustand())
     val faecherAbgleichZustand: StateFlow<FaecherAbgleichZustand> = _faecherAbgleichZustand.asStateFlow()
+
+    private val _aufgabenBearbeitung = MutableStateFlow(AufgabenBearbeitung())
+    val aufgabenBearbeitung: StateFlow<AufgabenBearbeitung> = _aufgabenBearbeitung.asStateFlow()
+
+    private val _notizenZustand = MutableStateFlow(NotizenZustand())
+    val notizenZustand: StateFlow<NotizenZustand> = _notizenZustand.asStateFlow()
+
+    private val _dateienZustand = MutableStateFlow(DateienZustand())
+    val dateienZustand: StateFlow<DateienZustand> = _dateienZustand.asStateFlow()
+
+    private val _morgenZustand = MutableStateFlow(MorgenZustand())
+    val morgenZustand: StateFlow<MorgenZustand> = _morgenZustand.asStateFlow()
+
+    private val _botZustand = MutableStateFlow(BotZustand())
+    val botZustand: StateFlow<BotZustand> = _botZustand.asStateFlow()
+
+    private val _notenUebersicht = MutableStateFlow(NotenUebersichtZustand())
+    val notenUebersicht: StateFlow<NotenUebersichtZustand> = _notenUebersicht.asStateFlow()
+
+    private val _stundeDetail = MutableStateFlow(StundeDetailZustand())
+    val stundeDetail: StateFlow<StundeDetailZustand> = _stundeDetail.asStateFlow()
 
     private fun frischeApp(): AtlasZustand.App {
         val heute = LocalDate.now()
@@ -747,6 +830,385 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
                 is AtlasErgebnis.Fehler -> _faecherAbgleichZustand.update {
                     it.copy(laeuft = false, ergebnis = FaecherAbgleichErgebnis.Fehler(ergebnis.meldung))
                 }
+            }
+        }
+    }
+
+    // --- Aufgaben Edit/Delete (Web-Parität) ------------------------------------
+
+    fun oeffneAufgabeBearbeitung(id: String) {
+        _aufgabenBearbeitung.value = AufgabenBearbeitung(editId = id)
+    }
+
+    fun schliesseAufgabeBearbeitung() {
+        _aufgabenBearbeitung.value = AufgabenBearbeitung()
+    }
+
+    fun aufgabeAendern(id: String, titel: String, typ: String, faellig: LocalDate?, notizen: String?, fachId: String?, clearDueDate: Boolean = false, clearSubject: Boolean = false) {
+        if (_aufgabenBearbeitung.value.laeuft) return
+        _aufgabenBearbeitung.update { it.copy(laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            val patch = AufgabePatchAnfrage(
+                title = titel.trim().ifBlank { null },
+                type = typ,
+                dueDate = faellig,
+                clearDueDate = clearDueDate,
+                notes = notizen?.ifBlank { null },
+                subjectId = fachId,
+                clearSubject = clearSubject,
+            )
+            when (val ergebnis = api.aufgabeAendern(id, patch)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _aufgabenBearbeitung.value = AufgabenBearbeitung()
+                    aendere { zustand ->
+                        val start = zustand.start
+                        if (start is Ladung.Da) {
+                            val neu = start.wert.aufgaben.map { if (it.id == id) ergebnis.wert else it }
+                            zustand.copy(start = Ladung.Da(start.wert.mitAufgaben(neu)))
+                        } else zustand
+                    }
+                    ladeDetailNeuFallsOffen()
+                }
+                is AtlasErgebnis.Fehler -> _aufgabenBearbeitung.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun aufgabeLoeschen(id: String) {
+        if (_aufgabenBearbeitung.value.laeuft) return
+        _aufgabenBearbeitung.update { it.copy(laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.aufgabeLoeschen(id)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _aufgabenBearbeitung.value = AufgabenBearbeitung()
+                    aendere { zustand ->
+                        val start = zustand.start
+                        if (start is Ladung.Da) {
+                            zustand.copy(start = Ladung.Da(start.wert.mitAufgaben(start.wert.aufgaben.filterNot { it.id == id })))
+                        } else zustand
+                    }
+                    ladeDetailNeuFallsOffen()
+                }
+                is AtlasErgebnis.Fehler -> _aufgabenBearbeitung.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    // --- Notizen CRUD (Web-Parität) ----------------------------------------------
+
+    fun notizAnlegen(fachId: String, titel: String, body: String) {
+        if (_notizenZustand.value.laeuft) return
+        _notizenZustand.update { it.copy(fachId = fachId, laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.notizAnlegen(fachId, titel, body)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _notizenZustand.update { it.copy(laeuft = false) }
+                    holeDetail(fachId)
+                }
+                is AtlasErgebnis.Fehler -> _notizenZustand.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun notizAendern(fachId: String, id: String, titel: String?, body: String?) {
+        if (_notizenZustand.value.laeuft) return
+        _notizenZustand.update { it.copy(fachId = fachId, laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.notizAendern(id, titel, body)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _notizenZustand.update { it.copy(laeuft = false) }
+                    holeDetail(fachId)
+                }
+                is AtlasErgebnis.Fehler -> _notizenZustand.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun notizLoeschen(fachId: String, id: String) {
+        if (_notizenZustand.value.laeuft) return
+        _notizenZustand.update { it.copy(fachId = fachId, laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            // Optimistisch: Detail sofort ohne die Notiz zeigen.
+            aendere { zustand ->
+                val d = (zustand.detail as? Ladung.Da)?.wert
+                if (zustand.detailFachId == fachId && d != null) {
+                    zustand.copy(detail = Ladung.Da(d.copy(notes = d.notes.filterNot { it.id == id })))
+                } else zustand
+            }
+            when (val ergebnis = api.notizLoeschen(id)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _notizenZustand.update { it.copy(laeuft = false) }
+                    holeDetail(fachId)
+                }
+                is AtlasErgebnis.Fehler -> {
+                    _notizenZustand.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+                    holeDetail(fachId)
+                    aendere { it.copy(hinweis = ergebnis.meldung) }
+                }
+            }
+        }
+    }
+
+    fun notizFehlerGelesen() = _notizenZustand.update { it.copy(fehler = null) }
+
+    // --- Fächer CRUD (Web-Parität) -------------------------------------------------
+
+    fun fachAnlegen(name: String, lehrer: String?, raum: String?, farbe: String?, untisFach: String? = null) {
+        viewModelScope.launch {
+            when (val ergebnis = api.fachAnlegen(NeuesFachAnfrage(name.trim(), lehrer?.ifBlank { null }, raum?.ifBlank { null }, farbe, untisFach))) {
+                is AtlasErgebnis.Erfolg -> ladeNeu()
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun fachAendern(id: String, patch: FachPatchAnfrage) {
+        viewModelScope.launch {
+            when (val ergebnis = api.fachAendern(id, patch)) {
+                is AtlasErgebnis.Erfolg -> {
+                    holeDetail(id)
+                    ladeNeu()
+                }
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun fachArchivieren(id: String, archivieren: Boolean) {
+        fachAendern(id, FachPatchAnfrage(archivedAt = if (archivieren) "now" else null))
+        if (archivieren) schliesseFach()
+    }
+
+    fun fachLoeschen(id: String) {
+        viewModelScope.launch {
+            when (val ergebnis = api.fachLoeschen(id)) {
+                is AtlasErgebnis.Erfolg -> {
+                    schliesseFach()
+                    ladeNeu()
+                }
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun faecherReconcile() {
+        _faecherAbgleichZustand.update { it.copy(laeuft = true, ergebnis = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.faecherReconcile()) {
+                is AtlasErgebnis.Erfolg -> {
+                    val w = ergebnis.wert
+                    _faecherAbgleichZustand.update {
+                        it.copy(
+                            laeuft = false,
+                            ergebnis = FaecherAbgleichErgebnis.Erfolg(
+                                "${w.created} angelegt, ${w.updated} aktualisiert, ${w.archived} archiviert.",
+                            ),
+                        )
+                    }
+                    ladeNeu()
+                }
+                is AtlasErgebnis.Fehler -> _faecherAbgleichZustand.update {
+                    it.copy(laeuft = false, ergebnis = FaecherAbgleichErgebnis.Fehler(ergebnis.meldung))
+                }
+            }
+        }
+    }
+
+    // --- Noten: löschen + Übersicht (Web-Parität) ------------------------------------
+
+    fun noteLoeschen(fachId: String, noteId: String) {
+        viewModelScope.launch {
+            when (val ergebnis = api.noteLoeschen(noteId)) {
+                is AtlasErgebnis.Erfolg -> holeNoten(fachId)
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun ladeNotenUebersicht() {
+        _notenUebersicht.value = NotenUebersichtZustand(Ladung.Laedt)
+        viewModelScope.launch {
+            _notenUebersicht.value = when (val ergebnis = api.notenUebersicht()) {
+                is AtlasErgebnis.Erfolg -> NotenUebersichtZustand(Ladung.Da(ergebnis.wert))
+                is AtlasErgebnis.Fehler -> NotenUebersichtZustand(Ladung.Fehler(ergebnis.meldung))
+            }
+        }
+    }
+
+    // --- Dateien (Web-Parität: Liste + Löschen; Upload/Download via Share) ------------
+
+    fun ladeDateien(fachId: String) {
+        _dateienZustand.value = DateienZustand(fachId, Ladung.Laedt)
+        viewModelScope.launch {
+            _dateienZustand.value = when (val ergebnis = api.dateien(fachId)) {
+                is AtlasErgebnis.Erfolg -> DateienZustand(fachId, Ladung.Da(ergebnis.wert))
+                is AtlasErgebnis.Fehler -> DateienZustand(fachId, Ladung.Fehler(ergebnis.meldung))
+            }
+        }
+    }
+
+    fun dateiLoeschen(fachId: String, id: String) {
+        viewModelScope.launch {
+            when (val ergebnis = api.dateiLoeschen(id)) {
+                is AtlasErgebnis.Erfolg -> ladeDateien(fachId)
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    // --- Stunden-Details: Notiz + Meldung (Web-Parität) ---------------------------------
+
+    fun oeffneStunde(lessonId: String, titel: String? = null, datum: LocalDate? = null, uhrzeit: String? = null) {
+        _stundeDetail.value = StundeDetailZustand(lessonId = lessonId, titel = titel, datum = datum, uhrzeit = uhrzeit, laeuft = true)
+        viewModelScope.launch {
+            val notiz = api.stundenNotiz(lessonId)
+            val meldung = api.meldung(lessonId)
+            val nextDue = api.naechsteFaelligkeit(lessonId)
+            _stundeDetail.update {
+                if (it.lessonId != lessonId) return@update it
+                val notizFehler = (notiz as? AtlasErgebnis.Fehler)?.meldung
+                val meldungFehler = (meldung as? AtlasErgebnis.Fehler)?.meldung
+                // nextDue ist reine Zusatzinfo (Vorbelegungshinweis): scheitert
+                // sie, bleibt das Feld leer — kein roter Satz über sonst
+                // erfolgreich geladenem Inhalt.
+                it.copy(
+                    laeuft = false,
+                    notiz = (notiz as? AtlasErgebnis.Erfolg)?.wert?.body,
+                    meldung = (meldung as? AtlasErgebnis.Erfolg)?.wert,
+                    naechsteFaelligkeit = (nextDue as? AtlasErgebnis.Erfolg)?.wert,
+                    fehler = notizFehler ?: meldungFehler,
+                )
+            }
+        }
+    }
+
+    fun schliesseStunde() {
+        _stundeDetail.value = StundeDetailZustand()
+    }
+
+    fun stundenNotizSpeichern(body: String) {
+        val id = _stundeDetail.value.lessonId ?: return
+        _stundeDetail.update { it.copy(laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.stundenNotizSpeichern(id, body)) {
+                is AtlasErgebnis.Erfolg -> _stundeDetail.update { it.copy(laeuft = false, notiz = ergebnis.wert?.body) }
+                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun meldungSpeichern(punkte: Int) {
+        val id = _stundeDetail.value.lessonId ?: return
+        _stundeDetail.update { it.copy(laeuft = true, fehler = null) }
+        viewModelScope.launch {
+            when (val ergebnis = api.meldungSpeichern(id, punkte)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _stundeDetail.update { it.copy(laeuft = false, meldung = ergebnis.wert) }
+                    ladeDetailNeuFallsOffen()
+                }
+                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun meldungLoeschen() {
+        val id = _stundeDetail.value.lessonId ?: return
+        viewModelScope.launch {
+            when (val ergebnis = api.meldungLoeschen(id)) {
+                is AtlasErgebnis.Erfolg -> {
+                    _stundeDetail.update { it.copy(meldung = null) }
+                    ladeDetailNeuFallsOffen()
+                }
+                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(fehler = ergebnis.meldung) }
+            }
+        }
+    }
+
+    // --- Morgen / Fokus (Web-Parität) -----------------------------------------------------
+
+    fun ladeMorgen() {
+        _morgenZustand.value = MorgenZustand(Ladung.Laedt)
+        viewModelScope.launch {
+            _morgenZustand.value = when (val ergebnis = api.morgen()) {
+                is AtlasErgebnis.Erfolg -> MorgenZustand(Ladung.Da(ergebnis.wert))
+                is AtlasErgebnis.Fehler -> MorgenZustand(Ladung.Fehler(ergebnis.meldung))
+            }
+        }
+    }
+
+    // --- Bot (Web-Parität: Start + Verlauf nativ, Chat via Web) ----------------------------
+
+    fun ladeBot() {
+        _botZustand.value = _botZustand.value.copy(start = Ladung.Laedt, verlauf = Ladung.Laedt)
+        viewModelScope.launch {
+            val start = api.botStart()
+            _botZustand.update {
+                it.copy(
+                    start = when (start) {
+                        is AtlasErgebnis.Erfolg -> Ladung.Da(start.wert)
+                        is AtlasErgebnis.Fehler -> Ladung.Fehler(start.meldung)
+                    },
+                )
+            }
+        }
+        viewModelScope.launch {
+            val verlauf = api.botVerlauf()
+            _botZustand.update {
+                it.copy(
+                    verlauf = when (verlauf) {
+                        is AtlasErgebnis.Erfolg -> Ladung.Da(verlauf.wert)
+                        is AtlasErgebnis.Fehler -> Ladung.Fehler(verlauf.meldung)
+                    },
+                )
+            }
+        }
+    }
+
+    fun oeffneBotVerlauf(id: String) {
+        _botZustand.update { it.copy(detail = Ladung.Laedt, detailId = id) }
+        viewModelScope.launch {
+            _botZustand.update { zustand ->
+                if (zustand.detailId != id) return@update zustand
+                zustand.copy(
+                    detail = when (val ergebnis = api.botVerlaufDetail(id)) {
+                        is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
+                        is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
+                    },
+                )
+            }
+        }
+    }
+
+    fun schliesseBotVerlauf() {
+        _botZustand.update { it.copy(detail = null, detailId = null) }
+    }
+
+    // --- Konto -------------------------------------------------------------------------------
+
+    fun abmelden() {
+        viewModelScope.launch {
+            api.abmelden()
+            _zustand.value = AtlasZustand.Anmeldung()
+            _notenZustand.value = NotenZustand()
+            _morgenZustand.value = MorgenZustand()
+            _botZustand.value = BotZustand()
+        }
+    }
+
+    fun microsoftTrennen() {
+        viewModelScope.launch {
+            when (val ergebnis = api.microsoftTrennen()) {
+                is AtlasErgebnis.Erfolg -> aendere { it.copy(hinweis = "OneNote getrennt.") }
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
+            }
+        }
+    }
+
+    fun notizNachOnenote(id: String) {
+        viewModelScope.launch {
+            when (val ergebnis = api.notizNachOnenote(id)) {
+                is AtlasErgebnis.Erfolg -> aendere { it.copy(hinweis = "An OneNote gesendet.") }
+                is AtlasErgebnis.Fehler -> aendere { it.copy(hinweis = ergebnis.meldung) }
             }
         }
     }
