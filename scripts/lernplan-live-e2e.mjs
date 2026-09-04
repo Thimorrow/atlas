@@ -163,7 +163,7 @@ try {
   // --- A13: probe abhaken ----------------------------------------------------
   const patch = await ruf(`/api/lernen/plan/items/${probe.id}`, "PATCH", { done: true, result: 0 });
   pruefe("A13 PATCH probe done result 0", patch.status === 200 && patch.json?.item?.doneAt, `status ${patch.status}`);
-  const nach13 = (await ruf(`/api/lernen/plan/${assignmentId}`)).json;
+  const nach13 = (await ruf(`/api/lernen/plan/${assignmentId}`)).json?.plan;
   const punktProbe = nach13?.punkte.find((p) => p.id === probe.pointId);
   pruefe("A13 Punkt 0 mit Quelle selbst", punktProbe?.sicherheit === 0 && punktProbe?.sicherheitQuelle === "selbst", `${punktProbe?.sicherheit} ${punktProbe?.sicherheitQuelle}`);
   const nachher = (await ruf("/api/assignments")).json?.assignments?.find((x) => x.id === assignmentId)?.lernplan;
@@ -177,7 +177,7 @@ try {
   pruefe("A14 Karte am Thema angelegt", karte.status < 300 && !!karteId, `status ${karte.status}`);
   const rev = await ruf(`/api/lernen/karten/${karteId}/antwort`, "POST", { correct: true });
   pruefe("A14 reviewCard 200", rev.status === 200, `status ${rev.status}`);
-  const nach14 = (await ruf(`/api/lernen/plan/${assignmentId}`)).json;
+  const nach14 = (await ruf(`/api/lernen/plan/${assignmentId}`)).json?.plan;
   const pk = nach14?.punkte.find((p) => p.id === punktKarte.id);
   pruefe("A14 Punkt-Sicherheit Quelle karten (Box 1 -> 20)", pk?.sicherheitQuelle === "karten" && pk?.sicherheit === 20, `${pk?.sicherheit} ${pk?.sicherheitQuelle}`);
 

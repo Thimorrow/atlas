@@ -55,7 +55,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
         return;
       }
       if (!pRes.ok || !sRes.ok || !aRes.ok) throw new Error("laden");
-      const planData = (await pRes.json()) as PlanDTO;
+      const planData = ((await pRes.json()) as { plan: PlanDTO }).plan;
       const sData = (await sRes.json()) as { subject: { name: string; color: string | null }; botEnabled: boolean };
       const aData = (await aRes.json()) as { assignments: { id: string; title: string; dueDate: string | null }[] };
       setPlan(planData);
@@ -91,7 +91,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
         body: JSON.stringify({ done }),
       });
       if (!res.ok) throw new Error();
-      const updated = (await res.json().catch(() => null)) as ItemDTO | null;
+      const updated = ((await res.json().catch(() => null)) as { item: ItemDTO } | null)?.item ?? null;
       if (updated) patchItem(item.id, updated);
     } catch {
       patchItem(item.id, vorher);
@@ -109,7 +109,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
         body: JSON.stringify({ done: true, result }),
       });
       if (!res.ok) throw new Error();
-      const updated = (await res.json().catch(() => null)) as ItemDTO | null;
+      const updated = ((await res.json().catch(() => null)) as { item: ItemDTO } | null)?.item ?? null;
       if (updated) patchItem(item.id, updated);
       void neuLaden();
     } catch {
