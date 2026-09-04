@@ -1,3 +1,5 @@
+import { heuteISO, jetztHM } from "@/lib/zeit";
+
 // Reine Logik fuer den Vollbild-Stundenmodus des Fokus: laeuft gerade wirklich
 // eine Schulstunde, und wie lange noch? Bewusst ohne DB-Import, damit sie ohne
 // Datenbank testbar ist -- gleiches Muster wie lib/morgen-view.ts.
@@ -171,15 +173,15 @@ export function defaultLesson<T extends LiveCandidate>(events: T[], nowHM: strin
   return pickLiveLesson(events, nowHM) ?? pickNextLesson(events, nowHM) ?? pickPreviousLesson(events, nowHM);
 }
 
-// Das LOKALE Datum des Servers, nicht toISOString() (das springt abends
+// Das deutsche Datum (lib/zeit.ts), nicht toISOString() (das springt abends
 // schon auf den naechsten Tag) -- identische Regel wie in app/api/morgen/route.ts
 // und app/api/home/route.ts, hier ausgelagert, damit beide Routen sie teilen.
 export function lokalesDatum(): string {
-  return new Date().toLocaleDateString("sv-SE");
+  return heuteISO();
 }
 
 // Die LOKALE Uhrzeit des Servers als "HH:MM" -- dasselbe Format, in dem die
 // Events ihre Zeiten tragen, damit sich beides direkt vergleichen laesst.
 export function lokaleUhrzeit(): string {
-  return new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return jetztHM();
 }

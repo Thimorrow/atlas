@@ -256,9 +256,11 @@ describe("recentlyCompleted", () => {
 });
 
 describe("localISO / addDays", () => {
-  it("driftet nicht nach UTC: 23:30 und 00:30 desselben Tages ergeben denselben Tag", () => {
-    expect(localISO(new Date(2025, 6, 16, 23, 30))).toBe(MI);
-    expect(localISO(new Date(2025, 6, 16, 0, 30))).toBe(MI);
+  it("nimmt den deutschen Tag, nicht den UTC-Tag: 23:30 und 00:30 deutscher Zeit sind derselbe Tag", () => {
+    expect(localISO(new Date("2025-07-16T23:30:00+02:00"))).toBe(MI);
+    expect(localISO(new Date("2025-07-16T00:30:00+02:00"))).toBe(MI);
+    // In UTC waere das noch der 15. -- fuer den Schueler ist es schon der 16.
+    expect(localISO(new Date("2025-07-15T22:30:00Z"))).toBe(MI);
   });
 
   it("rechnet ueber Monats- und Jahresgrenzen", () => {

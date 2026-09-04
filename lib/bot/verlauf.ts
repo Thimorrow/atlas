@@ -1,3 +1,5 @@
+import { heuteISO, ZEITZONE } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 // Reine Ableitungen fuer den Bot-Verlauf (app/bot/verlauf): ob ein Gespraech
 // geschrieben hat, ein anzeigbarer Titel, ruhige Klartexte fuer lesende
 // Werkzeuge, ein "wann war das" -- und die Gruppierung der flachen
@@ -84,16 +86,16 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
 // Parameter, damit sich das ohne echten Systemtakt testen laesst.
 export function formatConversationWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: ZEITZONE });
   if (Number.isNaN(d.getTime())) return iso;
 
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
+  // Heute/Gestern in deutscher Zeit, nicht in der Zeitzone des Servers.
+  const tag = heuteISO(d);
+  const heute = heuteISO(now);
+  if (tag === heute) return `Heute, ${time} Uhr`;
+  if (tag === addDays(heute, -1)) return `Gestern, ${time} Uhr`;
 
-  if (d.toDateString() === now.toDateString()) return `Heute, ${time} Uhr`;
-  if (d.toDateString() === yesterday.toDateString()) return `Gestern, ${time} Uhr`;
-
-  const date = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const date = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: ZEITZONE });
   return `${date}, ${time} Uhr`;
 }
 

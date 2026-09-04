@@ -4,6 +4,7 @@ import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
 import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
+import { addDays } from "@/lib/assignments-view";
 import { lokalesDatum as heuteLokal, lokaleUhrzeit as jetztLokal, minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
 
 export const runtime = "nodejs";
@@ -160,9 +161,7 @@ export async function GET(req: Request) {
 }
 
 function addDaysISO(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("sv-SE");
+  return addDays(iso, n);
 }
 
 // Heute steht noch etwas an, solange mindestens eine nicht-entfallene Stunde

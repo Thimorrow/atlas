@@ -5,15 +5,9 @@ import { expandRange } from "@/lib/calendar-expand";
 import { listAssignments } from "@/lib/assignment-store";
 import type { CalendarEvent } from "@/lib/calendar-expand";
 
-function localISO(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { heuteISO as localISO } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 
-function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return localISO(d);
-}
 
 const WOCHENTAG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 

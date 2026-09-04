@@ -1,7 +1,7 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-09-02T16:55:00Z
+last_updated: 2026-09-04T11:30:00Z
 current_milestone: M003
 active_slice: null
 active_task: null
@@ -16,6 +16,33 @@ Web-App mit fuenf Modulen plus eine eigenstaendige native Android-App.
 Stand belegt am 2026-09-02 durch einen Durchgang durch den echten Code, nicht
 durch Fortschreibung dieser Datei. Zwischen dem vorigen Stand (2026-09-01) und
 heute liegen **51 Commits**, die hier vorher nicht abgebildet waren.
+
+## Nachtrag 2026-09-04 (PR #8, Branch feature/lernbereich-und-cockpit)
+
+Fuenf Module in der Navigation: `/` Stundenplan, `/stunde` Cockpit,
+`/aufgaben`, `/faecher`, `/lernen`.
+
+- *Stunden-Cockpit* `/stunde` (`components/stunden-cockpit.tsx`,
+  `app/api/stunde/route.ts`, Logik `lib/jetzt-stunde.ts`): traegt immer
+  (Modi live/pause/vor/nach/frei), Tagesleiste zum Wechseln der Stunde,
+  Faellig-jetzt abhaken, Hausaufgabe mit Faelligkeit bis zur naechsten
+  Stunde (`findNextLessonDate`), Notiz, Meldung, Dateien, Kontext (letzte
+  Stundennotiz, naechste Pruefung). Der fruehere Vollbildmodus im Fokus
+  (`components/jetzt-stunde.tsx`) ist geloescht, der Fokus verlinkt.
+- *Lernbereich* `/lernen`, `/lernen/[subjectId]`, `.../session`
+  (`components/lernen-*.tsx`): Karteikarten mit Leitner-Boxen 0..5
+  (`lib/lernen.ts`, rein, getestet), Store `lib/study-store.ts`, Generator
+  `lib/lernen-generieren.ts` (Bot-Modell, Quellen Notizen/Dateien/Lehrplan),
+  Routen `app/api/lernen/*`. Tabellen `study_cards`, `study_reviews`,
+  Enum `study_card_source`, Migration `0016_lernkarten`.
+- *Dateien*: Mehrfach-Upload mit Queue (Parallelitaet 3), Limits zentral in
+  `lib/file-limits.ts`.
+- Android: die native Arbeit (Bot, Fokus, Notizen, Dateien, Noten) ist als
+  Commit e130b96 gesichert, kompiliert, Tests gruen.
+
+Verifikation lokal: tsc fehlerfrei, 410 Tests gruen (24 skipped ohne
+DATABASE_URL), `next build` 0 Errors. Live-Pruefung des Preview-Deploys siehe
+PR #8.
 
 ## Was tatsaechlich steht
 

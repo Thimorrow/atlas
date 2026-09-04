@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { heuteISO } from "@/lib/zeit";
 import { listAssignments } from "@/lib/assignment-store";
 import { expandWeek, isRealDate } from "@/lib/calendar-expand";
 import { listSubjects } from "@/lib/subject-store";
@@ -14,7 +15,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // und die Startseite spraenge auf die falsche Woche. Die schwedische Locale
 // ist der kuerzeste Weg zu JJJJ-MM-TT.
 function heuteLokal(): string {
-  return new Date().toLocaleDateString("sv-SE");
+  return heuteISO();
 }
 
 // GET /api/home?date=JJJJ-MM-TT

@@ -1,3 +1,5 @@
+import { heuteISO } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 import { describe, expect, it, vi } from "vitest";
 
 // buildGreeting kommt ohne Modellaufruf aus, braucht aber die DB -- die wird
@@ -13,10 +15,10 @@ vi.mock("@/lib/assignment-store", () => ({ listAssignments }));
 
 const { buildGreeting, buildSystemPrompt } = await import("./context");
 
+// Deutscher Kalendertag plus Versatz -- dieselbe Lesart wie der Code selbst
+// (lib/zeit.ts), damit der Test in jeder Zeitzone dasselbe "morgen" meint.
 function heuteLokal(offset = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return addDays(heuteISO(), offset);
 }
 
 describe("buildGreeting", () => {

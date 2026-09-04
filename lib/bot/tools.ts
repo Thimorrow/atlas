@@ -33,15 +33,9 @@ import { pointsToGradeLabel } from "@/lib/grades";
 import type { ChatTool } from "@/lib/bot/model";
 import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
 
-function localISO(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { heuteISO as localISO } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 
-function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return localISO(d);
-}
 
 // Fach anhand des Namens finden, den das Modell nennt -- case-insensitiv, erst
 // ueber den Anzeigenamen, dann ueber den Untis-Wert. Kein Treffer heisst

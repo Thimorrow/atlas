@@ -4,6 +4,7 @@
 
 import { and, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { tagesbeginn } from "@/lib/zeit";
 import {
   studyCards,
   studyReviews,
@@ -163,8 +164,7 @@ export type SubjectOverview = {
 };
 
 function startOfTodayLocal(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return tagesbeginn();
 }
 
 export async function overview(): Promise<{ today: string; heuteGelernt: number; faecher: SubjectOverview[] }> {
