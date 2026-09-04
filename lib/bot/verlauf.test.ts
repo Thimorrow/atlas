@@ -31,13 +31,13 @@ describe("isWriteToolMessage", () => {
     ).toBe(true);
   });
 
-  it("zaehlt ein Fehlerergebnis nicht als Schreiben", () => {
+  it("zählt ein Fehlerergebnis nicht als Schreiben", () => {
     expect(
       isWriteToolMessage(msg({ role: "tool", toolName: "aufgabe_anlegen", toolResult: { error: "titel fehlt" } })),
     ).toBe(false);
   });
 
-  it("zaehlt ein lesendes Werkzeug nicht als Schreiben", () => {
+  it("zählt ein lesendes Werkzeug nicht als Schreiben", () => {
     expect(
       isWriteToolMessage(msg({ role: "tool", toolName: "aufgaben_lesen", toolResult: { aufgaben: [] } })),
     ).toBe(false);
@@ -49,7 +49,7 @@ describe("isWriteToolMessage", () => {
 });
 
 describe("conversationHasWrites", () => {
-  it("ist wahr, sobald irgendwo im Gespraech geschrieben wurde", () => {
+  it("ist wahr, sobald irgendwo im Gespräch geschrieben wurde", () => {
     const messages = [
       msg({ role: "user", content: "Leg eine Aufgabe an." }),
       msg({ role: "tool", toolName: "aufgabe_anlegen", toolResult: { aufgabe: { id: "a1" } } }),
@@ -58,7 +58,7 @@ describe("conversationHasWrites", () => {
     expect(conversationHasWrites(messages)).toBe(true);
   });
 
-  it("ist falsch fuer ein reines Frage-Antwort-Gespraech", () => {
+  it("ist falsch für ein reines Frage-Antwort-Gespräch", () => {
     const messages = [
       msg({ role: "user", content: "Was steht an?" }),
       msg({ role: "tool", toolName: "aufgaben_lesen", toolResult: { aufgaben: [] } }),
@@ -69,11 +69,11 @@ describe("conversationHasWrites", () => {
 });
 
 describe("displayTitle", () => {
-  it("gibt den getrimmten Titel zurueck", () => {
+  it("gibt den getrimmten Titel zurück", () => {
     expect(displayTitle("  Was steht an?  ")).toBe("Was steht an?");
   });
 
-  it("faellt bei fehlendem Titel auf einen Platzhalter zurueck", () => {
+  it("fällt bei fehlendem Titel auf einen Platzhalter zurück", () => {
     expect(displayTitle(null)).toBe("Ohne Titel");
     expect(displayTitle("   ")).toBe("Ohne Titel");
   });
@@ -84,13 +84,13 @@ describe("toolPastLabel", () => {
     expect(toolPastLabel("notizen_lesen", { fach: "Mathe" })).toBe("hat Notizen in Mathe gelesen");
   });
 
-  it("faellt ohne Fach auf die allgemeine Formulierung zurueck", () => {
+  it("fällt ohne Fach auf die allgemeine Formulierung zurück", () => {
     expect(toolPastLabel("notizen_lesen", {})).toBe("hat die Notizen gelesen");
   });
 
   it("kennt jedes Werkzeug mit einem eigenen Klartext", () => {
     expect(toolPastLabel("stundenplan_lesen", {})).toBe("hat den Stundenplan gelesen");
-    expect(toolPastLabel("unbekanntes_werkzeug", {})).toBe("hat unbekanntes_werkzeug ausgefuehrt");
+    expect(toolPastLabel("unbekanntes_werkzeug", {})).toBe("hat unbekanntes_werkzeug ausgeführt");
   });
 
   it("kennzeichnet einen gescheiterten Schreibversuch als gescheitert", () => {
@@ -115,7 +115,7 @@ describe("formatConversationWhen", () => {
     expect(formatConversationWhen("2026-09-01T23:30:00+02:00", now)).toBe("Gestern, 23:30 Uhr");
   });
 
-  it("zeigt bei aelteren Gespraechen das volle Datum", () => {
+  it("zeigt bei älteren Gesprächen das volle Datum", () => {
     expect(formatConversationWhen("2026-08-20T07:00:00+02:00", now)).toBe("20.08.2026, 07:00 Uhr");
   });
 });
@@ -144,7 +144,7 @@ describe("groupMessagesIntoTurns", () => {
     expect(turns[0].items[1]).toMatchObject({ kind: "write", tool: "aufgabe_anlegen" });
   });
 
-  it("startet fuer jede Nutzerfrage einen neuen Zug", () => {
+  it("startet für jede Nutzerfrage einen neuen Zug", () => {
     const messages: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Frage eins" }),
       msg({ id: "2", role: "assistant", content: "Antwort eins" }),

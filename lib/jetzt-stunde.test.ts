@@ -25,23 +25,23 @@ const ZWEITE = stunde("e2", "09:45", "10:30");
 const TAG = [ERSTE, ZWEITE];
 
 describe("pickLiveLesson", () => {
-  it("findet die Stunde, die mittendrin laeuft", () => {
+  it("findet die Stunde, die mittendrin läuft", () => {
     expect(pickLiveLesson(TAG, "10:07")?.refId).toBe("e2");
   });
 
-  it("die Stunde laeuft genau ab ihrer Startzeit", () => {
+  it("die Stunde läuft genau ab ihrer Startzeit", () => {
     expect(pickLiveLesson(TAG, "09:45")?.refId).toBe("e2");
   });
 
-  it("zur Endzeit laeuft sie nicht mehr", () => {
+  it("zur Endzeit läuft sie nicht mehr", () => {
     expect(pickLiveLesson(TAG, "10:30")).toBeNull();
   });
 
-  it("in der Pause laeuft nichts", () => {
+  it("in der Pause läuft nichts", () => {
     expect(pickLiveLesson(TAG, "09:00")).toBeNull();
   });
 
-  it("vor der ersten und nach der letzten Stunde laeuft nichts", () => {
+  it("vor der ersten und nach der letzten Stunde läuft nichts", () => {
     expect(pickLiveLesson(TAG, "07:30")).toBeNull();
     expect(pickLiveLesson(TAG, "16:00")).toBeNull();
   });
@@ -51,7 +51,7 @@ describe("pickLiveLesson", () => {
     expect(pickLiveLesson(tag, "10:07")).toBeNull();
   });
 
-  it("eine Vertretung laeuft ganz normal", () => {
+  it("eine Vertretung läuft ganz normal", () => {
     const tag = [stunde("v", "09:45", "10:30", "substituted")];
     expect(pickLiveLesson(tag, "10:07")?.refId).toBe("v");
   });
@@ -60,11 +60,11 @@ describe("pickLiveLesson", () => {
     expect(pickLiveLesson([], "10:07")).toBeNull();
   });
 
-  it("ohne Endzeit laesst sich nichts behaupten", () => {
+  it("ohne Endzeit lässt sich nichts behaupten", () => {
     expect(pickLiveLesson([stunde("o", "09:45", null)], "10:07")).toBeNull();
   });
 
-  it("bei Ueberlappung gewinnt die zuerst beginnende", () => {
+  it("bei Überlappung gewinnt die zuerst beginnende", () => {
     const tag = [stunde("spaet", "10:00", "10:45"), stunde("frueh", "09:45", "10:30")];
     expect(pickLiveLesson(tag, "10:07")?.refId).toBe("frueh");
   });
@@ -75,7 +75,7 @@ describe("pickLiveLesson", () => {
     expect(pickLiveLesson([stunde("k", "9:45", "10:30")], "10:07")?.refId).toBe("k");
   });
 
-  it("unbrauchbare Zeitangaben fuehren zu keinem Treffer", () => {
+  it("unbrauchbare Zeitangaben führen zu keinem Treffer", () => {
     expect(pickLiveLesson(TAG, "jetzt")).toBeNull();
     expect(pickLiveLesson([stunde("m", "99:99", "10:30")], "10:07")).toBeNull();
   });
@@ -86,11 +86,11 @@ describe("minutesLeft", () => {
     expect(minutesLeft("10:30", "10:07")).toBe(23);
   });
 
-  it("zaehlt ueber die volle Stunde hinweg richtig", () => {
+  it("zählt über die volle Stunde hinweg richtig", () => {
     expect(minutesLeft("10:30", "09:45")).toBe(45);
   });
 
-  it("eine angebrochene Minute zaehlt nicht mit", () => {
+  it("eine angebrochene Minute zählt nicht mit", () => {
     expect(minutesLeft("10:30", "10:29")).toBe(1);
     expect(minutesLeft("10:30", "10:30")).toBe(0);
   });
@@ -110,7 +110,7 @@ describe("minutesUntil", () => {
     expect(minutesUntil("09:45", "09:30")).toBe(15);
   });
 
-  it("wird nie negativ, auch wenn die Stunde schon laeuft", () => {
+  it("wird nie negativ, auch wenn die Stunde schon läuft", () => {
     expect(minutesUntil("09:45", "10:00")).toBe(0);
   });
 
@@ -149,19 +149,19 @@ describe("lessonProgress", () => {
 });
 
 describe("pickNextLesson", () => {
-  it("findet die naechste bevorstehende Stunde", () => {
+  it("findet die nächste bevorstehende Stunde", () => {
     expect(pickNextLesson(TAG, "08:50")?.refId).toBe("e2");
   });
 
-  it("waehrend einer laufenden Stunde ist die naechste die danach", () => {
+  it("während einer laufenden Stunde ist die nächste die danach", () => {
     expect(pickNextLesson(TAG, "08:10")?.refId).toBe("e2");
   });
 
-  it("nach der letzten Stunde gibt es keine naechste mehr", () => {
+  it("nach der letzten Stunde gibt es keine nächste mehr", () => {
     expect(pickNextLesson(TAG, "10:30")).toBeNull();
   });
 
-  it("ignoriert eine entfallene naechste Stunde nicht -- sie zaehlt trotzdem nicht", () => {
+  it("ignoriert eine entfallene nächste Stunde nicht -- sie zählt trotzdem nicht", () => {
     const tag = [ERSTE, stunde("cancelled-next", "09:45", "10:30", "cancelled")];
     expect(pickNextLesson(tag, "08:50")).toBeNull();
   });
@@ -176,7 +176,7 @@ describe("pickPreviousLesson", () => {
     expect(pickPreviousLesson(TAG, "09:00")?.refId).toBe("e1");
   });
 
-  it("genau zum Ende zaehlt die Stunde schon als vorbei", () => {
+  it("genau zum Ende zählt die Stunde schon als vorbei", () => {
     expect(pickPreviousLesson(TAG, "08:45")?.refId).toBe("e1");
   });
 
@@ -198,11 +198,11 @@ describe("cockpitMode", () => {
     expect(cockpitMode([], "10:00")).toBe("frei");
   });
 
-  it("frei: nur entfallene Stunden zaehlen wie kein Tag", () => {
+  it("frei: nur entfallene Stunden zählen wie kein Tag", () => {
     expect(cockpitMode([stunde("x", "08:00", "08:45", "cancelled")], "10:00")).toBe("frei");
   });
 
-  it("live: eine Stunde laeuft gerade", () => {
+  it("live: eine Stunde läuft gerade", () => {
     expect(cockpitMode(TAG, "10:07")).toBe("live");
   });
 
@@ -224,7 +224,7 @@ describe("defaultLesson", () => {
     expect(defaultLesson(TAG, "10:07")?.refId).toBe("e2");
   });
 
-  it("in der Pause die naechste Stunde", () => {
+  it("in der Pause die nächste Stunde", () => {
     expect(defaultLesson(TAG, "09:00")?.refId).toBe("e2");
   });
 

@@ -7,7 +7,7 @@ import { findNextLessonDate, nextLessonDate } from "@/lib/next-lesson";
 // --- Reine Logik, keine DB -- laeuft immer ----------------------------------
 
 describe("nextLessonDate", () => {
-  it("findet den Normalfall: die naechste stattfindende Stunde nach dem Termin", () => {
+  it("findet den Normalfall: die nächste stattfindende Stunde nach dem Termin", () => {
     const result = nextLessonDate(
       [
         { date: "2026-09-01", status: "regular" }, // vor dem Termin, zaehlt nicht
@@ -31,7 +31,7 @@ describe("nextLessonDate", () => {
     expect(nextLessonDate([], "2026-09-02")).toBeNull();
   });
 
-  it("ueberspringt eine komplett ausgefallene naechste Stunde und nimmt die naechste stattfindende", () => {
+  it("überspringt eine komplett ausgefallene nächste Stunde und nimmt die nächste stattfindende", () => {
     const result = nextLessonDate(
       [
         { date: "2026-09-04", status: "cancelled" },
@@ -42,7 +42,7 @@ describe("nextLessonDate", () => {
     expect(result).toBe("2026-09-09");
   });
 
-  it("zaehlt mehrere Bloecke desselben Tages als einen Termin", () => {
+  it("zählt mehrere Blöcke desselben Tages als einen Termin", () => {
     const result = nextLessonDate(
       [
         { date: "2026-09-04", status: "regular" },
@@ -54,7 +54,7 @@ describe("nextLessonDate", () => {
     expect(result).toBe("2026-09-04");
   });
 
-  it("zaehlt einen Tag trotzdem, wenn nur EINE von mehreren Stunden dort ausfaellt", () => {
+  it("zählt einen Tag trotzdem, wenn nur EINE von mehreren Stunden dort ausfällt", () => {
     const result = nextLessonDate(
       [
         { date: "2026-09-04", status: "cancelled" },
@@ -65,7 +65,7 @@ describe("nextLessonDate", () => {
     expect(result).toBe("2026-09-04");
   });
 
-  it("Tagesgrenze: der Termin-Tag selbst zaehlt nicht als 'danach'", () => {
+  it("Tagesgrenze: der Termin-Tag selbst zählt nicht als 'danach'", () => {
     const result = nextLessonDate(
       [{ date: "2026-09-02", status: "regular" }],
       "2026-09-02",
@@ -73,7 +73,7 @@ describe("nextLessonDate", () => {
     expect(result).toBeNull();
   });
 
-  it("Monats-/Jahresgrenze: Datumsvergleich bleibt korrekt ueber den Wechsel hinweg", () => {
+  it("Monats-/Jahresgrenze: Datumsvergleich bleibt korrekt über den Wechsel hinweg", () => {
     const result = nextLessonDate(
       [
         { date: "2026-01-05", status: "regular" },
@@ -95,15 +95,15 @@ describe.skipIf(!mitDb)("findNextLessonDate (Integration, Neon)", () => {
   const D2 = "2099-02-09"; // naechste stattfindende
 
   async function cleanup() {
-    await db.delete(schoolBlocks).where(eq(schoolBlocks.subject, "TST-Naechste"));
+    await db.delete(schoolBlocks).where(eq(schoolBlocks.subject, "TST-Nächste"));
   }
 
   beforeAll(async () => {
     await cleanup();
     const rows: NewSchoolBlock[] = [
-      { untisLessonId: "s2t4-nl-0", date: D0, startTime: "08:00", endTime: "08:45", subject: "TST-Naechste", status: "regular" },
-      { untisLessonId: "s2t4-nl-1", date: D1, startTime: "08:00", endTime: "08:45", subject: "TST-Naechste", status: "cancelled" },
-      { untisLessonId: "s2t4-nl-2", date: D2, startTime: "08:00", endTime: "08:45", subject: "TST-Naechste", status: "regular" },
+      { untisLessonId: "s2t4-nl-0", date: D0, startTime: "08:00", endTime: "08:45", subject: "TST-Nächste", status: "regular" },
+      { untisLessonId: "s2t4-nl-1", date: D1, startTime: "08:00", endTime: "08:45", subject: "TST-Nächste", status: "cancelled" },
+      { untisLessonId: "s2t4-nl-2", date: D2, startTime: "08:00", endTime: "08:45", subject: "TST-Nächste", status: "regular" },
     ];
     const { upsertSchoolBlocks } = await import("@/lib/untis/sync");
     await upsertSchoolBlocks(rows);
@@ -111,13 +111,13 @@ describe.skipIf(!mitDb)("findNextLessonDate (Integration, Neon)", () => {
 
   afterAll(cleanup);
 
-  it("findet die naechste stattfindende Stunde ueber die DB, faellt an D1 aus -> D2", async () => {
+  it("findet die nächste stattfindende Stunde über die DB, fällt an D1 aus -> D2", async () => {
     const [origin] = await db.select().from(schoolBlocks).where(eq(schoolBlocks.untisLessonId, "s2t4-nl-0"));
     const result = await findNextLessonDate(origin.id);
     expect(result).toBe(D2);
   });
 
-  it("liefert null fuer eine unbekannte Stunde", async () => {
+  it("liefert null für eine unbekannte Stunde", async () => {
     const result = await findNextLessonDate("00000000-0000-0000-0000-000000000000");
     expect(result).toBeNull();
   });

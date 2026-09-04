@@ -11,7 +11,7 @@ function heuteLokal(offset = 0): string {
 }
 
 describe("lagebildAlsText", () => {
-  it("baut den vollen Text mit allen Bloecken", () => {
+  it("baut den vollen Text mit allen Blöcken", () => {
     const heute = heuteLokal();
     const morgen = heuteLokal(1);
     const ueberfaellig = heuteLokal(-2);
@@ -48,18 +48,18 @@ describe("lagebildAlsText", () => {
     expect(text).toContain("Heute,");
     expect(text).toContain("08:00-08:45 Mathematik R12");
     expect(text).toContain("08:50-09:35 Deutsch R3");
-    expect(text).toContain("Naechster Schultag");
+    expect(text).toContain("Nächster Schultag");
     expect(text).toContain("08:00-08:45 Englisch R5");
-    expect(text).toContain("[a1] Hausaufgabe Mathematik \"S. 42 Nr. 3\", faellig");
+    expect(text).toContain("[a1] Hausaufgabe Mathematik \"S. 42 Nr. 3\", fällig");
     expect(text).toContain("(morgen)");
-    expect(text).toContain("[a2] Hausaufgabe Deutsch \"Aufsatz nachholen\", faellig");
-    expect(text).toContain("(seit 2 Tagen ueberfaellig)");
+    expect(text).toContain("[a2] Hausaufgabe Deutsch \"Aufsatz nachholen\", fällig");
+    expect(text).toContain("(seit 2 Tagen überfällig)");
     expect(text).toContain("[p1] Klassenarbeit Deutsch \"Gedichtanalyse\" am");
     expect(text).toContain("(in 6 Tagen)");
     expect(text).toContain(`[n1] Mathematik "Ableitungen" (${heuteLokal(-2)})`);
   });
 
-  it("meldet leere Bloecke ehrlich, wenn nichts vorliegt", () => {
+  it("meldet leere Blöcke ehrlich, wenn nichts vorliegt", () => {
     const lagebild: Lagebild = {
       heute: heuteLokal(),
       faecher: [],
@@ -73,10 +73,10 @@ describe("lagebildAlsText", () => {
     const text = lagebildAlsText(lagebild);
 
     expect(text).toContain("keine Schule");
-    expect(text).toContain("Naechster Schultag: in den naechsten 7 Tagen keiner");
-    expect(text).not.toContain("Seine Faecher");
-    expect(text).toContain("Offene Aufgaben (bis in 14 Tagen, ohne Pruefungen):\n- keine");
-    expect(text).toContain("Pruefungen (naechste 30 Tage):\n- keine");
-    expect(text).toContain("Zuletzt geaenderte Notizen:\n- keine");
+    expect(text).toContain("Nächster Schultag: in den nächsten 7 Tagen keiner");
+    expect(text).not.toContain("Seine Fächer");
+    expect(text).toContain("Offene Aufgaben (bis in 14 Tagen, ohne Prüfungen):\n- keine");
+    expect(text).toContain("Prüfungen (nächste 30 Tage):\n- keine");
+    expect(text).toContain("Zuletzt geänderte Notizen:\n- keine");
   });
 });

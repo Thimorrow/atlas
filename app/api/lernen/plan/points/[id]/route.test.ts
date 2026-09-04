@@ -28,7 +28,7 @@ beforeEach(() => {
 });
 
 describe("PATCH /api/lernen/plan/points/[id]", () => {
-  it("topicId wird durchgereicht und der gepatchte Punkt zurueckgegeben", async () => {
+  it("topicId wird durchgereicht und der gepatchte Punkt zurückgegeben", async () => {
     vi.mocked(punktPatch).mockResolvedValue({ id: POINT_ID, topicId: TOPIC_ID } as never);
 
     const res = await PATCH(req({ topicId: TOPIC_ID }), ctx());
@@ -38,14 +38,14 @@ describe("PATCH /api/lernen/plan/points/[id]", () => {
     expect((await res.json()).punkt).toEqual({ id: POINT_ID, topicId: TOPIC_ID });
   });
 
-  it("ungueltige topicId -> 400", async () => {
+  it("ungültige topicId -> 400", async () => {
     const res = await PATCH(req({ topicId: "keine-uuid" }), ctx());
     expect(res.status).toBe(400);
     expect(punktPatch).not.toHaveBeenCalled();
   });
 
   it("thema_fremd aus dem Store wird als 400 mit Code durchgereicht", async () => {
-    vi.mocked(punktPatch).mockRejectedValue(new LernplanStoreFehler(400, "thema_fremd", "Thema gehoert nicht zu diesem Fach."));
+    vi.mocked(punktPatch).mockRejectedValue(new LernplanStoreFehler(400, "thema_fremd", "Thema gehört nicht zu diesem Fach."));
 
     const res = await PATCH(req({ topicId: TOPIC_ID }), ctx());
 

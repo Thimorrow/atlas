@@ -55,7 +55,7 @@ describe.skipIf(!mitDb)("study-store (Integration, Neon)", () => {
     expect(cards.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("updateCard aendert Frage/Antwort und kann archivieren", async () => {
+  it("updateCard ändert Frage/Antwort und kann archivieren", async () => {
     const [card] = await listCards(subjectId);
     const updated = await updateCard(card.id, { question: "Neue Frage" });
     expect(updated?.question).toBe("Neue Frage");
@@ -85,13 +85,13 @@ describe.skipIf(!mitDb)("study-store (Integration, Neon)", () => {
   });
 
   it("deleteCard entfernt die Karte", async () => {
-    const [created] = await createCards(subjectId, [{ question: "Loeschbar", answer: "Ja" }], "manuell");
+    const [created] = await createCards(subjectId, [{ question: "Löschbar", answer: "Ja" }], "manuell");
     expect(await deleteCard(created.id)).toBe(true);
     const cards = await listCards(subjectId, { includeArchived: true });
     expect(cards.some((c) => c.id === created.id)).toBe(false);
   });
 
-  it("overview listet das Sentinel-Fach auch ohne Pruefung", async () => {
+  it("overview listet das Sentinel-Fach auch ohne Prüfung", async () => {
     const result = await overview();
     const entry = result.faecher.find((f) => f.subjectId === subjectId);
     expect(entry).toBeDefined();
@@ -106,11 +106,11 @@ describe.skipIf(!mitDb)("study-store (Integration, Neon)", () => {
     expect(detail?.cards.length).toBeGreaterThan(0);
   });
 
-  it("subjectDetail liefert null fuer ein unbekanntes Fach", async () => {
+  it("subjectDetail liefert null für ein unbekanntes Fach", async () => {
     expect(await subjectDetail("00000000-0000-0000-0000-000000000000")).toBeNull();
   });
 
-  describe("mit anstehender Pruefung", () => {
+  describe("mit anstehender Prüfung", () => {
     let examId: string;
     const dueDate = localISO(new Date(Date.now() + 5 * 86_400_000));
 
@@ -136,7 +136,7 @@ describe.skipIf(!mitDb)("study-store (Integration, Neon)", () => {
       expect(detail?.plan?.tageBis).toBe(5);
     });
 
-    it("overview liefert dieselbe naechste Pruefung fuers Fach", async () => {
+    it("overview liefert dieselbe nächste Prüfung fürs Fach", async () => {
       const result = await overview();
       const entry = result.faecher.find((f) => f.subjectId === subjectId);
       expect(entry?.naechstePruefung?.dueDate).toBe(dueDate);

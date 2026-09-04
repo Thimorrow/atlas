@@ -113,7 +113,7 @@ function relativTag(datum: string, heute: string): string {
     return `(in ${tage} Tagen)`;
   }
   const tage = tageDazwischen(datum, heute);
-  return tage === 1 ? "(seit 1 Tag ueberfaellig)" : `(seit ${tage} Tagen ueberfaellig)`;
+  return tage === 1 ? "(seit 1 Tag überfällig)" : `(seit ${tage} Tagen überfällig)`;
 }
 
 function tageDazwischen(vonISO: string, bisISO: string): number {
@@ -130,7 +130,7 @@ function stundenZeile(stunden: Stunde[]): string {
 // System-Prompt.
 export function lagebildAlsText(l: Lagebild): string {
   const zeilen: string[] = [
-    "Lagebild (Stand heute aus der Datenbank; fuer Details, Texte, Noten und aeltere Eintraege die Werkzeuge nutzen):",
+    "Lagebild (Stand heute aus der Datenbank; für Details, Texte, Noten und ältere Einträge die Werkzeuge nutzen):",
   ];
 
   if (l.faecher.length > 0) {
@@ -140,7 +140,7 @@ export function lagebildAlsText(l: Lagebild): string {
         return klammer ? `${f.name} (${klammer})` : f.name;
       })
       .join(", ");
-    zeilen.push(`Seine Faecher: ${faecherText}`);
+    zeilen.push(`Seine Fächer: ${faecherText}`);
   }
 
   const heuteWochentag = weekdayName(l.heute);
@@ -153,25 +153,25 @@ export function lagebildAlsText(l: Lagebild): string {
   if (l.naechsterSchultag) {
     const wochentag = weekdayName(l.naechsterSchultag.date);
     zeilen.push(
-      `Naechster Schultag ${wochentag} ${l.naechsterSchultag.date}: ${stundenZeile(l.naechsterSchultag.stunden)}`,
+      `Nächster Schultag ${wochentag} ${l.naechsterSchultag.date}: ${stundenZeile(l.naechsterSchultag.stunden)}`,
     );
   } else {
-    zeilen.push("Naechster Schultag: in den naechsten 7 Tagen keiner");
+    zeilen.push("Nächster Schultag: in den nächsten 7 Tagen keiner");
   }
 
-  zeilen.push("Offene Aufgaben (bis in 14 Tagen, ohne Pruefungen):");
+  zeilen.push("Offene Aufgaben (bis in 14 Tagen, ohne Prüfungen):");
   if (l.aufgaben.length === 0) {
     zeilen.push("- keine");
   } else {
     for (const a of l.aufgaben) {
       const typLabel = TYPE_LABEL[a.typ];
       const fachTeil = a.fach ? ` ${a.fach}` : "";
-      const faelligTeil = a.faellig ? `faellig ${a.faellig} ${relativTag(a.faellig, l.heute)}` : "ohne Datum";
+      const faelligTeil = a.faellig ? `fällig ${a.faellig} ${relativTag(a.faellig, l.heute)}` : "ohne Datum";
       zeilen.push(`- [${a.id}] ${typLabel}${fachTeil} "${a.titel}", ${faelligTeil}`);
     }
   }
 
-  zeilen.push("Pruefungen (naechste 30 Tage):");
+  zeilen.push("Prüfungen (nächste 30 Tage):");
   if (l.pruefungen.length === 0) {
     zeilen.push("- keine");
   } else {
@@ -183,10 +183,10 @@ export function lagebildAlsText(l: Lagebild): string {
   }
 
   if (l.lernplaene) {
-    zeilen.push(`Lernplaene: ${l.lernplaene} aktiv`);
+    zeilen.push(`Lernpläne: ${l.lernplaene} aktiv`);
   }
 
-  zeilen.push("Zuletzt geaenderte Notizen:");
+  zeilen.push("Zuletzt geänderte Notizen:");
   if (l.notizen.length === 0) {
     zeilen.push("- keine");
   } else {

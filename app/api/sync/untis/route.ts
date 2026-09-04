@@ -31,7 +31,7 @@ function parseWindow(body: unknown): { start: Date; end: Date } | { error: strin
   const start = new Date(`${b.start}T00:00:00`);
   const end = new Date(`${b.end}T00:00:00`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return { error: "Das ist kein gueltiges Datum." };
+    return { error: "Das ist kein gültiges Datum." };
   }
   if (end < start) return { error: "end liegt vor start." };
   return { start, end };

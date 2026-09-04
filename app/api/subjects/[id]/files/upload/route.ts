@@ -35,7 +35,7 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   const body = (await req.json().catch(() => null)) as HandleUploadBody | null;
-  if (!body) return NextResponse.json({ error: "Ungueltige Anfrage." }, { status: 400 });
+  if (!body) return NextResponse.json({ error: "Ungültige Anfrage." }, { status: 400 });
 
   try {
     const result = await handleUpload({

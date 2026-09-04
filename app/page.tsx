@@ -91,7 +91,7 @@ const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // nicht neben Pfeile und Woche-Knopf. Wochentag und Monat sind die beiden
 // Teile, die sich kuerzen lassen, ohne dass Bedeutung verloren geht; das
 // "· Heute" bleibt, denn es ist beim Blaettern die eigentliche Auskunft.
-const MONTHS = ["Januar", "Februar", "Maerz", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 // Fallback-Zeitachse, wenn die Woche keine school_blocks hat (z.B. Ferien).
 const FALLBACK_DAY_START = 7;
 const FALLBACK_DAY_END = 15;
@@ -105,10 +105,10 @@ const SYNC_RETRY_COOLDOWN_MS = 5 * 60_000;
 const SYNC_STALE_AFTER_MS = 2 * 60 * 60_000;
 
 // --- Block-Stile ------------------------------------------------------------
-// Faecher-Bloecke: Zurueckhaltung (Design-Audit) -- vorher trugen sie gleichzeitig
-// einen 6px-Farbrand links, eine getoente Fuellung, einen inneren Ring UND einen
-// Hover-Ring. Vier Signale fuer dieselbe Aussage ("das ist eine Schulstunde").
-// Jetzt nur noch zwei im Ruhezustand: getoente Fuellung + ein leiser, farblich
+// Fächer-Blöcke: Zurückhaltung (Design-Audit) -- vorher trugen sie gleichzeitig
+// einen 6px-Farbrand links, eine getönte Füllung, einen inneren Ring UND einen
+// Hover-Ring. Vier Signale für dieselbe Aussage ("das ist eine Schulstunde").
+// Jetzt nur noch zwei im Ruhezustand: getönte Füllung + ein leiser, farblich
 // passender Rand. Der Ring bleibt allein dem Hover vorbehalten -- er markiert
 // dann wirklich einen Zustandswechsel statt nur mitzulaufen.
 // Die Farbwerte stehen in globals.css (.fachblock) und haengen an der Variable
@@ -149,7 +149,7 @@ function LessonMenu({
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "homework")}>
-          <NotebookPen /> Hausaufgabe hinzufuegen
+          <NotebookPen /> Hausaufgabe hinzufügen
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onCreate(ev, dayISO, "exam")}>
           <GraduationCap /> Klassenarbeit eintragen
@@ -158,7 +158,7 @@ function LessonMenu({
           <PenLine /> Notiz schreiben
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => onCount(ev, dayISO)}>
-          <Hand /> Meldungen zaehlen
+          <Hand /> Meldungen zählen
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -199,7 +199,7 @@ type Packed = { ev: Ev; s: number; e: number; lane: number; lanes: number };
 
 // Untis liefert Schulstunden teils als getrennte Perioden (z.B. 2x 45min mit
 // kurzer Pause). Aufeinanderfolgende Stunden desselben Fachs (gleicher Status,
-// Luecke <= 25min) zu EINEM Block zusammenfassen -> "eine Stunde statt zwei".
+// Lücke <= 25min) zu EINEM Block zusammenfassen -> "eine Stunde statt zwei".
 const GAP_MERGE_MIN = 25;
 
 function mergeSchool(events: Ev[]): Ev[] {
@@ -265,11 +265,11 @@ function packDay(events: Ev[], dayStart: number, dayEnd: number): Packed[] {
   return items;
 }
 
-// Wochen-Zeitachse: alle 7 Tage teilen sich EINE Y-Achse. "Anker" = volle Hoehe
-// bekommt nur, wo ein WERKTAGS-Termin (Mo-Fr) KUeRZER als 3 h liegt. Alles andere
-// staucht: leere Zeit (Pausen, Morgen, Abend), Wochenend-Termine und lange Bloecke
-// (>= 3 h) duerfen kuerzer aussehen. So gibt die Woche den Takt vor und der Tag
-// bleibt kompakt. Geteilte Achse: ein Anker an einer Minute haelt ALLE Tage auf.
+// Wochen-Zeitachse: alle 7 Tage teilen sich EINE Y-Achse. "Anker" = volle Höhe
+// bekommt nur, wo ein WERKTAGS-Termin (Mo-Fr) KÜRZER als 3 h liegt. Alles andere
+// staucht: leere Zeit (Pausen, Morgen, Abend), Wochenend-Termine und lange Blöcke
+// (>= 3 h) dürfen kürzer aussehen. So gibt die Woche den Takt vor und der Tag
+// bleibt kompakt. Geteilte Achse: ein Anker an einer Minute hält ALLE Tage auf.
 const BREAK_SCALE = 0.3;
 const LONG_EVENT_MIN = 180; // ab 3 h gilt ein Termin als "lang" -> nicht ankern
 
@@ -416,7 +416,7 @@ export default function Home() {
   // Zugriff auf den Sync aus dem Knopf heraus, ohne den Effekt neu aufzubauen.
   const syncRef = useRef<(reason: "load" | "tick" | "manual") => void>(() => {});
 
-  // Aufgaben-Spur: offene Aufgaben und die Faecher (fuer Farbe + Vorbelegung).
+  // Aufgaben-Spur: offene Aufgaben und die Fächer (fuer Farbe + Vorbelegung).
   // Beides ist rein additiv -- schlaegt der Request fehl, bleiben die Listen
   // leer und der Stundenplan laeuft unveraendert weiter.
   const toast = useToast();
@@ -552,7 +552,7 @@ export default function Home() {
     };
   }, [anchor, reloadKey]);
 
-  // Aufgaben + Faecher nachladen. Bewusst OHNE loading/error-Zustand: die Spur
+  // Aufgaben + Fächer nachladen. Bewusst OHNE loading/error-Zustand: die Spur
   // ist Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
   useEffect(() => {
     let alive = true;
@@ -581,7 +581,7 @@ export default function Home() {
 
   const label = data ? formatRange(data.start, data.end) : "";
 
-  // Aufgaben nach Faelligkeitsdatum. Ohne dueDate taucht eine Aufgabe im
+  // Aufgaben nach Fälligkeitsdatum. Ohne dueDate taucht eine Aufgabe im
   // Stundenplan nirgends auf.
   const dueByDay = useMemo(() => {
     const m = new Map<string, AssignmentDTO[]>();
@@ -918,7 +918,7 @@ export default function Home() {
                 // F08: Logo-Nudge entkoppelt -- Navigation loest keinen Tilt mehr aus.
                 setAnchor((a) => addDays(a, 7));
               }}
-              aria-label="Naechste Woche"
+              aria-label="Nächste Woche"
             >
               <ChevronRight />
             </Button>
@@ -1006,7 +1006,7 @@ export default function Home() {
                         {today && <span className="sr-only"> · Heute</span>}
                       </span>
                     </div>
-                    {/* Aufgaben-Spur: Punkte unter der Tageszahl. Ohne faellige
+                    {/* Aufgaben-Spur: Punkte unter der Tageszahl. Ohne fällige
                         Aufgabe rendert WeekDayDots null, der Kopf bleibt dann
                         exakt so hoch wie vorher. */}
                     <WeekDayDots
@@ -1078,11 +1078,11 @@ export default function Home() {
                         {/* A2 (Kontrast): bg-muted/60 + text/80 lag bei ~3.1:1 (hell) --
                             unter AA. /50-Fuellung + volle muted-foreground traegt (4.5:1+). */}
                         <span
-                          title={`${e.title} entfaellt`}
+                          title={`${e.title} entfällt`}
                           className="flex max-w-full items-center gap-1 truncate rounded bg-muted/50 px-1 text-[11px] font-medium text-muted-foreground"
                         >
                           <span className="size-1 shrink-0 rounded-full bg-red-500/40" />
-                          <span className="truncate">{e.title} entfaellt</span>
+                          <span className="truncate">{e.title} entfällt</span>
                         </span>
                       </div>
                     ))}
@@ -1178,10 +1178,10 @@ export default function Home() {
                             <>
                               <span
                                 aria-hidden="true"
-                                title="Hier ist eine Aufgabe faellig"
+                                title="Hier ist eine Aufgabe fällig"
                                 className="absolute right-3 top-1 size-1.5 rounded-full bg-primary/70"
                               />
-                              <span className="sr-only">Hier ist eine Aufgabe faellig.</span>
+                              <span className="sr-only">Hier ist eine Aufgabe fällig.</span>
                             </>
                           )}
                           {p.ev.hasNote && (
@@ -1286,8 +1286,8 @@ export default function Home() {
         dueHint={
           seed &&
           (seed.dueDate
-            ? `Naechste ${seed.subjectName}-Stunde: ${weekdayDateLabel(seed.dueDate)}`
-            : `Die naechste ${seed.subjectName}-Stunde ist nicht bekannt.`)
+            ? `Nächste ${seed.subjectName}-Stunde: ${weekdayDateLabel(seed.dueDate)}`
+            : `Die nächste ${seed.subjectName}-Stunde ist nicht bekannt.`)
         }
         onSaved={(a) => {
           setAssignments((prev) => [...prev, a]);
@@ -1297,8 +1297,8 @@ export default function Home() {
             // ihren Aufgaben-Marker zeigt (kein Reload noetig).
             const subjectName = a.subjectName ?? seed.subjectName;
             const meldung = a.dueDate
-              ? `${TYPE_LABEL[a.type]} angelegt, faellig zur naechsten ${subjectName}-Stunde am ${WEEKDAYS_LONG[weekdayOfLocal(a.dueDate)]}.`
-              : `${TYPE_LABEL[a.type]} angelegt. Die naechste ${subjectName}-Stunde ist nicht bekannt.`;
+              ? `${TYPE_LABEL[a.type]} angelegt, fällig zur nächsten ${subjectName}-Stunde am ${WEEKDAYS_LONG[weekdayOfLocal(a.dueDate)]}.`
+              : `${TYPE_LABEL[a.type]} angelegt. Die nächste ${subjectName}-Stunde ist nicht bekannt.`;
             toast(meldung);
             setReloadKey((k) => k + 1);
           }
@@ -1324,8 +1324,8 @@ export default function Home() {
           if (examSeed) {
             const subjectName = a.subjectName ?? examSeed.subjectName;
             const meldung = a.dueDate
-              ? `${TYPE_LABEL[a.type]} fuer ${subjectName} am ${weekdayDateLabel(a.dueDate)} eingetragen.`
-              : `${TYPE_LABEL[a.type]} fuer ${subjectName} eingetragen.`;
+              ? `${TYPE_LABEL[a.type]} für ${subjectName} am ${weekdayDateLabel(a.dueDate)} eingetragen.`
+              : `${TYPE_LABEL[a.type]} für ${subjectName} eingetragen.`;
             toast(meldung);
             setReloadKey((k) => k + 1);
           }

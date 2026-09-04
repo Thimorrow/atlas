@@ -104,7 +104,7 @@ export function verteilen(einheiten: Einheit[], opts: VerteilenOpts): VerteilenE
   const letzterPlantag = addTageISO(opts.pruefungISO, -1);
   const alleTage = tageZwischen(ersterTag, letzterPlantag);
   if (alleTage.length === 0) {
-    throw new LernplanFehler("keine_tage", "Bis zur Pruefung sind keine Tage mehr");
+    throw new LernplanFehler("keine_tage", "Bis zur Prüfung sind keine Tage mehr");
   }
 
   // Ab 2 Plantagen ist der letzte Tag die Simulation, kein Platz fuer sonst

@@ -66,7 +66,7 @@ export async function GET(req: Request) {
   const forcedDate = url.searchParams.get("date");
   if (forcedDate !== null && (!DATE_RE.test(forcedDate) || !isRealDate(forcedDate))) {
     return NextResponse.json(
-      { error: "date muss ein gueltiges Datum im Format JJJJ-MM-TT sein." },
+      { error: "date muss ein gültiges Datum im Format JJJJ-MM-TT sein." },
       { status: 400 },
     );
   }

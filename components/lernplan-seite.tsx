@@ -1,6 +1,6 @@
 "use client";
 
-// Planseite des Lernplans: Kopf, Sicherheits-Uebersicht, Tage mit Einheiten.
+// Planseite des Lernplans: Kopf, Sicherheits-Übersicht, Tage mit Einheiten.
 // Siehe SPEC.md "Planseite". Die Karten-Queue-Leiste kommt erst spaeter
 // (components/lernplan-karten-queue.tsx) -- hier nur ein Platzhalter und die
 // neuLaden()-Funktion, an der sie sich einhaengen kann.
@@ -156,8 +156,8 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
 
   function planLoeschen() {
     if (!plan) return;
-    toast("Plan wirklich loeschen? Themen und Karten bleiben erhalten.", "error", {
-      label: "Loeschen",
+    toast("Plan wirklich löschen? Themen und Karten bleiben erhalten.", "error", {
+      label: "Löschen",
       onClick: async () => {
         try {
           const res = await fetch(`/api/lernen/plan/${plan.id}`, { method: "DELETE" });
@@ -165,7 +165,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
           setPlan(null);
           setStatus("leer");
         } catch {
-          toast("Der Plan konnte nicht geloescht werden.");
+          toast("Der Plan konnte nicht gelöscht werden.");
         }
       },
     });
@@ -178,7 +178,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
           <p className="text-[15px] font-medium">Noch kein Plan</p>
-          <p className="text-[13px] text-muted-foreground">Zu dieser Pruefung gibt es noch keinen Lernplan.</p>
+          <p className="text-[13px] text-muted-foreground">Zu dieser Prüfung gibt es noch keinen Lernplan.</p>
           <Link href={`/lernen/${subjectId}/plan/${assignmentId}/neu`} className="mt-1">
             <Button type="button" size="sm">
               Lernplan erstellen
@@ -224,7 +224,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {subject?.name ?? "Fach"}
         </p>
-        <h1 className="mt-0.5 truncate text-xl font-semibold tracking-tight">{assignment?.title ?? "Pruefung"}</h1>
+        <h1 className="mt-0.5 truncate text-xl font-semibold tracking-tight">{assignment?.title ?? "Prüfung"}</h1>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
           {assignment?.dueDate && <span className="tabular-nums">{weekdayDateLabel(assignment.dueDate)}</span>}
           {tageBis !== null && <span>· {tageBis === 0 ? "heute" : tageBis === 1 ? "morgen" : `in ${tageBis} Tagen`}</span>}
@@ -249,7 +249,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
         <div className="mt-4 flex flex-wrap gap-2">
           <NeuVerteilenMenu onWaehlen={neuVerteilen} />
           <Button type="button" variant="outline" size="sm" onClick={planLoeschen}>
-            Plan loeschen
+            Plan löschen
           </Button>
           <Link href={`/lernen/${subjectId}/plan/${assignmentId}/neu`}>
             <Button type="button" variant="outline" size="sm">
@@ -264,7 +264,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
       {verschoben && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed px-3 py-2.5 text-[13px] text-muted-foreground">
           <span>
-            Pruefung ist jetzt am {assignment?.dueDate ? weekdayDateLabel(assignment.dueDate) : "?"}, neu verteilen?
+            Prüfung ist jetzt am {assignment?.dueDate ? weekdayDateLabel(assignment.dueDate) : "?"}, neu verteilen?
           </span>
           <Button type="button" size="sm" variant="outline" onClick={() => void neuVerteilen("alle_offen")}>
             Neu verteilen
@@ -307,7 +307,7 @@ function ChecklisteLink({ plan }: { plan: PlanDTO }) {
         rel="noopener"
         className="mt-3 inline-block rounded px-1 py-1 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        Checkliste oeffnen
+        Checkliste öffnen
       </a>
     );
   }
@@ -328,7 +328,7 @@ function ChecklisteLink({ plan }: { plan: PlanDTO }) {
   );
 }
 
-// --- Neu verteilen: Menue mit zwei Optionen -----------------------------------
+// --- Neu verteilen: Menü mit zwei Optionen -----------------------------------
 
 function NeuVerteilenMenu({ onWaehlen }: { onWaehlen: (umfang: "ueberfaellig" | "alle_offen") => void }) {
   const [offen, setOffen] = useState(false);
@@ -369,7 +369,7 @@ function NeuVerteilenMenu({ onWaehlen }: { onWaehlen: (umfang: "ueberfaellig" | 
               }}
               className="block w-full rounded-md px-2.5 py-2 text-left text-[13px] hover:bg-accent"
             >
-              Nur Ueberfaellige
+              Nur Überfällige
             </button>
           </li>
           <li>
@@ -509,7 +509,7 @@ function TageListe({
               </p>
               {ueberfaellig && (
                 <span className="rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
-                  ueberfaellig
+                  überfällig
                 </span>
               )}
             </div>
@@ -634,10 +634,10 @@ function EinheitZeile({
             <p className="text-[12.5px] text-muted-foreground">Thema fehlt</p>
           ) : punkt.kartenAnzahl > 0 ? (
             <Link
-              href={`/lernen/${subjectId}/session?modus=lernen&thema=${punkt.topicId}&pruefung=${assignmentId}`}
+              href={`/lernen/${subjectId}/session?modus=lernen&thema=${punkt.topicId}&prüfung=${assignmentId}`}
               className="text-[12.5px] font-medium text-primary underline-offset-2 hover:underline"
             >
-              Karten ueben
+              Karten üben
             </Link>
           ) : (
             <p className="text-[12.5px] text-muted-foreground">Karten werden erzeugt</p>
@@ -668,7 +668,7 @@ function EinheitZeile({
               ))}
             </ul>
             <Link
-              href={`/lernen/${subjectId}/tutor?pruefung=${assignmentId}&modus=probe&einheit=${item.id}`}
+              href={`/lernen/${subjectId}/tutor?prüfung=${assignmentId}&modus=probe&einheit=${item.id}`}
               className="text-[12.5px] font-medium text-primary underline-offset-2 hover:underline"
             >
               Simulation im Tutor

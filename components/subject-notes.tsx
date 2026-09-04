@@ -316,9 +316,9 @@ function ReadNoteBody({
           <h3 id="note-read-title" className="text-[17px] font-semibold leading-tight tracking-tight">
             {note.title}
           </h3>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">Zuletzt geaendert am {fmtDate(note.updatedAt)}</p>
+          <p className="mt-0.5 text-[12px] text-muted-foreground">Zuletzt geändert am {fmtDate(note.updatedAt)}</p>
         </div>
-        <Button variant="ghost" size="icon" aria-label="Notiz schliessen" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label="Notiz schließen" onClick={onClose}>
           <X className="size-4" />
         </Button>
       </header>
@@ -337,7 +337,7 @@ function ReadNoteBody({
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="size-4" />
-          Loeschen
+          Löschen
         </Button>
         <div className="flex items-center gap-2">
           {/* Der Text im Knopf aendert sich, das meldet kein Screenreader
@@ -491,7 +491,7 @@ function EditNoteBody({
               onChange={(e) => onChange({ ...editor, body: e.target.value })}
               onKeyDown={onKeyDown}
               rows={10}
-              placeholder={"## Ueberschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
+              placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
               className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
             />
           ) : (
@@ -504,7 +504,7 @@ function EditNoteBody({
             </div>
           )}
           <p className="text-[12px] text-muted-foreground">
-            Markdown wird unterstuetzt: Ueberschriften, Listen, Fett, Kursiv, Code und Links.
+            Markdown wird unterstützt: Überschriften, Listen, Fett, Kursiv, Code und Links.
           </p>
         </div>
         {error ? (
@@ -708,11 +708,11 @@ export function SubjectNotes({
             // lokal schon weg, jetzt zurueckholen statt sie stillschweigend
             // verloren zu geben.
             setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
-            toast(data?.error ?? "Die Notiz konnte nicht geloescht werden.");
+            toast(data?.error ?? "Die Notiz konnte nicht gelöscht werden.");
           }
         } catch {
           setNotes((prev) => [note, ...prev].sort(byUpdatedDesc));
-          toast("Keine Verbindung zum Server. Die Notiz wurde nicht geloescht.");
+          toast("Keine Verbindung zum Server. Die Notiz wurde nicht gelöscht.");
         }
       })();
     // +300ms Sicherheitsmarge wie im Hausaufgaben-Modul: der Toast ist bis
@@ -722,8 +722,8 @@ export function SubjectNotes({
 
     pendingDeletesRef.current.set(id, { note, timer });
 
-    toast("Notiz geloescht", "success", {
-      label: "Rueckgaengig",
+    toast("Notiz gelöscht", "success", {
+      label: "Rückgängig",
       onClick: () => {
         const pending = pendingDeletesRef.current.get(id);
         if (pending) {
@@ -826,7 +826,7 @@ export function SubjectNotes({
           <Search className="size-6 text-muted-foreground" />
           <p className="text-sm font-medium">Keine Treffer</p>
           <p className="max-w-[38ch] text-[13px] text-muted-foreground">
-            Keine Notiz enthaelt „{search.trim()}“. Pruef die Schreibweise oder such nach einem anderen Begriff.
+            Keine Notiz enthält „{search.trim()}“. Prüf die Schreibweise oder such nach einem anderen Begriff.
           </p>
         </div>
       ) : (

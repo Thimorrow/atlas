@@ -32,7 +32,7 @@ export function WeekDayDots({
   const extra = open.length - shown.length;
   // Die Punkte sind nicht rein dekorativ: der Text nennt die Aufgaben, damit
   // Maus- und Screenreader-Nutzer dieselbe Information bekommen.
-  const label = `Faellig: ${open
+  const label = `Fällig: ${open
     .map((a) => `${a.subjectName ?? "Allgemein"} · ${a.title}${isExam(a.type) ? ` (${TYPE_LABEL[a.type]})` : ""}`)
     .join(", ")}`;
 
@@ -64,7 +64,7 @@ function Dot({ color, ring, index }: { color: string; ring: boolean; index: numb
   );
 }
 
-// --- Tagesansicht: schlanke Zeile "Faellig heute" ----------------------------
+// --- Tagesansicht: schlanke Zeile "Fällig heute" ----------------------------
 
 export function DayDueRow({
   items,
@@ -86,7 +86,7 @@ export function DayDueRow({
       className="mb-4 flex flex-col gap-1"
     >
       <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        Faellig heute
+        Fällig heute
       </h2>
       <ul className="flex flex-col gap-0.5">
         {items.map((a) => {

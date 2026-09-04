@@ -4,7 +4,7 @@ import { LEHRPLAN_NRW_G9_KLASSE_10, lehrplanFuer } from "@/lib/lehrplan/nrw-g9-k
 // --- Reiner Datentest, kein DB-Zugriff ---------------------------------------
 
 describe("LEHRPLAN_NRW_G9_KLASSE_10", () => {
-  it("hat fuer jedes Fach mindestens ein Inhaltsfeld", () => {
+  it("hat für jedes Fach mindestens ein Inhaltsfeld", () => {
     for (const fach of LEHRPLAN_NRW_G9_KLASSE_10) {
       expect(fach.inhaltsfelder.length, `Fach ohne Inhaltsfeld: ${fach.fach}`).toBeGreaterThan(0);
       for (const inhaltsfeld of fach.inhaltsfelder) {
@@ -13,19 +13,19 @@ describe("LEHRPLAN_NRW_G9_KLASSE_10", () => {
     }
   });
 
-  it("hat fuer jedes Fach eine Quelle", () => {
+  it("hat für jedes Fach eine Quelle", () => {
     for (const fach of LEHRPLAN_NRW_G9_KLASSE_10) {
       expect(fach.quelle.length, `Fach ohne Quelle: ${fach.fach}`).toBeGreaterThan(0);
     }
   });
 
-  it("hat keine doppelten Aliase ueber Faecher hinweg", () => {
+  it("hat keine doppelten Aliase über Fächer hinweg", () => {
     const gesehen = new Map<string, string>();
     for (const fach of LEHRPLAN_NRW_G9_KLASSE_10) {
       for (const alias of fach.aliase) {
         const key = alias.trim().toLowerCase();
         const vorhandenBei = gesehen.get(key);
-        expect(vorhandenBei, `Alias "${alias}" gehoert sowohl zu "${vorhandenBei}" als auch zu "${fach.fach}"`).toBeUndefined();
+        expect(vorhandenBei, `Alias "${alias}" gehört sowohl zu "${vorhandenBei}" als auch zu "${fach.fach}"`).toBeUndefined();
         gesehen.set(key, fach.fach);
       }
     }
@@ -49,12 +49,12 @@ describe("LEHRPLAN_NRW_G9_KLASSE_10", () => {
 });
 
 describe("lehrplanFuer", () => {
-  it("findet ein Fach ueber den exakten Namen", () => {
+  it("findet ein Fach über den exakten Namen", () => {
     const treffer = lehrplanFuer("Mathematik");
     expect(treffer?.fach).toBe("Mathematik");
   });
 
-  it("findet ein Fach ueber einen Alias", () => {
+  it("findet ein Fach über einen Alias", () => {
     const treffer = lehrplanFuer("Mathe");
     expect(treffer?.fach).toBe("Mathematik");
   });
@@ -70,7 +70,7 @@ describe("lehrplanFuer", () => {
     expect(lehrplanFuer("  Mathe ")?.fach).toBe("Mathematik");
   });
 
-  it("findet Faecher ueber gaengige Untis-Kuerzel", () => {
+  it("findet Fächer über gängige Untis-Kürzel", () => {
     expect(lehrplanFuer("D")?.fach).toBe("Deutsch");
     expect(lehrplanFuer("E")?.fach).toBe("Englisch");
     expect(lehrplanFuer("BI")?.fach).toBe("Biologie");
@@ -86,13 +86,13 @@ describe("lehrplanFuer", () => {
 
   // Faecher, die dieser Schueler nicht belegt hat, stehen bewusst nicht in der
   // Vorlage -- ein Lehrplan, den er nie braucht, waere nur Rauschen im Seed.
-  it("kennt die nicht belegten Faecher nicht", () => {
-    for (const fach of ["Franzoesisch", "Französisch", "F", "Spanisch", "S", "Katholische Religionslehre", "KR", "Praktische Philosophie", "PP", "Kunst", "KU", "Musik", "MU"]) {
+  it("kennt die nicht belegten Fächer nicht", () => {
+    for (const fach of ["Französisch", "Französisch", "F", "Spanisch", "S", "Katholische Religionslehre", "KR", "Praktische Philosophie", "PP", "Kunst", "KU", "Musik", "MU"]) {
       expect(lehrplanFuer(fach), `unerwartet gefunden: ${fach}`).toBeNull();
     }
   });
 
-  it("gibt null fuer ein unbekanntes Fach zurueck", () => {
+  it("gibt null für ein unbekanntes Fach zurück", () => {
     expect(lehrplanFuer("Astronomie")).toBeNull();
     expect(lehrplanFuer("")).toBeNull();
     expect(lehrplanFuer("   ")).toBeNull();

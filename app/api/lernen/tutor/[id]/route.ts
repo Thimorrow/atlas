@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   const body = await req.json().catch(() => null);
-  if (!isObj(body)) return NextResponse.json({ error: "Ungueltiger Body." }, { status: 400 });
+  if (!isObj(body)) return NextResponse.json({ error: "Ungültiger Body." }, { status: 400 });
 
   const hasMessage = body.message !== undefined;
   const hasWidgetAntwort = body.widgetAntwort !== undefined;
@@ -88,12 +88,12 @@ export async function POST(req: Request, { params }: Ctx) {
       !wa.auswahl.every((a) => typeof a === "string") ||
       (wa.text !== undefined && typeof wa.text !== "string")
     ) {
-      return NextResponse.json({ error: "widgetAntwort ist ungueltig." }, { status: 400 });
+      return NextResponse.json({ error: "widgetAntwort ist ungültig." }, { status: 400 });
     }
     try {
       await submitWidgetAntwort(id, wa.messageId, wa.auswahl as string[], wa.text as string | undefined);
     } catch (err) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : "widgetAntwort ist ungueltig." }, { status: 400 });
+      return NextResponse.json({ error: err instanceof Error ? err.message : "widgetAntwort ist ungültig." }, { status: 400 });
     }
   }
 

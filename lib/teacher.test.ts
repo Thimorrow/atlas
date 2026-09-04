@@ -6,7 +6,7 @@ import type { UntisLesson } from "./untis/adapter";
 describe("teacherLabel", () => {
   it("setzt die Anrede vor den Nachnamen", () => {
     expect(teacherLabel("herr", "Schulze")).toBe("Herr Schulze");
-    expect(teacherLabel("frau", "Mueller")).toBe("Frau Mueller");
+    expect(teacherLabel("frau", "Müller")).toBe("Frau Müller");
   });
 
   it("ohne Namen gibt es nichts anzuzeigen -- auch keine nackte Anrede", () => {
@@ -14,7 +14,7 @@ describe("teacherLabel", () => {
     expect(teacherLabel("herr", "")).toBeNull();
   });
 
-  it("faellt auf den blossen Namen zurueck, wenn die Anrede fehlt", () => {
+  it("fällt auf den bloßen Namen zurück, wenn die Anrede fehlt", () => {
     expect(teacherLabel(null, "Schulze")).toBe("Schulze");
   });
 });
@@ -31,10 +31,10 @@ describe("teacherAliases", () => {
     te,
   });
 
-  it("merkt sich Kuerzel und Nachnamen aus allen Lehrern einer Stunde", () => {
-    const map = teacherAliases([stunde([{ name: "Sch", longname: "Schulze" }, { name: "Mu", longname: "Mueller" }])]);
+  it("merkt sich Kürzel und Nachnamen aus allen Lehrern einer Stunde", () => {
+    const map = teacherAliases([stunde([{ name: "Sch", longname: "Schulze" }, { name: "Mu", longname: "Müller" }])]);
     expect(map.get("Sch")).toBe("Schulze");
-    expect(map.get("Mu")).toBe("Mueller");
+    expect(map.get("Mu")).toBe("Müller");
   });
 
   it("ignoriert Lehrer ohne Nachnamen und solche, bei denen beides gleich ist", () => {

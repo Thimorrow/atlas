@@ -8,17 +8,17 @@ export const SUBJECT_COLORS = [
   // "Weiss" laeuft ueber eine CSS-Variable statt ueber einen festen Wert: ein
   // reinweisser Punkt waere im Hellmodus unsichtbar. globals.css definiert das
   // Token pro Theme (hell: sehr helles Grau, dunkel: reines Weiss).
-  { token: "white", label: "Weiss", value: "var(--subject-white)" },
+  { token: "white", label: "Weiß", value: "var(--subject-white)" },
   { token: "blue", label: "Blau", value: "oklch(0.58 0.16 255)" },
   { token: "sky", label: "Hellblau", value: "oklch(0.7 0.12 230)" },
-  { token: "teal", label: "Tuerkis", value: "oklch(0.6 0.11 195)" },
-  { token: "green", label: "Gruen", value: "oklch(0.6 0.14 150)" },
+  { token: "teal", label: "Türkis", value: "oklch(0.6 0.11 195)" },
+  { token: "green", label: "Grün", value: "oklch(0.6 0.14 150)" },
   { token: "yellow", label: "Gelb", value: "oklch(0.79 0.15 95)" },
   { token: "amber", label: "Bernstein", value: "oklch(0.68 0.15 75)" },
   { token: "orange", label: "Orange", value: "oklch(0.65 0.17 45)" },
   { token: "rose", label: "Rot", value: "oklch(0.6 0.19 20)" },
   { token: "violet", label: "Violett", value: "oklch(0.56 0.18 300)" },
-  { token: "lime", label: "Hellgruen", value: "oklch(0.72 0.16 130)" },
+  { token: "lime", label: "Hellgrün", value: "oklch(0.72 0.16 130)" },
   { token: "pink", label: "Pink", value: "oklch(0.65 0.19 350)" },
 ] as const;
 

@@ -47,7 +47,7 @@ export async function GET() {
   if (!botEnabled()) {
     return NextResponse.json({
       enabled: false,
-      greeting: "Der Atlas-Bot ist noch nicht eingerichtet. Dafuer fehlt der Schluessel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unveraendert.",
+      greeting: "Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.",
       suggestions: [],
       conversationId: null,
     });
@@ -75,7 +75,7 @@ function errorStream(text: string): Response {
 // POST /api/bot -- { conversationId?, message } -> NDJSON-Stream.
 export async function POST(req: Request) {
   if (!botEnabled()) {
-    return errorStream("Der Atlas-Bot ist noch nicht eingerichtet. Dafuer fehlt der Schluessel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unveraendert.");
+    return errorStream("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY in den Umgebungsvariablen. Alles andere in Atlas funktioniert unverändert.");
   }
 
   const body = await req.json().catch(() => null);
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   }
   if (body.conversationId !== undefined && body.conversationId !== null) {
     if (typeof body.conversationId !== "string" || !isUuid(body.conversationId)) {
-      return NextResponse.json({ error: "conversationId ist keine gueltige id." }, { status: 400 });
+      return NextResponse.json({ error: "conversationId ist keine gültige id." }, { status: 400 });
     }
   }
 

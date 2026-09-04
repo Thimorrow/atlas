@@ -224,7 +224,7 @@ export function AssignmentComposer({
               <button
                 type="button"
                 onClick={close}
-                aria-label="Schliessen"
+                aria-label="Schließen"
                 className="relative -mr-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
               >
                 <X className="size-4" />
@@ -319,7 +319,7 @@ export function AssignmentComposer({
 
               <div>
                 <label className={LABEL} htmlFor={`${uid}-due`}>
-                  Faellig am
+                  Fällig am
                 </label>
                 <input
                   id={`${uid}-due`}

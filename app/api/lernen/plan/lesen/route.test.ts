@@ -56,7 +56,7 @@ describe("POST /api/lernen/plan/lesen", () => {
     expect(res.status).toBe(503);
   });
 
-  it("ungueltige assignmentId -> 400", async () => {
+  it("ungültige assignmentId -> 400", async () => {
     const res = await POST(req({ assignmentId: "keine-uuid", checklist: { text: "x" }, fileIds: [] }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("assignmentId");
@@ -73,7 +73,7 @@ describe("POST /api/lernen/plan/lesen", () => {
     expect(res.status).toBe(400);
   });
 
-  it("Text ueber 8000 Zeichen -> 400", async () => {
+  it("Text über 8000 Zeichen -> 400", async () => {
     const res = await POST(
       req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x".repeat(8001) }, fileIds: [] }),
     );
@@ -88,14 +88,14 @@ describe("POST /api/lernen/plan/lesen", () => {
     expect((await res.json()).error).toBe("fileIds");
   });
 
-  it("Pruefung nicht gefunden -> 404", async () => {
+  it("Prüfung nicht gefunden -> 404", async () => {
     vi.mocked(getAssignment).mockResolvedValue(undefined);
     const res = await POST(req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x" }, fileIds: [] }));
     expect(res.status).toBe(404);
     expect((await res.json()).error).toBe("pruefung");
   });
 
-  it("Pruefung ohne Fach -> 400 kein_fach", async () => {
+  it("Prüfung ohne Fach -> 400 kein_fach", async () => {
     vi.mocked(getAssignment).mockResolvedValue({ ...ASSIGNMENT, subjectId: null });
     const res = await POST(req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x" }, fileIds: [] }));
     expect(res.status).toBe(400);
@@ -110,7 +110,7 @@ describe("POST /api/lernen/plan/lesen", () => {
     expect((await res.json()).error).toBe("dateien_fremd");
   });
 
-  it("gluecklicher Pfad ruft lesen() auf und gibt 200", async () => {
+  it("glücklicher Pfad ruft lesen() auf und gibt 200", async () => {
     vi.mocked(lesen).mockResolvedValue({ entwurf: { checklisteText: "x", punkte: [] } });
     const res = await POST(req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x" }, fileIds: [FILE_ID] }));
     expect(res.status).toBe(200);
@@ -120,12 +120,12 @@ describe("POST /api/lernen/plan/lesen", () => {
     );
   });
 
-  it("LernplanGenFehler wird in Status+Code uebersetzt", async () => {
-    vi.mocked(lesen).mockRejectedValue(new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text pruefen."));
+  it("LernplanGenFehler wird in Status+Code übersetzt", async () => {
+    vi.mocked(lesen).mockRejectedValue(new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text prüfen."));
     const res = await POST(req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x" }, fileIds: [] }));
     expect(res.status).toBe(422);
     const json = await res.json();
     expect(json.error).toBe("keine_punkte");
-    expect(json.hinweis).toContain("pruefen");
+    expect(json.hinweis).toContain("prüfen");
   });
 });

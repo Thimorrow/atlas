@@ -61,7 +61,7 @@ describe.skipIf(!mitDb)("tutor-store (Integration, Neon)", () => {
     expect(list.some((c) => c.id === a.id)).toBe(true);
   });
 
-  it("appendTutorMessage haengt eine Nachricht an und aktualisiert updatedAt", async () => {
+  it("appendTutorMessage hängt eine Nachricht an und aktualisiert updatedAt", async () => {
     const conversation = await createTutorConversation({ topicId, subjectId, modus: "lernen" });
     const message = await appendTutorMessage(conversation.id, { role: "user", content: "Hallo" });
     expect(message.conversationId).toBe(conversation.id);
@@ -111,7 +111,7 @@ describe.skipIf(!mitDb)("tutor-store (Integration, Neon)", () => {
     expect(updated?.endedAt).not.toBeNull();
   });
 
-  it("deleteTutorConversation loescht die Session", async () => {
+  it("deleteTutorConversation löscht die Session", async () => {
     const conversation = await createTutorConversation({ topicId, subjectId, modus: "lernen" });
     await deleteTutorConversation(conversation.id);
     expect(await getTutorConversation(conversation.id)).toBeUndefined();

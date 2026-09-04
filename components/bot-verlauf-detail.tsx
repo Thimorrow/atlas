@@ -62,7 +62,7 @@ export function BotVerlaufDetail({ id }: { id: string }) {
             className="relative mb-3 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <ChevronLeft className="size-4" />
-            Zurueck zum Verlauf
+            Zurück zum Verlauf
           </Link>
           {status === "ok" && conversation && (
             <div>
@@ -97,7 +97,7 @@ function NotFoundState() {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
       <MessageCircleQuestion className="size-6 text-muted-foreground/60" />
-      <p className="text-[14px] text-muted-foreground">Dieses Gespraech gibt es nicht (mehr).</p>
+      <p className="text-[14px] text-muted-foreground">Dieses Gespräch gibt es nicht (mehr).</p>
     </div>
   );
 }
@@ -106,14 +106,14 @@ function ErrorState() {
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
       <AlertTriangle className="size-6 text-muted-foreground/60" />
-      <p className="text-[14px] text-muted-foreground">Das Gespraech konnte nicht geladen werden.</p>
+      <p className="text-[14px] text-muted-foreground">Das Gespräch konnte nicht geladen werden.</p>
     </div>
   );
 }
 
 function DetailSkeleton() {
   return (
-    <div className="flex flex-col gap-5" aria-label="Gespraech wird geladen" aria-busy="true">
+    <div className="flex flex-col gap-5" aria-label="Gespräch wird geladen" aria-busy="true">
       {[1, 2].map((i) => (
         <div key={i} className="flex flex-col gap-2.5">
           <div className="flex justify-end">

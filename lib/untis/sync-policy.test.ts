@@ -12,7 +12,7 @@ describe("windowFor", () => {
   it("trifft das Morgen-Fenster", () => {
     expect(windowFor(at(6, 45))?.pollMin).toBe(2);
   });
-  it("ist nachts ausserhalb aller Fenster", () => {
+  it("ist nachts außerhalb aller Fenster", () => {
     expect(windowFor(at(2, 0))).toBeNull();
   });
   it("Grenze: from inklusiv, to exklusiv", () => {
@@ -28,13 +28,13 @@ describe("decideSync — Morgens (06:30–07:15, alle 2 min)", () => {
     expect(d.pollMin).toBe(2);
     expect(d.shouldSync).toBe(true);
   });
-  it("frischer Sync (<2 min) loest noch nichts aus", () => {
+  it("frischer Sync (<2 min) löst noch nichts aus", () => {
     const now = at(6, 45);
     expect(decideSync(now, now.getTime() - 1 * MIN).shouldSync).toBe(false);
   });
 });
 
-describe("decideSync — Tagsueber (07:15–17:00, 6h)", () => {
+describe("decideSync — Tagsüber (07:15–17:00, 6h)", () => {
   it("kein Polling", () => {
     expect(decideSync(at(12, 0), at(12, 0).getTime() - 60 * MIN).pollMin).toBeNull();
   });
@@ -63,7 +63,7 @@ describe("decideSync — Abends (17:00–23:00, Reload >30 min)", () => {
 });
 
 describe("decideSync — Nacht & Erststart", () => {
-  it("nachts grosszuegig (12h), kein Polling", () => {
+  it("nachts großzügig (12h), kein Polling", () => {
     const now = at(2, 0);
     expect(decideSync(now, now.getTime() - 60 * MIN).shouldSync).toBe(false);
     expect(decideSync(now, now.getTime() - 800 * MIN).shouldSync).toBe(true);

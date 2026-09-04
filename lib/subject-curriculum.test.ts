@@ -90,7 +90,7 @@ beforeEach(() => {
 });
 
 describe("seedCurricula", () => {
-  it("belegt ein Fach aus der Vorlage vor und meldet Faecher ohne Treffer", async () => {
+  it("belegt ein Fach aus der Vorlage vor und meldet Fächer ohne Treffer", async () => {
     store = [fach("1", "Mathematik", "M"), fach("2", "Schulband", null)];
 
     const bericht = await seedCurricula();
@@ -102,7 +102,7 @@ describe("seedCurricula", () => {
     expect(store[1].curriculum).toBeNull();
   });
 
-  it("findet die Vorlage ueber den Untis-Wert, wenn der Anzeigename nichts trifft", async () => {
+  it("findet die Vorlage über den Untis-Wert, wenn der Anzeigename nichts trifft", async () => {
     store = [fach("1", "Mathe bei Frau Meyer", "M")];
     const bericht = await seedCurricula();
     expect(bericht.belegt).toEqual([{ fach: "Mathe bei Frau Meyer", vorlage: "Mathematik" }]);
@@ -121,7 +121,7 @@ describe("seedCurricula", () => {
     expect(store[0].curriculum).toBe(nachErstemLauf);
   });
 
-  it("laesst einen von Hand geschriebenen Text unangetastet", async () => {
+  it("lässt einen von Hand geschriebenen Text unangetastet", async () => {
     store = [fach("1", "Mathematik", "M", "Mein eigener Plan")];
 
     const bericht = await seedCurricula();
@@ -145,7 +145,7 @@ describe("saveCurriculum", () => {
     expect(gespeichert?.curriculumUpdatedAt).toBeTruthy();
   });
 
-  it("loescht alle drei Spalten bei leerem Text", async () => {
+  it("löscht alle drei Spalten bei leerem Text", async () => {
     store = [fach("1", "Mathematik", "M", "Mein eigener Plan")];
 
     const gespeichert = await saveCurriculum("1", "   \n ", "Von Hand");
@@ -155,7 +155,7 @@ describe("saveCurriculum", () => {
     expect(gespeichert?.curriculumUpdatedAt).toBeNull();
   });
 
-  it("laesst den eigenen Text auch nach einem erneuten Seed-Lauf stehen", async () => {
+  it("lässt den eigenen Text auch nach einem erneuten Seed-Lauf stehen", async () => {
     store = [fach("1", "Mathematik", "M")];
     await saveCurriculum("1", "Mein eigener Plan", "Von Hand");
 

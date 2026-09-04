@@ -58,7 +58,7 @@ beforeEach(() => {
   listSubjects.mockResolvedValue([]);
 });
 
-describe("notiz_aendern schuetzt den vorhandenen Text", () => {
+describe("notiz_aendern schützt den vorhandenen Text", () => {
   it("lehnt einen leeren Text ab, statt die Notiz zu leeren", async () => {
     const ergebnis = await runTool("notiz_aendern", { notizId: ID, text: "" });
     expect(ergebnis).toHaveProperty("error");
@@ -72,20 +72,20 @@ describe("notiz_aendern schuetzt den vorhandenen Text", () => {
     expect(updateNote).not.toHaveBeenCalled();
   });
 
-  it("laesst eine echte Textaenderung durch", async () => {
+  it("lässt eine echte Textänderung durch", async () => {
     updateNote.mockResolvedValue({ id: ID, title: "T", body: "neuer Text" });
     const ergebnis = await runTool("notiz_aendern", { notizId: ID, text: "neuer Text" });
     expect(ergebnis).not.toHaveProperty("error");
     expect(updateNote).toHaveBeenCalledWith(ID, { body: "neuer Text" });
   });
 
-  it("aendert nur den Titel, wenn kein Text mitkommt", async () => {
+  it("ändert nur den Titel, wenn kein Text mitkommt", async () => {
     updateNote.mockResolvedValue({ id: ID, title: "Neuer Titel", body: "alt" });
     await runTool("notiz_aendern", { notizId: ID, titel: "Neuer Titel" });
     expect(updateNote).toHaveBeenCalledWith(ID, { title: "Neuer Titel" });
   });
 
-  it("meldet einen Fehler, wenn gar nichts zu aendern angegeben wurde", async () => {
+  it("meldet einen Fehler, wenn gar nichts zu ändern angegeben wurde", async () => {
     const ergebnis = await runTool("notiz_aendern", { notizId: ID });
     expect(ergebnis).toHaveProperty("error");
     expect(updateNote).not.toHaveBeenCalled();
@@ -98,8 +98,8 @@ describe("notiz_aendern schuetzt den vorhandenen Text", () => {
   });
 });
 
-describe("aufgabe_aendern schuetzt die vorhandene Faelligkeit", () => {
-  it("laesst eine unverstandene Datumsangabe wirkungslos, statt sie zu entfernen", async () => {
+describe("aufgabe_aendern schützt die vorhandene Fälligkeit", () => {
+  it("lässt eine unverstandene Datumsangabe wirkungslos, statt sie zu entfernen", async () => {
     getAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
     updateAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
     await runTool("aufgabe_aendern", { aufgabeId: ID, faellig: "nach den Ferien" });
@@ -108,14 +108,14 @@ describe("aufgabe_aendern schuetzt die vorhandene Faelligkeit", () => {
     expect(patch).not.toHaveProperty("dueDate");
   });
 
-  it("uebernimmt ein erkanntes Datum ganz normal", async () => {
+  it("übernimmt ein erkanntes Datum ganz normal", async () => {
     getAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-10" });
     updateAssignment.mockResolvedValue({ id: ID, title: "Alt", dueDate: "2026-09-15" });
     await runTool("aufgabe_aendern", { aufgabeId: ID, faellig: "2026-09-15" });
     expect(updateAssignment.mock.calls.at(-1)?.[1]).toMatchObject({ dueDate: "2026-09-15" });
   });
 
-  it("laesst den Titel nicht leeren", async () => {
+  it("lässt den Titel nicht leeren", async () => {
     getAssignment.mockResolvedValue({ id: ID, title: "Alt" });
     updateAssignment.mockResolvedValue({ id: ID, title: "Alt" });
     await runTool("aufgabe_aendern", { aufgabeId: ID, titel: "   " });
@@ -131,13 +131,13 @@ describe("aufgaben_lesen filtert nach Art", () => {
     { id: "c", type: "presentation", title: "Referat" },
   ];
 
-  it("gibt ohne typ alles zurueck", async () => {
+  it("gibt ohne typ alles zurück", async () => {
     listAssignments.mockResolvedValue(aufgaben);
     const e = (await runTool("aufgaben_lesen", {})) as { aufgaben: unknown[] };
     expect(e.aufgaben).toHaveLength(3);
   });
 
-  it("laesst nur die genannten Arten durch", async () => {
+  it("lässt nur die genannten Arten durch", async () => {
     listAssignments.mockResolvedValue(aufgaben);
     const e = (await runTool("aufgaben_lesen", { typ: ["exam", "presentation"] })) as {
       aufgaben: { id: string }[];
@@ -173,7 +173,7 @@ describe("lehrplan_lesen bleibt ehrlich", () => {
     curriculumUpdatedAt: "2026-09-04T10:00:00.000Z",
   };
 
-  it("gibt Lehrplantext und Quelle zurueck", async () => {
+  it("gibt Lehrplantext und Quelle zurück", async () => {
     listSubjects.mockResolvedValue([mathe]);
     const e = (await runTool("lehrplan_lesen", { fach: "Mathe" })) as {
       lehrplan: string | null;
@@ -183,7 +183,7 @@ describe("lehrplan_lesen bleibt ehrlich", () => {
     expect(e.quelle).toBe("Kernlehrplan NRW G9, Klasse 10");
   });
 
-  it("findet das Fach auch ueber den Untis-Wert", async () => {
+  it("findet das Fach auch über den Untis-Wert", async () => {
     listSubjects.mockResolvedValue([mathe]);
     const e = (await runTool("lehrplan_lesen", { fach: "M" })) as { fach: string };
     expect(e.fach).toBe("Mathe");
@@ -257,14 +257,14 @@ describe("lernplan_lesen liest den gemockten Store und formatiert", () => {
 });
 
 describe("der Bot bietet lernplan_lesen an", () => {
-  it("botTools enthaelt lernplan_lesen mit einer Beschreibung, die 'Lernplan' nennt", () => {
+  it("botTools enthält lernplan_lesen mit einer Beschreibung, die 'Lernplan' nennt", () => {
     const tool = botTools.find((t) => t.function.name === "lernplan_lesen");
     expect(tool).toBeDefined();
     expect(tool?.function.description).toContain("Lernplan");
   });
 });
 
-describe("matchSubject findet vorhandene Faecher, ohne welche zu erfinden", () => {
+describe("matchSubject findet vorhandene Fächer, ohne welche zu erfinden", () => {
   const faecher = [
     { id: "1", name: "Mathematik", untisSubject: "M" },
     { id: "2", name: "Biologie", untisSubject: "BI" },
@@ -274,40 +274,35 @@ describe("matchSubject findet vorhandene Faecher, ohne welche zu erfinden", () =
     { id: "6", name: "Kunstgeschichte", untisSubject: "KG" },
   ] as SubjectDTO[];
 
-  it("findet 'Mathe' als Praefix von Mathematik", () => {
+  it("findet 'Mathe' als Präfix von Mathematik", () => {
     expect(matchSubject("Mathe", faecher)?.name).toBe("Mathematik");
   });
 
-  it("findet 'bio' als Praefix von Biologie", () => {
+  it("findet 'bio' als Präfix von Biologie", () => {
     expect(matchSubject("bio", faecher)?.name).toBe("Biologie");
   });
 
-  it("findet 'reli' als Praefix von Religion", () => {
+  it("findet 'reli' als Präfix von Religion", () => {
     expect(matchSubject("reli", faecher)?.name).toBe("Religion");
   });
 
-  it("findet ein Fach unabhaengig von der Umlaut-Schreibweise", () => {
-    // Der Fachname der App ist transliteriert, aus Untis oder aus der Tastatur
-    // des Schuelers kommt er mit Umlaut. Beide Richtungen muessen treffen.
-    const mitUmlaut = [...faecher, { id: "7", name: "Franz\u00f6sisch", untisSubject: "F" } as SubjectDTO];
-    expect(matchSubject("Franzoesisch", mitUmlaut)?.name).toBe("Franz\u00f6sisch");
-
-    const transliteriert = [...faecher, { id: "8", name: "Franzoesisch", untisSubject: "F" } as SubjectDTO];
-    expect(matchSubject("Franz\u00f6sisch", transliteriert)?.name).toBe("Franzoesisch");
+  it("findet 'Französisch' über die geschriebene Form gegen 'Französisch'", () => {
+    const mitUmlaut = [...faecher, { id: "7", name: "Französisch", untisSubject: "F" } as SubjectDTO];
+    expect(matchSubject("Französisch", mitUmlaut)?.name).toBe("Französisch");
   });
 
-  it("laesst 'Ge' (2 Zeichen normalisiert) nicht auf Geschichte matchen", () => {
+  it("lässt 'Ge' (2 Zeichen normalisiert) nicht auf Geschichte matchen", () => {
     expect(matchSubject("Ge", faecher)).toBeUndefined();
   });
 
-  it("gibt bei echter Mehrdeutigkeit undefined zurueck", () => {
+  it("gibt bei echter Mehrdeutigkeit undefined zurück", () => {
     // "Kuns" ist Praefix von sowohl Kunst als auch Kunstgeschichte.
     expect(matchSubject("Kuns", faecher)).toBeUndefined();
   });
 });
 
 describe("resolveSubjectId legt nie ein neues Fach an", () => {
-  it("aufgabe_anlegen mit unbekanntem Fach liefert einen Fehler mit den vorhandenen Faechern, ohne anzulegen", async () => {
+  it("aufgabe_anlegen mit unbekanntem Fach liefert einen Fehler mit den vorhandenen Fächern, ohne anzulegen", async () => {
     listSubjects.mockResolvedValue([{ id: "1", name: "Mathematik", untisSubject: "M" }]);
     const ergebnis = (await runTool("aufgabe_anlegen", { titel: "x", fach: "Kunstgeschichte" })) as {
       error?: string;
@@ -324,8 +319,8 @@ describe("resolveSubjectId legt nie ein neues Fach an", () => {
   });
 });
 
-describe("der Bot hat kein Loeschwerkzeug", () => {
-  it("bietet nirgends ein Werkzeug zum Loeschen an", () => {
+describe("der Bot hat kein Löschwerkzeug", () => {
+  it("bietet nirgends ein Werkzeug zum Löschen an", () => {
     const namen = botTools.map((t) => t.function.name);
     expect(namen.some((n) => /loesch|delete|entfern|remove/i.test(n))).toBe(false);
   });

@@ -184,7 +184,7 @@ export function LernenSession({
             href={backHref}
             className="rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Zurueck
+            Zurück
           </Link>
         </div>
       </div>
@@ -297,9 +297,9 @@ function SessionKarte({
   const [erklaerLoading, setErklaerLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [varianteLoading, setVarianteLoading] = useState(false);
-  // Pruefen-Feld freier Antworten (nur wissen/aufgabe, solange die Antwort
-  // verborgen ist und der Bot an ist). Zurueckgesetzt bei Kartenwechsel, weil
-  // SessionKarte je Karte ueber den motion.div-key neu gemountet wird.
+  // Prüfen-Feld freier Antworten (nur wissen/aufgabe, solange die Antwort
+  // verborgen ist und der Bot an ist). Zurückgesetzt bei Kartenwechsel, weil
+  // SessionKarte je Karte über den motion.div-key neu gemountet wird.
   const [pruefenAntwort, setPruefenAntwort] = useState("");
   const [pruefenLoading, setPruefenLoading] = useState(false);
   const [pruefenErgebnis, setPruefenErgebnis] = useState<PruefenErgebnis | null>(null);
@@ -307,7 +307,7 @@ function SessionKarte({
 
   const geklaert = card.kind === "vokabel" ? vokabelPhase !== "eingabe" : showAnswer;
   // Vorbelegung "Gewusst"/"Nicht gewusst" aus dem Urteil; ohne Urteil (noch
-  // nicht geprueft oder Pruefen fehlgeschlagen) keine Vorbelegung.
+  // nicht geprüft oder Prüfen fehlgeschlagen) keine Vorbelegung.
   const vorbelegung = pruefenErgebnis ? pruefenErgebnis.urteil === "richtig" : null;
   const tutorHref = `/lernen/${subjectId}/tutor?thema=${card.topicId ?? ""}&karte=${card.id}`;
   const tutorEnabled = botEnabled && card.topicId !== null;
@@ -381,14 +381,14 @@ function SessionKarte({
         setErklaerung((t) => t + decoder.decode(value, { stream: true }));
       }
     } catch {
-      toast("Die Erklaerung konnte nicht geladen werden.");
+      toast("Die Erklärung konnte nicht geladen werden.");
     } finally {
       setErklaerLoading(false);
     }
   }
 
-  // Prueft die eingetippte Antwort ueber den Tutor-Endpunkt. Leer abschicken
-  // zeigt nur die Loesung, wie der bestehende Knopf -- keine Bewertung. Bei
+  // Prüft die eingetippte Antwort über den Tutor-Endpunkt. Leer abschicken
+  // zeigt nur die Lösung, wie der bestehende Knopf -- keine Bewertung. Bei
   // Fehler (Netz, 502, Timeout) wird die Antwort trotzdem aufgedeckt, aber
   // ohne Vorbelegung.
   async function pruefen() {
@@ -412,7 +412,7 @@ function SessionKarte({
         | { urteil?: Urteil; feedback?: string; error?: string }
         | null;
       if (!res.ok || !body?.urteil) {
-        toast(body?.error ?? "Die Antwort konnte nicht geprueft werden.");
+        toast(body?.error ?? "Die Antwort konnte nicht geprüft werden.");
         setShowAnswer(true);
         return;
       }
@@ -421,8 +421,8 @@ function SessionKarte({
     } catch (err) {
       toast(
         err instanceof DOMException && err.name === "AbortError"
-          ? "Die Pruefung hat zu lange gedauert."
-          : "Die Antwort konnte nicht geprueft werden.",
+          ? "Die Prüfung hat zu lange gedauert."
+          : "Die Antwort konnte nicht geprüft werden.",
       );
       setShowAnswer(true);
     } finally {
@@ -438,13 +438,13 @@ function SessionKarte({
       const res = await fetch(`/api/lernen/karten/${card.id}/variante`, { method: "POST" });
       const body = (await res.json().catch(() => null)) as { card?: StudyCardDTO; error?: string } | null;
       if (!res.ok || !body?.card) {
-        toast(body?.error ?? "Es konnte keine aehnliche Aufgabe erzeugt werden.");
+        toast(body?.error ?? "Es konnte keine ähnliche Aufgabe erzeugt werden.");
         return;
       }
       onVariante(body.card);
-      toast("Aehnliche Aufgabe eingefuegt", "success");
+      toast("Ähnliche Aufgabe eingefügt", "success");
     } catch {
-      toast("Es konnte keine aehnliche Aufgabe erzeugt werden.");
+      toast("Es konnte keine ähnliche Aufgabe erzeugt werden.");
     } finally {
       setVarianteLoading(false);
     }
@@ -600,7 +600,7 @@ function SessionKarte({
               disabled={erklaerLoading}
               className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              {erklaerLoading ? "Erklaert …" : "Erklaeren"}
+              {erklaerLoading ? "Erklärt …" : "Erklären"}
             </button>
             {tutorEnabled ? (
               <Link
@@ -725,7 +725,7 @@ function WissenKarte({
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Antwort · 1 nicht gewusst · 2 gewusst · e erklaert · t Tutor fragen
+        Leertaste zeigt die Antwort · 1 nicht gewusst · 2 gewusst · e erklärt · t Tutor fragen
       </p>
     </>
   );
@@ -776,7 +776,7 @@ function AufgabeKarte({
           )}
           <div
             className={cn(PROSE, "pt-4", !pruefenErgebnis && "mt-4 border-t")}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(card.answer || "Kein Loesungsweg hinterlegt.") }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(card.answer || "Kein Lösungsweg hinterlegt.") }}
           />
         </>
       )}
@@ -788,11 +788,11 @@ function AufgabeKarte({
             onPruefen={onPruefen}
             onZeigen={onZeigen}
             loading={pruefenLoading}
-            zeigenLabel="Loesung zeigen"
+            zeigenLabel="Lösung zeigen"
           />
         ) : !gezeigt ? (
           <Button type="button" className="h-11 w-full" onClick={onZeigen}>
-            Loesung zeigen
+            Lösung zeigen
           </Button>
         ) : (
           <>
@@ -803,7 +803,7 @@ function AufgabeKarte({
                 className="h-11"
                 onClick={() => onAntworten(false)}
               >
-                Nicht geloest
+                Nicht gelöst
               </Button>
               <Button
                 type="button"
@@ -811,23 +811,23 @@ function AufgabeKarte({
                 className="h-11"
                 onClick={() => onAntworten(true)}
               >
-                Geloest
+                Gelöst
               </Button>
             </div>
             <Button type="button" variant="ghost" className="h-11 w-full" onClick={onAehnliche} disabled={varianteLoading}>
-              {varianteLoading ? "Erzeugt …" : "Aehnliche Aufgabe"}
+              {varianteLoading ? "Erzeugt …" : "Ähnliche Aufgabe"}
             </Button>
           </>
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Loesung · 1 nicht geloest · 2 geloest · e erklaert · t Tutor fragen
+        Leertaste zeigt die Lösung · 1 nicht gelöst · 2 gelöst · e erklärt · t Tutor fragen
       </p>
     </>
   );
 }
 
-// Textarea "Deine Antwort" plus "Pruefen" (Cmd/Ctrl+Enter sendet) fuer wissen/
+// Textarea "Deine Antwort" plus "Prüfen" (Cmd/Ctrl+Enter sendet) fuer wissen/
 // aufgabe, solange die Antwort verborgen ist und der Bot an ist. Leer
 // abschicken zeigt nur die Loesung (siehe pruefen() in SessionKarte).
 function PruefenFeld({
@@ -870,7 +870,7 @@ function PruefenFeld({
           {zeigenLabel}
         </Button>
         <Button type="button" className="h-11" onClick={onPruefen} disabled={loading}>
-          {loading ? <Loader2 aria-hidden className="size-4 animate-spin" /> : "Pruefen"}
+          {loading ? <Loader2 aria-hidden className="size-4 animate-spin" /> : "Prüfen"}
         </Button>
       </div>
     </div>
@@ -954,7 +954,7 @@ function VokabelKarte({
             placeholder="Antwort eintippen"
           />
           <Button type="submit" className="mt-3 h-11 w-full">
-            Pruefen
+            Prüfen
           </Button>
         </form>
       )}
@@ -973,7 +973,7 @@ function VokabelKarte({
       {phase === "manuell" && (
         <div className="mt-6">
           <p className="rounded-md border bg-muted/50 px-3 py-2.5 text-[15px]">
-            Loesung: <span className="font-medium">{loesung}</span>
+            Lösung: <span className="font-medium">{loesung}</span>
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" className="h-11" onClick={() => onManuell(false)}>
@@ -986,7 +986,7 @@ function VokabelKarte({
         </div>
       )}
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Enter prueft · danach 1 falsch · 2 richtig · e erklaert
+        Enter prüft · danach 1 falsch · 2 richtig · e erklärt
       </p>
     </>
   );
@@ -1055,7 +1055,7 @@ function SessionEnde({
                 href={backHref}
                 className="rounded-md px-1 py-1 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Fertig fuer heute
+                Fertig für heute
               </Link>
             </>
           ) : (

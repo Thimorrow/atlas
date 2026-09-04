@@ -17,7 +17,7 @@ const baseInput: TutorContextInput = {
 };
 
 describe("buildTutorContext", () => {
-  it("enthaelt Thema-Titel und Lernzettel", () => {
+  it("enthält Thema-Titel und Lernzettel", () => {
     const context = buildTutorContext(baseInput);
     expect(context).toContain("Quadratische Gleichungen");
     expect(context).toContain("Ein Lernzettel Text.");
@@ -44,17 +44,17 @@ describe("buildTutorContext", () => {
   });
 });
 
-describe("buildTutorContext: Arbeitsblaetter", () => {
-  it("haengt den Blaetter-Abschnitt mit Seiten und Text an", () => {
+describe("buildTutorContext: Arbeitsblätter", () => {
+  it("hängt den Blätter-Abschnitt mit Seiten und Text an", () => {
     const context = buildTutorContext({
       ...baseInput,
       blaetter: { text: "Inhalt des Arbeitsblatts.", seiten: "12-14", gekuerzt: false, fehlend: [] },
     });
-    expect(context).toContain("Arbeitsblaetter zu diesem Punkt (Seiten: 12-14)");
+    expect(context).toContain("Arbeitsblätter zu diesem Punkt (Seiten: 12-14)");
     expect(context).toContain("Inhalt des Arbeitsblatts.");
   });
 
-  it("nennt fehlende Blaetter", () => {
+  it("nennt fehlende Blätter", () => {
     const context = buildTutorContext({
       ...baseInput,
       blaetter: { text: "", seiten: null, gekuerzt: false, fehlend: ["Zettel.pdf"] },
@@ -86,7 +86,7 @@ describe("buildTutorContext: Simulation", () => {
 });
 
 describe("buildSystemPrompt", () => {
-  it("enthaelt den Probe-Block nur im Modus probe", () => {
+  it("enthält den Probe-Block nur im Modus probe", () => {
     const lernen = buildSystemPrompt("lernen", baseInput);
     const probe = buildSystemPrompt("probe", baseInput);
     expect(lernen).not.toContain(PROBE_PROMPT_BLOCK.trim());

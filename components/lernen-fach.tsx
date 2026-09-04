@@ -142,7 +142,7 @@ function LernenFachBody({
             ? `${naechstePruefung.title} ${tageBisLabel(naechstePruefung.tageBis)}${
                 plan && progress.total > 0 ? ` · ${planText(progress.total, plan)}` : ""
               }`
-            : "Keine Pruefung eingetragen"}
+            : "Keine Prüfung eingetragen"}
         </p>
       </div>
 
@@ -176,13 +176,13 @@ function LernenFachBody({
             href={`/lernen/${subjectId}/session`}
             className={cn(buttonVariants({ size: "default" }), "flex-1")}
           >
-            {progress.faellig > 0 ? `Lernen · ${progress.faellig} faellig` : "Lernen"}
+            {progress.faellig > 0 ? `Lernen · ${progress.faellig} fällig` : "Lernen"}
           </Link>
           <Link
             href={`/lernen/${subjectId}/session?modus=schwach`}
             className={cn(buttonVariants({ size: "default", variant: "outline" }), "flex-1")}
           >
-            Schwache ueben
+            Schwache üben
           </Link>
         </div>
       )}
@@ -218,7 +218,7 @@ function LernenFachBody({
                           <div className="h-full rounded-full" style={{ width: `${bereit}%`, backgroundColor: tint }} />
                         </div>
                         <span className="tabular-nums text-[12px] text-muted-foreground">
-                          {t.progress.faellig} faellig
+                          {t.progress.faellig} fällig
                         </span>
                       </div>
                     </div>
@@ -366,11 +366,11 @@ function NeuesThema({
       </div>
       {pruefungen.length > 0 && (
         <div>
-          <label htmlFor={`${uid}-pruefung`} className="mb-1 block text-[12.5px] font-medium text-muted-foreground">
-            Pruefung (optional)
+          <label htmlFor={`${uid}-prüfung`} className="mb-1 block text-[12.5px] font-medium text-muted-foreground">
+            Prüfung (optional)
           </label>
           <select
-            id={`${uid}-pruefung`}
+            id={`${uid}-prüfung`}
             value={assignmentId}
             onChange={(e) => setAssignmentId(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -7,12 +7,12 @@ afterEach(() => {
 });
 
 describe("fetch-cache: Speicher", () => {
-  it("gibt Geschriebenes innerhalb der TTL zurueck", () => {
+  it("gibt Geschriebenes innerhalb der TTL zurück", () => {
     writeGetCache("/x", { a: 1 });
     expect(readGetCache("/x", 60_000)).toEqual({ a: 1 });
   });
 
-  it("gibt nach Ablauf der TTL null zurueck", () => {
+  it("gibt nach Ablauf der TTL null zurück", () => {
     writeGetCache("/x", { a: 1 });
     expect(readGetCache("/x", -1)).toBeNull();
   });
@@ -29,7 +29,7 @@ describe("fetch-cache: Speicher", () => {
 });
 
 describe("fetch-cache: cachedGetJSON", () => {
-  it("laedt einmal vom Netz und danach aus dem Speicher", async () => {
+  it("lädt einmal vom Netz und danach aus dem Speicher", async () => {
     const json = vi.fn().mockResolvedValue({ ok: true });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json }));
     const first = await cachedGetJSON<{ ok: boolean }>("/api/bot");
@@ -39,7 +39,7 @@ describe("fetch-cache: cachedGetJSON", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("faellt bei Netzfehler auf den alten Stand zurueck", async () => {
+  it("fällt bei Netzfehler auf den alten Stand zurück", async () => {
     writeGetCache("/api/bot", { ok: "alt" });
     vi.stubGlobal(
       "fetch",

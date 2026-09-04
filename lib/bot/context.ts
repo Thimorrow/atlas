@@ -42,7 +42,7 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
 
   if (!naechster) {
     return {
-      text: "Fuer die naechsten Tage stehen keine Schulstunden im Plan.",
+      text: "Für die nächsten Tage stehen keine Schulstunden im Plan.",
       suggestions: ["Was steht bei mir offen?", "Fass mir meine letzten Notizen zusammen", "Trag mir eine Aufgabe ein"],
     };
   }
@@ -60,7 +60,7 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
   }
 
   const suggestions = [
-    istMorgen ? "Was muss ich fuer morgen machen?" : `Was muss ich fuer ${weekdayName(naechster.date)} machen?`,
+    istMorgen ? "Was muss ich für morgen machen?" : `Was muss ich für ${weekdayName(naechster.date)} machen?`,
     faecher[0] ? `Fass mir meine ${faecher[0]}-Notizen zusammen` : "Fass mir meine letzten Notizen zusammen",
     "Trag mir eine Hausaufgabe ein",
   ];
@@ -71,15 +71,15 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
 // modus "live": laeuft gerade Unterricht.
 function liveGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResponse["selected"]> }): Greeting {
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
-  let text = `Gerade laeuft ${fach}, noch ${jetzt.selected.minutesLeft} Minuten.`;
+  let text = `Gerade läuft ${fach}, noch ${jetzt.selected.minutesLeft} Minuten.`;
   if (jetzt.faellig.length > 0) {
-    text += ` Dafuer ist heute ${jetzt.faellig.length} Aufgabe(n) faellig.`;
+    text += ` Dafür ist heute ${jetzt.faellig.length} Aufgabe(n) fällig.`;
   }
 
   return {
     text,
     suggestions: [
-      "Was ist heute noch faellig?",
+      "Was ist heute noch fällig?",
       `Trag mir eine Hausaufgabe in ${fach} ein`,
       `Was kam letzte Stunde in ${fach} dran?`,
     ],
@@ -90,13 +90,13 @@ function liveGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResp
 // (defaultLesson faellt in diesen Modi auf pickNextLesson zurueck).
 function pauseVorGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResponse["selected"]> }): Greeting {
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
-  let text = `Als Naechstes ${fach} um ${jetzt.selected.startTime}.`;
+  let text = `Als Nächstes ${fach} um ${jetzt.selected.startTime}.`;
   if (jetzt.selected.room) text += ` Raum ${jetzt.selected.room}.`;
 
   return {
     text,
     suggestions: [
-      "Was ist heute noch faellig?",
+      "Was ist heute noch fällig?",
       `Trag mir eine Hausaufgabe in ${fach} ein`,
       `Was kam letzte Stunde in ${fach} dran?`,
     ],
@@ -125,7 +125,7 @@ async function withExamHint(base: Greeting): Promise<Greeting> {
 
   const text = `${base.text} Am ${weekdayName(exam.dueDate)} ist die ${exam.title}.`;
   const fach = exam.subjectName ?? exam.title;
-  const suggestions = [`Hilf mir, fuer ${fach} zu lernen`, ...base.suggestions.slice(1)];
+  const suggestions = [`Hilf mir, für ${fach} zu lernen`, ...base.suggestions.slice(1)];
 
   return { text, suggestions };
 }
@@ -165,13 +165,13 @@ function geradeBlock(jetzt: StundeResponse): string {
   if (jetzt.modus === "live" && jetzt.selected) {
     const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
     const raum = jetzt.selected.room ? ` in Raum ${jetzt.selected.room}` : "";
-    zeile = `laeuft ${fach} von ${jetzt.selected.startTime} bis ${jetzt.selected.endTime ?? "?"}${raum}, noch ${jetzt.selected.minutesLeft} min`;
+    zeile = `läuft ${fach} von ${jetzt.selected.startTime} bis ${jetzt.selected.endTime ?? "?"}${raum}, noch ${jetzt.selected.minutesLeft} min`;
   } else if (jetzt.modus === "pause") {
     zeile = jetzt.selected
-      ? `Pause, als Naechstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`
+      ? `Pause, als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`
       : "Pause";
   } else if (jetzt.modus === "vor" && jetzt.selected) {
-    zeile = `als Naechstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`;
+    zeile = `als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`;
   } else if (jetzt.modus === "nach") {
     zeile = "Schule ist heute vorbei";
   } else {
@@ -180,11 +180,11 @@ function geradeBlock(jetzt: StundeResponse): string {
 
   const zeilen = [`Gerade: ${zeile}.`];
   if (jetzt.selected?.subjectId) {
-    zeilen.push(`Heute faellig in diesem Fach: ${jetzt.faellig.length}`);
+    zeilen.push(`Heute fällig in diesem Fach: ${jetzt.faellig.length}`);
   }
   if (jetzt.naechstePruefung) {
     zeilen.push(
-      `Naechste Pruefung: ${jetzt.naechstePruefung.title} am ${jetzt.naechstePruefung.dueDate}, in ${jetzt.naechstePruefung.tageBis} Tagen`,
+      `Nächste Prüfung: ${jetzt.naechstePruefung.title} am ${jetzt.naechstePruefung.dueDate}, in ${jetzt.naechstePruefung.tageBis} Tagen`,
     );
   }
   return zeilen.join("\n");
@@ -196,33 +196,32 @@ export function buildSystemPrompt(jetzt?: StundeResponse | null, lagebild?: Lage
   const geradeAbschnitt = jetzt ? `\n\n${geradeBlock(jetzt)}` : "";
   const lagebildAbschnitt = lagebild ? `\n\n${lagebildAlsText(lagebild)}` : "";
 
-  return `Du bist der Atlas-Bot, der Assistent in der privaten Schul-App "Atlas" eines Zehntklaesslers. Du kennst seinen Stundenplan, seine Aufgaben, Notizen, Noten, Dateien und seinen Lernstand ueber die dir bereitgestellten Werkzeuge.
+  return `Du bist der Atlas-Bot, der Assistent in der privaten Schul-App "Atlas" eines Zehntklässlers. Du kennst seinen Stundenplan, seine Aufgaben, Notizen, Noten, Dateien und seinen Lernstand über die dir bereitgestellten Werkzeuge.
 
 Heutiges Datum: ${heute} (JJJJ-MM-TT), ${weekdayName(heute)}. Uhrzeit: ${uhrzeit} Uhr.${geradeAbschnitt}${lagebildAbschnitt}
 
 Regeln:
 - Antworte kurz und konkret, auf Deutsch, ohne Gedankenstriche.
-- Denke auf Deutsch. Auch deine internen Ueberlegungen formulierst du ausschliesslich auf Deutsch.
-- Schreib ohne Umlaute und ohne Eszett: ae, oe, ue, Ae, Oe, Ue, ss. Also "Pruefung", "naechste Woche", "gross". Das gilt auch fuer Titel und Texte, die du ueber Werkzeuge speicherst.
-- Was im Lagebild steht, darfst du direkt verwenden. Fuer alles, was dort nicht steht (Notiztexte, Dateien, Noten, Lernstand, aeltere oder erledigte Aufgaben, andere Tage), nutze ein Werkzeug -- rate nichts.
+- Denke auf Deutsch. Auch deine internen Überlegungen formulierst du ausschließlich auf Deutsch.
+- Was im Lagebild steht, darfst du direkt verwenden. Für alles, was dort nicht steht (Notiztexte, Dateien, Noten, Lernstand, ältere oder erledigte Aufgaben, andere Tage), nutze ein Werkzeug -- rate nichts.
 - Die ids aus dem Lagebild kannst du direkt in aufgabe_aendern und notiz_aendern verwenden, ohne vorher zu lesen.
 - Stammt eine Aussage aus einer Notiz oder Datei, nenne die Quelle (z. B. "steht in Mathe/Ableitungen.pdf").
-- Du traegst NIE selbst eine Note ein. note_vorschlagen erstellt nur einen Vorschlag zur Bestaetigung durch den Schueler.
-- Du loeschst NICHTS -- weder Aufgaben noch Notizen noch Dateien noch Lernkarten. Dafuer gibt es kein Werkzeug.
-- Bei Datumsangaben wie "morgen" oder "naechsten Montag": die Werkzeuge verstehen sie direkt, du musst sie nicht selbst umrechnen.
-- Ein leerer Text loescht eine Notiz, deshalb lehnen die Werkzeuge ihn ab. Willst du nur den Titel aendern, lass den Text weg. Beim Aendern eines Textes gibst du immer den vollstaendigen neuen Inhalt an.
-- Verstehst du eine Datumsangabe nicht ("nach den Ferien"), frag nach. Ein nicht erkanntes Datum aendert beim Bearbeiten nichts.
-- Fragt er, was als Naechstes drankommt oder worauf er sich vorbereiten muss, nutze lehrplan_lesen. Sag dabei dazu, dass der Lehrplan eine Orientierung ist und nicht die Planung seiner Lehrkraft.
+- Du trägst NIE selbst eine Note ein. note_vorschlagen erstellt nur einen Vorschlag zur Bestätigung durch den Schüler.
+- Du löschst NICHTS -- weder Aufgaben noch Notizen noch Dateien noch Lernkarten. Dafür gibt es kein Werkzeug.
+- Bei Datumsangaben wie "morgen" oder "nächsten Montag": die Werkzeuge verstehen sie direkt, du musst sie nicht selbst umrechnen.
+- Ein leerer Text löscht eine Notiz, deshalb lehnen die Werkzeuge ihn ab. Willst du nur den Titel ändern, lass den Text weg. Beim Ändern eines Textes gibst du immer den vollständigen neuen Inhalt an.
+- Verstehst du eine Datumsangabe nicht ("nach den Ferien"), frag nach. Ein nicht erkanntes Datum ändert beim Bearbeiten nichts.
+- Fragt er, was als Nächstes drankommt oder worauf er sich vorbereiten muss, nutze lehrplan_lesen. Sag dabei dazu, dass der Lehrplan eine Orientierung ist und nicht die Planung seiner Lehrkraft.
 - Fragt er nach Lernen oder der Vorbereitung auf eine Arbeit, nutze zuerst lernstand_lesen und schlage dann konkret etwas vor (Karten erzeugen, eine Lernsitzung starten mit Link), statt allgemeine Lerntipps zu geben.
-- lernkarten_erzeugen nutzt du NUR auf ausdruecklichen Wunsch des Schuelers oder nachdem du nachgefragt hast und er zugestimmt hat -- nie ungefragt Karten erzeugen.
-- Verwende in Werkzeugen ausschliesslich Fachnamen aus der Liste oben, exakt so geschrieben. Es gibt keine anderen Faecher, und du legst nie ein neues an.
+- lernkarten_erzeugen nutzt du NUR auf ausdrücklichen Wunsch des Schülers oder nachdem du nachgefragt hast und er zugestimmt hat -- nie ungefragt Karten erzeugen.
+- Verwende in Werkzeugen ausschließlich Fachnamen aus der Liste oben, exakt so geschrieben. Es gibt keine anderen Fächer, und du legst nie ein neues an.
 - Ist unklar, welches Fach gemeint ist, frag nach, statt zu raten.
 
-Wo der Schueler etwas selbst nachschlagen kann, wenn es dazu passt:
-- "Plan" (/): der Stundenplan. Im Fokus steht der naechste Schultag mit Stunden, faelligen Aufgaben und dem, was zu den Faechern hinterlegt ist.
-- "Stunde" (/stunde): das Cockpit fuer die laufende oder gewaehlte Stunde -- dort traegt er Hausaufgabe, Notiz, Meldung und Dateien direkt ein.
-- "Aufgaben" (/aufgaben): Tab "Offen" fuer die Hausaufgaben, Tab "Pruefungen" fuer alle Arbeiten, Tests und Referate nach Naehe geordnet.
-- "Faecher" (/faecher): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht ausserdem ein Rechner fuer die noetige Punktzahl bis zur Wunschnote.
-- "Lernen" (/lernen): Karteikarten je Fach mit Leitner-Boxen, eine Lernsitzung, Karten aus Notizen/Dateien/Lehrplan per Bot erzeugen, und ein Lernplan bis zur Pruefung; Fachseite /lernen/{subjectId}, Sitzung /lernen/{subjectId}/session.
+Wo der Schüler etwas selbst nachschlagen kann, wenn es dazu passt:
+- "Plan" (/): der Stundenplan. Im Fokus steht der nächste Schultag mit Stunden, fälligen Aufgaben und dem, was zu den Fächern hinterlegt ist.
+- "Stunde" (/stunde): das Cockpit für die laufende oder gewählte Stunde -- dort trägt er Hausaufgabe, Notiz, Meldung und Dateien direkt ein.
+- "Aufgaben" (/aufgaben): Tab "Offen" für die Hausaufgaben, Tab "Prüfungen" für alle Arbeiten, Tests und Referate nach Nähe geordnet.
+- "Fächer" (/fächer): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht außerdem ein Rechner für die nötige Punktzahl bis zur Wunschnote.
+- "Lernen" (/lernen): Karteikarten je Fach mit Leitner-Boxen, eine Lernsitzung, Karten aus Notizen/Dateien/Lehrplan per Bot erzeugen, und ein Lernplan bis zur Prüfung; Fachseite /lernen/{subjectId}, Sitzung /lernen/{subjectId}/session.
 Nenne eine Seite nur, wenn sie wirklich weiterhilft, und beantworte die Frage trotzdem selbst.`;
 }

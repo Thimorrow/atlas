@@ -158,7 +158,7 @@ export async function deleteFile(id: string): Promise<boolean> {
     try {
       await del(row.pathname);
     } catch (err) {
-      console.error("[subject-files] Blob konnte nicht geloescht werden:", row.pathname, err);
+      console.error("[subject-files] Blob konnte nicht gelöscht werden:", row.pathname, err);
     }
   }
 
@@ -194,7 +194,7 @@ export async function storeUploadedFile(
   }
   if (file.size > MULTIPART_MAX_SIZE) {
     return {
-      error: `Ueber diesen Weg gehen hoechstens ${MULTIPART_MAX_SIZE_LABEL}, weil Vercel groessere Anfragen an eine Funktion gar nicht erst durchlaesst. Groessere Dateien bis ${MAX_SIZE_LABEL} laufen ueber den Upload direkt in den Dateispeicher.`,
+      error: `Über diesen Weg gehen höchstens ${MULTIPART_MAX_SIZE_LABEL}, weil Vercel größere Anfragen an eine Funktion gar nicht erst durchlässt. Größere Dateien bis ${MAX_SIZE_LABEL} laufen über den Upload direkt in den Dateispeicher.`,
       status: 413,
     };
   }

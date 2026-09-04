@@ -77,7 +77,7 @@ function makeFetchStub(opts: {
 }
 
 describe("runKartenQueue", () => {
-  it("ruft fuer 3 offene Punkte genau 3 mal generieren auf, nie mehr als 2 gleichzeitig, und setzt cardsState fertig", async () => {
+  it("ruft für 3 offene Punkte genau 3 mal generieren auf, nie mehr als 2 gleichzeitig, und setzt cardsState fertig", async () => {
     let laufend = 0;
     let maxLaufend = 0;
     const { fetchStub, calls } = makeFetchStub({
@@ -150,7 +150,7 @@ describe("runKartenQueue", () => {
     expect(ergebnis.fertig).toEqual(["p1"]);
   });
 
-  it("nutzt quelle notizen fuer Punkte ohne Blaetter", async () => {
+  it("nutzt quelle notizen für Punkte ohne Blätter", async () => {
     const { fetchStub, calls } = makeFetchStub();
     const punkte = [makePunkt({ id: "p1", fileIds: [] })];
 
@@ -166,7 +166,7 @@ describe("runKartenQueue", () => {
     expect(body.fileIds).toEqual([]);
   });
 
-  it("legt fuer einen Punkt ohne Thema ein neues Thema an, haengt topicId zurueck und generiert dann Karten", async () => {
+  it("legt für einen Punkt ohne Thema ein neues Thema an, hängt topicId zurück und generiert dann Karten", async () => {
     const { fetchStub, calls } = makeFetchStub();
     const punkte = [makePunkt({ id: "p1", topicId: null })];
 

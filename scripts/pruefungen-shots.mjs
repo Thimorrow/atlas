@@ -38,19 +38,19 @@ async function main() {
 
   // 1) /pruefungen mit echten Daten: naechste Pruefung gross, Rest darunter.
   await page.goto(`${BASE_URL}/pruefungen`);
-  await page.waitForSelector("text=Pruefungen");
+  await page.waitForSelector("text=Prüfungen");
   await page.waitForTimeout(700);
   await page.screenshot({ path: shotPath("01-liste"), fullPage: true });
 
   // 2) Neue-Pruefung-Dialog mit vorbelegtem Typ "Klassenarbeit".
-  await page.getByRole("button", { name: /neue pruefung/i }).click();
+  await page.getByRole("button", { name: /neue prüfung/i }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: shotPath("02-dialog") });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
 
   // 3) Vergangene Pruefungen aufklappen, falls vorhanden.
-  const pastToggle = page.getByRole("button", { name: /vergangene pruefungen/i });
+  const pastToggle = page.getByRole("button", { name: /vergangene prüfungen/i });
   if (await pastToggle.count()) {
     await pastToggle.click();
     await page.waitForTimeout(300);

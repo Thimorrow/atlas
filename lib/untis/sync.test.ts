@@ -30,7 +30,7 @@ describe.skipIf(!mitDb)("upsertSchoolBlocks (Integration, Neon)", () => {
   beforeAll(cleanup);
   afterAll(cleanup);
 
-  it("schreibt SchoolBlocks (inkl. Entfall) und liefert sie korrekt zurueck", async () => {
+  it("schreibt SchoolBlocks (inkl. Entfall) und liefert sie korrekt zurück", async () => {
     const rows = makeLessons().map((l) => lessonToSchoolBlock(l));
     const n = await upsertSchoolBlocks(rows);
     expect(n).toBe(2);
@@ -52,7 +52,7 @@ describe.skipIf(!mitDb)("upsertSchoolBlocks (Integration, Neon)", () => {
     expect(mathe?.startTime).toBe("08:00:00");
   });
 
-  it("ist idempotent: Re-Sync erzeugt kein Duplikat, aktualisiert geaenderte Felder", async () => {
+  it("ist idempotent: Re-Sync erzeugt kein Duplikat, aktualisiert geänderte Felder", async () => {
     // gleiche Stunde 900001, jetzt mit Raumwechsel + Vertretung
     const changed = lessonToSchoolBlock({
       id: 900001,

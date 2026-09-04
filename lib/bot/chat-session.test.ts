@@ -16,7 +16,7 @@ describe("chat-session: Sofort-Cache", () => {
     expect(getChatSnapshot()).toBeNull();
   });
 
-  it("gibt zurueck, was hineingelegt wurde", () => {
+  it("gibt zurück, was hineingelegt wurde", () => {
     setChatSnapshot({ info: { greeting: "Hallo" }, conversationId: "abc", turns: [{ id: "t1" }], savedAt: 1 });
     expect(getChatSnapshot()).toEqual({
       info: { greeting: "Hallo" },
@@ -34,7 +34,7 @@ describe("chat-session: Sofort-Cache", () => {
 });
 
 describe("chat-session: Entwurf", () => {
-  it("stuerzt ohne localStorage nicht ab und liefert Leerstring", () => {
+  it("stürzt ohne localStorage nicht ab und liefert Leerstring", () => {
     expect(loadStoredDraft()).toBe("");
     expect(() => saveStoredDraft("halb getippt")).not.toThrow();
   });

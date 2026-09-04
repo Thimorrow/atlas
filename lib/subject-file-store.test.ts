@@ -16,7 +16,7 @@ function datei(bytes: number, type: string, name = "probe.pdf"): File {
 }
 
 describe("storeUploadedFile, Abweisungen vor dem Upload", () => {
-  it("weist zu grosse Dateien mit 413 ab und erklaert den Grund auf Deutsch", async () => {
+  it("weist zu große Dateien mit 413 ab und erklärt den Grund auf Deutsch", async () => {
     const res = await storeUploadedFile(subjectId, datei(MULTIPART_MAX_SIZE + 1, "application/pdf"));
     expect(res).toMatchObject({ status: 413 });
     // Der Client soll aus der Meldung ablesen koennen, wie es doch geht.
@@ -34,11 +34,11 @@ describe("storeUploadedFile, Abweisungen vor dem Upload", () => {
     expect(res).toMatchObject({ status: 400 });
   });
 
-  it("haelt die Multipart-Grenze unter Vercels 4,5 MB pro Anfrage", () => {
+  it("hält die Multipart-Grenze unter Vercels 4,5 MB pro Anfrage", () => {
     expect(MULTIPART_MAX_SIZE).toBeLessThan(4.5 * 1024 * 1024);
   });
 
-  it("laesst genau die Typen der Spec durch", () => {
+  it("lässt genau die Typen der Spec durch", () => {
     for (const t of ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic"]) {
       expect(isAllowedContentType(t)).toBe(true);
     }

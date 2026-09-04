@@ -3,13 +3,13 @@ import { parseAufgabeErgebnis, parseCheckliste, parseFazit, parseFrageAuswahl } 
 
 describe("parseFrageAuswahl", () => {
   it("lehnt eine Option ab", () => {
-    const r = parseFrageAuswahl({ frage: "Was weisst du?", optionen: ["A"], mehrfach: false });
+    const r = parseFrageAuswahl({ frage: "Was weißt du?", optionen: ["A"], mehrfach: false });
     expect(r.ok).toBe(false);
   });
 
   it("kappt mehr als 6 Optionen auf 6", () => {
     const r = parseFrageAuswahl({
-      frage: "Was weisst du?",
+      frage: "Was weißt du?",
       optionen: ["A", "B", "C", "D", "E", "F", "G", "H"],
       mehrfach: false,
     });
@@ -17,9 +17,9 @@ describe("parseFrageAuswahl", () => {
     if (r.ok) expect(r.value.optionen).toHaveLength(6);
   });
 
-  it("akzeptiert eine gueltige Eingabe", () => {
-    const r = parseFrageAuswahl({ frage: "Was weisst du?", optionen: ["A", "B"], mehrfach: true });
-    expect(r).toEqual({ ok: true, value: { frage: "Was weisst du?", optionen: ["A", "B"], mehrfach: true } });
+  it("akzeptiert eine gültige Eingabe", () => {
+    const r = parseFrageAuswahl({ frage: "Was weißt du?", optionen: ["A", "B"], mehrfach: true });
+    expect(r).toEqual({ ok: true, value: { frage: "Was weißt du?", optionen: ["A", "B"], mehrfach: true } });
   });
 });
 
@@ -50,7 +50,7 @@ describe("parseAufgabeErgebnis", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("akzeptiert richtig/falsch/uebersprungen", () => {
+  it("akzeptiert richtig/falsch/übersprungen", () => {
     for (const status of ["richtig", "falsch", "uebersprungen"]) {
       const r = parseAufgabeErgebnis({ nr: 1, status });
       expect(r.ok).toBe(true);
@@ -59,7 +59,7 @@ describe("parseAufgabeErgebnis", () => {
 });
 
 describe("parseFazit", () => {
-  it("akzeptiert eine gueltige Eingabe und faellt bei unbekanntem kind auf wissen zurueck", () => {
+  it("akzeptiert eine gültige Eingabe und fällt bei unbekanntem kind auf wissen zurück", () => {
     const r = parseFazit({
       gutWar: ["Sachverhalt A"],
       schwach: ["Sachverhalt B"],

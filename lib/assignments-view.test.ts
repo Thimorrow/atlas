@@ -50,7 +50,7 @@ function make(p: Partial<AssignmentDTO> = {}): AssignmentDTO {
 const titles = (items: AssignmentDTO[]) => items.map((i) => i.title);
 
 describe("groupOf", () => {
-  it("sortiert relativ zum uebergebenen Tag in die sechs Gruppen", () => {
+  it("sortiert relativ zum übergebenen Tag in die sechs Gruppen", () => {
     expect(groupOf(DI, MI)).toBe("overdue");
     expect(groupOf(MI, MI)).toBe("today");
     expect(groupOf(DO, MI)).toBe("tomorrow");
@@ -68,24 +68,24 @@ describe("groupOf", () => {
 });
 
 describe("endOfWeek", () => {
-  it("liefert fuer jeden Wochentag den Sonntag derselben Woche", () => {
+  it("liefert für jeden Wochentag den Sonntag derselben Woche", () => {
     for (const day of [MO, DI, MI, DO, FR, "2025-07-19"]) {
       expect(endOfWeek(day)).toBe(SO);
     }
   });
 
-  it("liefert fuer einen Sonntag den Tag selbst", () => {
+  it("liefert für einen Sonntag den Tag selbst", () => {
     expect(endOfWeek(SO)).toBe(SO);
   });
 });
 
 describe("groupAssignments", () => {
-  it("haelt die Gruppen-Reihenfolge ein und laesst leere Gruppen weg", () => {
+  it("hält die Gruppen-Reihenfolge ein und lässt leere Gruppen weg", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: null, title: "Ohne" }),
-        make({ dueDate: NAECHSTE_WOCHE, title: "Spaeter" }),
-        make({ dueDate: DI, title: "Ueberfaellig" }),
+        make({ dueDate: NAECHSTE_WOCHE, title: "Später" }),
+        make({ dueDate: DI, title: "Überfällig" }),
         make({ dueDate: DO, title: "Morgen" }),
         make({ dueDate: MI, title: "Heute" }),
       ],
@@ -101,10 +101,10 @@ describe("groupAssignments", () => {
       "undated",
     ]);
     expect(groups.map((g) => g.label)).toEqual([
-      "Ueberfaellig",
+      "Überfällig",
       "Heute",
       "Morgen",
-      "Spaeter",
+      "Später",
       "Ohne Datum",
     ]);
   });
@@ -131,7 +131,7 @@ describe("groupAssignments", () => {
     ]);
   });
 
-  it("laesst erledigte Aufgaben komplett weg", () => {
+  it("lässt erledigte Aufgaben komplett weg", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: MI, title: "Offen" }),
@@ -144,11 +144,11 @@ describe("groupAssignments", () => {
     expect(titles(groups[0].items)).toEqual(["Offen"]);
   });
 
-  it("gibt fuer eine leere Liste ein leeres Array zurueck", () => {
+  it("gibt für eine leere Liste ein leeres Array zurück", () => {
     expect(groupAssignments([], MI)).toEqual([]);
   });
 
-  it("stellt Pruefungen innerhalb der Gruppe vor Hausaufgaben", () => {
+  it("stellt Prüfungen innerhalb der Gruppe vor Hausaufgaben", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: MI, type: "homework", subjectName: "Biologie", title: "HA Bio" }),
@@ -172,7 +172,7 @@ describe("groupAssignments", () => {
     expect(titles(groups[0].items)).toEqual(["Balladen", "Aufgaben S. 12", "Zinsrechnung"]);
   });
 
-  it("haengt Aufgaben ohne Fach ans Ende der Fach-Reihenfolge", () => {
+  it("hängt Aufgaben ohne Fach ans Ende der Fach-Reihenfolge", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: MI, subjectName: null, title: "Allgemein-Kram" }),
@@ -184,10 +184,10 @@ describe("groupAssignments", () => {
     expect(titles(groups[0].items)).toEqual(["Lesen", "Skizze", "Allgemein-Kram"]);
   });
 
-  it("sortiert 'Spaeter' zuerst chronologisch, dann inhaltlich", () => {
+  it("sortiert 'Später' zuerst chronologisch, dann inhaltlich", () => {
     const groups = groupAssignments(
       [
-        make({ dueDate: "2025-08-10", type: "exam", subjectName: "Mathe", title: "Spaete Arbeit" }),
+        make({ dueDate: "2025-08-10", type: "exam", subjectName: "Mathe", title: "Späte Arbeit" }),
         make({ dueDate: NAECHSTE_WOCHE, subjectName: "Physik", title: "B-Zettel" }),
         make({ dueDate: NAECHSTE_WOCHE, subjectName: "Physik", title: "A-Zettel" }),
       ],
@@ -195,10 +195,10 @@ describe("groupAssignments", () => {
     );
     const later = groups.find((g) => g.key === "later")!;
     // Trotz Pruefung steht die spaetere Arbeit hinten: Datum schlaegt Typ.
-    expect(titles(later.items)).toEqual(["A-Zettel", "B-Zettel", "Spaete Arbeit"]);
+    expect(titles(later.items)).toEqual(["A-Zettel", "B-Zettel", "Späte Arbeit"]);
   });
 
-  it("sortiert 'Ueberfaellig' zuerst chronologisch, dann inhaltlich", () => {
+  it("sortiert 'Überfällig' zuerst chronologisch, dann inhaltlich", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: DI, type: "homework", subjectName: "Deutsch", title: "Von gestern" }),
@@ -213,24 +213,24 @@ describe("groupAssignments", () => {
 });
 
 describe("overdueLabel", () => {
-  it("beschreibt den Abstand zum Faelligkeitstag", () => {
+  it("beschreibt den Abstand zum Fälligkeitstag", () => {
     expect(overdueLabel(DI, MI)).toBe("seit gestern");
-    expect(overdueLabel(MO, DO)).toBe("3 Tage ueberfaellig");
+    expect(overdueLabel(MO, DO)).toBe("3 Tage überfällig");
   });
 });
 
 describe("dueLabel", () => {
-  it("nutzt Worte fuer heute und morgen", () => {
+  it("nutzt Worte für heute und morgen", () => {
     expect(dueLabel(MI, MI)).toBe("heute");
     expect(dueLabel(DO, MI)).toBe("morgen");
   });
 
-  it("faellt sonst auf das Wochentag-Datum-Format zurueck", () => {
+  it("fällt sonst auf das Wochentag-Datum-Format zurück", () => {
     expect(dueLabel(NAECHSTE_WOCHE, MI)).toBe("Mo., 21. Juli");
     expect(dueLabel("2025-12-24", MI)).toBe("Mi., 24. Dezember");
   });
 
-  it("gibt ohne Datum null zurueck", () => {
+  it("gibt ohne Datum null zurück", () => {
     expect(dueLabel(null, MI)).toBeNull();
   });
 });
@@ -246,7 +246,7 @@ describe("recentlyCompleted", () => {
     expect(titles(recentlyCompleted(items, MI))).toEqual(["Gestern", "Vor 10 Tagen"]);
   });
 
-  it("behaelt den Tag genau an der 30-Tage-Grenze", () => {
+  it("behält den Tag genau an der 30-Tage-Grenze", () => {
     const items = [
       make({ title: "Grenze", completedAt: `${addDays(MI, -30)}T10:00:00.000Z` }),
       make({ title: "Zu alt", completedAt: `${addDays(MI, -31)}T10:00:00.000Z` }),
@@ -263,7 +263,7 @@ describe("localISO / addDays", () => {
     expect(localISO(new Date("2025-07-15T22:30:00Z"))).toBe(MI);
   });
 
-  it("rechnet ueber Monats- und Jahresgrenzen", () => {
+  it("rechnet über Monats- und Jahresgrenzen", () => {
     expect(addDays(MI, 1)).toBe(DO);
     expect(addDays(MI, -1)).toBe(DI);
     expect(addDays("2025-01-31", 1)).toBe("2025-02-01");
@@ -271,7 +271,7 @@ describe("localISO / addDays", () => {
     expect(addDays("2024-02-28", 1)).toBe("2024-02-29"); // Schaltjahr
   });
 
-  it("ueberlebt die Sommerzeit-Umstellung", () => {
+  it("überlebt die Sommerzeit-Umstellung", () => {
     expect(addDays("2025-03-29", 1)).toBe("2025-03-30");
     expect(addDays("2025-03-30", 1)).toBe("2025-03-31");
     expect(addDays("2025-10-26", 1)).toBe("2025-10-27");
@@ -281,7 +281,7 @@ describe("localISO / addDays", () => {
 // --- Pruefungsplan -----------------------------------------------------------
 
 describe("isExamPageType", () => {
-  it("zaehlt exam, test und presentation als Pruefung, homework und other nicht", () => {
+  it("zählt exam, test und presentation als Prüfung, homework und other nicht", () => {
     expect(isExamPageType("exam")).toBe(true);
     expect(isExamPageType("test")).toBe(true);
     expect(isExamPageType("presentation")).toBe(true);
@@ -291,7 +291,7 @@ describe("isExamPageType", () => {
 });
 
 describe("partitionExams", () => {
-  it("filtert auf Pruefungstypen und trennt nach heute", () => {
+  it("filtert auf Prüfungstypen und trennt nach heute", () => {
     const { upcoming, past } = partitionExams(
       [
         make({ type: "exam", dueDate: MO, title: "Alte Arbeit" }),
@@ -305,7 +305,7 @@ describe("partitionExams", () => {
     expect(titles(past)).toEqual(["Alte Arbeit"]);
   });
 
-  it("eine Pruefung ohne Datum gilt als anstehend, nicht als vorbei", () => {
+  it("eine Prüfung ohne Datum gilt als anstehend, nicht als vorbei", () => {
     const { upcoming, past } = partitionExams(
       [make({ type: "exam", dueDate: null, title: "Ohne Datum" })],
       MI,
@@ -314,7 +314,7 @@ describe("partitionExams", () => {
     expect(past).toEqual([]);
   });
 
-  it("eine Pruefung mit heutigem Datum gilt als anstehend", () => {
+  it("eine Prüfung mit heutigem Datum gilt als anstehend", () => {
     const { upcoming, past } = partitionExams(
       [make({ type: "exam", dueDate: MI, title: "Heute" })],
       MI,
@@ -323,7 +323,7 @@ describe("partitionExams", () => {
     expect(past).toEqual([]);
   });
 
-  it("sortiert vergangene ruecklaeufig, neueste zuerst", () => {
+  it("sortiert vergangene rückläufig, neueste zuerst", () => {
     const { past } = partitionExams(
       [
         make({ type: "exam", dueDate: MO, title: "Vorgestern" }),
@@ -336,13 +336,13 @@ describe("partitionExams", () => {
 });
 
 describe("daysUntilLabel", () => {
-  it("nutzt Worte fuer heute und morgen, sonst 'in N Tagen'", () => {
+  it("nutzt Worte für heute und morgen, sonst 'in N Tagen'", () => {
     expect(daysUntilLabel(MI, MI)).toBe("Heute");
     expect(daysUntilLabel(DO, MI)).toBe("Morgen");
     expect(daysUntilLabel(SO, MI)).toBe("in 4 Tagen");
   });
 
-  it("faellt fuer ein vergangenes Datum auf 'Heute' zurueck statt negativ zu zaehlen", () => {
+  it("fällt für ein vergangenes Datum auf 'Heute' zurück statt negativ zu zählen", () => {
     expect(daysUntilLabel(DI, MI)).toBe("Heute");
   });
 });
@@ -355,23 +355,23 @@ describe("weekdayDateLabel", () => {
 });
 
 describe("groupExamsByWeek", () => {
-  it("gruppiert nach Kalenderwoche und benennt diese und naechste Woche", () => {
+  it("gruppiert nach Kalenderwoche und benennt diese und nächste Woche", () => {
     const groups = groupExamsByWeek(
       [
         make({ type: "exam", dueDate: MI, title: "Diese Woche" }),
-        make({ type: "exam", dueDate: NAECHSTE_WOCHE, title: "Naechste Woche" }),
-        make({ type: "exam", dueDate: "2025-08-04", title: "Spaeter" }),
+        make({ type: "exam", dueDate: NAECHSTE_WOCHE, title: "Nächste Woche" }),
+        make({ type: "exam", dueDate: "2025-08-04", title: "Später" }),
       ],
       MI,
     );
     expect(groups.map((g) => g.label)).toEqual([
       "Diese Woche",
-      "Naechste Woche",
+      "Nächste Woche",
       "Woche vom 4. August",
     ]);
   });
 
-  it("markiert eine Woche ab drei Pruefungen als crowded", () => {
+  it("markiert eine Woche ab drei Prüfungen als crowded", () => {
     const groups = groupExamsByWeek(
       [
         make({ type: "exam", dueDate: MI, title: "A" }),
@@ -384,7 +384,7 @@ describe("groupExamsByWeek", () => {
     expect(groups[0].crowded).toBe(true);
   });
 
-  it("laesst zwei Pruefungen in derselben Woche nicht als crowded gelten", () => {
+  it("lässt zwei Prüfungen in derselben Woche nicht als crowded gelten", () => {
     const groups = groupExamsByWeek(
       [
         make({ type: "exam", dueDate: MI, title: "A" }),
@@ -395,7 +395,7 @@ describe("groupExamsByWeek", () => {
     expect(groups[0].crowded).toBe(false);
   });
 
-  it("sammelt Pruefungen ohne Datum in einer eigenen Gruppe am Ende", () => {
+  it("sammelt Prüfungen ohne Datum in einer eigenen Gruppe am Ende", () => {
     const groups = groupExamsByWeek(
       [make({ type: "exam", dueDate: MI, title: "Mit Datum" }), make({ type: "exam", dueDate: null, title: "Ohne" })],
       MI,
@@ -406,7 +406,7 @@ describe("groupExamsByWeek", () => {
 });
 
 describe("sameDayCount", () => {
-  it("zaehlt, wie viele Eintraege auf denselben Tag fallen", () => {
+  it("zählt, wie viele Einträge auf denselben Tag fallen", () => {
     const items = [
       make({ dueDate: MI, title: "A" }),
       make({ dueDate: MI, title: "B" }),

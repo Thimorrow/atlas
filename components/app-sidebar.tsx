@@ -37,7 +37,7 @@ const MODULES: Mod[] = [
   { label: "Stundenplan", icon: CalendarDays, href: "/" },
   { label: "Stunde", icon: Radio, href: "/stunde" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
-  { label: "Faecher", icon: Library, href: "/faecher" },
+  { label: "Fächer", icon: Library, href: "/faecher" },
   { label: "Lernen", icon: Brain, href: "/lernen" },
 ];
 
@@ -171,7 +171,7 @@ export function AppSidebar({
       }}
     >
       <aside className="relative h-full w-full overflow-hidden border-r bg-card/40">
-      {/* Innen feste Breite (= aktuelle Ausklapp-Breite) -> kein Reflow, nur Clipping = fluessig */}
+      {/* Innen feste Breite (= aktuelle Ausklapp-Breite) -> kein Reflow, nur Clipping = flüssig */}
       <div className="flex h-full flex-col" style={{ width }}>
         {/* Kopf: Wortmarke + Toggle. Crossfade statt Hard-Swap -> kein Pop, swipet mit. */}
         <div className="relative flex h-16 items-center pl-2 pr-2">
@@ -317,7 +317,7 @@ export function AppSidebar({
                 </span>
                 <span className={labelCls("leading-tight")}>
                   <span className="block truncate text-[13px] font-medium">Thimofej</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">Schueler</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">Schüler</span>
                 </span>
                 {/* A2 (Kontrast): /70 auf der Karte faellt unter 3:1 fuer ein
                     bedeutungstragendes Icon -- volle muted-foreground reicht. */}
@@ -369,7 +369,7 @@ export function AppSidebar({
           onPointerDown={onResizeStart}
           onDoubleClick={resetWidth}
           onKeyDown={onResizeKeyDown}
-          title="Breite ziehen (Doppelklick oder Pfeiltasten, Home: zuruecksetzen)"
+          title="Breite ziehen (Doppelklick oder Pfeiltasten, Home: zurücksetzen)"
           role="separator"
           aria-orientation="vertical"
           aria-label="Sidebar-Breite"

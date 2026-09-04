@@ -18,7 +18,7 @@ export const tutorTools: ChatTool[] = [
     function: {
       name: "frage_auswahl",
       description:
-        "Stellt Timo eine Auswahlfrage als Widget -- IMMER benutzen statt einer Frage im Fliesstext, wenn er zwischen Optionen waehlen soll (Wissensstand, gecheckt?, welche Erklaerung). 2 bis 6 Optionen.",
+        "Stellt Timo eine Auswahlfrage als Widget -- IMMER benutzen statt einer Frage im Fließtext, wenn er zwischen Optionen wählen soll (Wissensstand, gecheckt?, welche Erklärung). 2 bis 6 Optionen.",
       parameters: {
         type: "object",
         properties: {
@@ -28,7 +28,7 @@ export const tutorTools: ChatTool[] = [
             items: { type: "string" },
             description: "2 bis 6 Antwortoptionen.",
           },
-          mehrfach: { type: "boolean", description: "true, wenn Timo mehrere Optionen waehlen darf." },
+          mehrfach: { type: "boolean", description: "true, wenn Timo mehrere Optionen wählen darf." },
         },
         required: ["frage", "optionen", "mehrfach"],
       },
@@ -67,7 +67,7 @@ export const tutorTools: ChatTool[] = [
     function: {
       name: "aufgabe_ergebnis",
       description:
-        "Setzt das Ergebnis einer Aufgabe aus der Checkliste. IMMER zuerst aufrufen, bevor im Text Feedback und die naechste Aufgabe kommen.",
+        "Setzt das Ergebnis einer Aufgabe aus der Checkliste. IMMER zuerst aufrufen, bevor im Text Feedback und die nächste Aufgabe kommen.",
       parameters: {
         type: "object",
         properties: {
@@ -75,7 +75,7 @@ export const tutorTools: ChatTool[] = [
           status: {
             type: "string",
             enum: ["richtig", "falsch", "uebersprungen"],
-            description: "richtig, falsch oder uebersprungen (bei skip).",
+            description: "richtig, falsch oder übersprungen (bei skip).",
           },
           punkte: { type: "number", description: "Optional: erreichte Punkte." },
         },
@@ -88,7 +88,7 @@ export const tutorTools: ChatTool[] = [
     function: {
       name: "fazit",
       description:
-        "Beendet die Session mit einem Fazit: was war gut, was war schwach, welche Karten sollten Timos Luecken schliessen. IMMER am Ende einer Session aufrufen.",
+        "Beendet die Session mit einem Fazit: was war gut, was war schwach, welche Karten sollten Timos Lücken schließen. IMMER am Ende einer Session aufrufen.",
       parameters: {
         type: "object",
         properties: {
@@ -105,7 +105,7 @@ export const tutorTools: ChatTool[] = [
               },
               required: ["question", "answer"],
             },
-            description: "0 bis 8 Vorschlaege fuer neue Karten zu den Luecken.",
+            description: "0 bis 8 Vorschläge für neue Karten zu den Lücken.",
           },
           punkte: { type: "number", description: "Nur Modus probe: erreichte Punkte." },
           gesamt: { type: "number", description: "Nur Modus probe: maximale Punkte." },
@@ -139,7 +139,7 @@ function isObj(v: unknown): v is Record<string, unknown> {
 export type FrageAuswahl = { frage: string; optionen: string[]; mehrfach: boolean };
 
 export function parseFrageAuswahl(args: unknown): ParseResult<FrageAuswahl> {
-  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
 
   const frage = args.frage;
   if (typeof frage !== "string" || !frage.trim()) {
@@ -167,7 +167,7 @@ export type ChecklisteAufgabe = { nr: number; text: string; schwierigkeit: numbe
 export type ChecklisteInput = { titel: string; aufgaben: ChecklisteAufgabe[] };
 
 export function parseCheckliste(args: unknown): ParseResult<ChecklisteInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
 
   const titel = args.titel;
   if (typeof titel !== "string" || !titel.trim()) {
@@ -203,7 +203,7 @@ const AUFGABE_ERGEBNIS_STATUS = ["richtig", "falsch", "uebersprungen"] as const;
 export type AufgabeErgebnisInput = { nr: number; status: "richtig" | "falsch" | "uebersprungen"; punkte?: number };
 
 export function parseAufgabeErgebnis(args: unknown): ParseResult<AufgabeErgebnisInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
 
   const nr = args.nr;
   if (typeof nr !== "number") return { ok: false, error: "nr muss eine Zahl sein." };
@@ -243,7 +243,7 @@ function stringListe(v: unknown): string[] {
 }
 
 export function parseFazit(args: unknown): ParseResult<FazitInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
 
   const gutWar = stringListe(args.gutWar);
   const schwach = stringListe(args.schwach);

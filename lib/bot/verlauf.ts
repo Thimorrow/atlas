@@ -65,7 +65,7 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
     case "aufgaben_lesen":
       return fach ? `hat Aufgaben in ${fach} gelesen` : "hat die Aufgaben gelesen";
     case "faecher_lesen":
-      return "hat die Faecherliste gelesen";
+      return "hat die Fächerliste gelesen";
     case "notizen_lesen":
       return fach ? `hat Notizen in ${fach} gelesen` : "hat die Notizen gelesen";
     case "noten_lesen":
@@ -79,11 +79,11 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
     case "aufgabe_anlegen":
       return "hat eine Aufgabe angelegt";
     case "aufgabe_aendern":
-      return "hat eine Aufgabe geaendert";
+      return "hat eine Aufgabe geändert";
     case "notiz_anlegen":
       return "hat eine Notiz angelegt";
     case "notiz_aendern":
-      return "hat eine Notiz geaendert";
+      return "hat eine Notiz geändert";
     case "jetzt_lesen":
       return "hat die aktuelle Stunde gelesen";
     case "lernstand_lesen":
@@ -93,7 +93,7 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
     case "lernkarte_anlegen":
       return "hat eine Lernkarte angelegt";
     default:
-      return `hat ${tool} ausgefuehrt`;
+      return `hat ${tool} ausgeführt`;
   }
 }
 
