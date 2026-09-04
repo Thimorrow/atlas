@@ -30,10 +30,13 @@ plus "Tutor fragen" (Taste T) in der Kartensession. `bewerteAntwort` in
 `botEnabled`, damit Clients den Bot-Status ohne `GET /api/bot` (legt
 Konversationen an) lesen.
 
-Verifikation lokal: tsc fehlerfrei, 507 Tests gruen (30 skipped ohne
-DATABASE_URL), `next build` 0 Errors, A2 bis A8 belegt. A9 bis A16 (live mit
-DB und Modell) offen: lokal ist DATABASE_URL leer und die Migration 0018 liegt
-noch nicht auf Neon; Live-Pruefung erst nach Deploy oder mit gezogener Env.
+Verifikation: tsc fehlerfrei, 521 Tests gruen (30 skipped ohne
+DATABASE_URL), `next build` 0 Errors, A2 bis A8 belegt. PR #10 gemergt,
+Migration 0018 lief im Vercel-Build. A9 bis A14 live gegen Production per
+API-Skript belegt (Widget, Checkliste, Fazit, Karten mit sourceRef, Probe mit
+Note 6 bei 8 %, Pruefen-Urteil, Einstieg aus Karte). Dabei gefundener
+Altfehler in `toAnthropicRequest` (user-only-Anfragen gingen leer raus, 400)
+behoben (c28e0ed). Offen: A15 Client-Sicht und A16 Mobil, nur per Auge.
 
 ## Nachtrag 2026-09-04 (PR #8, Branch feature/lernbereich-und-cockpit)
 
