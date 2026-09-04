@@ -4,7 +4,13 @@
 // Ergebnis, statt den ganzen Aufruf scheitern zu lassen.
 //
 // Reine Funktion (kein Date.now() direkt, "heute" wird uebergeben), damit sie
-// ohne Systemzeit-Mocking testbar bleibt.
+// ohne Systemzeit-Mocking testbar bleibt. "heute" wird ueber heuteISO()
+// (lib/zeit.ts) in deutscher Zeit bestimmt, nicht in der Zeitzone des
+// Rechners -- der Server laeuft auf Vercel in UTC, "morgen" muss aber nach
+// deutscher Mitternacht gelten, nicht erst nach UTC-Mitternacht.
+
+import { heuteISO } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,21 +22,21 @@ const WEEKDAYS = [
   "freitag",
   "samstag",
   "sonntag",
-]; // Index 0 = Montag, passend zu localISO-basiertem weekday()
+]; // Index 0 = Montag, passend zu weekdayOfISO()
 
-function localISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// 0 = Montag ... 6 = Sonntag, fuer ein ISO-Datum. Mittag UTC statt Mitternacht,
+// damit die Zeitzone des Rechners den Wochentag nie ueber die Kalendergrenze
+// hinweg verschiebt.
+function weekdayOfISO(iso: string): number {
+  const d = new Date(`${iso}T12:00:00Z`);
+  return (d.getUTCDay() + 6) % 7;
 }
 
-function addDays(d: Date, n: number): Date {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + n);
-  return copy;
-}
-
-// 0 = Montag ... 6 = Sonntag
-function weekdayOf(d: Date): number {
-  return (d.getDay() + 6) % 7;
+function isValidISO(iso: string): boolean {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return false;
+  const roundtrip = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return roundtrip === iso;
 }
 
 export type ParsedDate = { iso: string | null; hint?: string };
@@ -40,46 +46,46 @@ export function parseFuzzyDate(input: string, today: Date = new Date()): ParsedD
   if (!raw) return { iso: null, hint: "Kein Datum angegeben." };
 
   if (ISO_RE.test(raw)) {
-    const d = new Date(`${raw}T00:00:00`);
-    if (Number.isNaN(d.getTime()) || localISO(d) !== raw) {
+    if (!isValidISO(raw)) {
       return { iso: null, hint: `"${raw}" ist kein gueltiges Datum.` };
     }
     return { iso: raw };
   }
 
   const lower = raw.toLowerCase();
+  const heute = heuteISO(today);
 
-  if (lower === "heute") return { iso: localISO(today) };
-  if (lower === "morgen") return { iso: localISO(addDays(today, 1)) };
-  if (lower === "übermorgen" || lower === "uebermorgen") return { iso: localISO(addDays(today, 2)) };
+  if (lower === "heute") return { iso: heute };
+  if (lower === "morgen") return { iso: addDays(heute, 1) };
+  if (lower === "übermorgen" || lower === "uebermorgen") return { iso: addDays(heute, 2) };
 
   // "naechsten Montag", "naechste Woche Montag", "kommenden Freitag" ...
   const naechsterMatch = lower.match(
     /(?:naechst|nächst|kommend)\w*\s*(?:woche\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)/,
   );
   if (naechsterMatch) {
-    return { iso: localISO(nextWeekday(today, naechsterMatch[1])) };
+    return { iso: nextWeekday(heute, naechsterMatch[1]) };
   }
 
   // Blosser Wochentagsname: der naechste Vorkommen ab morgen (nie "heute
   // bereits vorbei").
   if (WEEKDAYS.includes(lower)) {
-    return { iso: localISO(nextWeekday(today, lower)) };
+    return { iso: nextWeekday(heute, lower) };
   }
 
   // "in X tagen"
   const inTagenMatch = lower.match(/^in\s+(\d+)\s*tag(?:en)?$/);
   if (inTagenMatch) {
-    return { iso: localISO(addDays(today, Number(inTagenMatch[1]))) };
+    return { iso: addDays(heute, Number(inTagenMatch[1])) };
   }
 
   return { iso: null, hint: `"${raw}" konnte nicht als Datum erkannt werden.` };
 }
 
-function nextWeekday(today: Date, name: string): Date {
+function nextWeekday(heuteISO: string, name: string): string {
   const targetIdx = WEEKDAYS.indexOf(name);
-  const todayIdx = weekdayOf(today);
+  const todayIdx = weekdayOfISO(heuteISO);
   let delta = targetIdx - todayIdx;
   if (delta <= 0) delta += 7;
-  return addDays(today, delta);
+  return addDays(heuteISO, delta);
 }

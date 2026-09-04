@@ -18,12 +18,13 @@ import {
   saveStoredDraft,
   setChatSnapshot,
 } from "@/lib/bot/chat-session";
-import { cachedGetJSON } from "@/lib/fetch-cache";
+import { cachedGetJSON, invalidateGetCache } from "@/lib/fetch-cache";
 import type { MessageDTO } from "@/lib/bot/store";
 import {
   ActionCard,
   fmtDate,
   isAssignmentResult,
+  type ActionResult,
   type AssignmentActionResult,
   type NoteActionResult,
 } from "@/components/bot-action-card";
@@ -35,7 +36,7 @@ type ActionItem = {
   kind: "action";
   id: string;
   tool: string;
-  result: AssignmentActionResult | NoteActionResult;
+  result: ActionResult;
   state: "active" | "undone";
   busy: boolean;
 };
@@ -158,7 +159,7 @@ function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }
           kind: "action",
           id: m.id,
           tool: m.toolName,
-          result: m.toolResult as AssignmentActionResult | NoteActionResult,
+          result: m.toolResult as ActionResult,
           state: m.stillExists === false ? "undone" : "active",
           busy: false,
         });
@@ -333,6 +334,10 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       setTurns([]);
       setInput("");
       setRestoring(true);
+      // Der Sofort-Cache traegt sonst die Begruessung + conversationId des
+      // alten Gespraechs weiter, bis die TTL abgelaufen ist -- ein neues
+      // Gespraech braucht garantiert frische Werte.
+      invalidateGetCache("/api/bot");
       try {
         const res = await fetch("/api/bot");
         const d = (await res.json()) as BotInfo;
@@ -395,7 +400,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           updateTurn(turnId, (t) => ({ ...t, thinkingText: "", thinkingCollapsed: false }));
           break;
         case "action": {
-          const result = evt.result as AssignmentActionResult | NoteActionResult;
+          const result = evt.result as ActionResult;
           const id = crypto.randomUUID();
           updateTurn(turnId, (t) => ({
             ...t,

@@ -78,6 +78,19 @@ export function MorgenPanel() {
           <p className="mt-0.5 text-sm text-muted-foreground">
             {data ? subtitleFor(data) : "Wird geladen …"}
           </p>
+          {/* Nach der letzten Stunde springt der Fokus auf den naechsten
+              Schultag. Wer abends noch eine Notiz zu heute nachtragen will,
+              braucht einen Weg zurueck: das Cockpit fuehrt alle Stunden von
+              heute in seiner Tagesleiste. */}
+          {data && data.target.date !== data.today && (
+            <Link
+              href="/stunde"
+              className="mt-1 inline-flex min-h-9 items-center gap-0.5 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Heute nachtragen
+              <ChevronRight className="size-3.5" aria-hidden />
+            </Link>
+          )}
         </div>
       </StaggerItem>
 

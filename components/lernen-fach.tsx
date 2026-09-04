@@ -8,6 +8,7 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { planText } from "@/components/lernen-uebersicht";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
@@ -115,7 +116,7 @@ function LernenFachBody({
         <p className="mt-0.5 text-sm text-muted-foreground">
           {naechstePruefung
             ? `${naechstePruefung.title} ${tageBisLabel(naechstePruefung.tageBis)}${
-                plan ? ` · ${plan.proTag} Karten pro Tag` : ""
+                plan && progress.total > 0 ? ` · ${planText(progress.total, plan)}` : ""
               }`
             : "Keine Prüfung eingetragen"}
         </p>

@@ -210,6 +210,8 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
   const [neu, setNeu] = useState<AssignmentDTO[]>([]);
   const [faellig, setFaellig] = useState(data.faellig);
   useEffect(() => setFaellig(data.faellig), [data.faellig]);
+  const [ohneTermin, setOhneTermin] = useState(data.ohneTermin);
+  useEffect(() => setOhneTermin(data.ohneTermin), [data.ohneTermin]);
 
   return (
     <div className="space-y-6">
@@ -276,7 +278,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           Hausaufgabe kontrolliert (Faellig jetzt), dann wird mitgeschrieben
           und sich gemeldet (Notiz, Meldung), am Ende kommt die neue
           Hausaufgabe, und ein Tafelfoto passt jederzeit (Dateien). */}
-      {faellig.length > 0 && (
+      {(faellig.length > 0 || ohneTermin.length > 0) && (
         <Abschnitt titel="Fällig jetzt">
           <ul className="flex flex-col gap-1">
             {faellig.map((a) => (
@@ -285,6 +287,15 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
                 a={a}
                 today={data.today}
                 onDone={() => setFaellig((prev) => prev.filter((x) => x.id !== a.id))}
+              />
+            ))}
+            {/* Offen ohne Termin: gleiche Zeile, statt Datum steht "ohne Termin". */}
+            {ohneTermin.map((a) => (
+              <FaelligRow
+                key={a.id}
+                a={a}
+                today={data.today}
+                onDone={() => setOhneTermin((prev) => prev.filter((x) => x.id !== a.id))}
               />
             ))}
           </ul>
@@ -387,11 +398,9 @@ function FaelligRow({ a, today, onDone }: { a: AssignmentDTO; today: string; onD
           {a.title}
         </p>
       </div>
-      {a.dueDate && (
-        <span className={cn("shrink-0 tabular-nums text-[12.5px]", overdue ? "text-destructive" : "text-muted-foreground")}>
-          {overdue ? overdueLabel(a.dueDate, today) : dueLabel(a.dueDate, today)}
-        </span>
-      )}
+      <span className={cn("shrink-0 tabular-nums text-[12.5px]", overdue ? "text-destructive" : "text-muted-foreground")}>
+        {a.dueDate ? (overdue ? overdueLabel(a.dueDate, today) : dueLabel(a.dueDate, today)) : "ohne Termin"}
+      </span>
     </li>
   );
 }

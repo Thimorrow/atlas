@@ -9,9 +9,16 @@ import { addDays } from "@/lib/assignments-view";
 
 import type { MessageDTO } from "@/lib/bot/store";
 
-// Dieselben vier Werkzeuge wie WRITE_TOOLS in app/api/bot/route.ts -- nur bei
+// Dieselben Werkzeuge wie WRITE_TOOLS in app/api/bot/route.ts -- nur bei
 // denen entsteht eine Aktions-Karte statt einer ruhigen Zeile.
-export const WRITE_TOOLS = new Set(["aufgabe_anlegen", "aufgabe_aendern", "notiz_anlegen", "notiz_aendern"]);
+export const WRITE_TOOLS = new Set([
+  "aufgabe_anlegen",
+  "aufgabe_aendern",
+  "notiz_anlegen",
+  "notiz_aendern",
+  "lernkarten_erzeugen",
+  "lernkarte_anlegen",
+]);
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -77,6 +84,14 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
       return "hat eine Notiz angelegt";
     case "notiz_aendern":
       return "hat eine Notiz geändert";
+    case "jetzt_lesen":
+      return "hat die aktuelle Stunde gelesen";
+    case "lernstand_lesen":
+      return fach ? `hat den Lernstand in ${fach} gelesen` : "hat den Lernstand gelesen";
+    case "lernkarten_erzeugen":
+      return fach ? `hat Lernkarten in ${fach} erzeugt` : "hat Lernkarten erzeugt";
+    case "lernkarte_anlegen":
+      return "hat eine Lernkarte angelegt";
     default:
       return `hat ${tool} ausgeführt`;
   }

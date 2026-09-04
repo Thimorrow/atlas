@@ -30,6 +30,9 @@ import {
 import { listSubjectLessonNotes } from "@/lib/lesson-notes";
 import { gradeOverview, listGrades, summarize } from "@/lib/grade-store";
 import { pointsToGradeLabel } from "@/lib/grades";
+import { ladeStundeKontext } from "@/lib/stunde-kontext";
+import { overview, subjectDetail, createCards } from "@/lib/study-store";
+import { generateCards, type GenerateInput } from "@/lib/lernen-generieren";
 import type { ChatTool } from "@/lib/bot/model";
 import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
 
@@ -270,6 +273,71 @@ export const botTools: ChatTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "jetzt_lesen",
+      description:
+        "Liest die aktuelle Cockpit-Situation: laeuft gerade Unterricht, ist Pause, oder ist die Schule schon vorbei, dazu die naechste/laufende Stunde, heute faellige Aufgaben, die naechste Pruefung und der Tagesplan. Nutze es fuer Fragen wie 'was ist gerade/jetzt' oder 'was kommt als Naechstes heute'.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "lernstand_lesen",
+      description:
+        "Liest den Lernstand (Karteikarten-Fortschritt je Fach: faellig/neu/lernend/sicher, naechste Pruefung, Lernplan). Nutze es IMMER zuerst, bevor du zu Lernen oder einer Pruefungsvorbereitung etwas vorschlaegst -- erst nachsehen, dann konkret vorschlagen (z. B. Karten erzeugen, Sitzung starten), statt allgemeine Lerntipps zu geben.",
+      parameters: {
+        type: "object",
+        properties: {
+          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: Uebersicht ueber alle Faecher." },
+          mitKarten: {
+            type: "boolean",
+            description: "Nur mit fach: gibt zusaetzlich die ersten 30 Karten mit Frage/Antwort zurueck.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "lernkarten_erzeugen",
+      description:
+        "Erzeugt per KI neue Karteikarten aus Notizen, Dateien oder Lehrplan eines Fachs und legt sie direkt an. NUR auf ausdruecklichen Wunsch des Schuelers nutzen oder nachdem du nachgefragt und er zugestimmt hat -- nie ungefragt Karten erzeugen.",
+      parameters: {
+        type: "object",
+        properties: {
+          fach: { type: "string", description: "Name des Fachs." },
+          quelle: {
+            type: "string",
+            enum: ["notizen", "dateien", "lehrplan", "alles"],
+            description: "Woraus die Karten entstehen sollen. Standard: alles.",
+          },
+          thema: { type: "string", description: "Optionaler Schwerpunkt, z. B. ein bestimmtes Kapitel." },
+          anzahl: { type: "number", description: "Anzahl der Karten, 1 bis 30. Standard: 12." },
+        },
+        required: ["fach"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "lernkarte_anlegen",
+      description: "Legt eine einzelne Karteikarte mit Frage und Antwort in einem Fach an.",
+      parameters: {
+        type: "object",
+        properties: {
+          fach: { type: "string", description: "Name des Fachs. Wird bei Bedarf still angelegt." },
+          frage: { type: "string" },
+          antwort: { type: "string" },
+        },
+        required: ["fach", "frage", "antwort"],
+      },
+    },
+  },
 ];
 
 // Kurzer deutscher Klartext dafuer, was der Bot gerade tut -- fuer das
@@ -303,6 +371,14 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
       return "aendert eine Notiz";
     case "note_vorschlagen":
       return "schlaegt eine Note vor";
+    case "jetzt_lesen":
+      return "liest die aktuelle Stunde";
+    case "lernstand_lesen":
+      return fach ? `liest den Lernstand in ${fach}` : "liest den Lernstand";
+    case "lernkarten_erzeugen":
+      return fach ? `erzeugt Lernkarten in ${fach}` : "erzeugt Lernkarten";
+    case "lernkarte_anlegen":
+      return "legt eine Lernkarte an";
     default:
       return `fuehrt ${name} aus`;
   }
@@ -338,6 +414,14 @@ export async function runTool(name: string, args: Record<string, unknown>): Prom
       return notizAendern(args);
     case "note_vorschlagen":
       return noteVorschlagen(args);
+    case "jetzt_lesen":
+      return jetztLesen();
+    case "lernstand_lesen":
+      return lernstandLesen(args);
+    case "lernkarten_erzeugen":
+      return lernkartenErzeugen(args);
+    case "lernkarte_anlegen":
+      return lernkarteAnlegen(args);
     default:
       return { error: `Unbekanntes Werkzeug: ${name}` };
   }
@@ -683,5 +767,167 @@ async function noteVorschlagen(args: Record<string, unknown>) {
       datum: datum.iso,
       gewicht,
     },
+  };
+}
+
+// Kompakte Fassung von ladeStundeKontext() fuers Modell -- die volle
+// StundeResponse traegt mehr mit, als ein Werkzeugergebnis braucht (z. B. den
+// kompletten Tagesplan-Rohdatensatz je Stunde).
+async function jetztLesen() {
+  const k = await ladeStundeKontext();
+
+  return {
+    modus: k.modus,
+    uhrzeit: k.nowHM,
+    stunde: k.selected
+      ? {
+          titel: k.selected.title,
+          von: k.selected.startTime,
+          bis: k.selected.endTime,
+          raum: k.selected.room,
+          lehrer: k.selected.teacher,
+          fach: k.selected.subjectName,
+          restMinuten: k.selected.minutesLeft,
+          minutenBis: k.selected.minutesUntil,
+        }
+      : null,
+    faellig: k.faellig.map((a) => ({ id: a.id, titel: a.title, faelligAm: a.dueDate })),
+    demnaechst: k.demnaechst.map((a) => ({ id: a.id, titel: a.title, faelligAm: a.dueDate })),
+    naechstePruefung: k.naechstePruefung,
+    naechsterTermin: k.naechsterTermin,
+    tagesplan: k.tag.map((ev) => ({ von: ev.startTime, titel: ev.title, status: ev.status })),
+  };
+}
+
+async function lernstandLesen(args: Record<string, unknown>) {
+  const fach = typeof args.fach === "string" ? args.fach.trim() : "";
+
+  if (!fach) {
+    const ov = await overview();
+    return {
+      heuteGelernt: ov.heuteGelernt,
+      faecher: ov.faecher.map((f) => ({
+        fach: f.name,
+        total: f.total,
+        faellig: f.faellig,
+        neu: f.neu,
+        lernend: f.lernend,
+        sicher: f.sicher,
+        naechstePruefung: f.naechstePruefung,
+        plan: f.plan,
+        seite: `/lernen/${f.subjectId}`,
+      })),
+    };
+  }
+
+  const subject = await findSubjectByName(fach);
+  if (!subject) return { hinweis: `Fach "${fach}" wurde nicht gefunden.` };
+
+  const detail = await subjectDetail(subject.id);
+  if (!detail) return { hinweis: `Fach "${fach}" wurde nicht gefunden.` };
+
+  const result: Record<string, unknown> = {
+    fach: detail.subject.name,
+    total: detail.progress.total,
+    faellig: detail.faellig,
+    neu: detail.progress.neu,
+    lernend: detail.progress.lernend,
+    sicher: detail.progress.sicher,
+    naechstePruefung: detail.naechstePruefung,
+    plan: detail.plan,
+    seite: `/lernen/${subject.id}`,
+  };
+
+  if (args.mitKarten === true) {
+    const heute = localISO();
+    result.karten = detail.cards.slice(0, 30).map((c) => ({
+      id: c.id,
+      frage: c.question,
+      antwort: c.answer,
+      box: c.box,
+      faellig: c.due <= heute,
+    }));
+  }
+
+  return result;
+}
+
+// Nur auf ausdruecklichen Wunsch bzw. nach Rueckfrage gerufen (siehe
+// Systemprompt) -- hier keine eigene Bestaetigungslogik, die Regel steht im
+// Prompt, nicht im Werkzeug.
+async function lernkartenErzeugen(args: Record<string, unknown>) {
+  const fach = typeof args.fach === "string" ? args.fach.trim() : "";
+  if (!fach) return { error: "fach darf nicht leer sein." };
+
+  const subject = await findSubjectByName(fach);
+  if (!subject) return { error: `Fach "${fach}" wurde nicht gefunden.` };
+
+  const erlaubteQuellen = ["notizen", "dateien", "lehrplan", "alles"] as const;
+  const quelle = typeof args.quelle === "string" ? args.quelle : "alles";
+  if (!(erlaubteQuellen as readonly string[]).includes(quelle)) {
+    return { error: "quelle muss notizen, dateien, lehrplan oder alles sein." };
+  }
+
+  const anzahlRoh = typeof args.anzahl === "number" ? args.anzahl : Number(args.anzahl);
+  const anzahl = Number.isFinite(anzahlRoh) ? Math.min(Math.max(Math.round(anzahlRoh), 1), 30) : 12;
+
+  const input: GenerateInput = {
+    subjectId: subject.id,
+    quelle: quelle as GenerateInput["quelle"],
+    anzahl,
+    thema: typeof args.thema === "string" ? args.thema : undefined,
+  };
+
+  try {
+    const generated = await generateCards(input);
+    if (generated.cards.length === 0) {
+      return {
+        fach: subject.name,
+        subjectId: subject.id,
+        anzahl: 0,
+        karten: [],
+        hinweis: generated.hinweis ?? "Es konnten keine Karten erzeugt werden.",
+        seite: `/lernen/${subject.id}`,
+      };
+    }
+
+    // Selbe Zuordnung wie app/api/lernen/generieren/route.ts: "dateien" wird
+    // zu "datei" (Enum-Wert), "alles" faellt auf "notizen" als Herkunft.
+    const quelleForStore = quelle === "dateien" ? "datei" : quelle === "alles" ? "notizen" : quelle;
+    const karten = await createCards(
+      subject.id,
+      generated.cards,
+      quelleForStore as Parameters<typeof createCards>[2],
+    );
+
+    return {
+      fach: subject.name,
+      subjectId: subject.id,
+      anzahl: karten.length,
+      karten: karten.map((k) => ({ id: k.id, frage: k.question, antwort: k.answer })),
+      hinweis: generated.hinweis,
+      seite: `/lernen/${subject.id}`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Lernkarten konnten nicht erzeugt werden." };
+  }
+}
+
+async function lernkarteAnlegen(args: Record<string, unknown>) {
+  const fach = typeof args.fach === "string" ? args.fach.trim() : "";
+  const frage = typeof args.frage === "string" ? args.frage.trim() : "";
+  const antwort = typeof args.antwort === "string" ? args.antwort.trim() : "";
+  if (!fach) return { error: "fach darf nicht leer sein." };
+  if (!frage) return { error: "frage darf nicht leer sein." };
+  if (!antwort) return { error: "antwort darf nicht leer sein." };
+
+  const subjectId = await resolveSubjectId(fach);
+  const [karte] = await createCards(subjectId, [{ question: frage, answer: antwort }], "manuell");
+  if (!karte) return { error: "Karte konnte nicht angelegt werden." };
+
+  return {
+    karte: { id: karte.id, frage: karte.question, antwort: karte.answer },
+    subjectId,
+    seite: `/lernen/${subjectId}`,
   };
 }

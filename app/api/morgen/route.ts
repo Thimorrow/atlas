@@ -119,9 +119,11 @@ export async function GET(req: Request) {
   // Faecher des Tages, ohne Duplikate (Doppelstunden desselben Fachs zaehlen
   // einmal). Nur Faecher mit Treffer -- Atlas kennt keine Untis-Kuerzel ohne
   // Fach dahinter, dafuer braucht es keinen Platzhalter.
+  // Entfallene Stunden zaehlen nicht: fuer eine Stunde, die nicht stattfindet,
+  // muss niemand etwas einpacken.
   const subjectIds = new Set<string>();
   for (const ev of events) {
-    if (ev.subjectId) subjectIds.add(ev.subjectId);
+    if (ev.subjectId && ev.status !== "cancelled") subjectIds.add(ev.subjectId);
   }
   const materials: MaterialDTO[] = await Promise.all(
     [...subjectIds].map(async (id) => {

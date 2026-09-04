@@ -16,6 +16,17 @@ import type { SubjectOverview } from "@/lib/study-store";
 
 type OverviewResponse = { today: string; heuteGelernt: number; faecher: SubjectOverview[] };
 
+// "pro Tag" ergibt am Pruefungstag keinen Sinn mehr -- dann zaehlt nur noch,
+// was offen ist.
+export function planText(total: number, plan: { tageBis: number; proTag: number; offen: number } | null): string {
+  if (total === 0) return "Noch keine Karten";
+  if (!plan) return "";
+  if (plan.offen === 0) return "Alle Karten sicher";
+  if (plan.tageBis <= 0) return `Heute ist die Prüfung, ${plan.offen} noch offen`;
+  if (plan.tageBis === 1) return `Morgen ist die Prüfung, ${plan.offen} noch offen`;
+  return `${plan.proTag} Karten pro Tag, ${plan.offen} noch offen`;
+}
+
 function tageBisLabel(tageBis: number): string {
   if (tageBis <= 0) return "heute";
   if (tageBis === 1) return "morgen";
@@ -161,24 +172,28 @@ function PruefungCard({ fach }: { fach: SubjectOverview }) {
           <p className="mt-0.5 truncate text-[14px] font-medium">{exam.title}</p>
           <p className="text-[12.5px] tabular-nums text-muted-foreground">{tageBisLabel(exam.tageBis)}</p>
         </div>
-        {fach.faellig > 0 ? (
-          <Link href={`/lernen/${fach.subjectId}/session`} className={cn(buttonVariants({ size: "sm" }), "shrink-0")}>
-            Lernen
+        {/* Mit Karten fuehrt der Knopf immer in die Sitzung: sind keine
+            faellig, wiederholt sie die schwaechsten -- dieselbe Regel wie auf
+            der Fachseite. Ohne Karten fuehrt er dorthin, wo welche entstehen. */}
+        {fach.total === 0 ? (
+          <Link
+            href={`/lernen/${fach.subjectId}`}
+            className={cn(buttonVariants({ size: "sm", variant: "outline" }), "shrink-0")}
+          >
+            Karten anlegen
           </Link>
         ) : (
           <Link
-            href={`/lernen/${fach.subjectId}`}
-            className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "shrink-0")}
+            href={`/lernen/${fach.subjectId}/session`}
+            className={cn(buttonVariants({ size: "sm", variant: fach.faellig > 0 ? "default" : "outline" }), "shrink-0")}
           >
-            Karten
+            {fach.faellig > 0 ? "Lernen" : "Wiederholen"}
           </Link>
         )}
       </div>
 
       <p className="mt-2 text-[12px] text-muted-foreground">
-        {fach.total === 0
-          ? "Noch keine Karten"
-          : `${fach.plan?.proTag ?? 0} Karten pro Tag, ${fach.plan?.offen ?? 0} noch offen`}
+        {planText(fach.total, fach.plan)}
       </p>
 
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
