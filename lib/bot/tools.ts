@@ -146,6 +146,19 @@ export const botTools: ChatTool[] = [
   {
     type: "function",
     function: {
+      name: "lehrplan_lesen",
+      description:
+        "Liest den Lehrplan eines Fachs -- was in diesem Schuljahr an Themen ansteht. Nutze ihn fuer Fragen wie \"was kommt als Naechstes dran\" oder \"worauf muss ich mich vorbereiten\". Der Lehrplan ist eine Orientierung, keine Planung der Lehrkraft.",
+      parameters: {
+        type: "object",
+        properties: { fach: { type: "string", description: "Name des Fachs." } },
+        required: ["fach"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "dateien_auflisten",
       description: "Listet Name, Typ und Groesse der Dateien eines Fachs (oder aller Faecher).",
       parameters: {
@@ -280,6 +293,8 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
       return fach ? `liest Notizen in ${fach}` : "liest die Notizen";
     case "noten_lesen":
       return fach ? `liest Noten in ${fach}` : "liest die Noten";
+    case "lehrplan_lesen":
+      return fach ? `liest den Lehrplan in ${fach}` : "liest den Lehrplan";
     case "dateien_auflisten":
       return fach ? `listet Dateien in ${fach}` : "listet die Dateien";
     case "datei_lesen":
@@ -313,6 +328,8 @@ export async function runTool(name: string, args: Record<string, unknown>): Prom
       return notizenLesen(args);
     case "noten_lesen":
       return notenLesen(args);
+    case "lehrplan_lesen":
+      return lehrplanLesen(args);
     case "dateien_auflisten":
       return dateienAuflisten(args);
     case "datei_lesen":
@@ -466,6 +483,31 @@ async function notenLesen(args: Record<string, unknown>) {
 
   const overview = await gradeOverview();
   return { gesamtschnitt: overview.overall, faecher: overview.subjects };
+}
+
+// Kein hinterlegter Lehrplan ist kein Fehler, sondern eine Auskunft: der Bot
+// soll das ehrlich sagen statt sich Themen auszudenken.
+async function lehrplanLesen(args: Record<string, unknown>) {
+  const fach = typeof args.fach === "string" ? args.fach.trim() : "";
+  if (!fach) return { hinweis: "Ohne Fachnamen laesst sich kein Lehrplan nachschlagen.", lehrplan: null };
+
+  const subject = await findSubjectByName(fach);
+  if (!subject) return { hinweis: `Fach "${fach}" wurde nicht gefunden.`, lehrplan: null };
+
+  if (!subject.curriculum) {
+    return {
+      fach: subject.name,
+      lehrplan: null,
+      hinweis: `Fuer ${subject.name} ist kein Lehrplan hinterlegt.`,
+    };
+  }
+
+  return {
+    fach: subject.name,
+    lehrplan: subject.curriculum,
+    quelle: subject.curriculumSource,
+    aktualisiertAm: subject.curriculumUpdatedAt,
+  };
 }
 
 async function dateienAuflisten(args: Record<string, unknown>) {

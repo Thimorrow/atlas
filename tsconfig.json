@@ -10,6 +10,9 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // Node fuehrt scripts/gen-lehrplan-sql.mts direkt aus (TypeScript-Stripping)
+    // und braucht dafuer die .ts-Endung im Import. Ohne Emit ist das gefahrlos.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

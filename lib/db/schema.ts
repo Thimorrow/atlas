@@ -96,6 +96,15 @@ export const subjects = pgTable(
     // Anteil der muendlichen Noten am Fachschnitt in Prozent. Steht am Fach,
     // weil die Verordnung sie je Fach festlegt (Hauptfach oft 40:60).
     oralWeight: integer("oral_weight").notNull().default(50),
+    // Was in diesem Fach in diesem Schuljahr dran ist, als Markdown. Vorbelegt
+    // aus lib/lehrplan (Kernlehrplan NRW G9, Klasse 10), danach von Hand
+    // aenderbar -- deshalb eine Spalte und keine abgeleitete Sicht: was der
+    // Schueler korrigiert, muss den naechsten Sync ueberleben. curriculumSource
+    // haelt fest, woher der Text stammt, damit die Oberflaeche "aus dem
+    // Kernlehrplan" von "selbst geschrieben" unterscheiden kann, ohne zu raten.
+    curriculum: text("curriculum"),
+    curriculumSource: text("curriculum_source"),
+    curriculumUpdatedAt: timestamp("curriculum_updated_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

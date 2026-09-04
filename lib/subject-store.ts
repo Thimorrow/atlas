@@ -18,6 +18,8 @@ import {
   type SubjectNote,
   type TeacherTitle,
 } from "@/lib/db/schema";
+import { lehrplanFuer, type LehrplanFach } from "@/lib/lehrplan/nrw-g9-klasse-10";
+import { lehrplanAlsMarkdown } from "@/lib/lehrplan/rendern";
 import { SUBJECT_COLORS, defaultColorFor } from "@/lib/subject-colors";
 import { TEACHER_TITLES, teacherLabel } from "@/lib/teacher";
 import { ORAL_WEIGHT_PRESETS } from "@/lib/grades";
@@ -36,6 +38,9 @@ export type SubjectDTO = {
   onenoteSectionId: string | null;
   onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
   oralWeight: number; // Anteil muendlich am Fachschnitt, in Prozent
+  curriculum: string | null; // Lehrplan als Markdown
+  curriculumSource: string | null; // woher der Text stammt, z. B. "Von Hand"
+  curriculumUpdatedAt: string | null; // ISO
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;
@@ -93,6 +98,9 @@ function toSubjectDTO(row: SubjectRow): SubjectDTO {
     onenoteSectionId: row.onenoteSectionId,
     onenoteSectionName: row.onenoteSectionName,
     oralWeight: row.oralWeight,
+    curriculum: row.curriculum,
+    curriculumSource: row.curriculumSource,
+    curriculumUpdatedAt: row.curriculumUpdatedAt ? row.curriculumUpdatedAt.toISOString() : null,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     openAssignments: row.openAssignments,
     noteCount: row.noteCount,
@@ -374,6 +382,148 @@ export async function deleteNote(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+// --- Lehrplan ----------------------------------------------------------------
+//
+// Der Lehrplan ist eine Textspalte am Fach: vorbelegt aus der statischen
+// Vorlage (lib/lehrplan), danach von Hand aenderbar. Der Seed ueberschreibt
+// deshalb NIE einen vorhandenen Text -- dass eine Korrektur des Nutzers stehen
+// bleibt, ist der ganze Grund fuer die Spalte.
+
+// Quelle, die der Seed eintraegt. Steht sie an einem Fach, weiss die
+// Oberflaeche, dass der Text noch aus der Vorlage stammt.
+export const KERNLEHRPLAN_QUELLE = "Kernlehrplan NRW G9, Klasse 10";
+
+// Was der Nutzer selbst geschrieben hat.
+export const HAND_QUELLE = "Von Hand";
+
+// Grosszuegig: ein Lehrplan ist deutlich laenger als eine Notiz, die Grenze
+// schuetzt nur vor kaputten Requests.
+export const MAX_CURRICULUM_LEN = 100000;
+
+export type CurriculumDTO = {
+  curriculum: string | null;
+  curriculumSource: string | null;
+  curriculumUpdatedAt: string | null;
+};
+
+function toCurriculumDTO(row: Subject): CurriculumDTO {
+  return {
+    curriculum: row.curriculum,
+    curriculumSource: row.curriculumSource,
+    curriculumUpdatedAt: row.curriculumUpdatedAt ? row.curriculumUpdatedAt.toISOString() : null,
+  };
+}
+
+// Vorlage zu einem Fach: erst der Anzeigename, dann der Untis-Wert. Faecher aus
+// dem Sync heissen oft nur "M" oder "BI" -- das Kuerzel kennt lehrplanFuer als
+// Alias, den Anzeigenamen hat der Nutzer vielleicht laengst umbenannt.
+export function vorlageFuerFach(subject: {
+  name: string;
+  untisSubject: string | null;
+}): LehrplanFach | null {
+  return lehrplanFuer(subject.name) ?? (subject.untisSubject ? lehrplanFuer(subject.untisSubject) : null);
+}
+
+// Ein nach trim() leerer Text loescht den Lehrplan komplett, statt eine leere
+// Zeile stehen zu lassen -- gleiche Semantik wie bei den Stundennotizen.
+export async function saveCurriculum(
+  subjectId: string,
+  body: string,
+  source: string,
+): Promise<CurriculumDTO | undefined> {
+  const trimmed = body.trim();
+  const [row] = await db
+    .update(subjects)
+    .set(
+      trimmed
+        ? {
+            curriculum: trimmed,
+            curriculumSource: source,
+            curriculumUpdatedAt: new Date(),
+            updatedAt: sql`now()`,
+          }
+        : {
+            curriculum: null,
+            curriculumSource: null,
+            curriculumUpdatedAt: null,
+            updatedAt: sql`now()`,
+          },
+    )
+    .where(eq(subjects.id, subjectId))
+    .returning();
+  return row ? toCurriculumDTO(row) : undefined;
+}
+
+export async function deleteCurriculum(subjectId: string): Promise<void> {
+  await saveCurriculum(subjectId, "", HAND_QUELLE);
+}
+
+export type SubjectForCurriculumSeed = { id: string; name: string; untisSubject: string | null };
+
+export type CurriculumSeedPlan = {
+  toWrite: { id: string; fach: string; vorlage: string; curriculum: string }[];
+  ohneVorlage: string[]; // Fachnamen, zu denen die Vorlage nichts kennt
+};
+
+// Reine Zuordnungslogik, ohne DB -- daher isoliert testbar. Der Aufrufer
+// uebergibt nur Faecher OHNE eigenen Lehrplan, hier wird nichts mehr gefiltert.
+export function planCurriculumSeed(vorhandene: SubjectForCurriculumSeed[]): CurriculumSeedPlan {
+  const toWrite: CurriculumSeedPlan["toWrite"] = [];
+  const ohneVorlage: string[] = [];
+
+  for (const subject of vorhandene) {
+    const vorlage = vorlageFuerFach(subject);
+    if (!vorlage) {
+      ohneVorlage.push(subject.name);
+      continue;
+    }
+    toWrite.push({
+      id: subject.id,
+      fach: subject.name,
+      vorlage: vorlage.fach,
+      curriculum: lehrplanAlsMarkdown(vorlage),
+    });
+  }
+
+  return { toWrite, ohneVorlage };
+}
+
+export type CurriculumSeedResult = {
+  belegt: { fach: string; vorlage: string }[];
+  ohneVorlage: string[];
+};
+
+// Belegt alle Faecher vor, an denen noch gar kein Lehrplan steht. Zweimal
+// hintereinander aufgerufen macht der zweite Lauf nichts mehr: das
+// isNull-Filter sieht die eben geschriebenen Texte.
+export async function seedCurricula(): Promise<CurriculumSeedResult> {
+  const rows = await db
+    .select({ id: subjects.id, name: subjects.name, untisSubject: subjects.untisSubject })
+    .from(subjects)
+    .where(isNull(subjects.curriculum));
+
+  const plan = planCurriculumSeed(rows);
+
+  // Jedes Fach bekommt einen anderen Text, das laesst sich nicht zu einem
+  // inArray-Aufruf zusammenfassen. Nach dem ersten Lauf ist die Liste leer.
+  for (const w of plan.toWrite) {
+    await db
+      .update(subjects)
+      .set({
+        curriculum: w.curriculum,
+        curriculumSource: KERNLEHRPLAN_QUELLE,
+        curriculumUpdatedAt: new Date(),
+        updatedAt: sql`now()`,
+      })
+      .where(and(eq(subjects.id, w.id), isNull(subjects.curriculum)));
+  }
+
+  return {
+    belegt: plan.toWrite.map((w) => ({ fach: w.fach, vorlage: w.vorlage })),
+    ohneVorlage: plan.ohneVorlage,
+  };
+}
+
 // --- Validierung -------------------------------------------------------------
 // Nimmt unbekannten JSON-Body, gibt typisierte Daten oder eine deutsche
 // Fehlermeldung fuer die 400-Antwort.
@@ -526,6 +676,15 @@ export function parseNotePatch(body: unknown): Parsed<Partial<NewSubjectNote>> {
   }
   if (body.body !== undefined) patch.body = body.body === null ? "" : String(body.body);
   return { ok: true, value: patch };
+}
+
+// Lehrplantext aus dem Request-Body. Wie parseLessonNoteBody: nur Typ und
+// Laenge, ein leerer Text ist erlaubt und loescht (siehe saveCurriculum).
+export function parseCurriculumBody(input: unknown): Parsed<string> {
+  if (typeof input !== "string") return { ok: false, error: "body muss ein Text sein." };
+  if (input.length > MAX_CURRICULUM_LEN)
+    return { ok: false, error: `Der Lehrplan darf höchstens ${MAX_CURRICULUM_LEN} Zeichen lang sein.` };
+  return { ok: true, value: input };
 }
 
 // { selected: string[], all: string[] } fuer das Setup.

@@ -19,6 +19,9 @@ export type SubjectDTO = {
   onenoteSectionId: string | null;
   onenoteSectionName: string | null; // "Notizbuch / Abschnitt", nur zur Anzeige
   oralWeight: number; // Anteil muendlich am Fachschnitt, in Prozent
+  curriculum: string | null; // Lehrplan als Markdown
+  curriculumSource: string | null; // woher der Text stammt, z. B. "Von Hand"
+  curriculumUpdatedAt: string | null; // ISO
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;

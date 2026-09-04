@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  planCurriculumSeed,
   planSubjectReconcile,
   planSubjectSetup,
   type ExistingSubjectForReconcile,
@@ -204,5 +205,28 @@ describe("planSubjectReconcile", () => {
     expect(plan.toArchive).toEqual([]);
     expect(plan.toDelete).toEqual([]);
     expect(plan.toUpdate).toEqual([]);
+  });
+});
+
+// planCurriculumSeed ist die reine Zuordnung hinter seedCurricula: welches
+// Fach bekommt welchen Text aus der statischen Vorlage, und welches gar keinen.
+describe("planCurriculumSeed", () => {
+  it("findet die Vorlage ueber den Fachnamen", () => {
+    const plan = planCurriculumSeed([{ id: "1", name: "Mathematik", untisSubject: null }]);
+    expect(plan.toWrite).toHaveLength(1);
+    expect(plan.toWrite[0].vorlage).toBe("Mathematik");
+    expect(plan.toWrite[0].curriculum).toContain("##");
+    expect(plan.ohneVorlage).toEqual([]);
+  });
+
+  it("faellt auf den Untis-Wert zurueck, wenn der Anzeigename nichts trifft", () => {
+    const plan = planCurriculumSeed([{ id: "1", name: "Mathe LK Frau Meyer", untisSubject: "M" }]);
+    expect(plan.toWrite[0]?.vorlage).toBe("Mathematik");
+  });
+
+  it("meldet ein Fach ohne Vorlage, statt es zu belegen", () => {
+    const plan = planCurriculumSeed([{ id: "1", name: "Schulband", untisSubject: null }]);
+    expect(plan.toWrite).toEqual([]);
+    expect(plan.ohneVorlage).toEqual(["Schulband"]);
   });
 });

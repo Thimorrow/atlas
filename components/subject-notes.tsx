@@ -34,7 +34,9 @@ export type SubjectLessonNoteDTO = {
 // Typografie fuer den gerenderten Markdown-Body. Der Wrapper stylt die
 // Kind-Elemente ueber Attribut-Selektoren, weil das HTML aus
 // dangerouslySetInnerHTML kommt und keine Klassen tragen kann.
-const PROSE = cn(
+// Exportiert, weil der Lehrplan-Abschnitt im Fachdetail denselben Markdown
+// mit derselben Typografie zeigt.
+export const PROSE = cn(
   "text-[15px] leading-relaxed text-foreground",
   "[&>*+*]:mt-3",
   "[&_h2]:mt-5 [&_h2]:text-[17px] [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:tracking-tight",

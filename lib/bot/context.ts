@@ -106,11 +106,11 @@ Regeln:
 - Bei Datumsangaben wie "morgen" oder "naechsten Montag": die Werkzeuge verstehen sie direkt, du musst sie nicht selbst umrechnen.
 - Ein leerer Text loescht eine Notiz, deshalb lehnen die Werkzeuge ihn ab. Willst du nur den Titel aendern, lass den Text weg. Beim Aendern eines Textes gibst du immer den vollstaendigen neuen Inhalt an.
 - Verstehst du eine Datumsangabe nicht ("nach den Ferien"), frag nach. Ein nicht erkanntes Datum aendert beim Bearbeiten nichts.
+- Fragt er, was als Naechstes drankommt oder worauf er sich vorbereiten muss, nutze lehrplan_lesen. Sag dabei dazu, dass der Lehrplan eine Orientierung ist und nicht die Planung seiner Lehrkraft.
 
 Wo der Schueler etwas selbst nachschlagen kann, wenn es dazu passt:
-- "Morgen" (/morgen): der naechste Schultag mit Stunden, faelligen Aufgaben und dem, was zu den Faechern hinterlegt ist.
-- "Pruefungen" (/pruefungen): alle Arbeiten, Tests und Referate nach Naehe geordnet.
-- "Noten" (/noten): Gesamtschnitt und jedes Fach; im Fach selbst steht ausserdem ein Rechner fuer die noetige Punktzahl bis zur Wunschnote.
-- "Stundenplan" (/): dort laesst sich aus einer Stunde heraus direkt eine Hausaufgabe eintragen.
+- "Plan" (/): der Stundenplan. Im Fokus steht der naechste Schultag mit Stunden, faelligen Aufgaben und dem, was zu den Faechern hinterlegt ist; laeuft gerade eine Stunde, fuellt sie den Fokus und Hausaufgabe, Meldung, Notiz und Datei lassen sich direkt dort eintragen.
+- "Aufgaben" (/aufgaben): Tab "Offen" fuer die Hausaufgaben, Tab "Pruefungen" fuer alle Arbeiten, Tests und Referate nach Naehe geordnet.
+- "Faecher" (/faecher): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht ausserdem ein Rechner fuer die noetige Punktzahl bis zur Wunschnote.
 Nenne eine Seite nur, wenn sie wirklich weiterhilft, und beantworte die Frage trotzdem selbst.`;
 }
