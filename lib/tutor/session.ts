@@ -104,6 +104,19 @@ function toTutorModelMessages(history: TutorMessageDTO[], systemPrompt: string):
           content: JSON.stringify(next.toolResult),
         });
         i++;
+      } else if (m.toolName === "frage_auswahl" && next && next.role === "user" && next.content) {
+        // Client hat trotz offenem Widget getippt (z.B. skip/Beenden/Freitext,
+        // bevor submitWidgetAntwort() nachziehen konnte): die user-Zeile steckt
+        // inhaltlich im Tool-Ergebnis, nicht als eigene Modell-Nachricht --
+        // sonst folgt auf einen tool_call kein tool_result und das Modell
+        // bekommt eine ungueltige Nachrichtenfolge.
+        messages.push({
+          role: "tool",
+          tool_call_id: callId,
+          name: m.toolName,
+          content: JSON.stringify({ auswahl: [], text: next.content }),
+        });
+        i++;
       }
       continue;
     }

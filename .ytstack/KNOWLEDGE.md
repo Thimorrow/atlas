@@ -87,3 +87,11 @@ Patterns, rules, and lessons learned while building Atlas. This file is read by 
   `components/mobile-header.tsx` (eigenes Array). Neue Route immer in beide.
 - **Live-Unterricht = /stunde, nicht der Fokus.** Der Fokus auf `/` ist die Abend-/Morgen-Sicht;
   alles, was waehrend der Stunde erfasst wird, gehoert ins Cockpit (haengt an `schoolBlockId`).
+- **Tutor-Muster (lib/tutor/session.ts): ein Widget beendet die Modellrunde.** `frage_auswahl`
+  wird als assistant-Zeile mit `tool_name` gespeichert, der Stream endet mit `widget` + `done`.
+  Das Tool-Ergebnis kommt erst mit dem naechsten POST (`widgetAntwort`) als tool-Zeile und
+  startet die naechste Runde; `toTutorModelMessages` baut daraus wieder das Paar
+  assistant(tool_call) / tool(result) fuer das Modell. Andere Tools (`checkliste_erstellen`,
+  `aufgabe_ergebnis`, `fazit`) speichern Aufruf + Ergebnis sofort und laufen in derselben
+  Runde weiter. Tutor hat eigene Tabellen (`tutor_conversations`, `tutor_messages`,
+  Migration 0018), der Atlas-Bot bleibt unberuehrt. Spec: `TUTOR-SPEC.md`.

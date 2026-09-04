@@ -342,3 +342,50 @@ export async function generateVariant(cardId: string): Promise<{ question: strin
 
   return parseGeneratedVariant(text);
 }
+
+// --- Freie Antwort bewerten -------------------------------------------------
+
+// Bewertet Timos eigene Antwort auf eine Karte (kind wissen oder aufgabe).
+// Die Route weist Vokabelkarten schon vorher ab. Siehe TUTOR-SPEC.md
+// "Bewertung freier Antworten".
+export async function bewerteAntwort(
+  cardId: string,
+  antwort: string,
+): Promise<{ urteil: "richtig" | "teilweise" | "falsch"; feedback: string } | null> {
+  if (!botEnabled()) throw new Error("BOT_DISABLED");
+
+  const card = await getCard(cardId);
+  if (!card) throw new Error("CARD_NOT_FOUND");
+
+  const subject = await getSubject(card.subjectId);
+
+  const aufgabeHinweis =
+    card.kind === "aufgabe"
+      ? " Es ist eine Uebungsaufgabe: Endergebnis und Rechenweg zaehlen, kleine Schreibfehler sind egal."
+      : "";
+
+  const prompt =
+    `Du bewertest fuer einen Schueler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
+    `Timos eigene Antwort auf eine Karteikarte. Urteile nach dem Kern der Sache, nicht nach dem ` +
+    `Wortlaut.${aufgabeHinweis} Feedback maximal 40 Woerter, ehrlich, kein falsches Lob. Bei ` +
+    `"falsch" gib einen Hint statt der Loesung.\n\n` +
+    `Ausgabe AUSSCHLIESSLICH als JSON-Objekt ohne Erklaertext: ` +
+    `{"urteil":"richtig|teilweise|falsch","feedback":"..."}.\n\n` +
+    `Frage: ${card.question}\nMusterantwort: ${card.answer}\nTimos Antwort: ${antwort}`;
+
+  const messages: ChatMessage[] = [{ role: "user", content: prompt }];
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BEWERTEN_TIMEOUT_MS);
+
+  let text = "";
+  try {
+    for await (const event of streamChatWithFallback(messages, [], controller.signal)) {
+      if (event.type === "text") text += event.delta;
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  return parseUrteil(text);
+}

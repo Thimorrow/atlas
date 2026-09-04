@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runTutorTurn, type TutorSessionDeps } from "@/lib/tutor/session";
-import type { StreamEvent } from "@/lib/bot/model";
+import type { ChatMessage, StreamEvent } from "@/lib/bot/model";
 import type { Checkliste, TutorConversationDTO, TutorErgebnis, TutorMessageDTO } from "@/lib/tutor/types";
 import type { SubjectDetail, TopicDTO } from "@/lib/lernen-types";
 
@@ -186,5 +186,55 @@ describe("runTutorTurn", () => {
     expect(ergebnis?.gesamt).toBe(6);
     expect(ergebnis?.prozent).toBe(67);
     expect(ergebnis?.note).toBe(3); // noteFuerProzent(67) -> 3 (>= 55)
+  });
+
+  it("(d) offenes Widget ohne tool-Zeile gefolgt von einer user-Zeile: wird zur synthetischen tool-Nachricht, keine eigene user-Nachricht", async () => {
+    const { deps, messages } = makeDeps({ rounds: [[{ type: "text", delta: "Ok, hier das Fazit." }]] });
+
+    // Verlauf wie nach "Bitte das Fazit" bei noch offenem Widget: der Client
+    // hat trotz offenem frage_auswahl-Widget getippt, statt submitWidgetAntwort
+    // aufzurufen.
+    messages.push(
+      {
+        id: "m1",
+        conversationId: CONVERSATION_ID,
+        role: "assistant",
+        content: "",
+        toolName: "frage_auswahl",
+        toolArgs: { frage: "Wie sicher fühlst du dich?", optionen: ["Sicher", "Unsicher"], mehrfach: false },
+        toolResult: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "m2",
+        conversationId: CONVERSATION_ID,
+        role: "user",
+        content: "Bitte das Fazit",
+        toolName: null,
+        toolArgs: null,
+        toolResult: null,
+        createdAt: "2026-01-01T00:00:01.000Z",
+      },
+    );
+
+    let captured: ChatMessage[] | undefined;
+    const originalStreamChat = deps.streamChat;
+    deps.streamChat = ((msgs: ChatMessage[], ...rest: unknown[]) => {
+      captured = msgs;
+      return (originalStreamChat as (...a: unknown[]) => AsyncGenerator<StreamEvent>)(msgs, ...rest);
+    }) as unknown as TutorSessionDeps["streamChat"];
+
+    const events = [];
+    for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
+
+    expect(events.map((e) => e.type)).toEqual(["text", "done"]);
+    expect(captured).toBeDefined();
+
+    const toolCallIndex = captured!.findIndex((m) => m.role === "assistant" && m.tool_calls?.[0]?.function.name === "frage_auswahl");
+    expect(toolCallIndex).toBeGreaterThan(-1);
+    const toolResultMessage = captured![toolCallIndex + 1];
+    expect(toolResultMessage.role).toBe("tool");
+    expect(JSON.parse((toolResultMessage as { content: string }).content)).toEqual({ auswahl: [], text: "Bitte das Fazit" });
+    expect(captured!.some((m) => m.role === "user")).toBe(false);
   });
 });

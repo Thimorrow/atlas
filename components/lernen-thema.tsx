@@ -225,6 +225,15 @@ function LernenThemaBody({
         />
       )}
 
+      {!isAllgemein && (
+        <TutorBlock
+          subjectId={subjectId}
+          topicId={thema!.id}
+          botEnabled={data.botEnabled ?? false}
+          toast={toast}
+        />
+      )}
+
       <KartenBlock
         subjectId={subjectId}
         topicId={isAllgemein ? null : topicId}
@@ -355,6 +364,150 @@ function PruefungsSelect({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+// --- Tutor ------------------------------------------------------------------
+
+type TutorListItem = {
+  id: string;
+  modus: "lernen" | "probe";
+  createdAt: string;
+  endedAt: string | null;
+  ergebnis: { note?: number; prozent?: number } | null;
+  checklisteFortschritt: { erledigt: number; gesamt: number } | null;
+};
+
+function tutorRowLabel(item: TutorListItem): string {
+  if (typeof item.ergebnis?.note === "number") {
+    return `Note ${item.ergebnis.note}, ${item.ergebnis.prozent ?? 0} %`;
+  }
+  if (item.checklisteFortschritt && item.checklisteFortschritt.gesamt > 0) {
+    return `${item.checklisteFortschritt.erledigt} von ${item.checklisteFortschritt.gesamt}`;
+  }
+  return item.endedAt ? "beendet" : "offen";
+}
+
+function TutorBlock({
+  subjectId,
+  topicId,
+  botEnabled,
+  toast,
+}: {
+  subjectId: string;
+  topicId: string;
+  botEnabled: boolean;
+  toast: (message: string, variant?: "error" | "success") => void;
+}) {
+  const [sessions, setSessions] = useState<TutorListItem[]>([]);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/lernen/tutor?topicId=${topicId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { conversations: TutorListItem[] };
+      setSessions(data.conversations.slice(0, 5));
+    } catch {
+      // Stumm: die Sessionliste ist eine Ergaenzung, kein kritischer Datenpfad.
+    }
+  }, [topicId]);
+
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  async function deleteSession(id: string) {
+    try {
+      const res = await fetch(`/api/lernen/tutor/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("delete failed");
+      setPendingDeleteId(null);
+      await loadSessions();
+      toast("Session gelöscht", "success");
+    } catch {
+      toast("Die Session konnte nicht gelöscht werden.");
+    }
+  }
+
+  const disabledTitle = !botEnabled ? "Der Tutor braucht ZAI_API_KEY" : undefined;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tutor</h2>
+
+      <div className="flex gap-2">
+        <Link
+          href={!botEnabled ? "#" : `/lernen/${subjectId}/tutor?thema=${topicId}&modus=lernen`}
+          aria-disabled={!botEnabled}
+          title={disabledTitle}
+          onClick={(e) => !botEnabled && e.preventDefault()}
+          className={cn(buttonVariants({ size: "default" }), "flex-1", !botEnabled && "cursor-not-allowed opacity-50")}
+        >
+          Tutor starten
+        </Link>
+        <Link
+          href={!botEnabled ? "#" : `/lernen/${subjectId}/tutor?thema=${topicId}&modus=probe`}
+          aria-disabled={!botEnabled}
+          title={disabledTitle}
+          onClick={(e) => !botEnabled && e.preventDefault()}
+          className={cn(
+            buttonVariants({ size: "default", variant: "outline" }),
+            "flex-1",
+            !botEnabled && "cursor-not-allowed opacity-50",
+          )}
+        >
+          Probe schreiben
+        </Link>
+      </div>
+
+      {sessions.length > 0 && (
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+          {sessions.map((s) => (
+            <li key={s.id} className="flex items-center gap-2 px-3 py-2.5">
+              <Link
+                href={`/lernen/${subjectId}/tutor?thema=${topicId}&session=${s.id}`}
+                className="flex min-w-0 flex-1 items-center gap-2 text-[13px]"
+              >
+                <span className="shrink-0 text-muted-foreground">
+                  {new Date(s.createdAt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
+                </span>
+                <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {s.modus === "probe" ? "Probe" : "Tutor"}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{tutorRowLabel(s)}</span>
+              </Link>
+              {pendingDeleteId === s.id ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => void deleteSession(s.id)}
+                    className="relative min-h-11 rounded-md px-2 text-[12px] font-medium text-destructive before:absolute before:-inset-1 before:content-[''] hover:bg-accent"
+                  >
+                    Wirklich löschen?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteId(null)}
+                    className="relative min-h-11 rounded-md px-2 text-[12px] text-muted-foreground before:absolute before:-inset-1 before:content-[''] hover:bg-accent"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPendingDeleteId(s.id)}
+                  aria-label="Session löschen"
+                  className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
