@@ -1,7 +1,7 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-09-04T11:30:00Z
+last_updated: 2026-09-04T12:10:00Z
 current_milestone: M003
 active_slice: null
 active_task: null
@@ -37,10 +37,16 @@ Fuenf Module in der Navigation: `/` Stundenplan, `/stunde` Cockpit,
   Enum `study_card_source`, Migration `0016_lernkarten`.
 - *Dateien*: Mehrfach-Upload mit Queue (Parallelitaet 3), Limits zentral in
   `lib/file-limits.ts`.
+- *Zeit*: `lib/zeit.ts` (Europe/Berlin) fuer heute/jetzt auf dem Server;
+  vorher UTC-abhaengig. Tests laufen in UTC, Tokyo und lokal gruen.
+- *Bot*: kennt Uhrzeit und Jetzt-Zustand (`lib/stunde-kontext.ts`), alle
+  fuenf Module, Werkzeuge jetzt_lesen/lernstand_lesen/lernkarten_erzeugen/
+  lernkarte_anlegen, Tool-Replay der letzten drei Fragen (`lib/bot/history.ts`).
+- Offen: Notensystem 0 bis 15 statt 1 bis 6 (Sek I), Entscheidung des Nutzers.
 - Android: die native Arbeit (Bot, Fokus, Notizen, Dateien, Noten) ist als
   Commit e130b96 gesichert, kompiliert, Tests gruen.
 
-Verifikation lokal: tsc fehlerfrei, 410 Tests gruen (24 skipped ohne
+Verifikation lokal: tsc fehlerfrei, 424 Tests gruen (24 skipped ohne
 DATABASE_URL), `next build` 0 Errors. Live-Pruefung des Preview-Deploys siehe
 PR #8.
 
