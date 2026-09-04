@@ -11,6 +11,7 @@ import {
   normalizeVokabel,
   parseGeneratedCards,
   parseGeneratedVariant,
+  parseUrteil,
   planForExam,
   progress,
   progressOf,
@@ -483,5 +484,29 @@ describe("parseGeneratedVariant", () => {
 
   it("zu kurze Felder ergeben null", () => {
     expect(parseGeneratedVariant('{"frage":"ab","antwort":"ok"}')).toBeNull();
+  });
+});
+
+describe("parseUrteil", () => {
+  it("parst ein einzelnes JSON-Objekt", () => {
+    const text = '{"urteil":"teilweise","feedback":"Kern gestimmt, Rechenweg fehlt."}';
+    expect(parseUrteil(text)).toEqual({ urteil: "teilweise", feedback: "Kern gestimmt, Rechenweg fehlt." });
+  });
+
+  it("findet das JSON in umgebendem Text / Codefence", () => {
+    const text = 'Hier die Bewertung:\n```json\n{"urteil":"richtig","feedback":"Passt."}\n```\nDanke.';
+    expect(parseUrteil(text)).toEqual({ urteil: "richtig", feedback: "Passt." });
+  });
+
+  it("fehlendes feedback ergibt eine leere Zeichenkette", () => {
+    expect(parseUrteil('{"urteil":"falsch"}')).toEqual({ urteil: "falsch", feedback: "" });
+  });
+
+  it("unbekanntes Urteil ergibt null", () => {
+    expect(parseUrteil('{"urteil":"keine_ahnung","feedback":"x"}')).toBeNull();
+  });
+
+  it("fehlendes JSON ergibt null", () => {
+    expect(parseUrteil("kein json hier")).toBeNull();
   });
 });

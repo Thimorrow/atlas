@@ -469,3 +469,64 @@ export type NewAssignment = typeof assignments.$inferInsert;
 export type AssignmentType = Assignment["type"];
 export type SubjectFile = typeof subjectFiles.$inferSelect;
 export type NewSubjectFile = typeof subjectFiles.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Tutor (/lernen/.../tutor) -- KI-Nachhilfe-Sessions je Thema.
+//
+// Eigene Tabellen statt bot_conversations/bot_messages, damit der allgemeine
+// Atlas-Bot unangetastet bleibt und eine Session am Thema haengt (Cascade beim
+// Loeschen des Themas). tutor_messages ist strukturell die Zwillingsschwester
+// von bot_messages (role/tool_name/tool_args/tool_result). checkliste und
+// ergebnis liegen als jsonb an der Konversation, Form siehe lib/tutor/types.ts
+// (Checkliste, TutorErgebnis) -- rein additiv, kein eigenes Tabellenpaar noetig.
+// ---------------------------------------------------------------------------
+
+export const tutorModus = pgEnum("tutor_modus", ["lernen", "probe"]);
+export const tutorMessageRole = pgEnum("tutor_message_role", ["user", "assistant", "tool"]);
+
+export const tutorConversations = pgTable(
+  "tutor_conversations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    topicId: uuid("topic_id")
+      .notNull()
+      .references(() => studyTopics.id, { onDelete: "cascade" }),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    modus: tutorModus("modus").notNull().default("lernen"),
+    // Einstiegskarte, falls die Session aus der Kartensession gestartet wurde.
+    cardId: uuid("card_id").references(() => studyCards.id, { onDelete: "set null" }),
+    checkliste: jsonb("checkliste"),
+    ergebnis: jsonb("ergebnis"),
+    kartenAngelegt: boolean("karten_angelegt").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (t) => [index("tutor_conversations_topic_created_idx").on(t.topicId, t.createdAt)],
+);
+
+export const tutorMessages = pgTable(
+  "tutor_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => tutorConversations.id, { onDelete: "cascade" }),
+    role: tutorMessageRole("role").notNull(),
+    content: text("content").notNull().default(""),
+    toolName: text("tool_name"),
+    toolArgs: jsonb("tool_args"),
+    toolResult: jsonb("tool_result"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tutor_messages_conversation_created_idx").on(t.conversationId, t.createdAt)],
+);
+
+export type TutorConversation = typeof tutorConversations.$inferSelect;
+export type NewTutorConversation = typeof tutorConversations.$inferInsert;
+export type TutorMessage = typeof tutorMessages.$inferSelect;
+export type NewTutorMessage = typeof tutorMessages.$inferInsert;
+export type TutorMessageRole = TutorMessage["role"];
+export type TutorModus = TutorConversation["modus"];

@@ -449,3 +449,31 @@ export function parseGeneratedVariant(text: string): { question: string; answer:
 
   return { question, answer };
 }
+
+const URTEILE = ["richtig", "teilweise", "falsch"] as const;
+type Urteil = (typeof URTEILE)[number];
+
+// Wie parseGeneratedVariant: Code-Fences weg, erstes JSON-Objekt raussuchen.
+// Unbekanntes oder fehlendes urteil-Feld -> null, fehlendes feedback -> "".
+// Fuer bewerteAntwort() in lib/lernen-generieren.ts (Freie-Antwort-Bewertung).
+export function parseUrteil(text: string): { urteil: Urteil; feedback: string } | null {
+  const cleaned = stripCodeFences(text);
+  const jsonText = findFirstJsonObject(cleaned);
+  if (!jsonText) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+  if (!isObj(parsed)) return null;
+
+  const urteilRaw = parsed.urteil;
+  if (typeof urteilRaw !== "string" || !(URTEILE as readonly string[]).includes(urteilRaw)) return null;
+
+  const feedbackRaw = parsed.feedback;
+  const feedback = typeof feedbackRaw === "string" ? feedbackRaw.trim() : "";
+
+  return { urteil: urteilRaw as Urteil, feedback };
+}
