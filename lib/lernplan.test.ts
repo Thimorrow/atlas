@@ -258,6 +258,19 @@ describe("neuVerteilen", () => {
     expect(ergebnis.neu.some((i) => i.phase === "lernen")).toBe(true);
   });
 
+  it("Umfang ueberfaellig: eine offene, nicht ueberfaellige Simulation wird nicht verdoppelt", () => {
+    const plan: NeuVerteilenInput = {
+      items: [
+        { id: "a", pointIndex: 0, phase: "lernen", minuten: 20, date: "2026-01-08", doneAt: null },
+        { id: "s", pointIndex: null, phase: "simulation", minuten: 30, date: "2026-01-24", doneAt: null },
+      ],
+      punkte: [{ sicherheit: 50 }],
+    };
+    const ergebnis = neuVerteilen(plan, { ...basisOpts, umfang: "ueberfaellig", sicherheiten: [50] });
+    expect(ergebnis.behalten).toEqual(["s"]);
+    expect(ergebnis.neu.filter((i) => i.phase === "simulation")).toHaveLength(0);
+  });
+
   it("Umfang alle_offen: alle offenen Einheiten werden ersetzt", () => {
     const plan: NeuVerteilenInput = {
       items: [

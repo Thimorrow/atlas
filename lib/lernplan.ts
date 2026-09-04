@@ -289,7 +289,9 @@ export function neuVerteilen(plan: NeuVerteilenInput, opts: NeuVerteilenOpts): N
 
   const behalten = plan.items.filter((i) => !istBetroffen(i));
   const betroffene = plan.items.filter(istBetroffen);
-  const simulationErledigt = plan.items.some((i) => i.phase === "simulation" && i.doneAt !== null);
+  // Eine Simulation, die behalten wird (erledigt oder nicht betroffen), darf
+  // verteilen() nicht ein zweites Mal anlegen -- sonst gaebe es zwei.
+  const simulationBleibt = behalten.some((i) => i.phase === "simulation");
 
   // Punkte >= 80 verlieren ihre offene probe -- die betroffene Einheit wird
   // geloescht (Schritt 2) und hier nicht wieder aufgenommen.
@@ -320,9 +322,7 @@ export function neuVerteilen(plan: NeuVerteilenInput, opts: NeuVerteilenOpts): N
     .map((i) => ({ pointIndex: i.pointIndex, phase: i.phase, date: i.date, minuten: i.minuten }));
 
   const ergebnis = verteilen(zuLegen, { ...opts, vorbelegt });
-  // Die Simulation ist schon erledigt: verteilen() legt trotzdem automatisch
-  // eine neue an, die hier verworfen wird -- sonst gaebe es zwei.
-  const neu = simulationErledigt ? ergebnis.items.filter((i) => i.phase !== "simulation") : ergebnis.items;
+  const neu = simulationBleibt ? ergebnis.items.filter((i) => i.phase !== "simulation") : ergebnis.items;
 
   return {
     behalten: behalten.map((i) => i.id),
