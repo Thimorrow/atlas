@@ -22,7 +22,6 @@ import {
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AssignmentList } from "@/components/assignment-list";
-import { JetztStunde } from "@/components/jetzt-stunde";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { TYPE_LABEL, weekdayDateLabel, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
@@ -51,11 +50,6 @@ export function MorgenPanel() {
   const toast = useToast();
   const [data, setData] = useState<MorgenResponse | null>(null);
   const [failed, setFailed] = useState(false);
-  // Die Stunde, fuer die der Nutzer den Vollbildmodus selbst weggeklickt hat.
-  // Gemerkt wird die refId, nicht bloss ein Ja/Nein: ein Reload oder das
-  // naechste Laden darf ihn nicht sofort wieder in dieselbe Stunde zwingen --
-  // wechselt die laufende Stunde aber, greift der Vollbildmodus wieder.
-  const [abgewaehlt, setAbgewaehlt] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -74,25 +68,6 @@ export function MorgenPanel() {
     void load();
   }, [load]);
 
-  // Vollbild-Stundenmodus: nur, solange die API wirklich eine laufende Stunde
-  // meldet und der Nutzer genau diese nicht selbst abgewaehlt hat.
-  const live = data?.live && data.live.refId !== abgewaehlt ? data.live : null;
-
-  if (live) {
-    return (
-      <Stagger className="mx-auto max-w-2xl">
-        <StaggerItem>
-          <JetztStunde
-            key={live.refId}
-            live={live}
-            onExpired={load}
-            onShowDay={() => setAbgewaehlt(live.refId)}
-          />
-        </StaggerItem>
-      </Stagger>
-    );
-  }
-
   return (
     <Stagger className="mx-auto max-w-2xl space-y-6">
       <StaggerItem>
@@ -103,6 +78,19 @@ export function MorgenPanel() {
           <p className="mt-0.5 text-sm text-muted-foreground">
             {data ? subtitleFor(data) : "Wird geladen …"}
           </p>
+          {/* Nach der letzten Stunde springt der Fokus auf den naechsten
+              Schultag. Wer abends noch eine Notiz zu heute nachtragen will,
+              braucht einen Weg zurueck: das Cockpit fuehrt alle Stunden von
+              heute in seiner Tagesleiste. */}
+          {data && data.target.date !== data.today && (
+            <Link
+              href="/stunde"
+              className="mt-1 inline-flex min-h-9 items-center gap-0.5 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              Heute nachtragen
+              <ChevronRight className="size-3.5" aria-hidden />
+            </Link>
+          )}
         </div>
       </StaggerItem>
 
@@ -124,7 +112,7 @@ export function MorgenPanel() {
           <PageSkeleton />
         </StaggerItem>
       ) : (
-        <Body data={data} onEnterLive={() => setAbgewaehlt(null)} />
+        <Body data={data} />
       )}
     </Stagger>
   );
@@ -139,7 +127,7 @@ function subtitleFor(data: MorgenResponse): string {
 
 // --- Inhalt --------------------------------------------------------------------
 
-function Body({ data, onEnterLive }: { data: MorgenResponse; onEnterLive: () => void }) {
+function Body({ data }: { data: MorgenResponse }) {
   const [due, setDue] = useState(data.due);
   useEffect(() => setDue(data.due), [data]);
 
@@ -156,6 +144,12 @@ function Body({ data, onEnterLive }: { data: MorgenResponse; onEnterLive: () => 
 
   return (
     <>
+      {data.live && (
+        <StaggerItem>
+          <LiveCard live={data.live} />
+        </StaggerItem>
+      )}
+
       {data.exams.length > 0 && (
         <StaggerItem>
           <div className="flex flex-col gap-3">
@@ -171,12 +165,7 @@ function Body({ data, onEnterLive }: { data: MorgenResponse; onEnterLive: () => 
           <Section title="Stunden">
             <ol className="flex flex-col gap-1.5">
               {data.day.events.map((ev) => (
-                <LessonRow
-                  key={ev.refId}
-                  ev={ev}
-                  live={ev.refId === data.live?.refId}
-                  onEnterLive={onEnterLive}
-                />
+                <LessonRow key={ev.refId} ev={ev} live={ev.refId === data.live?.refId} />
               ))}
             </ol>
           </Section>
@@ -260,20 +249,39 @@ function ExamCard({ exam }: { exam: AssignmentDTO }) {
   );
 }
 
+// --- Laeuft gerade ---------------------------------------------------------------
+
+// Ganz oben im Body, sobald eine Stunde laeuft: der kurze Verweis auf das
+// Stunden-Cockpit (/stunde), das den vollen Erfassungs-Flow traegt -- der
+// Fokus selbst zeigt nur noch, DASS gerade Unterricht ist.
+function LiveCard({ live }: { live: LiveLessonDTO }) {
+  const tint = live.subjectId ? colorValue(live.subjectColor) : NEUTRAL_COLOR;
+
+  return (
+    <Link
+      href="/stunde"
+      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
+      <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: tint }}>
+          Läuft gerade · noch {live.minutesLeft} min
+        </p>
+        <p className="mt-0.5 truncate text-[15px] font-medium leading-snug">{live.title}</p>
+      </div>
+      <span className="shrink-0 rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium transition-colors group-hover:bg-accent">
+        Zum Cockpit
+      </span>
+    </Link>
+  );
+}
+
 // --- Stunden -------------------------------------------------------------------
 
 // live: diese Stunde laeuft gerade. Sie bleibt ganz normal Teil der Liste,
-// traegt aber einen sichtbaren Marker -- und fuehrt statt ins Fach zurueck in
-// den Vollbild-Stundenmodus, aus dem der Nutzer eben herausgeklickt hat.
-function LessonRow({
-  ev,
-  live = false,
-  onEnterLive,
-}: {
-  ev: MorgenLessonDTO;
-  live?: boolean;
-  onEnterLive?: () => void;
-}) {
+// traegt aber einen sichtbaren Marker -- und fuehrt ins Stunden-Cockpit
+// (/stunde), nicht ins Fach.
+function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }) {
   const tint = ev.subjectId ? colorValue(ev.subjectColor) : NEUTRAL_COLOR;
   const cancelled = ev.status === "cancelled";
 
@@ -349,18 +357,13 @@ function LessonRow({
 
   return (
     <li>
-      {live && onEnterLive ? (
-        // Die laufende Stunde fuehrt bewusst NICHT ins Fach: sie ist der Weg
-        // zurueck in den Vollbildmodus. Das Fach bleibt von dort aus ueber den
-        // Datei-Bereich erreichbar.
-        <button
-          type="button"
-          onClick={onEnterLive}
-          aria-label={`${ev.title} läuft gerade, jetzt öffnen`}
-          className={cn(className, "w-full text-left")}
-        >
+      {live ? (
+        // Die laufende Stunde fuehrt bewusst NICHT ins Fach: sie fuehrt ins
+        // Stunden-Cockpit, in dem der ganze Erfassungs-Flow dieser Stunde
+        // lebt. Das Fach bleibt von dort aus ueber den Datei-Bereich erreichbar.
+        <Link href="/stunde" className={className}>
           {inner}
-        </button>
+        </Link>
       ) : ev.subjectId ? (
         <Link href={`/faecher/${ev.subjectId}`} className={className}>
           {inner}

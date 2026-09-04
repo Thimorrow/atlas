@@ -2,6 +2,7 @@ package dev.atlas.schule.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -18,11 +19,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,12 +38,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.atlas.schule.data.AssignmentDTO
+import dev.atlas.schule.data.NoteDTO
 import dev.atlas.schule.data.FachDetailAntwort
 import dev.atlas.schule.data.GradeDTO
 import dev.atlas.schule.data.GradeSummaryDTO
@@ -76,6 +87,7 @@ fun FachDetailBildschirm(
     beimNoteBlattOeffnen: () -> Unit = {},
     beimNoteBlattSchliessen: () -> Unit = {},
     beimNoteAnlegen: (Int, String, String, LocalDate) -> Unit = { _, _, _, _ -> },
+    ansichtsmodell: AtlasViewModel? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -116,6 +128,7 @@ fun FachDetailBildschirm(
                 notenLadung = notenZustand.noten ?: Ladung.Laedt,
                 beimNotenErneutLaden = beimNotenErneutLaden,
                 beimNoteBlattOeffnen = beimNoteBlattOeffnen,
+                ansichtsmodell = ansichtsmodell,
             )
         }
     }
@@ -139,10 +152,19 @@ private fun Inhalt(
     notenLadung: Ladung<GradesAntwort>,
     beimNotenErneutLaden: () -> Unit,
     beimNoteBlattOeffnen: () -> Unit,
+    ansichtsmodell: AtlasViewModel? = null,
 ) {
     val fach = daten.subject
     val farbe = fachfarbeFuerFach(fach.color, fach.name)
     val offen = daten.assignments.filter { it.completedAt == null }
+    val notizenZustand = ansichtsmodell?.notizenZustand?.collectAsStateWithLifecycle()?.value
+    val dateienZustand = ansichtsmodell?.dateienZustand?.collectAsStateWithLifecycle()?.value
+    var notizBlatt by remember(fach.id) { mutableStateOf<NoteDTO?>(null) }
+    var notizNeu by remember(fach.id) { mutableStateOf(false) }
+    var fachBlattOffen by remember(fach.id) { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(fach.id) {
+        ansichtsmodell?.ladeDateien(fach.id)
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -164,7 +186,18 @@ private fun Inhalt(
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                ansichtsmodell?.let {
+                    IconButton(onClick = { fachBlattOffen = true }, modifier = Modifier.size(Hoehe.bedienelement)) {
+                        Icon(
+                            IkoneStift,
+                            contentDescription = "Fach bearbeiten",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
             }
         }
 
@@ -173,6 +206,8 @@ private fun Inhalt(
                 Angabe("Lehrkraft", fach.teacherLabel ?: fach.teacher)
                 Angabe("Raum", fach.room)
                 Angabe("In Untis", fach.untisSubject)
+                Angabe("Gewichtung mündlich", "${fach.oralWeight} %")
+                fach.onenoteSectionName?.let { Angabe("OneNote", it) }
             }
         }
 
@@ -181,7 +216,20 @@ private fun Inhalt(
                 if (daten.upcoming.isEmpty()) {
                     Leerzeile("Für dieses Fach steht keine Stunde mehr im Plan.")
                 } else {
-                    daten.upcoming.forEach { Stundenzeile(it, heute) }
+                    daten.upcoming.forEach {
+                        Stundenzeile(
+                            it,
+                            heute,
+                            beimTippen = ansichtsmodell?.let { vm -> { s: LessonDTO ->
+                                vm.oeffneStunde(
+                                    s.id,
+                                    fach.name,
+                                    s.date,
+                                    s.endTime?.let { e -> "${s.startTime}–$e" } ?: s.startTime,
+                                )
+                            } },
+                        )
+                    }
                 }
             }
         }
@@ -220,14 +268,56 @@ private fun Inhalt(
                     }
                 },
             ) {
-                NotenInhalt(notenLadung, beimNotenErneutLaden, beimNoteBlattOeffnen)
+                NotenInhalt(
+                    notenLadung,
+                    beimNotenErneutLaden,
+                    beimNoteBlattOeffnen,
+                    beimLoeschen = { id -> ansichtsmodell?.noteLoeschen(fach.id, id) },
+                    summary = (notenLadung as? Ladung.Da)?.wert?.summary ?: daten.gradeSummary,
+                    fachId = fach.id,
+                    ansichtsmodell = ansichtsmodell,
+                )
+            }
+        }
+
+        daten.participation?.let { p ->
+            item("meldungen") {
+                Abschnitt("Meldungen") {
+                    val schnitt = p.average?.let { String.format(Locale.ROOT, "%.1f", it).replace(".", ",") } ?: "–"
+                    Angabe("Schnitt", schnitt)
+                    Angabe("Erfasst", "${p.ratedCount} von ${p.totalCount} Stunden")
+                    p.best?.let { Angabe("Bestwert", "$it") }
+                }
+            }
+        }
+
+        if (daten.lessonNotes.isNotEmpty()) {
+            item("stundennotizen") {
+                Abschnitt("Stundennotizen", "${daten.lessonNotes.size}") {
+                    daten.lessonNotes.take(10).forEach { ln ->
+                        Column(Modifier.fillMaxWidth().padding(vertical = Abstand.klein)) {
+                            Text("${ln.date} · ${ln.startTime}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            NotizText(ln.body)
+                        }
+                    }
+                }
             }
         }
 
         item("notizen") {
-            Abschnitt("Notizen", if (daten.notes.isEmpty()) null else "${daten.notes.size}") {
+            Abschnitt(
+                "Notizen",
+                if (daten.notes.isEmpty()) null else "${daten.notes.size}",
+                aktion = ansichtsmodell?.let { vm ->
+                    {
+                        IconButton(onClick = { notizNeu = true }, modifier = Modifier.size(Hoehe.bedienelement)) {
+                            Icon(IkonePlus, contentDescription = "Notiz anlegen", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+            ) {
                 if (daten.notes.isEmpty()) {
-                    Leerzeile("Noch keine Notiz. Angelegt werden sie im Browser.")
+                    Leerzeile("Noch keine Notiz.")
                 } else {
                     daten.notes.forEach { notiz ->
                         Column(
@@ -243,11 +333,83 @@ private fun Inhalt(
                                 color = MaterialTheme.colorScheme.onBackground,
                             )
                             NotizText(notiz.body)
+                            ansichtsmodell?.let { vm ->
+                                NotizAktionsZeile(
+                                    notiz = notiz,
+                                    beimBearbeiten = { notizBlatt = notiz },
+                                    beimLoeschen = { vm.notizLoeschen(fach.id, notiz.id) },
+                                    beimOnenote = if (fach.onenoteSectionId != null) {
+                                        { vm.notizNachOnenote(notiz.id) }
+                                    } else null,
+                                )
+                            }
                         }
                     }
                 }
+                notizenZustand?.fehler?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
+
+        item("dateien") {
+            Abschnitt("Dateien") {
+                DateienAbschnitt(
+                    ladung = dateienZustand?.takeIf { it.fachId == fach.id }?.dateien,
+                    beimLaden = { ansichtsmodell?.ladeDateien(fach.id) },
+                    beimLoeschen = { id -> ansichtsmodell?.dateiLoeschen(fach.id, id) },
+                    beimOeffnen = {},
+                )
+            }
+        }
+    }
+    if (notizNeu && ansichtsmodell != null) {
+        NotizBlatt(
+            bestehend = null,
+            laeuft = notizenZustand?.laeuft == true,
+            fehler = notizenZustand?.fehler,
+            beimSchliessen = { notizNeu = false },
+            beimSpeichern = { t, b ->
+                ansichtsmodell.notizAnlegen(fach.id, t, b)
+                notizNeu = false
+            },
+        )
+    }
+    notizBlatt?.let { nb ->
+        if (ansichtsmodell != null) {
+            NotizBlatt(
+                bestehend = nb,
+                laeuft = notizenZustand?.laeuft == true,
+                fehler = notizenZustand?.fehler,
+                beimSchliessen = { notizBlatt = null },
+                beimSpeichern = { t, b ->
+                    ansichtsmodell.notizAendern(fach.id, nb.id, t, b)
+                    notizBlatt = null
+                },
+            )
+        }
+    }
+    if (fachBlattOffen && ansichtsmodell != null) {
+        FachBlatt(
+            bestehend = fach,
+            beimSchliessen = { fachBlattOffen = false },
+            beimAnlegen = { _, _, _, _ -> },
+            beimSpeichern = { name, lehrer, raum, farbe, _ ->
+                ansichtsmodell.fachAendern(
+                    fach.id,
+                    dev.atlas.schule.data.FachPatchAnfrage(name = name, teacher = lehrer, room = raum, color = farbe),
+                )
+                fachBlattOffen = false
+            },
+            beimArchivieren = {
+                ansichtsmodell.fachArchivieren(fach.id, fach.archivedAt == null)
+                fachBlattOffen = false
+            },
+            beimLoeschen = {
+                ansichtsmodell.fachLoeschen(fach.id)
+                fachBlattOffen = false
+            },
+        )
     }
 }
 
@@ -337,7 +499,7 @@ private fun Angabe(beschriftung: String, wert: String?) {
 }
 
 @Composable
-private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
+private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate, beimTippen: ((LessonDTO) -> Unit)? = null) {
     val entfaellt = stunde.status == "cancelled"
     val vertretung = stunde.status == "substituted"
     val wann = faelligLabel(stunde.date, heute) ?: "${stunde.date.dayOfMonth}."
@@ -362,7 +524,8 @@ private fun Stundenzeile(stunde: LessonDTO, heute: LocalDate) {
             .padding(vertical = Abstand.eng)
             // Datum, Uhrzeit und Raum gehoeren zu einer Stunde. Einzeln
             // vorgelesen zerfaellt die Zeile in drei Bruchstuecke.
-            .clearAndSetSemantics { contentDescription = ansage },
+            .clearAndSetSemantics { contentDescription = ansage }
+            .let { m -> if (beimTippen != null) m.clickable(role = Role.Button, onClickLabel = "Details", onClick = { beimTippen(stunde) }) else m },
         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
         verticalArrangement = Arrangement.spacedBy(Abstand.winzig),
     ) {
@@ -426,6 +589,10 @@ private fun NotenInhalt(
     ladung: Ladung<GradesAntwort>,
     beimErneutLaden: () -> Unit,
     beimNoteBlattOeffnen: () -> Unit,
+    beimLoeschen: ((String) -> Unit)? = null,
+    summary: GradeSummaryDTO? = null,
+    fachId: String? = null,
+    ansichtsmodell: AtlasViewModel? = null,
 ) {
     when (ladung) {
         is Ladung.Laedt -> NotenSkelett()
@@ -451,8 +618,17 @@ private fun NotenInhalt(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(Abstand.gross)) {
                     Schnittzeile(daten.summary)
+                    Zielrechner(
+                        noten = daten.grades.map {
+                            Notenlogik.NotenEingabe(it.kind, it.points, it.weight)
+                        },
+                        oralWeight = daten.summary.oralWeight,
+                        schnitt = daten.summary.average?.points,
+                        fachSchluessel = fachId ?: "",
+                    )
+                    GewichtungZeile(summary = daten.summary, fachId = fachId, ansichtsmodell = ansichtsmodell)
                     Column {
-                        daten.grades.forEach { note -> Notenzeile(note) }
+                        daten.grades.forEach { note -> Notenzeile(note, beimLoeschen) }
                     }
                 }
             }
@@ -521,7 +697,7 @@ private fun Schnittzeile(summary: GradeSummaryDTO) {
  * daneben -- nie umgekehrt, denn die Punkte sind die eigentliche Eingabe.
  */
 @Composable
-private fun Notenzeile(note: GradeDTO) {
+private fun Notenzeile(note: GradeDTO, beimLoeschen: ((String) -> Unit)? = null) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -559,6 +735,73 @@ private fun Notenzeile(note: GradeDTO) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            beimLoeschen?.let {
+                TextButton(onClick = { it(note.id) }) { Text("Löschen", style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+    }
+}
+
+/** Zielrechner — Portierung von SubjectGoal (Art + Gewichtung + oralWeight). */
+@Composable
+private fun Zielrechner(
+    noten: List<Notenlogik.NotenEingabe>,
+    oralWeight: Int,
+    schnitt: Double?,
+    fachSchluessel: String = "",
+) {
+    var ziel by remember(schnitt, fachSchluessel) { mutableStateOf(((schnitt?.let { kotlin.math.round(it).toInt() } ?: 8) + 2).coerceIn(0, 15).toString()) }
+    var art by remember(fachSchluessel) { mutableStateOf("written") }
+    var gewicht by remember(fachSchluessel) { mutableStateOf(1.0) }
+    val zielPunkte = ziel.toIntOrNull()
+    Column(verticalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+        Text("Was brauche ich noch?", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = ziel,
+                onValueChange = { ziel = it.filter(Char::isDigit).take(2) },
+                label = { Text("Ziel (Punkte 0–15)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(Abstand.klein),
+            verticalArrangement = Arrangement.spacedBy(Abstand.klein),
+        ) {
+            (0..15).forEach { p ->
+                FilterChip(selected = zielPunkte == p, onClick = { ziel = "$p" }, label = { Text("$p") })
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
+            FilterChip(selected = art == "written", onClick = { art = "written" }, label = { Text("Klausur") })
+            FilterChip(selected = art == "oral", onClick = { art = "oral" }, label = { Text("Mündlich") })
+            FilterChip(selected = gewicht == 1.0, onClick = { gewicht = 1.0 }, label = { Text("Einfach") })
+            FilterChip(selected = gewicht == 2.0, onClick = { gewicht = 2.0 }, label = { Text("Doppelt") })
+        }
+        if (zielPunkte != null && schnitt != null) {
+            val ergebnis = Notenlogik.punkteFuersZiel(noten, zielPunkte, art, gewicht, oralWeight)
+            val zielNote = Notenlogik.punkteZuNote(zielPunkte)
+            val wo = if (art == "written") "Arbeit" else "mündlichen Note"
+            val text = when (ergebnis) {
+                is Notenlogik.ZielErgebnis.Erreicht -> "Dein Schnitt liegt schon bei ${formatPunkte(ergebnis.schnitt)} Punkten. Eine $zielNote hast du damit schon erreicht."
+                is Notenlogik.ZielErgebnis.Unerreichbar -> "Selbst mit 15 Punkten kämst du auf ${formatPunkte(ergebnis.max)} Punkte. Eine $zielNote geht dieses Halbjahr nicht mehr."
+                is Notenlogik.ZielErgebnis.Machbar -> "Für eine $zielNote brauchst du in der nächsten $wo ${ergebnis.punkte} Punkte."
+            }
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun GewichtungZeile(summary: GradeSummaryDTO, fachId: String?, ansichtsmodell: AtlasViewModel?) {
+    if (fachId == null || ansichtsmodell == null) return
+    Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein), verticalAlignment = Alignment.CenterVertically) {
+        Text("Mündlich ${summary.oralWeight} %", style = MaterialTheme.typography.bodySmall)
+        listOf(30, 50, 70).forEach { w ->
+            TextButton(onClick = {
+                ansichtsmodell.fachAendern(fachId, dev.atlas.schule.data.FachPatchAnfrage(oralWeight = w))
+            }) { Text("$w") }
         }
     }
 }

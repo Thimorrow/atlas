@@ -24,6 +24,9 @@ data class SubjectDTO(
     @Serializable(with = InstantSerialisierer::class) val archivedAt: Instant? = null,
     val openAssignments: Int = 0,
     val noteCount: Int = 0,
+    val oralWeight: Int = 50,
+    val onenoteSectionId: String? = null,
+    val onenoteSectionName: String? = null,
 )
 
 @Serializable
@@ -159,7 +162,59 @@ data class FachDetailAntwort(
     val notes: List<NoteDTO> = emptyList(),
     val assignments: List<AssignmentDTO> = emptyList(),
     val upcoming: List<LessonDTO> = emptyList(),
+    val grades: List<GradeDTO> = emptyList(),
+    val gradeSummary: GradeSummaryDTO? = null,
+    val lessonNotes: List<LessonNoteDTO> = emptyList(),
+    val participation: ParticipationDTO? = null,
 )
+
+@Serializable
+data class LessonNoteDTO(
+    val lessonId: String,
+    @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
+    val startTime: String,
+    val body: String,
+)
+
+@Serializable
+data class ParticipationDTO(
+    val average: Double? = null,
+    val ratedCount: Int = 0,
+    val totalCount: Int = 0,
+    val best: Int? = null,
+    val recent: List<ParticipationEntryDTO> = emptyList(),
+)
+
+@Serializable
+data class ParticipationEntryDTO(
+    val lessonId: String,
+    @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
+    val points: Int? = null,
+)
+
+@Serializable
+data class LessonNoteAntwort(val note: LessonNoteBodyDTO? = null)
+
+@Serializable
+data class LessonNoteBodyDTO(
+    val id: String,
+    val body: String,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class ParticipationAntwort(val points: Int? = null)
+
+@Serializable
+data class NextDueAntwort(
+    @Serializable(with = LocalDateSerialisierer::class) val dueDate: LocalDate? = null,
+)
+
+@Serializable
+data class NoteAntwort(val note: NoteDTO)
+
+@Serializable
+data class SubjectAntwort(val subject: SubjectDTO)
 
 @Serializable
 data class AssignmentAntwort(val assignment: AssignmentDTO)
@@ -293,4 +348,149 @@ data class NeueAufgabeAnfrage(
      * Liste noch fehlt.
      */
     val untisSubject: String? = null,
+    val notes: String? = null,
 )
+
+@Serializable
+data class AufgabePatchAnfrage(
+    val title: String? = null,
+    val type: String? = null,
+    @Serializable(with = LocalDateSerialisierer::class) val dueDate: LocalDate? = null,
+    val subjectId: String? = null,
+    val notes: String? = null,
+    /** true = entkoppeln zu Allgemein, false/null = unverändert */
+    val clearSubject: Boolean? = null,
+    /** true = Fälligkeit entfernen */
+    val clearDueDate: Boolean? = null,
+)
+
+@Serializable
+data class NeueNotizAnfrage(val title: String, val body: String = "")
+
+@Serializable
+data class NotizPatchAnfrage(val title: String? = null, val body: String? = null)
+
+@Serializable
+data class NeuesFachAnfrage(
+    val name: String,
+    val teacher: String? = null,
+    val room: String? = null,
+    val color: String? = null,
+    val untisSubject: String? = null,
+)
+
+@Serializable
+data class FachPatchAnfrage(
+    val name: String? = null,
+    val teacher: String? = null,
+    val room: String? = null,
+    val color: String? = null,
+    val oralWeight: Int? = null,
+    val archivedAt: String? = null,
+)
+
+@Serializable
+data class SectionsAntwort(val sections: List<OneNoteSectionDTO> = emptyList())
+
+@Serializable
+data class OneNoteSectionDTO(val id: String, val displayName: String)
+
+@Serializable
+data class ReconcileAntwort(
+    val created: Int = 0,
+    val updated: Int = 0,
+    val archived: Int = 0,
+    val deleted: Int = 0,
+    val skipped: Int = 0,
+)
+
+// --- Morgen / Fokus ----------------------------------------------------------
+
+@Serializable
+data class MorgenLessonDTO(
+    val refId: String,
+    val startTime: String,
+    val endTime: String? = null,
+    val title: String,
+    val status: String = "regular",
+    val room: String? = null,
+    val teacher: String? = null,
+    val hasNote: Boolean = false,
+    val hasAssignment: Boolean = false,
+    val subjectId: String? = null,
+    val subjectColor: String? = null,
+)
+
+@Serializable
+data class MorgenMaterialDTO(
+    val subjectId: String,
+    val subjectName: String,
+    val subjectColor: String? = null,
+    val files: List<FileDTO> = emptyList(),
+    val notes: List<MorgenNotizRefDTO> = emptyList(),
+)
+
+@Serializable
+data class MorgenNotizRefDTO(val id: String, val title: String)
+
+@Serializable
+data class MorgenAntwort(
+    val today: String = "",
+    val target: MorgenTargetDTO? = null,
+    val day: MorgenDayDTO? = null,
+    val due: List<AssignmentDTO> = emptyList(),
+    val exams: List<AssignmentDTO> = emptyList(),
+    val materials: List<MorgenMaterialDTO> = emptyList(),
+)
+
+@Serializable
+data class MorgenTargetDTO(
+    val date: String = "",
+    val isTomorrow: Boolean = false,
+    val label: String? = null,
+)
+
+@Serializable
+data class MorgenDayDTO(
+    val date: String = "",
+    val weekday: Int = 0,
+    val events: List<MorgenLessonDTO> = emptyList(),
+)
+
+// --- Bot ---------------------------------------------------------------------
+
+@Serializable
+data class BotStartAntwort(
+    val enabled: Boolean,
+    val greeting: String = "",
+    val suggestions: List<String> = emptyList(),
+    val conversationId: String? = null,
+)
+
+@Serializable
+data class BotVerlaufEintragDTO(
+    val id: String,
+    val title: String = "",
+    val updatedAt: String? = null,
+    val hasCreated: Boolean = false,
+)
+
+@Serializable
+data class BotVerlaufAntwort(val conversations: List<BotVerlaufEintragDTO> = emptyList())
+
+@Serializable
+data class BotTurnDTO(
+    val role: String,
+    val content: String = "",
+    val createdAt: String? = null,
+)
+
+@Serializable
+data class BotVerlaufDetailAntwort(
+    val id: String = "",
+    val title: String = "",
+    val turns: List<BotTurnDTO> = emptyList(),
+)
+
+@Serializable
+data class FilesAntwort(val files: List<FileDTO> = emptyList())

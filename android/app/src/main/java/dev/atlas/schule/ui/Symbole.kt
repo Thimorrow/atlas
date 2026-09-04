@@ -119,3 +119,20 @@ val IkoneSchliessen: ImageVector by lazy {
         moveTo(18f, 6f); lineTo(6f, 18f)
     }
 }
+
+/** Sprechblase mit Stern -- Atlas-Bot. */
+val IkoneBot: ImageVector by lazy {
+    strichzeichen("bot") {
+        moveTo(4f, 6f); lineTo(20f, 6f); lineTo(20f, 14f); lineTo(13f, 14f); lineTo(10f, 17.5f); lineTo(10f, 14f); lineTo(4f, 14f); close()
+        moveTo(12f, 8.5f); lineTo(12f, 11.5f)
+        moveTo(9.5f, 10f); lineTo(14.5f, 10f)
+    }
+}
+
+/** Stift -- bearbeiten. */
+val IkoneStift: ImageVector by lazy {
+    strichzeichen("stift") {
+        moveTo(4f, 20f); lineTo(5f, 16f); lineTo(15.5f, 5.5f); lineTo(18.5f, 8.5f); lineTo(8f, 19f); lineTo(4f, 20f); close()
+        moveTo(13.5f, 7.5f); lineTo(16.5f, 10.5f)
+    }
+}

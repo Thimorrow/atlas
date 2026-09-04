@@ -38,18 +38,26 @@ export function isExam(t: AssignmentType): boolean {
   return t === "exam" || t === "test";
 }
 
+import { heuteISO } from "@/lib/zeit";
+
 // --- Datum (lokal, kein UTC-Drift) ------------------------------------------
 // Bewusst identisch zu lib/todos-view.ts (b34dab2): eine Aufgabe am Abend darf
 // nicht faelschlich als ueberfaellig gelten, weil toISOString auf UTC springt.
 
+// Seit 2026-09-04 ausdruecklich in deutscher Zeit (lib/zeit.ts): der Server
+// auf Vercel laeuft in UTC, "heute" ist aber der Schultag des Schuelers.
 export function localISO(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return heuteISO(d);
 }
 
+// Reine Kalenderarithmetik auf dem ISO-String, ohne Umweg ueber die lokale
+// Zeitzone des Rechners -- so ergibt "morgen" ueberall dasselbe Datum.
 export function addDays(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return localISO(d);
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  const d = Number(iso.slice(8, 10));
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
 }
 
 // 0 = Montag ... 6 = Sonntag

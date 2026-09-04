@@ -5,8 +5,10 @@ import { motion, useAnimationControls } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Brain,
   CalendarDays,
   ListChecks,
+  Radio,
   Library,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,8 +35,10 @@ type Mod = { label: string; icon: typeof CalendarDays; href: string };
 // oben, das Halbjahresbild unten.
 const MODULES: Mod[] = [
   { label: "Stundenplan", icon: CalendarDays, href: "/" },
+  { label: "Stunde", icon: Radio, href: "/stunde" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
   { label: "Fächer", icon: Library, href: "/faecher" },
+  { label: "Lernen", icon: Brain, href: "/lernen" },
 ];
 
 const EXPANDED = 248;

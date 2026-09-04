@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListChecks, Library, Settings } from "lucide-react";
+import { Brain, ListChecks, Library, Radio, Settings } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
 import { cn } from "@/lib/utils";
 
@@ -33,8 +33,10 @@ export function MobileHeader() {
       </Link>
       <nav className="flex items-center gap-0.5">
       {[
+        { href: "/stunde", label: "Stunde", icon: Radio },
         { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
         { href: "/faecher", label: "Fächer", icon: Library },
+        { href: "/lernen", label: "Lernen", icon: Brain },
       ].map((m) => {
         const active = pathname.startsWith(m.href);
         return (

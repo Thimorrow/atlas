@@ -1,3 +1,5 @@
+import { heuteISO, jetztHM } from "@/lib/zeit";
+
 // Reine Logik fuer den Vollbild-Stundenmodus des Fokus: laeuft gerade wirklich
 // eine Schulstunde, und wie lange noch? Bewusst ohne DB-Import, damit sie ohne
 // Datenbank testbar ist -- gleiches Muster wie lib/morgen-view.ts.
@@ -68,4 +70,118 @@ export function minutesLeft(endTime: string, nowHM: string): number {
   const now = normHM(nowHM);
   if (!end || !now) return 0;
   return Math.max(0, toMinutes(end) - toMinutes(now));
+}
+
+// Minuten bis startTime -- das Gegenstueck zu minutesLeft fuer eine Stunde,
+// die noch nicht laeuft (Pause, "vor der Schule"). Nie negativ: eine schon
+// begonnene oder vorbeigegangene Stunde meldet 0.
+export function minutesUntil(startTime: string, nowHM: string): number {
+  const start = normHM(startTime);
+  const now = normHM(nowHM);
+  if (!start || !now) return 0;
+  return Math.max(0, toMinutes(start) - toMinutes(now));
+}
+
+// Fortschritt der Stunde als Anteil 0..1, fuer den duennen Balken im Cockpit.
+// Vor Beginn 0, nach Ende 1 -- geklemmt statt extrapoliert, eine unbrauchbare
+// Zeitangabe ergibt 0.
+export function lessonProgress(startTime: string, endTime: string, nowHM: string): number {
+  const start = normHM(startTime);
+  const end = normHM(endTime);
+  const now = normHM(nowHM);
+  if (!start || !end || !now) return 0;
+  const total = toMinutes(end) - toMinutes(start);
+  if (total <= 0) return 0;
+  const elapsed = toMinutes(now) - toMinutes(start);
+  return Math.min(1, Math.max(0, elapsed / total));
+}
+
+// Die naechste noch bevorstehende Stunde: frueheste nicht-entfallene Stunde
+// mit startTime > nowHM. Grundlage fuer den Pause-/Vor-Modus des Cockpits
+// (naechste Stunde vorbereiten) und fuer defaultLesson.
+export function pickNextLesson<T extends LiveCandidate>(events: T[], nowHM: string): T | null {
+  const now = normHM(nowHM);
+  if (!now) return null;
+
+  let best: T | null = null;
+  let bestStart = "";
+  for (const ev of events) {
+    if (ev.status === "cancelled") continue;
+    const start = normHM(ev.startTime);
+    if (!start || !(start > now)) continue;
+    if (best === null || start < bestStart) {
+      best = ev;
+      bestStart = start;
+    }
+  }
+  return best;
+}
+
+// Die zuletzt vorbeigegangene Stunde: spaeteste nicht-entfallene Stunde mit
+// endTime <= nowHM. Fuer den "nach"-Modus (Schule vorbei), damit das Cockpit
+// nicht leer bleibt, sobald die letzte Stunde durch ist.
+export function pickPreviousLesson<T extends LiveCandidate>(events: T[], nowHM: string): T | null {
+  const now = normHM(nowHM);
+  if (!now) return null;
+
+  let best: T | null = null;
+  let bestEnd = "";
+  for (const ev of events) {
+    if (ev.status === "cancelled") continue;
+    const end = normHM(ev.endTime);
+    if (!end || !(end <= now)) continue;
+    if (best === null || end > bestEnd) {
+      best = ev;
+      bestEnd = end;
+    }
+  }
+  return best;
+}
+
+export type CockpitMode = "live" | "pause" | "vor" | "nach" | "frei";
+
+// Welcher der fuenf Grundzustaende des Stunden-Cockpits gerade gilt.
+// frei: kein einziger nicht-entfallener Termin heute (Wochenende, Ferien).
+// live: eine Stunde laeuft gerade wirklich (pickLiveLesson trifft).
+// vor: jetzt liegt vor dem Beginn der ersten Stunde des Tages.
+// nach: jetzt liegt nach dem Ende der letzten Stunde des Tages.
+// pause: alles andere -- zwischen zwei Stunden, mitten am Schultag.
+export function cockpitMode<T extends LiveCandidate>(events: T[], nowHM: string): CockpitMode {
+  const now = normHM(nowHM);
+  const usable = events.filter((ev) => ev.status !== "cancelled" && normHM(ev.startTime));
+  if (!now || usable.length === 0) return "frei";
+
+  if (pickLiveLesson(events, nowHM)) return "live";
+
+  const starts = usable.map((ev) => normHM(ev.startTime)!);
+  const firstStart = starts.reduce((a, b) => (b < a ? b : a));
+  if (now < firstStart) return "vor";
+
+  const ends = usable.map((ev) => normHM(ev.endTime)).filter((v): v is string => v !== null);
+  if (ends.length > 0) {
+    const lastEnd = ends.reduce((a, b) => (b > a ? b : a));
+    if (now >= lastEnd) return "nach";
+  }
+
+  return "pause";
+}
+
+// Die Stunde, die das Cockpit ohne explizite Auswahl zeigt: live, sonst die
+// naechste bevorstehende (Pause/vor der Schule), sonst die letzte vergangene
+// (nach der Schule, damit dort noch etwas zu sehen ist), sonst null (frei).
+export function defaultLesson<T extends LiveCandidate>(events: T[], nowHM: string): T | null {
+  return pickLiveLesson(events, nowHM) ?? pickNextLesson(events, nowHM) ?? pickPreviousLesson(events, nowHM);
+}
+
+// Das deutsche Datum (lib/zeit.ts), nicht toISOString() (das springt abends
+// schon auf den naechsten Tag) -- identische Regel wie in app/api/morgen/route.ts
+// und app/api/home/route.ts, hier ausgelagert, damit beide Routen sie teilen.
+export function lokalesDatum(): string {
+  return heuteISO();
+}
+
+// Die LOKALE Uhrzeit des Servers als "HH:MM" -- dasselbe Format, in dem die
+// Events ihre Zeiten tragen, damit sich beides direkt vergleichen laesst.
+export function lokaleUhrzeit(): string {
+  return jetztHM();
 }

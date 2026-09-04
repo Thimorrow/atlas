@@ -21,13 +21,19 @@ type SubjectOption = { id: string; name: string; color: string | null };
 export function AssignmentQuickAdd({
   onCreated,
   defaultSubjectId = null,
+  defaultDueDate = null,
   placeholder = "Hausaufgabe hinzufügen …",
 }: {
   onCreated: (a: AssignmentDTO) => void;
   // Vorbelegtes Fach, wenn der Kontext es schon kennt -- im
-  // Vollbild-Stundenmodus (components/jetzt-stunde.tsx) ist das Fach der
-  // laufenden Stunde gesetzt, sonst bleibt es wie bisher "Allgemein".
+  // Stunden-Cockpit (components/stunden-cockpit.tsx) ist das Fach der
+  // gewaehlten Stunde gesetzt, sonst bleibt es wie bisher "Allgemein".
   defaultSubjectId?: string | null;
+  // Vorbelegtes Faelligkeitsdatum, z.B. "bis zur naechsten Stunde" im
+  // Stunden-Cockpit. Nach dem Anlegen faellt das Feld wieder auf DIESEN
+  // Default zurueck statt auf "" -- wer mehrere Hausaufgaben fuer dieselbe
+  // Stunde eintraegt, muss den Termin nicht jedes Mal neu setzen.
+  defaultDueDate?: string | null;
   placeholder?: string;
 }) {
   const reduce = useReducedMotion();
@@ -38,7 +44,7 @@ export function AssignmentQuickAdd({
   const [expanded, setExpanded] = useState(false);
   const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState(defaultSubjectId ?? "");
-  const [dueDate, setDueDate] = useState("");
+  const [dueDate, setDueDate] = useState(defaultDueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -70,10 +76,10 @@ export function AssignmentQuickAdd({
 
   const collapse = useCallback(() => {
     setExpanded(false);
-    setDueDate("");
+    setDueDate(defaultDueDate ?? "");
     // Das zuletzt gewaehlte Fach bleibt stehen -- bei mehreren Aufgaben
     // hintereinander fuer dasselbe Fach spart das jedes Mal die Auswahl.
-  }, []);
+  }, [defaultDueDate]);
 
   const onBlurContainer = (e: React.FocusEvent<HTMLFormElement>) => {
     if (title.trim()) return;
@@ -114,7 +120,7 @@ export function AssignmentQuickAdd({
       const data = (await res.json()) as { assignment: AssignmentDTO };
       onCreated(data.assignment);
       setTitle("");
-      setDueDate("");
+      setDueDate(defaultDueDate ?? "");
       setSaving(false);
       // Fokus bleibt im Titelfeld -- wer mehrere Hausaufgaben nacheinander
       // eintraegt, tippt einfach weiter, ohne die Zeile neu anzuklicken.

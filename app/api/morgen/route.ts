@@ -4,24 +4,13 @@ import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
 import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
-import { minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
+import { addDays } from "@/lib/assignments-view";
+import { lokalesDatum as heuteLokal, lokaleUhrzeit as jetztLokal, minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// Gleiches Muster wie app/api/home/route.ts: das LOKALE Datum des Servers,
-// nicht toISOString() (das springt abends schon auf den naechsten Tag).
-function heuteLokal(): string {
-  return new Date().toLocaleDateString("sv-SE");
-}
-
-// Die LOKALE Uhrzeit des Servers als "HH:MM" -- dasselbe Format, in dem die
-// Events ihre Zeiten tragen, damit sich beides direkt vergleichen laesst.
-function jetztLokal(): string {
-  return new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
 
 // Wie weit die Suche nach dem naechsten Schultag vorausschaut. 14 Tage decken
 // jede normale Ferienwoche ab, ohne bei laengeren Ferien (Sommer) endlos in
@@ -130,9 +119,11 @@ export async function GET(req: Request) {
   // Faecher des Tages, ohne Duplikate (Doppelstunden desselben Fachs zaehlen
   // einmal). Nur Faecher mit Treffer -- Atlas kennt keine Untis-Kuerzel ohne
   // Fach dahinter, dafuer braucht es keinen Platzhalter.
+  // Entfallene Stunden zaehlen nicht: fuer eine Stunde, die nicht stattfindet,
+  // muss niemand etwas einpacken.
   const subjectIds = new Set<string>();
   for (const ev of events) {
-    if (ev.subjectId) subjectIds.add(ev.subjectId);
+    if (ev.subjectId && ev.status !== "cancelled") subjectIds.add(ev.subjectId);
   }
   const materials: MaterialDTO[] = await Promise.all(
     [...subjectIds].map(async (id) => {
@@ -172,9 +163,7 @@ export async function GET(req: Request) {
 }
 
 function addDaysISO(iso: string, n: number): string {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return d.toLocaleDateString("sv-SE");
+  return addDays(iso, n);
 }
 
 // Heute steht noch etwas an, solange mindestens eine nicht-entfallene Stunde

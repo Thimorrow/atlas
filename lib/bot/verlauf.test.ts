@@ -99,18 +99,24 @@ describe("toolPastLabel", () => {
 });
 
 describe("formatConversationWhen", () => {
-  const now = new Date("2026-09-02T18:00:00");
+  // Feste Zeitpunkte mit Zonenangabe: das Ergebnis ist die deutsche Lesart,
+  // egal in welcher Zeitzone der Testrechner (oder Vercel) laeuft.
+  const now = new Date("2026-09-02T18:00:00+02:00");
 
   it("erkennt heute", () => {
-    expect(formatConversationWhen("2026-09-02T09:05:00", now)).toBe("Heute, 09:05 Uhr");
+    expect(formatConversationWhen("2026-09-02T09:05:00+02:00", now)).toBe("Heute, 09:05 Uhr");
   });
 
   it("erkennt gestern", () => {
-    expect(formatConversationWhen("2026-09-01T22:15:00", now)).toBe("Gestern, 22:15 Uhr");
+    expect(formatConversationWhen("2026-09-01T22:15:00+02:00", now)).toBe("Gestern, 22:15 Uhr");
+  });
+
+  it("erkennt gestern auch, wenn es in UTC noch derselbe Tag ist", () => {
+    expect(formatConversationWhen("2026-09-01T23:30:00+02:00", now)).toBe("Gestern, 23:30 Uhr");
   });
 
   it("zeigt bei aelteren Gespraechen das volle Datum", () => {
-    expect(formatConversationWhen("2026-08-20T07:00:00", now)).toBe("20.08.2026, 07:00 Uhr");
+    expect(formatConversationWhen("2026-08-20T07:00:00+02:00", now)).toBe("20.08.2026, 07:00 Uhr");
   });
 });
 

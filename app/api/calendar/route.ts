@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { expandDay, expandWeek, isRealDate } from "@/lib/calendar-expand";
+import { lokalesDatum } from "@/lib/jetzt-stunde";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Gleiches Muster wie app/api/morgen/route.ts: das LOKALE Datum des Servers,
+// nicht toISOString() (das springt abends schon auf den naechsten Tag).
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return lokalesDatum();
 }
 
 // GET /api/calendar?date=YYYY-MM-DD&view=week|day

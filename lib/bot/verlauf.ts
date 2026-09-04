@@ -1,3 +1,5 @@
+import { heuteISO, ZEITZONE } from "@/lib/zeit";
+import { addDays } from "@/lib/assignments-view";
 // Reine Ableitungen fuer den Bot-Verlauf (app/bot/verlauf): ob ein Gespraech
 // geschrieben hat, ein anzeigbarer Titel, ruhige Klartexte fuer lesende
 // Werkzeuge, ein "wann war das" -- und die Gruppierung der flachen
@@ -7,9 +9,16 @@
 
 import type { MessageDTO } from "@/lib/bot/store";
 
-// Dieselben vier Werkzeuge wie WRITE_TOOLS in app/api/bot/route.ts -- nur bei
+// Dieselben Werkzeuge wie WRITE_TOOLS in app/api/bot/route.ts -- nur bei
 // denen entsteht eine Aktions-Karte statt einer ruhigen Zeile.
-export const WRITE_TOOLS = new Set(["aufgabe_anlegen", "aufgabe_aendern", "notiz_anlegen", "notiz_aendern"]);
+export const WRITE_TOOLS = new Set([
+  "aufgabe_anlegen",
+  "aufgabe_aendern",
+  "notiz_anlegen",
+  "notiz_aendern",
+  "lernkarten_erzeugen",
+  "lernkarte_anlegen",
+]);
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
@@ -75,6 +84,14 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
       return "hat eine Notiz angelegt";
     case "notiz_aendern":
       return "hat eine Notiz geändert";
+    case "jetzt_lesen":
+      return "hat die aktuelle Stunde gelesen";
+    case "lernstand_lesen":
+      return fach ? `hat den Lernstand in ${fach} gelesen` : "hat den Lernstand gelesen";
+    case "lernkarten_erzeugen":
+      return fach ? `hat Lernkarten in ${fach} erzeugt` : "hat Lernkarten erzeugt";
+    case "lernkarte_anlegen":
+      return "hat eine Lernkarte angelegt";
     default:
       return `hat ${tool} ausgeführt`;
   }
@@ -84,16 +101,16 @@ export function toolPastLabel(tool: string, args: unknown, failed = false): stri
 // Parameter, damit sich das ohne echten Systemtakt testen laesst.
 export function formatConversationWhen(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: ZEITZONE });
   if (Number.isNaN(d.getTime())) return iso;
 
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
+  // Heute/Gestern in deutscher Zeit, nicht in der Zeitzone des Servers.
+  const tag = heuteISO(d);
+  const heute = heuteISO(now);
+  if (tag === heute) return `Heute, ${time} Uhr`;
+  if (tag === addDays(heute, -1)) return `Gestern, ${time} Uhr`;
 
-  if (d.toDateString() === now.toDateString()) return `Heute, ${time} Uhr`;
-  if (d.toDateString() === yesterday.toDateString()) return `Gestern, ${time} Uhr`;
-
-  const date = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const date = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: ZEITZONE });
   return `${date}, ${time} Uhr`;
 }
 

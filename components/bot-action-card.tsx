@@ -7,6 +7,7 @@
 // Unterschiede ab, ohne das Aussehen der Karte selbst zu veraendern.
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { GraduationCap, ListChecks, NotebookPen } from "lucide-react";
 import { markdownPreview } from "@/lib/markdown";
@@ -22,11 +23,37 @@ import type { NoteDTO } from "@/lib/subject-store";
 export type AssignmentActionResult = { aufgabe: AssignmentDTO; hinweisFaellig?: string };
 export type NoteActionResult = { notiz: NoteDTO };
 
+// Ergebnisse von lernkarten_erzeugen und lernkarte_anlegen (lib/bot/tools.ts)
+// -- dafuer gibt es kein Rueckgaengig, nur einen Link zum Lernbereich.
+export type LernkartenErzeugenResult = {
+  fach: string;
+  subjectId: string;
+  anzahl: number;
+  karten: { id: string; frage: string; antwort: string }[];
+  hinweis?: string;
+  seite: string;
+};
+export type LernkarteAnlegenResult = {
+  karte: { id: string; frage: string; antwort: string };
+  subjectId: string;
+  seite: string;
+};
+
+export type ActionResult = AssignmentActionResult | NoteActionResult | LernkartenErzeugenResult | LernkarteAnlegenResult;
+
 export function isAssignmentResult(
   tool: string,
-  _result: AssignmentActionResult | NoteActionResult,
+  _result: ActionResult,
 ): _result is AssignmentActionResult {
   return tool === "aufgabe_anlegen" || tool === "aufgabe_aendern";
+}
+
+function isLernkartenErzeugenResult(tool: string, _result: ActionResult): _result is LernkartenErzeugenResult {
+  return tool === "lernkarten_erzeugen";
+}
+
+function isLernkarteAnlegenResult(tool: string, _result: ActionResult): _result is LernkarteAnlegenResult {
+  return tool === "lernkarte_anlegen";
 }
 
 // Atlas-Signaturkurve, wie in components/stagger.tsx und assignment-list.tsx.
@@ -46,14 +73,17 @@ export function ActionCard({
   footer,
 }: {
   tool: string;
-  result: AssignmentActionResult | NoteActionResult;
+  result: ActionResult;
   // Aufgabe/Notiz laeuft ausgeblendet -- entweder zurueckgenommen (Chat) oder
-  // inzwischen geloescht/nicht mehr auffindbar (Verlauf).
+  // inzwischen geloescht/nicht mehr auffindbar (Verlauf). Fuer Lernkarten gibt
+  // es kein Rueckgaengig, dimmed bleibt dort ungenutzt.
   dimmed?: boolean;
   dimmedLabel?: string;
   footer?: ReactNode;
 }) {
   const isAssignment = isAssignmentResult(tool, result);
+  const isLernkartenErzeugen = isLernkartenErzeugenResult(tool, result);
+  const isLernkarteAnlegen = isLernkarteAnlegenResult(tool, result);
   const reduce = useReducedMotion();
   const enter = {
     initial: reduce ? false : ({ opacity: 0, y: 6 } as const),
@@ -63,6 +93,49 @@ export function ActionCard({
 
   const footerNode =
     footer ?? (dimmed && dimmedLabel ? <p className="mt-2 text-[12px] text-muted-foreground">{dimmedLabel}</p> : null);
+
+  if (isLernkartenErzeugen) {
+    const r = result as LernkartenErzeugenResult;
+    return (
+      <motion.div {...enter} className="max-w-[92%] rounded-xl border bg-card px-4 py-3">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <GraduationCap className="size-3.5" />
+          {r.anzahl} Lernkarten erzeugt
+        </div>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug">{r.fach}</p>
+        {r.karten.length > 0 && (
+          <ul className="mt-1.5 space-y-1 text-[13.5px] text-muted-foreground">
+            {r.karten.slice(0, 3).map((k) => (
+              <li key={k.id} className="line-clamp-1">
+                {k.frage}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link href={r.seite} className="mt-2 inline-block text-[12.5px] font-medium text-primary hover:underline">
+          Zum Lernen
+        </Link>
+        {footerNode}
+      </motion.div>
+    );
+  }
+
+  if (isLernkarteAnlegen) {
+    const r = result as LernkarteAnlegenResult;
+    return (
+      <motion.div {...enter} className="max-w-[92%] rounded-xl border bg-card px-4 py-3">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <GraduationCap className="size-3.5" />
+          Lernkarte angelegt
+        </div>
+        <p className="mt-1.5 text-[15px] font-medium leading-snug">{r.karte.frage}</p>
+        <Link href={r.seite} className="mt-2 inline-block text-[12.5px] font-medium text-primary hover:underline">
+          Zum Lernen
+        </Link>
+        {footerNode}
+      </motion.div>
+    );
+  }
 
   if (isAssignment) {
     const a = (result as AssignmentActionResult).aufgabe;

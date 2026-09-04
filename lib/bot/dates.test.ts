@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { parseFuzzyDate } from "./dates";
 
-// Fixer "heute"-Anker: 2025-07-16 ist ein Mittwoch.
-const MITTWOCH = new Date("2025-07-16T08:00:00");
+// Fixer "heute"-Anker: 2025-07-16 ist ein Mittwoch, deutsche Sommerzeit
+// (+02:00) explizit angegeben, damit das Ergebnis unabhaengig von der
+// Zeitzone des Testrechners (TZ=UTC oder nicht) immer dasselbe ist.
+const MITTWOCH = new Date("2025-07-16T08:00:00+02:00");
 
 describe("parseFuzzyDate", () => {
   it("erkennt ein gueltiges ISO-Datum", () => {

@@ -29,6 +29,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -110,8 +111,8 @@ fun EinstellungenBildschirm(
                 beimAbgleichen = ansichtsmodell::faecherAbgleichen,
             )
         }
-        item("onenote") { OneNoteAbschnitt(api) }
-        item("konto") { KontoAbschnitt() }
+        item("onenote") { OneNoteAbschnitt(api, ansichtsmodell) }
+        item("konto") { KontoAbschnitt(ansichtsmodell) }
         item("fuss") {
             Text(
                 text = "Atlas · Dein Alltag an einem Ort.",
@@ -729,7 +730,7 @@ private fun FachZeileAnsicht(
 // --- OneNote --------------------------------------------------------------
 
 @Composable
-private fun OneNoteAbschnitt(api: AtlasApi) {
+private fun OneNoteAbschnitt(api: AtlasApi, ansichtsmodell: AtlasViewModel? = null) {
     var stand by remember { mutableStateOf<Ladung<MicrosoftStatusAntwort>>(Ladung.Laedt) }
 
     LaunchedEffect(Unit) {
@@ -772,6 +773,19 @@ private fun OneNoteAbschnitt(api: AtlasApi) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (antwort.connected && ansichtsmodell != null) {
+                    OutlinedButton(onClick = {
+                        ansichtsmodell.microsoftTrennen()
+                        stand = Ladung.Laedt
+                    }) { Text("Trennen") }
+                }
+                if (antwort.enabled && !antwort.connected) {
+                    Text(
+                        "Verbinden geht im Browser unter Einstellungen → OneNote (Microsoft-Login mit Redirect).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -780,13 +794,23 @@ private fun OneNoteAbschnitt(api: AtlasApi) {
 // --- Konto -----------------------------------------------------------------
 
 @Composable
-private fun KontoAbschnitt() {
+private fun KontoAbschnitt(ansichtsmodell: AtlasViewModel? = null) {
+    var bestaetigen by remember { mutableStateOf(false) }
     Abschnitt(IkoneKonto, "Konto", "Ein Nutzer, keine Anmeldung nötig.") {
         Text(
-            text = "Atlas läuft aktuell für ein einzelnes Konto ohne Login. Abmelden gibt es, sobald " +
-                "mehrere Nutzer unterstützt werden.",
+            text = "Atlas läuft aktuell für ein einzelnes Konto ohne Login.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (ansichtsmodell != null) {
+            if (!bestaetigen) {
+                OutlinedButton(onClick = { bestaetigen = true }) { Text("Abmelden") }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { bestaetigen = false }) { Text("Abbrechen") }
+                    Button(onClick = { ansichtsmodell.abmelden() }) { Text("Wirklich abmelden") }
+                }
+            }
+        }
     }
 }

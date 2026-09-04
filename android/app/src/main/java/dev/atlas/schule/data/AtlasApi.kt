@@ -265,6 +265,212 @@ class AtlasApi(
         ) { text -> json.decodeFromString<GradeAntwort>(text) }
     }
 
+    /** DELETE /api/grades/{id}. */
+    suspend fun noteLoeschen(noteId: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/grades/$noteId").delete().build()) { }
+
+    /** GET /api/grades. Gesamtübersicht für die Fächer-Seite. */
+    suspend fun notenUebersicht(): AtlasErgebnis<GradeOverviewAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/grades").get().build()) { text ->
+            json.decodeFromString<GradeOverviewAntwort>(text)
+        }
+
+    // --- Aufgaben Voll-CRUD (Web-Parität) ------------------------------------
+
+    /** PATCH /api/assignments/{id}. */
+    suspend fun aufgabeAendern(id: String, patch: AufgabePatchAnfrage): AtlasErgebnis<AssignmentDTO> {
+        val rumpf = json.encodeToString(patch).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/assignments/$id").patch(rumpf).build()) { text ->
+            json.decodeFromString<AssignmentAntwort>(text).assignment
+        }
+    }
+
+    /** DELETE /api/assignments/{id}. */
+    suspend fun aufgabeLoeschen(id: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/assignments/$id").delete().build()) { }
+
+    /** GET /api/assignments?subjectId= (offen + erledigte 30 Tage). */
+    suspend fun aufgabenFuerFach(fachId: String): AtlasErgebnis<List<AssignmentDTO>> =
+        anfrage(Request.Builder().url("$basisUrl/api/assignments?completed=1&subjectId=$fachId").get().build()) { text ->
+            json.decodeFromString<AssignmentsAntwort>(text).assignments
+        }
+
+    /** Offene Aufgaben (ohne completed-Param). */
+    suspend fun offeneAufgaben(): AtlasErgebnis<List<AssignmentDTO>> =
+        anfrage(Request.Builder().url("$basisUrl/api/assignments").get().build()) { text ->
+            json.decodeFromString<AssignmentsAntwort>(text).assignments
+        }
+
+    // --- Notizen (Web-Parität) ------------------------------------------------
+
+    /** POST /api/subjects/{id}/notes. */
+    suspend fun notizAnlegen(fachId: String, titel: String, body: String): AtlasErgebnis<NoteDTO> {
+        val rumpf = json.encodeToString(NeueNotizAnfrage(titel.trim(), body)).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/subjects/$fachId/notes").post(rumpf).build()) { text ->
+            json.decodeFromString<NoteAntwort>(text).note
+        }
+    }
+
+    /** PATCH /api/notes/{id}. */
+    suspend fun notizAendern(id: String, titel: String?, body: String?): AtlasErgebnis<NoteDTO> {
+        val rumpf = json.encodeToString(NotizPatchAnfrage(titel, body)).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/notes/$id").patch(rumpf).build()) { text ->
+            json.decodeFromString<NoteAntwort>(text).note
+        }
+    }
+
+    /** DELETE /api/notes/{id}. */
+    suspend fun notizLoeschen(id: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/notes/$id").delete().build()) { }
+
+    // --- Fächer CRUD (Web-Parität) --------------------------------------------
+
+    /** POST /api/subjects. */
+    suspend fun fachAnlegen(neu: NeuesFachAnfrage): AtlasErgebnis<SubjectDTO> {
+        val rumpf = json.encodeToString(neu).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/subjects").post(rumpf).build()) { text ->
+            json.decodeFromString<SubjectAntwort>(text).subject
+        }
+    }
+
+    /** PATCH /api/subjects/{id}. */
+    suspend fun fachAendern(id: String, patch: FachPatchAnfrage): AtlasErgebnis<SubjectDTO> {
+        val rumpf = json.encodeToString(patch).toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/subjects/$id").patch(rumpf).build()) { text ->
+            json.decodeFromString<SubjectAntwort>(text).subject
+        }
+    }
+
+    /** DELETE /api/subjects/{id}. */
+    suspend fun fachLoeschen(id: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects/$id").delete().build()) { }
+
+    /** POST /api/subjects/reconcile. */
+    suspend fun faecherReconcile(): AtlasErgebnis<ReconcileAntwort> =
+        anfrage(
+            Request.Builder().url("$basisUrl/api/subjects/reconcile").post(ByteArray(0).toRequestBody(null)).build(),
+        ) { text -> json.decodeFromString<ReconcileAntwort>(text) }
+
+    /** GET /api/microsoft/sections. */
+    suspend fun onenoteSections(): AtlasErgebnis<SectionsAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/microsoft/sections").get().build()) { text ->
+            json.decodeFromString<SectionsAntwort>(text)
+        }
+
+    /** DELETE /api/microsoft/status = trennen. */
+    suspend fun microsoftTrennen(): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/microsoft/status").delete().build()) { }
+
+    /** POST /api/notes/{id}/onenote. */
+    suspend fun notizNachOnenote(id: String): AtlasErgebnis<Unit> =
+        anfrage(
+            Request.Builder().url("$basisUrl/api/notes/$id/onenote").post(ByteArray(0).toRequestBody(null)).build(),
+        ) { }
+
+    // --- Stunden-Details (Web-Parität) ----------------------------------------
+
+    /** GET /api/lessons/{id}/note. */
+    suspend fun stundenNotiz(id: String): AtlasErgebnis<LessonNoteBodyDTO?> =
+        anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/note").get().build()) { text ->
+            json.decodeFromString<LessonNoteAntwort>(text).note
+        }
+
+    /** PUT /api/lessons/{id}/note (leer = löschen). */
+    suspend fun stundenNotizSpeichern(id: String, body: String): AtlasErgebnis<LessonNoteBodyDTO?> {
+        val rumpf = "{\"body\":${json.encodeToString(body)}}".toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/note").put(rumpf).build()) { text ->
+            json.decodeFromString<LessonNoteAntwort>(text).note
+        }
+    }
+
+    /** GET /api/lessons/{id}/participation. */
+    suspend fun meldung(id: String): AtlasErgebnis<Int?> =
+        anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/participation").get().build()) { text ->
+            json.decodeFromString<ParticipationAntwort>(text).points
+        }
+
+    /** PUT /api/lessons/{id}/participation. */
+    suspend fun meldungSpeichern(id: String, punkte: Int): AtlasErgebnis<Int?> {
+        val rumpf = "{\"points\":$punkte}".toRequestBody(JSON_TYP)
+        return anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/participation").put(rumpf).build()) { text ->
+            json.decodeFromString<ParticipationAntwort>(text).points
+        }
+    }
+
+    /** DELETE /api/lessons/{id}/participation. */
+    suspend fun meldungLoeschen(id: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/participation").delete().build()) { }
+
+    /** GET /api/lessons/{id}/next-due. */
+    suspend fun naechsteFaelligkeit(lessonId: String): AtlasErgebnis<LocalDate?> =
+        anfrage(Request.Builder().url("$basisUrl/api/lessons/$lessonId/next-due").get().build()) { text ->
+            json.decodeFromString<NextDueAntwort>(text).dueDate
+        }
+
+    // --- Morgen / Fokus (Web-Parität) ------------------------------------------
+
+    /** GET /api/morgen. */
+    suspend fun morgen(): AtlasErgebnis<MorgenAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/morgen").get().build()) { text ->
+            json.decodeFromString<MorgenAntwort>(text)
+        }
+
+    // --- Dateien (Web-Parität) --------------------------------------------------
+
+    /** GET /api/subjects/{id}/files. */
+    suspend fun dateien(fachId: String): AtlasErgebnis<List<FileDTO>> =
+        anfrage(Request.Builder().url("$basisUrl/api/subjects/$fachId/files").get().build()) { text ->
+            json.decodeFromString<FilesAntwort>(text).files
+        }
+
+    /** DELETE /api/files/{id}. Upload/Download laufen über intents auf die Web-Routen;
+     *  nativ multipart bis 4MB wäre hier möglich, bleibt vorerst WebView/Share. */
+    suspend fun dateiLoeschen(id: String): AtlasErgebnis<Unit> =
+        anfrage(Request.Builder().url("$basisUrl/api/files/$id").delete().build()) { }
+
+    /**
+     * GET /api/files/{id} als Byte-Array — mit denselben Cookies wie jede andere
+     * Anfrage, deshalb kein 401 wie beim Öffnen der URL im externen Browser.
+     * Gibt Inhalt + erkannten Content-Type zurück.
+     */
+    suspend fun dateiLaden(id: String): AtlasErgebnis<Pair<ByteArray, String?>> = withContext(Dispatchers.IO) {
+        try {
+            client.newCall(Request.Builder().url("$basisUrl/api/files/$id").get().build()).execute().use { antwort ->
+                if (!antwort.isSuccessful) {
+                    val text = runCatching { antwort.body.string() }.getOrDefault("")
+                    return@withContext AtlasErgebnis.Fehler(serverMeldung(text, antwort.code), antwort.code)
+                }
+                val bytes = antwort.body.bytes()
+                val typ = antwort.header("Content-Type")
+                AtlasErgebnis.Erfolg(bytes to typ)
+            }
+        } catch (e: IOException) {
+            AtlasErgebnis.Fehler("Keine Verbindung zum Server.", ohneVerbindung = true)
+        } catch (e: Exception) {
+            AtlasErgebnis.Fehler("Die Antwort des Servers war unverständlich.")
+        }
+    }
+
+    // --- Bot (Web-Parität, lesend + Verlauf) ------------------------------------
+
+    /** GET /api/bot. */
+    suspend fun botStart(): AtlasErgebnis<BotStartAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/bot").get().build()) { text ->
+            json.decodeFromString<BotStartAntwort>(text)
+        }
+
+    /** GET /api/bot/verlauf. */
+    suspend fun botVerlauf(): AtlasErgebnis<List<BotVerlaufEintragDTO>> =
+        anfrage(Request.Builder().url("$basisUrl/api/bot/verlauf").get().build()) { text ->
+            json.decodeFromString<BotVerlaufAntwort>(text).conversations
+        }
+
+    /** GET /api/bot/verlauf/{id}. */
+    suspend fun botVerlaufDetail(id: String): AtlasErgebnis<BotVerlaufDetailAntwort> =
+        anfrage(Request.Builder().url("$basisUrl/api/bot/verlauf/$id").get().build()) { text ->
+            json.decodeFromString<BotVerlaufDetailAntwort>(text)
+        }
+
     /**
      * Der gemeinsame Weg jeder Anfrage: ausfuehren, Fehler in [AtlasErgebnis]
      * uebersetzen, den Rumpf nur im Erfolgsfall lesen. Jede Ausnahme endet

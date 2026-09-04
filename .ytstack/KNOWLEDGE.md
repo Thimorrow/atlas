@@ -75,3 +75,15 @@ Patterns, rules, and lessons learned while building Atlas. This file is read by 
   Adapter-Tests sind offline/pure; `sync.test.ts` ist ein echter Neon-Integrationstest
   (Sentinel-Datum 2099-01-05, beforeAll/afterAll raeumen auf). Upsert-Logik lebt in
   `upsertSchoolBlocks()` (von `syncUntis` genutzt) -> kein Test/Prod-Drift.
+
+- **Migrationen laufen im Vercel-Build** (`package.json` build = `node scripts/migrate.mjs && next build`),
+  nicht ueber eine API-Route und nicht per drizzle-kit migrate. Neue Migration: `npx drizzle-kit generate
+  --name <slug>`; die erzeugte SQL PRUEFEN, drizzle-kit haengt wegen fehlender Zwischen-Snapshots
+  gern fremde `ALTER TABLE`-Zeilen an (bei 0016 von Hand entfernt). Lokal gibt es keine DATABASE_URL,
+  Integrationstests sind `describe.skipIf`.
+- **rtk filtert `grep`-Ausgabe kaputt** ("N matches in 0 files"). Fuer echte Trefferzeilen
+  `rtk proxy grep ...` nutzen.
+- **Navigation ist an zwei Stellen gepflegt**: `components/app-sidebar.tsx` (MODULES) und
+  `components/mobile-header.tsx` (eigenes Array). Neue Route immer in beide.
+- **Live-Unterricht = /stunde, nicht der Fokus.** Der Fokus auf `/` ist die Abend-/Morgen-Sicht;
+  alles, was waehrend der Stunde erfasst wird, gehoert ins Cockpit (haengt an `schoolBlockId`).

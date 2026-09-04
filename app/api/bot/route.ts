@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { buildGreeting, buildSystemPrompt } from "@/lib/bot/context";
-import { botEnabled, streamChatWithFallback, type ChatMessage, type ChatToolCall } from "@/lib/bot/model";
+import { botEnabled, streamChatWithFallback, type ChatToolCall } from "@/lib/bot/model";
 import { botTools, runTool, statusTextFor } from "@/lib/bot/tools";
+import { toModelMessages } from "@/lib/bot/history";
+import { ladeStundeKontext, type StundeResponse } from "@/lib/stunde-kontext";
 import {
   appendMessage,
   createConversation,
@@ -9,7 +11,6 @@ import {
   listMessages,
   setTitleIfEmpty,
   touchConversation,
-  type MessageDTO,
 } from "@/lib/bot/store";
 import { isUuid, isObj } from "@/lib/subject-store";
 
@@ -18,9 +19,27 @@ export const dynamic = "force-dynamic";
 
 // Schreibende Werkzeuge: nur bei diesen kommt ein "action"-Ereignis mit dem
 // vollstaendigen Datensatz, damit die Oberflaeche eine Karte + Rueckgaengig
-// bauen kann.
-const WRITE_TOOLS = new Set(["aufgabe_anlegen", "aufgabe_aendern", "notiz_anlegen", "notiz_aendern"]);
+// (Lernkarten ohne Rueckgaengig) bauen kann.
+const WRITE_TOOLS = new Set([
+  "aufgabe_anlegen",
+  "aufgabe_aendern",
+  "notiz_anlegen",
+  "notiz_aendern",
+  "lernkarten_erzeugen",
+  "lernkarte_anlegen",
+]);
 const MAX_ROUNDS = 6;
+
+// Das Cockpit einmal laden, egal ob fuer die Begruessung (GET) oder den
+// System-Prompt (POST) -- schlaegt es fehl (z. B. keine Verbindung), bleibt
+// der Bot trotzdem nutzbar, nur eben ohne den "Gerade:"-Kontext.
+async function ladeJetztSicher(): Promise<StundeResponse | null> {
+  try {
+    return await ladeStundeKontext();
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/bot -- Begruessung + frische conversationId, ohne Modellaufruf.
 export async function GET() {
@@ -33,10 +52,8 @@ export async function GET() {
     });
   }
 
-  const [{ text, suggestions }, conversation] = await Promise.all([
-    buildGreeting(),
-    createConversation(),
-  ]);
+  const [jetzt, conversation] = await Promise.all([ladeJetztSicher(), createConversation()]);
+  const { text, suggestions } = await buildGreeting(jetzt);
 
   return NextResponse.json({
     enabled: true,
@@ -52,15 +69,6 @@ function errorStream(text: string): Response {
   return new Response(JSON.stringify({ type: "error", text }) + "\n", {
     headers: { "Content-Type": "application/x-ndjson" },
   });
-}
-
-function toModelMessages(history: MessageDTO[]): ChatMessage[] {
-  const messages: ChatMessage[] = [{ role: "system", content: buildSystemPrompt() }];
-  for (const m of history) {
-    if (m.role === "user" && m.content) messages.push({ role: "user", content: m.content });
-    else if (m.role === "assistant" && m.content) messages.push({ role: "assistant", content: m.content });
-  }
-  return messages;
 }
 
 // POST /api/bot -- { conversationId?, message } -> NDJSON-Stream.
@@ -105,7 +113,8 @@ export async function POST(req: Request) {
 
       try {
         const history = await listMessages(conversationId!);
-        const chatMessages = toModelMessages(history);
+        const jetzt = await ladeJetztSicher();
+        const chatMessages = toModelMessages(history, buildSystemPrompt(jetzt));
 
         let finalText = "";
         let round = 0;
