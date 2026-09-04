@@ -161,6 +161,6 @@ export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 export function parseLessonNoteBody(input: unknown): Parsed<string> {
   if (typeof input !== "string") return { ok: false, error: "body muss ein Text sein." };
   if (input.length > MAX_BODY_LEN)
-    return { ok: false, error: `Die Notiz darf höchstens ${MAX_BODY_LEN} Zeichen lang sein.` };
+    return { ok: false, error: `Die Notiz darf hoechstens ${MAX_BODY_LEN} Zeichen lang sein.` };
   return { ok: true, value: input };
 }

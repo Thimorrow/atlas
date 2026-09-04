@@ -99,7 +99,7 @@ function summaryFuer(p: PunktDraft, urteil: string | null, blattNamen: string[])
   const teile: string[] = [];
   if (p.detail) teile.push(p.detail);
   if (p.seiten) teile.push(`Seiten: ${p.seiten}`);
-  if (blattNamen.length > 0) teile.push(`Blätter: ${blattNamen.join(", ")}`);
+  if (blattNamen.length > 0) teile.push(`Blaetter: ${blattNamen.join(", ")}`);
   if (urteil) teile.push(`Diagnose: ${urteil}`);
   return teile.join(" · ");
 }
@@ -269,10 +269,10 @@ export async function planAnlegen(
   zeit: { heuteISO: string; jetztHM: string },
 ): Promise<{ plan: PlanDTO; createdTopicIds: string[]; hinweis?: string[] }> {
   const assignment = await getAssignment(input.assignmentId);
-  if (!assignment) throw new LernplanStoreFehler(404, "pruefung", "Prüfung gibt es nicht mehr.");
-  if (!assignment.subjectId) throw new LernplanStoreFehler(400, "kein_fach", "Prüfung hat kein Fach.");
+  if (!assignment) throw new LernplanStoreFehler(404, "pruefung", "Pruefung gibt es nicht mehr.");
+  if (!assignment.subjectId) throw new LernplanStoreFehler(400, "kein_fach", "Pruefung hat kein Fach.");
   if (!assignment.dueDate || assignment.dueDate <= zeit.heuteISO) {
-    throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Prüfung sind keine Tage mehr.");
+    throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Pruefung sind keine Tage mehr.");
   }
   const subjectId = assignment.subjectId;
   const pruefungISO = assignment.dueDate;
@@ -286,7 +286,7 @@ export async function planAnlegen(
   if ("fileId" in input.checklist) alleFileIds.add(input.checklist.fileId);
   for (const p of input.punkte) for (const id of p.fileIds) alleFileIds.add(id);
   for (const id of alleFileIds) {
-    if (!gueltig.has(id)) throw new LernplanStoreFehler(400, "dateien_fremd", "Eine Datei gehört nicht zu diesem Fach.");
+    if (!gueltig.has(id)) throw new LernplanStoreFehler(400, "dateien_fremd", "Eine Datei gehoert nicht zu diesem Fach.");
   }
 
   // Doppel-Submit: ein Plan derselben Pruefung, juenger als 30s, ohne
@@ -332,7 +332,7 @@ export async function planAnlegen(
     });
   } catch (err) {
     if (err instanceof LernplanFehler && err.code === "keine_tage") {
-      throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Prüfung sind keine Tage mehr.");
+      throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Pruefung sind keine Tage mehr.");
     }
     throw err;
   }
@@ -474,7 +474,7 @@ export async function planLoeschen(planId: string, topicIds: string[] = []): Pro
       .where(eq(studyPlanPoints.planId, planId));
     const erlaubt = new Set(points.map((p) => p.topicId).filter((t): t is string => t !== null));
     for (const id of topicIds) {
-      if (!erlaubt.has(id)) throw new LernplanStoreFehler(400, "themen_fremd", "Ein Thema gehört nicht zu diesem Plan.");
+      if (!erlaubt.has(id)) throw new LernplanStoreFehler(400, "themen_fremd", "Ein Thema gehoert nicht zu diesem Plan.");
     }
     for (const id of topicIds) {
       await deleteTopic(id);
@@ -548,7 +548,7 @@ export async function punktPatch(pointId: string, input: PunktPatchInput): Promi
     if (!plan) throw new LernplanStoreFehler(404, "kein_plan", "Plan nicht gefunden.");
     const [topic] = await db.select().from(studyTopics).where(eq(studyTopics.id, input.topicId));
     if (!topic || topic.subjectId !== plan.subjectId) {
-      throw new LernplanStoreFehler(400, "thema_fremd", "Thema gehört nicht zu diesem Fach.");
+      throw new LernplanStoreFehler(400, "thema_fremd", "Thema gehoert nicht zu diesem Fach.");
     }
     patch.topicId = input.topicId;
   }
@@ -579,7 +579,7 @@ export async function neuVerteilenImStore(
 
   const assignment = await getAssignment(planRow.assignmentId);
   if (!assignment || !assignment.dueDate) {
-    throw new LernplanStoreFehler(404, "pruefung", "Prüfung gibt es nicht mehr.");
+    throw new LernplanStoreFehler(404, "pruefung", "Pruefung gibt es nicht mehr.");
   }
   const pruefungISO = assignment.dueDate;
 
@@ -620,7 +620,7 @@ export async function neuVerteilenImStore(
     });
   } catch (err) {
     if (err instanceof LernplanFehler && err.code === "keine_tage") {
-      throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Prüfung sind keine Tage mehr.");
+      throw new LernplanStoreFehler(422, "keine_tage", "Bis zur Pruefung sind keine Tage mehr.");
     }
     throw err;
   }

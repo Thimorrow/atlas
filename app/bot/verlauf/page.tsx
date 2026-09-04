@@ -49,7 +49,7 @@ export default function BotVerlaufPage() {
             className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
-            Zurück zum Bot
+            Zurueck zum Bot
           </Link>
           <div>
             <h1 className="text-xl font-semibold leading-tight tracking-tight">Verlauf</h1>
@@ -59,8 +59,8 @@ export default function BotVerlaufPage() {
                 : loadError
                   ? "Konnte nicht geladen werden."
                   : conversations!.length === 0
-                    ? "Noch kein Gespräch."
-                    : `${conversations!.length} Gespräch${conversations!.length === 1 ? "" : "e"}.`}
+                    ? "Noch kein Gespraech."
+                    : `${conversations!.length} Gespraech${conversations!.length === 1 ? "" : "e"}.`}
             </p>
           </div>
         </StaggerItem>
@@ -124,7 +124,7 @@ function EmptyState() {
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
       <MessageCircle className="size-6 text-muted-foreground/60" />
       <div>
-        <p className="text-[15px] font-medium">Noch kein Gespräch.</p>
+        <p className="text-[15px] font-medium">Noch kein Gespraech.</p>
         <p className="mt-0.5 text-sm text-muted-foreground">Frag den Atlas-Bot etwas, dann erscheint es hier.</p>
       </div>
       <Link

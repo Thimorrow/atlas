@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
   const body = await req.json().catch(() => null);
   if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Ungültiger Request-Body." }, { status: 400 });
+    return NextResponse.json({ error: "Ungueltiger Request-Body." }, { status: 400 });
   }
 
   const { quelle, fileIds, noteIds } = body as Record<string, unknown>;

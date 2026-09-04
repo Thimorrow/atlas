@@ -36,7 +36,7 @@ export function AssignmentList({
   grouped = false,
   emptyLabel = "Nichts offen.",
   // Erklaerung unter dem Titel, nur wo sie wirklich weiterhilft (etwa der
-  // Hinweis auf die Eingabezeile auf /aufgaben). Standardmäßig kein
+  // Hinweis auf die Eingabezeile auf /aufgaben). Standardmaessig kein
   // Zweit-Satz -- ein Titel ohne Anhang ist auch eine fertige Aussage.
   emptyHint,
   showSubject = true,
@@ -105,7 +105,7 @@ export function AssignmentList({
         onChange(before);
         toast(
           wasCompleted
-            ? "Die Aufgabe konnte nicht wieder geöffnet werden."
+            ? "Die Aufgabe konnte nicht wieder geoeffnet werden."
             : "Die Aufgabe konnte nicht abgehakt werden.",
         );
       }
@@ -163,12 +163,12 @@ export function AssignmentList({
           // Die Zeile ist schon lange aus der Liste raus -- best-effort
           // zurueckhaengen, ohne zwischenzeitliche Aenderungen zu verwerfen.
           onChange([...assignmentsRef.current, a]);
-          toast("Die Aufgabe konnte nicht gelöscht werden.");
+          toast("Die Aufgabe konnte nicht geloescht werden.");
         }
       }, TOAST_DURATION + 300);
       pendingDeletes.current.set(a.id, timer);
-      toast(`„${a.title}“ gelöscht.`, "success", {
-        label: "Rückgängig",
+      toast(`„${a.title}“ geloescht.`, "success", {
+        label: "Rueckgaengig",
         onClick: () => {
           const t = pendingDeletes.current.get(a.id);
           if (!t) return;
@@ -228,8 +228,8 @@ export function AssignmentList({
   return (
     <div>
       {open.length === 0 && done.length === 0 ? (
-        // Gleiches Muster wie der Prüfungen-Leerzustand (Icon + Titel + optionaler
-        // Hinweis), damit leere Seiten sich wie EINE App anfühlen. Bewusst KEIN
+        // Gleiches Muster wie der Pruefungen-Leerzustand (Icon + Titel + optionaler
+        // Hinweis), damit leere Seiten sich wie EINE App anfuehlen. Bewusst KEIN
         // Anlege-Button hier: Auf /aufgaben steht die Eingabezeile direkt darueber,
         // ein zweiter CTA waere derselbe Knopf zweimal.
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-10 text-center">
@@ -340,7 +340,7 @@ function RowMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Aktionen für ${a.title}`}
+          aria-label={`Aktionen fuer ${a.title}`}
           onClick={(e) => e.stopPropagation()}
           // A1 (Touch): before blaeht die 28px-Flaeche unsichtbar auf 44px auf.
           // Auf Touch-Geraeten ist das Menue immer sichtbar (opacity-100), weil
@@ -363,7 +363,7 @@ function RowMenu({
           onClick={() => onDelete(a)}
         >
           <Trash2 />
-          Löschen
+          Loeschen
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -415,7 +415,7 @@ function Row({
           checked={checked}
           tint={tint}
           size={22}
-          ariaLabel={`${a.title} ${checked ? "wieder öffnen" : "abhaken"}`}
+          ariaLabel={`${a.title} ${checked ? "wieder oeffnen" : "abhaken"}`}
           onClick={() => onToggle(a)}
         />
 

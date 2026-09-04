@@ -65,9 +65,9 @@ function friendlySyncMessage(error: string, kind: "network" | "server"): string 
     return "WebUntis hat die Zugangsdaten abgelehnt. Server, Schule, Benutzer oder Passwort stimmen nicht.";
   }
   if (/econnrefused|etimedout|enotfound|fetch failed|timeout|502|503|504|unreachable/.test(e)) {
-    return "WebUntis antwortet nicht. Oft liegt das an der Schule, etwa weil der Dienst dort gerade abgeschaltet ist. Versuch es später erneut.";
+    return "WebUntis antwortet nicht. Oft liegt das an der Schule, etwa weil der Dienst dort gerade abgeschaltet ist. Versuch es spaeter erneut.";
   }
-  return "Der Abgleich hat nicht geklappt. Versuch es später erneut.";
+  return "Der Abgleich hat nicht geklappt. Versuch es spaeter erneut.";
 }
 
 function Section({
@@ -158,7 +158,7 @@ export default function SettingsPage() {
             className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
-            Zurück zum Stundenplan
+            Zurueck zum Stundenplan
           </Link>
           {/* Design-Audit (Stimmigkeit): text-xl + mt-0.5 wie der "Stundenplan"-
               Titel auf der Hauptseite -- beide Seiten sollen als EINE App wirken,
@@ -184,7 +184,7 @@ export default function SettingsPage() {
               </div>
               <div className="min-w-0 space-y-1">
                 <div className="text-base font-medium leading-tight">Thimofej</div>
-                <div className="text-sm text-muted-foreground">Schüler</div>
+                <div className="text-sm text-muted-foreground">Schueler</div>
                 {/* title, weil truncate die Adresse auf schmalen Displays
                     abschneidet -- so bleibt sie per Hover/Longpress lesbar. */}
                 <div
@@ -279,8 +279,8 @@ export default function SettingsPage() {
                   Nutzen: der Abgleich haelt die Stunden aktuell, ohne dass beim
                   wiederholten Sync Duplikate entstehen. */}
               <p className="text-[13px] text-muted-foreground">
-                Lädt deine Stunden von{" "}
-                <span className="font-medium text-foreground">letzter Woche bis in drei Wochen</span> und hält sie
+                Laedt deine Stunden von{" "}
+                <span className="font-medium text-foreground">letzter Woche bis in drei Wochen</span> und haelt sie
                 aktuell.
               </p>
               <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
@@ -360,10 +360,10 @@ export default function SettingsPage() {
               nie aktiv wird, ist selbst der Befund (ui-review: totes Bedienelement).
               Mehrnutzer/Login liegt in der Datenschicht, die hier nicht angefasst
               wird -- also ehrlicher Fliesstext statt vorgetaeuschter Bedienbarkeit. */}
-          <Section icon={LogOut} title="Konto" desc="Ein Nutzer, keine Anmeldung nötig.">
+          <Section icon={LogOut} title="Konto" desc="Ein Nutzer, keine Anmeldung noetig.">
             <p className="text-[13px] text-muted-foreground">
-              Atlas läuft aktuell für ein einzelnes Konto ohne Login. Abmelden gibt es, sobald mehrere Nutzer
-              unterstützt werden.
+              Atlas laeuft aktuell fuer ein einzelnes Konto ohne Login. Abmelden gibt es, sobald mehrere Nutzer
+              unterstuetzt werden.
             </p>
           </Section>
         </StaggerItem>

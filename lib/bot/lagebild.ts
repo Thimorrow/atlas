@@ -183,7 +183,7 @@ export function lagebildAlsText(l: Lagebild): string {
   }
 
   if (l.lernplaene) {
-    zeilen.push(`Lernpläne: ${l.lernplaene} aktiv`);
+    zeilen.push(`Lernplaene: ${l.lernplaene} aktiv`);
   }
 
   zeilen.push("Zuletzt geaenderte Notizen:");

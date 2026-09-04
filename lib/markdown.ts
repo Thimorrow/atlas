@@ -1,5 +1,7 @@
 import { Marked, type Tokens } from "marked";
 
+import { ohneUmlaute } from "@/lib/umlaute";
+
 // Markdown-Rendering fuer Fach-Notizen.
 //
 // Sicherheit: Das Ergebnis landet in `dangerouslySetInnerHTML`, also darf aus
@@ -78,7 +80,7 @@ export function renderMarkdown(src: string): string {
 
 // Reparatur fuer gestreamten Bot-Text: das Modell liefert manchmal zwei
 // Saetze oder einen Listenpunkt und den folgenden Absatz ganz ohne
-// Trennzeichen aneinander, z. B. "...Unit 4 lernenAußerdem sind zwei
+// Trennzeichen aneinander, z. B. "...Unit 4 lernenAusserdem sind zwei
 // Aufgaben..." oder "...steht an.Morgen ist frei.". Ohne Leerzeile dazwischen
 // zieht Markdown (Lazy Continuation) den zweiten Satz in denselben
 // Listenpunkt statt einen neuen Absatz zu beginnen.
@@ -92,12 +94,12 @@ export function renderMarkdown(src: string): string {
 // angewendet), nicht Teil von renderMarkdown selbst -- Fach-Notizen sollen
 // sich nicht aendern.
 const ABSATZ_ANFAENGE = [
-  "Au\u00dferdem",
-  "Zus\u00e4tzlich",
+  "Ausserdem",
+  "Zusaetzlich",
   "Zudem",
   "Daneben",
   "Ansonsten",
-  "\u00dcbrigens",
+  "Uebrigens",
   "Insgesamt",
   "Dazu",
   "Wichtig",
@@ -106,19 +108,24 @@ const ABSATZ_ANFAENGE = [
   "Achtung",
   "Soll",
   "Willst",
-  "M\u00f6chtest",
+  "Moechtest",
 ];
 
 export function repairMissingParagraphBreaks(src: string): string {
   if (!src) return src;
-  return src
+  // Hier laeuft der einzige Text durch, den nicht die App, sondern das Modell
+  // geschrieben hat -- also die einzige Stelle, an der doch noch Umlaute in
+  // die Oberflaeche kommen koennten. Deshalb zuerst transliterieren (siehe
+  // CLAUDE.md), erst danach die Absaetze reparieren: die Wortliste unten
+  // braucht so nur eine Schreibweise.
+  return ohneUmlaute(src)
     // "...steht an.Morgen ist frei." -- ein Satzzeichen ohne Leerzeichen
     // dahinter ist immer eine Bruchstelle.
-    .replace(/([.!?:])([A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df])/g, "$1\n\n$2")
-    // "...Unit 4 lernenAu\u00dferdem sind..." -- hier fehlt sogar das
+    .replace(/([.!?:])([A-Z][a-z])/g, "$1\n\n$2")
+    // "...Unit 4 lernenAusserdem sind..." -- hier fehlt sogar das
     // Satzzeichen, deshalb nur vor den bekannten Absatzanfaengen.
     .replace(
-      new RegExp(`([a-z\\u00e4\\u00f6\\u00fc\\u00df])(${ABSATZ_ANFAENGE.join("|")})(?![a-z\\u00e4\\u00f6\\u00fc\\u00df])`, "g"),
+      new RegExp(`([a-z])(${ABSATZ_ANFAENGE.join("|")})(?![a-z])`, "g"),
       "$1\n\n$2",
     );
 }

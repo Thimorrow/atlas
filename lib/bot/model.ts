@@ -232,7 +232,7 @@ export async function* streamChat(
   model: string = BOT_MODEL,
 ): AsyncGenerator<StreamEvent> {
   const key = process.env.ZAI_API_KEY;
-  if (!key) throw new Error("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY.");
+  if (!key) throw new Error("Der Atlas-Bot ist noch nicht eingerichtet. Dafuer fehlt der Schluessel ZAI_API_KEY.");
 
   const { system, messages: anthropicMessages, tools: anthropicTools } = toAnthropicRequest(messages, tools);
 

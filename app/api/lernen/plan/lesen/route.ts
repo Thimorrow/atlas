@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const { assignmentId, checklist, fileIds } = body;
 
   if (typeof assignmentId !== "string" || !isUuid(assignmentId)) {
-    return NextResponse.json({ error: "assignmentId", hinweis: "assignmentId ist keine gültige ID." }, { status: 400 });
+    return NextResponse.json({ error: "assignmentId", hinweis: "assignmentId ist keine gueltige ID." }, { status: 400 });
   }
 
   if (!isObj(checklist)) {
@@ -48,11 +48,11 @@ export async function POST(req: Request) {
     );
   }
   if (hatFileId && !isUuid(checklist.fileId as string)) {
-    return NextResponse.json({ error: "checklist", hinweis: "checklist.fileId ist keine gültige ID." }, { status: 400 });
+    return NextResponse.json({ error: "checklist", hinweis: "checklist.fileId ist keine gueltige ID." }, { status: 400 });
   }
   if (hatText && (checklist.text as string).length > MAX_TEXT) {
     return NextResponse.json(
-      { error: "checklist", hinweis: `Text darf höchstens ${MAX_TEXT} Zeichen haben.` },
+      { error: "checklist", hinweis: `Text darf hoechstens ${MAX_TEXT} Zeichen haben.` },
       { status: 400 },
     );
   }
@@ -64,22 +64,22 @@ export async function POST(req: Request) {
     !fileIdsArr.every((f) => typeof f === "string" && isUuid(f))
   ) {
     return NextResponse.json(
-      { error: "fileIds", hinweis: `fileIds muss ein Array von höchstens ${MAX_FILE_IDS} gültigen IDs sein.` },
+      { error: "fileIds", hinweis: `fileIds muss ein Array von hoechstens ${MAX_FILE_IDS} gueltigen IDs sein.` },
       { status: 400 },
     );
   }
 
   const assignment = await getAssignment(assignmentId);
-  if (!assignment) return NextResponse.json({ error: "pruefung", hinweis: "Prüfung gibt es nicht mehr." }, { status: 404 });
+  if (!assignment) return NextResponse.json({ error: "pruefung", hinweis: "Pruefung gibt es nicht mehr." }, { status: 404 });
   if (!assignment.subjectId) {
-    return NextResponse.json({ error: "kein_fach", hinweis: "Prüfung hat kein Fach." }, { status: 400 });
+    return NextResponse.json({ error: "kein_fach", hinweis: "Pruefung hat kein Fach." }, { status: 400 });
   }
 
   const dateien = await listFiles(assignment.subjectId);
   const gueltig = new Set(dateien.map((d) => d.id));
   const alleFileIds = [...(fileIdsArr as string[]), ...(hatFileId ? [checklist.fileId as string] : [])];
   if (alleFileIds.some((id) => !gueltig.has(id))) {
-    return NextResponse.json({ error: "dateien_fremd", hinweis: "Eine Datei gehört nicht zu diesem Fach." }, { status: 400 });
+    return NextResponse.json({ error: "dateien_fremd", hinweis: "Eine Datei gehoert nicht zu diesem Fach." }, { status: 400 });
   }
 
   const checklistInput = hatFileId ? { fileId: checklist.fileId as string } : { text: checklist.text as string };

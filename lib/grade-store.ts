@@ -187,7 +187,7 @@ function parsePoints(v: unknown): Parsed<number> {
   // Zahlen kommen aus einem <input type="number"> auch als String an.
   const n = typeof v === "string" ? Number(v.trim()) : v;
   if (!isValidPoints(n))
-    return { ok: false, error: "Punkte müssen eine ganze Zahl von 0 bis 15 sein." };
+    return { ok: false, error: "Punkte muessen eine ganze Zahl von 0 bis 15 sein." };
   return { ok: true, value: n };
 }
 

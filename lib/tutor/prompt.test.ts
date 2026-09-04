@@ -44,13 +44,13 @@ describe("buildTutorContext", () => {
   });
 });
 
-describe("buildTutorContext: Arbeitsblätter", () => {
+describe("buildTutorContext: Arbeitsblaetter", () => {
   it("haengt den Blaetter-Abschnitt mit Seiten und Text an", () => {
     const context = buildTutorContext({
       ...baseInput,
       blaetter: { text: "Inhalt des Arbeitsblatts.", seiten: "12-14", gekuerzt: false, fehlend: [] },
     });
-    expect(context).toContain("Arbeitsblätter zu diesem Punkt (Seiten: 12-14)");
+    expect(context).toContain("Arbeitsblaetter zu diesem Punkt (Seiten: 12-14)");
     expect(context).toContain("Inhalt des Arbeitsblatts.");
   });
 

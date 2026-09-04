@@ -51,7 +51,7 @@ async function main() {
   const trigger = page.locator('[role="button"]', { hasText: "ZZ Testfach" }).first();
   await trigger.click();
   await page.waitForTimeout(200);
-  await page.getByRole("menuitem", { name: /Hausaufgabe hinzufügen/i }).click();
+  await page.getByRole("menuitem", { name: /Hausaufgabe hinzufuegen/i }).click();
 
   // Formular: Fach gesetzt, Faelligkeit vorbelegt (naechste ZZ-Testfach-
   // Stunde, die 10.09. faellt aus -> 17.09. muss stehen).

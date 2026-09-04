@@ -3,13 +3,13 @@ import { parseAufgabeErgebnis, parseCheckliste, parseFazit, parseFrageAuswahl } 
 
 describe("parseFrageAuswahl", () => {
   it("lehnt eine Option ab", () => {
-    const r = parseFrageAuswahl({ frage: "Was weißt du?", optionen: ["A"], mehrfach: false });
+    const r = parseFrageAuswahl({ frage: "Was weisst du?", optionen: ["A"], mehrfach: false });
     expect(r.ok).toBe(false);
   });
 
   it("kappt mehr als 6 Optionen auf 6", () => {
     const r = parseFrageAuswahl({
-      frage: "Was weißt du?",
+      frage: "Was weisst du?",
       optionen: ["A", "B", "C", "D", "E", "F", "G", "H"],
       mehrfach: false,
     });
@@ -18,8 +18,8 @@ describe("parseFrageAuswahl", () => {
   });
 
   it("akzeptiert eine gueltige Eingabe", () => {
-    const r = parseFrageAuswahl({ frage: "Was weißt du?", optionen: ["A", "B"], mehrfach: true });
-    expect(r).toEqual({ ok: true, value: { frage: "Was weißt du?", optionen: ["A", "B"], mehrfach: true } });
+    const r = parseFrageAuswahl({ frage: "Was weisst du?", optionen: ["A", "B"], mehrfach: true });
+    expect(r).toEqual({ ok: true, value: { frage: "Was weisst du?", optionen: ["A", "B"], mehrfach: true } });
   });
 });
 

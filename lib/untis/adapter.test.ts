@@ -57,6 +57,9 @@ describe("lessonToSchoolBlock", () => {
     expect(normalizeSubject("Informatik/ang. Mathematik")).toBe("Informatik");
     expect(normalizeSubject("Informatorische Bildung")).toBe("Deutsch");
     expect(normalizeSubject("Englisch")).toBe("Englisch"); // unveraendert
+    // Untis schreibt mit Umlaut, die App nicht.
+    expect(normalizeSubject("Franz\u00f6sisch")).toBe("Franzoesisch");
+    expect(normalizeSubject("Sport (M\u00e4dchen)")).toBe("Sport (Maedchen)");
   });
 
   it("lessonToSchoolBlock wendet Normalisierung an", () => {

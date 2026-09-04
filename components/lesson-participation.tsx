@@ -175,7 +175,7 @@ export function ParticipationCounter({
         )}
         <button
           type="button"
-          aria-label="Eine Meldung hinzufügen"
+          aria-label="Eine Meldung hinzufuegen"
           disabled={loading || count >= MAX_COUNT}
           onClick={() => change(count + 1)}
           className={cn(BUTTON_BASE, "bg-primary text-primary-foreground hover:bg-primary/90")}
@@ -190,7 +190,7 @@ export function ParticipationCounter({
             onClick={recorded ? clearRecord : () => change(0)}
             className="min-h-11 text-[13px] text-muted-foreground [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            {recorded ? "Erfassung löschen" : "Da gewesen, keine Meldung"}
+            {recorded ? "Erfassung loeschen" : "Da gewesen, keine Meldung"}
           </button>
         )}
       </div>
@@ -227,7 +227,7 @@ export function LessonParticipationEditor({
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Meldungen schließen"
+              aria-label="Meldungen schliessen"
               onClick={onClose}
               className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
             >

@@ -29,11 +29,11 @@ export async function POST(req: Request) {
 
   const { subjectId, antworten } = body;
   if (typeof subjectId !== "string" || !isUuid(subjectId)) {
-    return NextResponse.json({ error: "subjectId", hinweis: "subjectId ist keine gültige ID." }, { status: 400 });
+    return NextResponse.json({ error: "subjectId", hinweis: "subjectId ist keine gueltige ID." }, { status: 400 });
   }
   if (!Array.isArray(antworten) || antworten.length === 0 || antworten.length > MAX_ANTWORTEN) {
     return NextResponse.json(
-      { error: "antworten", hinweis: `antworten muss 1 bis ${MAX_ANTWORTEN} Einträge haben.` },
+      { error: "antworten", hinweis: `antworten muss 1 bis ${MAX_ANTWORTEN} Eintraege haben.` },
       { status: 400 },
     );
   }
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   for (const a of antworten) {
     if (!isObj(a) || typeof a.frage !== "string" || typeof a.musterantwort !== "string") {
       return NextResponse.json(
-        { error: "antworten", hinweis: "frage und musterantwort müssen Strings sein." },
+        { error: "antworten", hinweis: "frage und musterantwort muessen Strings sein." },
         { status: 400 },
       );
     }
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     }
     if (typeof a.antwort === "string" && a.antwort.length > MAX_ANTWORT_LEN) {
       return NextResponse.json(
-        { error: "antworten", hinweis: `antwort darf höchstens ${MAX_ANTWORT_LEN} Zeichen haben.` },
+        { error: "antworten", hinweis: `antwort darf hoechstens ${MAX_ANTWORT_LEN} Zeichen haben.` },
         { status: 400 },
       );
     }

@@ -72,7 +72,7 @@ describe("parseCount", () => {
   it("lehnt 100 ab", () => {
     const r = parseCount(100);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain("höchstens");
+    if (!r.ok) expect(r.error).toContain("hoechstens");
   });
 
   it("lehnt 1.5 ab (keine ganze Zahl)", () => {

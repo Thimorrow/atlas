@@ -21,7 +21,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const body = await req.json().catch(() => null);
   if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Ungültiger Request-Body." }, { status: 400 });
+    return NextResponse.json({ error: "Ungueltiger Request-Body." }, { status: 400 });
   }
 
   const { question, answer, topicId, kind, archivedAt } = body as Record<string, unknown>;
@@ -44,13 +44,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   if (answer !== undefined) {
     if (typeof answer !== "string" || answer.length > MAX_LEN) {
-      return NextResponse.json({ error: `answer darf höchstens ${MAX_LEN} Zeichen lang sein.` }, { status: 400 });
+      return NextResponse.json({ error: `answer darf hoechstens ${MAX_LEN} Zeichen lang sein.` }, { status: 400 });
     }
     patch.answer = answer;
   }
   if (topicId !== undefined) {
     if (topicId !== null && (typeof topicId !== "string" || !isUuid(topicId))) {
-      return NextResponse.json({ error: "topicId muss eine gültige Themen-ID oder null sein." }, { status: 400 });
+      return NextResponse.json({ error: "topicId muss eine gueltige Themen-ID oder null sein." }, { status: 400 });
     }
     patch.topicId = topicId;
   }

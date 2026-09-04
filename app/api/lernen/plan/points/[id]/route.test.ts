@@ -45,7 +45,7 @@ describe("PATCH /api/lernen/plan/points/[id]", () => {
   });
 
   it("thema_fremd aus dem Store wird als 400 mit Code durchgereicht", async () => {
-    vi.mocked(punktPatch).mockRejectedValue(new LernplanStoreFehler(400, "thema_fremd", "Thema gehört nicht zu diesem Fach."));
+    vi.mocked(punktPatch).mockRejectedValue(new LernplanStoreFehler(400, "thema_fremd", "Thema gehoert nicht zu diesem Fach."));
 
     const res = await PATCH(req({ topicId: TOPIC_ID }), ctx());
 

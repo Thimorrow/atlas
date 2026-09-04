@@ -31,7 +31,7 @@ import { readSubjectFile } from "@/lib/bot/files";
 const MAX_ROUNDS = 6;
 const ROUND_TIMEOUT_MS = 110_000;
 // Gesamtlaenge aller Arbeitsblaetter eines Punkts im Prompt, siehe SPEC.md
-// "Tutor kennt die Blätter des Punkts".
+// "Tutor kennt die Blaetter des Punkts".
 const MAX_BLAETTER_CHARS = 15_000;
 
 export type TutorEvent =
@@ -53,7 +53,7 @@ export type TutorSessionDeps = {
   getTopic: typeof getTopic;
   subjectDetail: typeof subjectDetail;
   getCard: typeof getCard;
-  // Lernplan-Anbindung (SPEC.md "Tutor kennt die Blätter des Punkts") --
+  // Lernplan-Anbindung (SPEC.md "Tutor kennt die Blaetter des Punkts") --
   // optional, damit session.test.ts nur stubbt, was ein Test wirklich braucht.
   ladePunktMitBlaettern?: typeof punktMitBlaettern;
   ladePlan?: typeof planLaden;
@@ -176,7 +176,7 @@ export async function* runTutorTurn(
     return;
   }
 
-  // Simulation (SPEC.md "Tutor kennt die Blätter des Punkts"): keine
+  // Simulation (SPEC.md "Tutor kennt die Blaetter des Punkts"): keine
   // topicId, dafuer assignmentId -- Thema/Karten bleiben leer, stattdessen
   // alle Punkte des Plans im Kontext.
   const detail = await deps.subjectDetail(conversation.subjectId);

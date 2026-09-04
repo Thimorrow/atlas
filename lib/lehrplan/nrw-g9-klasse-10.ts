@@ -28,7 +28,7 @@
 // Seed nur Rauschen. Kommt ein Fach dazu, gehoert sein Kernlehrplan hier
 // ergaenzt.
 //
-// Anders als in den Kommentaren stehen in den DATEN echte Umlaute: die
+// Auch die DATEN sind ohne Umlaute geschrieben (siehe CLAUDE.md): die
 // Inhaltsfelder landen ueber den Seed in subjects.curriculum und damit
 // direkt vor den Augen des Schuelers.
 // Bei "Politik/Wirtschaft" lautet der offizielle Fachname im Kernlehrplan
@@ -38,6 +38,8 @@
 // Was nicht aus der Primaerquelle belegt werden konnte, wurde entweder
 // weggelassen oder mit `unsicher: true` gekennzeichnet -- keine erfundenen
 // Inhalte, keine erfundenen Quellen-URLs.
+
+import { vergleichbar } from "@/lib/umlaute";
 
 export type LehrplanFach = {
   fach: string; // kanonischer Fachname, z. B. "Mathematik"
@@ -58,8 +60,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Sprache",
         schwerpunkte: [
-          "Strukturen in Texten: Kohärenz, Textaufbau, sprachliche Mittel",
-          "Sprachebenen: Sprachvarietäten, Sprachstile, Diskriminierung durch Sprache",
+          "Strukturen in Texten: Kohaerenz, Textaufbau, sprachliche Mittel",
+          "Sprachebenen: Sprachvarietaeten, Sprachstile, Diskriminierung durch Sprache",
           "Sprachgeschichte und Sprachwandel",
           "Mehrsprachigkeit",
         ],
@@ -67,21 +69,21 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Texte",
         schwerpunkte: [
-          "Konfiguration, Handlungsführung und Textaufbau: Roman, Erzählung, Drama, kurze epische Texte",
+          "Konfiguration, Handlungsfuehrung und Textaufbau: Roman, Erzaehlung, Drama, kurze epische Texte",
           "Literarische Sprache und bildliche Ausdrucksformen: Gedichte",
           "Sachtexte",
-          "Textübergreifende Zusammenhänge: Gattungen, Produktions- und Rezeptionsgeschichte",
+          "Textuebergreifende Zusammenhaenge: Gattungen, Produktions- und Rezeptionsgeschichte",
           "Schreibprozess",
-          "Literarische Texte: Fiktionalität, Literarizität",
+          "Literarische Texte: Fiktionalitaet, Literarizitaet",
         ],
       },
       {
         titel: "Kommunikation",
         schwerpunkte: [
-          "Kommunikationssituationen: Präsentation, Bewerbungsgespräch, formalisierte Diskussionsformen",
+          "Kommunikationssituationen: Praesentation, Bewerbungsgespraech, formalisierte Diskussionsformen",
           "Kommunikationsrollen",
           "Kommunikationskonventionen",
-          "Gesprächsstrategien",
+          "Gespraechsstrategien",
         ],
       },
       {
@@ -89,7 +91,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: [
           "Medien als Hilfsmittel",
           "Medienrezeption: audiovisuelle Texte",
-          "Qualität und Darstellung von Informationen",
+          "Qualitaet und Darstellung von Informationen",
           "Meinungsbildung als medialer Prozess",
         ],
       },
@@ -107,7 +109,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
           "Zahlbereichserweiterung reelle Zahlen",
           "Potenzen, Wurzeln, Logarithmen",
           "Potenz- und Wurzelgesetze",
-          "Lösungsverfahren quadratischer Gleichungen: quadratische Ergänzung, p-q-Formel, Satz von Vieta",
+          "Loesungsverfahren quadratischer Gleichungen: quadratische Ergaenzung, p-q-Formel, Satz von Vieta",
           "Exponentialgleichungen",
         ],
       },
@@ -122,8 +124,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Geometrie",
         schwerpunkte: [
-          "Kreis: Umfang, Flächeninhalt, Tangente",
-          "Körper: Kugel, Zylinder, Prisma, Kegel, Pyramide",
+          "Kreis: Umfang, Flaecheninhalt, Tangente",
+          "Koerper: Kugel, Zylinder, Prisma, Kegel, Pyramide",
           "Zentrische Streckung und Aehnlichkeit",
           "Satz des Pythagoras, Kosinussatz",
           "Trigonometrie: Sinus, Kosinus, Tangens",
@@ -133,7 +135,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Stochastik",
         schwerpunkte: [
           "Statistische Daten: Erhebung, Diagramm, Manipulation",
-          "Bedingte Wahrscheinlichkeit, stochastische Unabhängigkeit",
+          "Bedingte Wahrscheinlichkeit, stochastische Unabhaengigkeit",
           "Vierfeldertafel, Baumdiagramme, Pfadregeln",
         ],
       },
@@ -146,7 +148,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
     aliase: ["E", "Eng"],
     inhaltsfelder: [
       {
-        titel: "Persönliche Lebensgestaltung",
+        titel: "Persoenliche Lebensgestaltung",
         schwerpunkte: [
           "Lebenssituation, Alltag, Freizeitgestaltung Jugendlicher",
           "Lernen und Arbeiten",
@@ -160,15 +162,15 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: [
           "Schulsystem und Schulalltag in einem weiteren anglophonen Land",
           "Schulisches Lernen im digitalen und globalisierten Zeitalter",
-          "Schüleraustausch",
+          "Schueleraustausch",
         ],
       },
       {
         titel: "Teilhabe am gesellschaftlichen Leben",
         schwerpunkte: [
           "Anglophone Lebenswirklichkeiten global: geografisch, wirtschaftlich-technologisch, kulturell, sozial, politisch",
-          "Migration und Mobilität",
-          "Digitale Medien für die Gesellschaft",
+          "Migration und Mobilitaet",
+          "Digitale Medien fuer die Gesellschaft",
           "Werbung, Konsum, Verbraucherschutz",
           "Gesellschaftliches Engagement",
           "Demokratie und Menschenrechte",
@@ -177,7 +179,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Berufsorientierung",
         schwerpunkte: [
-          "Schülerjobs, Praktika",
+          "Schuelerjobs, Praktika",
           "Berufsprofile im digitalen Zeitalter",
           "Bewerbungsverfahren",
         ],
@@ -193,7 +195,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Antike Welt",
         schwerpunkte: [
-          "Gesellschaft: Stände, soziale Spannungen",
+          "Gesellschaft: Staende, soziale Spannungen",
           "Staat und Politik: Republik/Prinzipat, Herrschaftsanspruch, Expansion",
           "Philosophie: Stoa, Epikureismus",
           "Literatur: zentrale Autoren und Werke",
@@ -202,7 +204,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Textgestaltung",
         schwerpunkte: [
-          "Textstruktur: Argumentationsstrategien, Erzählperspektive, Leserlenkung",
+          "Textstruktur: Argumentationsstrategien, Erzaehlperspektive, Leserlenkung",
           "Sprachlich-stilistische Gestaltung: Hypotaxe/Parataxe, Stilmittel",
           "Textsorten: Fabel, Gedicht, Bericht, politische Rede",
         ],
@@ -213,11 +215,11 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
           "Erweiterter Grundwortschatz",
           "e- und u-Deklination",
           "Futur I",
-          "Konjunktiv Präsens und Perfekt",
+          "Konjunktiv Praesens und Perfekt",
           "Deponentien",
           "Ablativus absolutus",
           "Gerundium und Gerundivum",
-          "Konjunktivische Hauptsätze",
+          "Konjunktivische Hauptsaetze",
           "Komparation",
         ],
       },
@@ -233,14 +235,14 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Oekologie und Naturschutz",
         schwerpunkte: [
           "Merkmale eines Oekosystems: heimisches Oekosystem, charakteristische Arten und Angepasstheiten, biotische Wechselwirkungen",
-          "Energiefluss und Stoffkreisläufe: Fotosynthese, Kohlenstoffkreislauf, Nahrungsnetze",
+          "Energiefluss und Stoffkreislaeufe: Fotosynthese, Kohlenstoffkreislauf, Nahrungsnetze",
           "Naturschutz und Nachhaltigkeit: Eingriffe des Menschen, Biotop- und Artenschutz",
         ],
       },
       {
         titel: "Evolution",
         schwerpunkte: [
-          "Grundzüge der Evolutionstheorie: Variabilität, natürliche Selektion, Fortpflanzungserfolg",
+          "Grundzuege der Evolutionstheorie: Variabilitaet, natuerliche Selektion, Fortpflanzungserfolg",
           "Entwicklung des Lebens auf der Erde: Erdzeitalter, Leitfossilien, biologischer Artbegriff",
           "Evolution des Menschen: Hominidenevolution",
         ],
@@ -248,8 +250,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Genetik",
         schwerpunkte: [
-          "Cytogenetik: DNA, Chromosomen, Mitose, Meiose, Karyogramm, Genommutation, Pränataldiagnostik",
-          "Regeln der Vererbung: Gen- und Allelbegriff, Familienstammbäume",
+          "Cytogenetik: DNA, Chromosomen, Mitose, Meiose, Karyogramm, Genommutation, Praenataldiagnostik",
+          "Regeln der Vererbung: Gen- und Allelbegriff, Familienstammbaeume",
         ],
       },
       {
@@ -264,8 +266,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Sexualerziehung",
         schwerpunkte: [
           "Hormonelle Steuerung des Zyklus",
-          "Verhütung, Schwangerschaftsabbruch",
-          "Umgang mit der eigenen Sexualität",
+          "Verhuetung, Schwangerschaftsabbruch",
+          "Umgang mit der eigenen Sexualitaet",
         ],
       },
     ],
@@ -288,12 +290,12 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Salze und Ionen",
         schwerpunkte: [
           "Ionenbindung: Anionen, Kationen, Ionengitter",
-          "Eigenschaften von Ionenverbindungen: Kristalle, Leitfähigkeit",
-          "Verhältnisformel, Gesetz der konstanten Massenverhältnisse, Reaktionsgleichung",
+          "Eigenschaften von Ionenverbindungen: Kristalle, Leitfaehigkeit",
+          "Verhaeltnisformel, Gesetz der konstanten Massenverhaeltnisse, Reaktionsgleichung",
         ],
       },
       {
-        titel: "Chemische Reaktionen durch Elektronenübertragung",
+        titel: "Chemische Reaktionen durch Elektronenuebertragung",
         schwerpunkte: [
           "Oxidation, Reduktion",
           "Galvanisches Element, Akkumulator, Batterie, Brennstoffzelle",
@@ -301,20 +303,20 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         ],
       },
       {
-        titel: "Molekülverbindungen",
+        titel: "Molekuelverbindungen",
         schwerpunkte: [
           "Unpolare und polare Elektronenpaarbindung",
-          "Elektronenpaarabstossungsmodell, räumliche Strukturen, Dipolmoleküle",
-          "Zwischenmolekulare Wechselwirkungen: Wasserstoffbrücken",
+          "Elektronenpaarabstossungsmodell, raeumliche Strukturen, Dipolmolekuele",
+          "Zwischenmolekulare Wechselwirkungen: Wasserstoffbruecken",
           "Katalysator",
         ],
       },
       {
-        titel: "Saure und alkalische Lösungen",
+        titel: "Saure und alkalische Loesungen",
         schwerpunkte: [
-          "Eigenschaften saurer und alkalischer Lösungen",
+          "Eigenschaften saurer und alkalischer Loesungen",
           "Neutralisation und Salzbildung",
-          "Einfache stöchiometrische Berechnungen: Stoffmenge, Stoffmengenkonzentration",
+          "Einfache stoechiometrische Berechnungen: Stoffmenge, Stoffmengenkonzentration",
           "Protonenabgabe und -aufnahme",
         ],
       },
@@ -322,8 +324,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Organische Chemie",
         schwerpunkte: [
           "Alkane und Alkanole",
-          "Makromoleküle: ausgewählte Kunststoffe",
-          "Zwischenmolekulare Wechselwirkungen: Van-der-Waals-Kräfte",
+          "Makromolekuele: ausgewaehlte Kunststoffe",
+          "Zwischenmolekulare Wechselwirkungen: Van-der-Waals-Kraefte",
           "Treibhauseffekt",
         ],
       },
@@ -354,7 +356,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Bewegung, Kraft und Energie",
         schwerpunkte: [
           "Geschwindigkeit, Beschleunigung",
-          "Kraft: Wechselwirkungsprinzip, Gewichtskraft und Masse, Kräfteaddition, Reibung",
+          "Kraft: Wechselwirkungsprinzip, Gewichtskraft und Masse, Kraefteaddition, Reibung",
           "Goldene Regel der Mechanik: einfache Maschinen",
           "Energieformen und Energieumwandlung, Leistung",
         ],
@@ -362,12 +364,12 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Druck und Auftrieb",
         schwerpunkte: [
-          "Druck in Flüssigkeiten und Gasen: Dichte, Schweredruck, Auftrieb",
+          "Druck in Fluessigkeiten und Gasen: Dichte, Schweredruck, Auftrieb",
           "Archimedisches Prinzip, Luftdruck",
         ],
       },
       {
-        titel: "Elektrizität",
+        titel: "Elektrizitaet",
         schwerpunkte: [
           "Elektrostatik: Ladungen und Felder, Spannung",
           "Elektrische Stromkreise: Widerstand, Reihen- und Parallelschaltung",
@@ -400,16 +402,16 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Lebenswelten im Mittelalter",
         schwerpunkte: [
-          "Städte und ihre Bewohnerinnen und Bewohner",
+          "Staedte und ihre Bewohnerinnen und Bewohner",
           "Begegnungen von Christen, Juden und Muslimen",
           "Transkontinentale Handelsbeziehungen zwischen Europa, Asien und Afrika",
         ],
       },
       {
-        titel: "Frühe Neuzeit: Neue Welten, neue Horizonte",
+        titel: "Fruehe Neuzeit: Neue Welten, neue Horizonte",
         schwerpunkte: [
           "Renaissance, Humanismus, Reformation",
-          "Hexenverfolgungen und Dreißigjähriger Krieg",
+          "Hexenverfolgungen und Dreissigjaehriger Krieg",
           "Entdeckungen und Eroberungen",
           "Vernetzung und Verlagerung globaler Handelswege",
         ],
@@ -417,8 +419,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Das lange 19. Jahrhundert",
         schwerpunkte: [
-          "Französische Revolution und Wiener Kongress",
-          "Revolution von 1848/49 und deutsche Reichsgründung",
+          "Franzoesische Revolution und Wiener Kongress",
+          "Revolution von 1848/49 und deutsche Reichsgruendung",
           "Industrialisierung und Arbeitswelten",
         ],
       },
@@ -428,7 +430,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
           "Imperialistische Expansionen in Afrika",
           "Ursachen, Merkmale und Verlauf des Ersten Weltkriegs",
           "Epochenjahr 1917",
-          "Pariser Friedensverträge",
+          "Pariser Friedensvertraege",
         ],
       },
       {
@@ -445,16 +447,16 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: [
           "Ende des Rechts- und Verfassungsstaats 1933/34",
           "Ideologie und Herrschaftssystem des Nationalsozialismus",
-          "Alltagsleben in der NS-Diktatur: Zustimmung, Unterdrückung, Verfolgung, Widerstand",
+          "Alltagsleben in der NS-Diktatur: Zustimmung, Unterdrueckung, Verfolgung, Widerstand",
           "Zweiter Weltkrieg, Vernichtungskrieg und Holocaust",
-          "Flucht und Vertreibung im europäischen Kontext",
+          "Flucht und Vertreibung im europaeischen Kontext",
         ],
       },
       {
         titel: "Internationale Verflechtungen seit 1945",
         schwerpunkte: [
-          "Aufteilung der Welt in Blöcke, Stellvertreterkriege",
-          "Wiedererlangung staatlicher Souveränität beider deutscher Staaten",
+          "Aufteilung der Welt in Bloecke, Stellvertreterkriege",
+          "Wiedererlangung staatlicher Souveraenitaet beider deutscher Staaten",
           "Entkolonialisierung",
           "Ende des Ost-West-Konflikts, Wiedervereinigung",
         ],
@@ -482,55 +484,55 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
           "Schalenbau der Erde: Erdkern, Erdmantel, Erdkruste",
           "Plattentektonik: Konvergenz, Divergenz, Subduktion",
           "Naturereignisse: Erdbeben, Seebeben, Vulkanismus",
-          "Leben und Wirtschaften in Risikoräumen",
+          "Leben und Wirtschaften in Risikoraeumen",
         ],
       },
       {
         titel: "Wetter und Klima",
         schwerpunkte: [
-          "Schrägstellung der Erdachse, Beleuchtungszonen, Jahreszeiten",
-          "Klima und Klimasystem: Atmosphäre, Klimaelemente, Wasserkreislauf",
+          "Schraegstellung der Erdachse, Beleuchtungszonen, Jahreszeiten",
+          "Klima und Klimasystem: Atmosphaere, Klimaelemente, Wasserkreislauf",
           "Ursachen und Auswirkungen globaler Klimaschwankungen",
         ],
       },
       {
         titel: "Landwirtschaftliche Produktion in unterschiedlichen Landschaftszonen",
         schwerpunkte: [
-          "Naturräumliche Bedingungen in Tropen, Subtropen, Mittelbreiten",
+          "Naturraeumliche Bedingungen in Tropen, Subtropen, Mittelbreiten",
           "Wirtschaftsformen: Ackerbau, Viehwirtschaft, Plantagenwirtschaft, Subsistenzwirtschaft",
-          "Folgen unangepasster Nutzung: Regenwaldzerstörung, Desertifikation, Erosion",
+          "Folgen unangepasster Nutzung: Regenwaldzerstoerung, Desertifikation, Erosion",
           "Nachhaltiges Wirtschaften",
         ],
       },
       {
-        titel: "Innerstaatliche und globale Disparitäten",
+        titel: "Innerstaatliche und globale Disparitaeten",
         schwerpunkte: [
-          "Entwicklungsindikatoren: Bildung, Demografie, Ernährung, Gesundheit, HDI",
-          "Länder und Regionen unterschiedlichen Entwicklungsstandes",
+          "Entwicklungsindikatoren: Bildung, Demografie, Ernaehrung, Gesundheit, HDI",
+          "Laender und Regionen unterschiedlichen Entwicklungsstandes",
           "Entwicklungszusammenarbeit, Handelsabkommen",
         ],
       },
       {
-        titel: "Wachstum und Verteilung der Weltbevölkerung",
+        titel: "Wachstum und Verteilung der Weltbevoelkerung",
         schwerpunkte: [
-          "Entwicklung und räumliche Verteilung der Weltbevölkerung",
-          "Tragfähigkeit, Ernährungssicherung",
+          "Entwicklung und raeumliche Verteilung der Weltbevoelkerung",
+          "Tragfaehigkeit, Ernaehrungssicherung",
           "Migration: Push- und Pull-Faktoren",
         ],
       },
       {
-        titel: "Verstädterung und Stadtentwicklung",
+        titel: "Verstaedterung und Stadtentwicklung",
         schwerpunkte: [
-          "Merkmale und Wandel von Städten",
+          "Merkmale und Wandel von Staedten",
           "Urbanisierung, Megacities, Metropolisierung, Segregation",
-          "Mobilität, Umweltbelastung, demografischer und sozialer Wandel",
+          "Mobilitaet, Umweltbelastung, demografischer und sozialer Wandel",
         ],
       },
       {
-        titel: "Räumliche Strukturen unter dem Einfluss von Globalisierung und Digitalisierung",
+        titel: "Raeumliche Strukturen unter dem Einfluss von Globalisierung und Digitalisierung",
         schwerpunkte: [
           "Merkmale der Globalisierung",
-          "Standortgefüge, multinationale Konzerne, Global Cities",
+          "Standortgefuege, multinationale Konzerne, Global Cities",
           "Wandel von Unternehmen durch Digitalisierung",
         ],
       },
@@ -555,17 +557,17 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Sicherung und Weiterentwicklung der Demokratie",
         schwerpunkte: [
           "Demokratische Institutionen auf Landes- und Bundesebene",
-          "Wahlen und Parlamentarismus im föderalen System",
+          "Wahlen und Parlamentarismus im foederalen System",
           "Gewaltenteilung, Verfassungsstaatlichkeit",
-          "Gefährdungen der Demokratie, Rolle der Medien",
+          "Gefaehrdungen der Demokratie, Rolle der Medien",
         ],
       },
       {
-        titel: "Identität und Lebensgestaltung",
+        titel: "Identitaet und Lebensgestaltung",
         schwerpunkte: [
           "Individuelle Lebensgestaltung und soziale Verantwortung",
           "Selbstbestimmung in der digitalisierten Welt",
-          "Jugendkriminalität und Jugendstrafrecht",
+          "Jugendkriminalitaet und Jugendstrafrecht",
         ],
       },
       {
@@ -573,8 +575,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: [
           "Ziele, Grundfunktionen und Strukturen von Unternehmen",
           "Strukturwandel der Arbeitswelt durch Digitalisierung",
-          "Gewerkschaften, Arbeitgeberverbände, betriebliche Mitbestimmung",
-          "Berufswahl, Existenzgründung",
+          "Gewerkschaften, Arbeitgeberverbaende, betriebliche Mitbestimmung",
+          "Berufswahl, Existenzgruendung",
         ],
       },
       {
@@ -582,7 +584,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: [
           "Soziale Ungleichheit",
           "Prinzipien der sozialen Sicherung",
-          "Säulen des Sozialversicherungssystems",
+          "Saeulen des Sozialversicherungssystems",
         ],
       },
       {
@@ -595,12 +597,12 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         ],
       },
       {
-        titel: "Die Europäische Union als wirtschaftliche und politische Gemeinschaft",
+        titel: "Die Europaeische Union als wirtschaftliche und politische Gemeinschaft",
         schwerpunkte: [
           "Europa als Wertegemeinschaft",
           "Institutionen der EU",
           "Grundfreiheiten des EU-Binnenmarktes",
-          "Europäische Währungsunion",
+          "Europaeische Waehrungsunion",
         ],
       },
       {
@@ -647,15 +649,15 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: ["Jesu Botschaft vom Reich Gottes", "Kreuzestod und Auferstehung Jesu Christi"],
       },
       {
-        titel: "Kirche und andere Formen religiöser Gemeinschaft",
+        titel: "Kirche und andere Formen religioeser Gemeinschaft",
         schwerpunkte: [
-          "Kirche und religiöse Gemeinschaften im Wandel",
-          "Verhältnis von Kirche, Staat und Gesellschaft",
-          "Kirche in totalitären Systemen",
+          "Kirche und religioese Gemeinschaften im Wandel",
+          "Verhaeltnis von Kirche, Staat und Gesellschaft",
+          "Kirche in totalitaeren Systemen",
         ],
       },
       {
-        titel: "Zugänge zur Bibel",
+        titel: "Zugaenge zur Bibel",
         schwerpunkte: ["Biblische Texte als gedeutete Glaubenserfahrungen"],
       },
       {
@@ -665,7 +667,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       {
         titel: "Religion in Alltag und Kultur",
         schwerpunkte: [
-          "Religiöse Symbole in Kultur und Gesellschaft",
+          "Religioese Symbole in Kultur und Gesellschaft",
           "Umgang mit Tod und Trauer",
           "Fundamentalismus und Religion",
         ],
@@ -680,11 +682,11 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
     inhaltsfelder: [
       {
         titel: "Bewegungsstruktur und Bewegungslernen",
-        schwerpunkte: ["Wahrnehmung und Körpererfahrung", "Informationsaufnahme und -verarbeitung", "Struktur und Funktion von Bewegungen", "Motorisches Lernen"],
+        schwerpunkte: ["Wahrnehmung und Koerpererfahrung", "Informationsaufnahme und -verarbeitung", "Struktur und Funktion von Bewegungen", "Motorisches Lernen"],
       },
       {
         titel: "Bewegungsgestaltung",
-        schwerpunkte: ["Variation von Bewegung", "Präsentation von Bewegungsgestaltungen", "Ausgangspunkte von Gestaltungen", "Gestaltungskriterien"],
+        schwerpunkte: ["Variation von Bewegung", "Praesentation von Bewegungsgestaltungen", "Ausgangspunkte von Gestaltungen", "Gestaltungskriterien"],
       },
       {
         titel: "Wagnis und Verantwortung",
@@ -692,7 +694,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       },
       {
         titel: "Leistung",
-        schwerpunkte: ["Faktoren sportlicher Leistungsfähigkeit", "Leistungsverständnis im Sport", "Trainingsplanung und -organisation"],
+        schwerpunkte: ["Faktoren sportlicher Leistungsfaehigkeit", "Leistungsverstaendnis im Sport", "Trainingsplanung und -organisation"],
       },
       {
         titel: "Kooperation und Konkurrenz",
@@ -700,20 +702,20 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
       },
       {
         titel: "Gesundheit",
-        schwerpunkte: ["Unfall- und Verletzungsprophylaxe", "Gesundheitlicher Nutzen und Risiken", "Gesundheitsverständnis und Körperbilder"],
+        schwerpunkte: ["Unfall- und Verletzungsprophylaxe", "Gesundheitlicher Nutzen und Risiken", "Gesundheitsverstaendnis und Koerperbilder"],
       },
       {
-        titel: "Bewegungsfelder und Sportbereiche (verbindlich für die gesamte Sek I)",
+        titel: "Bewegungsfelder und Sportbereiche (verbindlich fuer die gesamte Sek I)",
         schwerpunkte: [
-          "Den Körper wahrnehmen und Bewegungsfähigkeiten ausprägen",
-          "Das Spielen entdecken und Spielräume nutzen",
+          "Den Koerper wahrnehmen und Bewegungsfaehigkeiten auspraegen",
+          "Das Spielen entdecken und Spielraeume nutzen",
           "Laufen, Springen, Werfen: Leichtathletik",
           "Bewegen im Wasser: Schwimmen",
-          "Bewegen an Geräten: Turnen",
-          "Gestalten, Tanzen, Darstellen: Gymnastik/Tanz, Bewegungskünste",
+          "Bewegen an Geraeten: Turnen",
+          "Gestalten, Tanzen, Darstellen: Gymnastik/Tanz, Bewegungskuenste",
           "Spielen in und mit Regelstrukturen: Sportspiele",
           "Gleiten, Fahren, Rollen: Rollsport/Bootssport/Wintersport",
-          "Ringen und Kämpfen: Zweikampfsport",
+          "Ringen und Kaempfen: Zweikampfsport",
         ],
       },
     ],
@@ -728,7 +730,7 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         titel: "Information und Daten",
         schwerpunkte: [
           "Daten und ihre Codierung",
-          "Verschlüsselungsverfahren",
+          "Verschluesselungsverfahren",
           "Erfassung, Verarbeitung und Verwaltung von Daten",
         ],
       },
@@ -741,8 +743,8 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
         schwerpunkte: ["Aufbau und Wirkungsweise von Automaten", "Erstellung und Analyse von Quelltexten"],
       },
       {
-        titel: "Künstliche Intelligenz und maschinelles Lernen",
-        schwerpunkte: ["Ueberwachtes Lernen", "Unüberwachtes Lernen", "Bestärkendes Lernen"],
+        titel: "Kuenstliche Intelligenz und maschinelles Lernen",
+        schwerpunkte: ["Ueberwachtes Lernen", "Unueberwachtes Lernen", "Bestaerkendes Lernen"],
       },
       {
         titel: "Informatiksysteme",
@@ -762,14 +764,16 @@ export const LEHRPLAN_NRW_G9_KLASSE_10: LehrplanFach[] = [
 ];
 
 // Findet den Lehrplan zu einem Fachnamen: exakter Treffer auf `fach` oder auf
-// einen Eintrag in `aliase`, jeweils case-insensitiv und getrimmt.
+// einen Eintrag in `aliase`, jeweils case-insensitiv, getrimmt und ohne
+// Umlaute. Die Fachnamen stehen hier transliteriert ("Franzoesisch"), aus dem
+// Untis-Sync kommen sie aber mit Umlaut -- vergleichbar() macht beide gleich.
 export function lehrplanFuer(fachname: string): LehrplanFach | null {
-  const gesucht = fachname.trim().toLowerCase();
+  const gesucht = vergleichbar(fachname);
   if (!gesucht) return null;
 
   for (const eintrag of LEHRPLAN_NRW_G9_KLASSE_10) {
-    if (eintrag.fach.toLowerCase() === gesucht) return eintrag;
-    if (eintrag.aliase.some((alias) => alias.toLowerCase() === gesucht)) return eintrag;
+    if (vergleichbar(eintrag.fach) === gesucht) return eintrag;
+    if (eintrag.aliase.some((alias) => vergleichbar(alias) === gesucht)) return eintrag;
   }
 
   return null;

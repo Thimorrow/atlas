@@ -35,7 +35,7 @@ export function MobileHeader() {
       {[
         { href: "/stunde", label: "Stunde", icon: Radio },
         { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
-        { href: "/faecher", label: "Fächer", icon: Library },
+        { href: "/faecher", label: "Faecher", icon: Library },
         { href: "/lernen", label: "Lernen", icon: Brain },
       ].map((m) => {
         const active = pathname.startsWith(m.href);

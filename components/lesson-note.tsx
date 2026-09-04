@@ -148,7 +148,7 @@ export function LessonNoteField({
           toast("Die Notiz konnte nicht geladen werden.");
           // Ohne bekannten Server-Stand gilt "noch nichts gespeichert" --
           // sonst vergliche der naechste Autosave-Check gegen den Text der
-          // vorher geoeffneten Notiz und würde faelschlich nichts speichern.
+          // vorher geoeffneten Notiz und wuerde faelschlich nichts speichern.
           savedBodyRef.current = "";
           setState("idle");
         }
@@ -253,7 +253,7 @@ export function LessonNoteField({
       <footer className={cn("flex min-h-11 items-center justify-between gap-2", footerClassName)}>
         {state === "idle" && !statusLabel ? (
           <p className="truncate text-[11px] text-muted-foreground">
-            Speichert automatisch{onRequestClose ? ` · ${modKey} + Enter zum Schließen` : ""}
+            Speichert automatisch{onRequestClose ? ` · ${modKey} + Enter zum Schliessen` : ""}
           </p>
         ) : (
           <span />
@@ -316,7 +316,7 @@ export function LessonNoteEditor({
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Notiz schließen"
+              aria-label="Notiz schliessen"
               onClick={onClose}
               className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
             >

@@ -11,6 +11,7 @@
 
 import { heuteISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
+import { vergleichbar } from "@/lib/umlaute";
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -52,16 +53,18 @@ export function parseFuzzyDate(input: string, today: Date = new Date()): ParsedD
     return { iso: raw };
   }
 
-  const lower = raw.toLowerCase();
+  // Ueber vergleichbar(), damit die Umlaut-Schreibweise und die
+  // transliterierte gleich ankommen -- getippt wird mal so, mal so.
+  const lower = vergleichbar(raw);
   const heute = heuteISO(today);
 
   if (lower === "heute") return { iso: heute };
   if (lower === "morgen") return { iso: addDays(heute, 1) };
-  if (lower === "übermorgen" || lower === "uebermorgen") return { iso: addDays(heute, 2) };
+  if (lower === "uebermorgen") return { iso: addDays(heute, 2) };
 
   // "naechsten Montag", "naechste Woche Montag", "kommenden Freitag" ...
   const naechsterMatch = lower.match(
-    /(?:naechst|nächst|kommend)\w*\s*(?:woche\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)/,
+    /(?:naechst|kommend)\w*\s*(?:woche\s+)?(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)/,
   );
   if (naechsterMatch) {
     return { iso: nextWeekday(heute, naechsterMatch[1]) };

@@ -95,11 +95,11 @@ function actionToastText(tool: string): string {
     case "aufgabe_anlegen":
       return "Aufgabe angelegt.";
     case "aufgabe_aendern":
-      return "Aufgabe geändert.";
+      return "Aufgabe geaendert.";
     case "notiz_anlegen":
       return "Notiz angelegt.";
     case "notiz_aendern":
-      return "Notiz geändert.";
+      return "Notiz geaendert.";
     default:
       return "Erledigt.";
   }
@@ -108,9 +108,9 @@ function actionToastText(tool: string): string {
 // Atlas-Signaturkurve, wie in components/stagger.tsx und assignment-list.tsx.
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-// Baut aus den gespeicherten Nachrichten wieder Turn-State für den
+// Baut aus den gespeicherten Nachrichten wieder Turn-State fuer den
 // Live-Chat: Nutzerfrage + Antwort + Karten (Aufgaben/Notizen,
-// Notenvorschläge). Lesende Werkzeugaufrufe bleiben draussen -- sie stehen
+// Notenvorschlaege). Lesende Werkzeugaufrufe bleiben draussen -- sie stehen
 // nur im Verlauf, nicht im laufenden Fenster.
 function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }>): Turn[] {
   const turns: Turn[] = [];
@@ -178,14 +178,14 @@ function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }
       }
     }
   }
-  // Züge ohne jede sichtbare Spur (z. B. nur lesende Werkzeuge ohne Antwort)
-  // fallen raus -- sonst stünden leere Blöcke im Fenster.
+  // Zuege ohne jede sichtbare Spur (z. B. nur lesende Werkzeuge ohne Antwort)
+  // fallen raus -- sonst stuenden leere Bloecke im Fenster.
   return turns.filter((t) => t.userText || t.assistantText || t.items.length > 0);
 }
 
 // Von aussen (Kopfzeilen-Button) aufgerufen, um den laufenden Chat zu
 // beenden und frisch anzufangen -- ein CustomEvent statt Context, wie schon
-// bei atlas:bot-toggle, damit kein Provider nötig ist. Re-Export, damit
+// bei atlas:bot-toggle, damit kein Provider noetig ist. Re-Export, damit
 // bestehende Imports weiter funktionieren; die Quelle ist lib/bot/chat-session.
 export { requestBotNewChat } from "@/lib/bot/chat-session";
 
@@ -208,7 +208,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const streaming = turns.length > 0 && turns[turns.length - 1].streaming;
-  // Lebendige Referenz für die Hintergrund-Auffrischung: sie darf den
+  // Lebendige Referenz fuer die Hintergrund-Auffrischung: sie darf den
   // sofort gezeigten Stand nur anfassen, solange niemand Neues kam.
   const turnsRef = useRef<Turn[]>([]);
   turnsRef.current = turns;
@@ -284,8 +284,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         const d = await cachedGetJSON<BotInfo>("/api/bot");
         if (!alive) return;
         setInfo(d);
-        // Gespeichertes Gespräch zuerst versuchen -- erst wenn es weg ist
-        // (gelöscht, ungültig, leer), gilt die frische Id aus dem GET.
+        // Gespeichertes Gespraech zuerst versuchen -- erst wenn es weg ist
+        // (geloescht, ungueltig, leer), gilt die frische Id aus dem GET.
         if (stored) {
           try {
             const hr = await fetch(`/api/bot/verlauf/${stored}`);
@@ -519,13 +519,13 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
             i.kind === "action" && i.id === item.id ? { ...i, state: "undone" as const, busy: false } : i,
           ),
         }));
-        toast("Rückgängig gemacht.", "success");
+        toast("Rueckgaengig gemacht.", "success");
       } catch {
         updateTurn(turnId, (t) => ({
           ...t,
           items: t.items.map((i) => (i.kind === "action" && i.id === item.id ? { ...i, busy: false } : i)),
         }));
-        toast("Konnte nicht rückgängig gemacht werden.");
+        toast("Konnte nicht rueckgaengig gemacht werden.");
       }
     },
     [toast, updateTurn],
@@ -852,7 +852,7 @@ function TurnView({
               footer={
                 CREATE_TOOLS.has(item.tool) ? (
                   item.state === "undone" ? (
-                    <p className="mt-2 text-[12px] text-muted-foreground">Zurückgenommen.</p>
+                    <p className="mt-2 text-[12px] text-muted-foreground">Zurueckgenommen.</p>
                   ) : (
                     <div className="mt-2">
                       <Button
@@ -863,7 +863,7 @@ function TurnView({
                         className="h-7 px-2 text-[12.5px]"
                       >
                         <Undo2 className="size-3.5" />
-                        {item.busy ? "Wird zurückgenommen …" : "Rückgängig"}
+                        {item.busy ? "Wird zurueckgenommen …" : "Rueckgaengig"}
                       </Button>
                     </div>
                   )
@@ -919,7 +919,7 @@ function ProposalCard({
         {d.bezeichnung} · {d.fach}
       </p>
       <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-        {d.punkte} Punkte ({d.note}) · {d.art === "oral" ? "mündlich" : "schriftlich"} · {fmtDate(d.datum)}
+        {d.punkte} Punkte ({d.note}) · {d.art === "oral" ? "muendlich" : "schriftlich"} · {fmtDate(d.datum)}
         {d.gewicht !== 1 ? ` · Gewicht ${d.gewicht}×` : ""}
       </p>
 
@@ -932,7 +932,7 @@ function ProposalCard({
           )}
           <div className="mt-2 flex gap-2">
             <Button size="sm" disabled={item.busy || !d.subjectId} onClick={onEnter} className="h-7 px-2.5 text-[12.5px]">
-              {item.busy ? "Trägt ein …" : "Eintragen"}
+              {item.busy ? "Traegt ein …" : "Eintragen"}
             </Button>
             <Button variant="ghost" size="sm" disabled={item.busy} onClick={onDiscard} className="h-7 px-2.5 text-[12.5px]">
               Verwerfen

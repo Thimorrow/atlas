@@ -259,7 +259,7 @@ export function SubjectDetail({ id }: { id: string }) {
       if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
       setData((prev) => (prev ? { ...prev, subject: json.subject as SubjectDTO } : prev));
     } catch (e) {
-      toast((e as Error).message || "Die Änderung konnte nicht gespeichert werden.");
+      toast((e as Error).message || "Die Aenderung konnte nicht gespeichert werden.");
       // Zurueck auf den zuletzt bestaetigten Serverstand, statt eine Aenderung
       // stehen zu lassen, die gar nicht angekommen ist.
       if (data) {
@@ -276,12 +276,12 @@ export function SubjectDetail({ id }: { id: string }) {
     setBusy(true);
     try {
       const res = await fetch(`/api/subjects/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Löschen fehlgeschlagen");
+      if (!res.ok) throw new Error("Loeschen fehlgeschlagen");
       // Voller Reload statt router.push: die Uebersicht laedt ihre Zahlen ohnehin
       // frisch, und der geloeschte Eintrag darf nirgends im Cache stehenbleiben.
       window.location.href = "/faecher";
     } catch (e) {
-      toast((e as Error).message || "Das Fach konnte nicht gelöscht werden.");
+      toast((e as Error).message || "Das Fach konnte nicht geloescht werden.");
       setBusy(false);
       setConfirmDelete(false);
     }
@@ -300,9 +300,9 @@ export function SubjectDetail({ id }: { id: string }) {
       <Shell>
         <EmptyPanel
           title="Fach nicht gefunden"
-          text="Dieses Fach gibt es nicht mehr. Vielleicht wurde es gelöscht."
+          text="Dieses Fach gibt es nicht mehr. Vielleicht wurde es geloescht."
         >
-          <ButtonLink href="/faecher">Zurück zu den Fächern</ButtonLink>
+          <ButtonLink href="/faecher">Zurueck zu den Faechern</ButtonLink>
         </EmptyPanel>
       </Shell>
     );
@@ -313,7 +313,7 @@ export function SubjectDetail({ id }: { id: string }) {
       <Shell>
         <EmptyPanel
           title="Das Fach konnte nicht geladen werden"
-          text="Prüf deine Verbindung und versuch es noch einmal."
+          text="Pruef deine Verbindung und versuch es noch einmal."
         >
           <Button variant="outline" onClick={() => void load()}>
             Erneut versuchen
@@ -331,8 +331,8 @@ export function SubjectDetail({ id }: { id: string }) {
     subject.teacherLabel,
     subject.room ? `Raum ${subject.room}` : null,
     nextLesson
-      ? `Nächste Stunde ${dueLabel(nextLesson.date)} ${hm(nextLesson.startTime)}${
-          nextLesson.status === "cancelled" ? " entfällt" : ""
+      ? `Naechste Stunde ${dueLabel(nextLesson.date)} ${hm(nextLesson.startTime)}${
+          nextLesson.status === "cancelled" ? " entfaellt" : ""
         }`
       : null,
   ].filter(Boolean);
@@ -343,7 +343,7 @@ export function SubjectDetail({ id }: { id: string }) {
   const notesCount = data.notes.length + data.lessonNotes.length;
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
-    { id: "uebersicht", label: "Übersicht" },
+    { id: "uebersicht", label: "Uebersicht" },
     { id: "noten", label: "Noten" },
     { id: "aufgaben", label: "Aufgaben", badge: openAssignments.length },
     { id: "notizen", label: "Notizen", badge: notesCount },
@@ -358,7 +358,7 @@ export function SubjectDetail({ id }: { id: string }) {
           className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ChevronLeft className="size-4" />
-          Alle Fächer
+          Alle Faecher
         </Link>
 
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
@@ -414,7 +414,7 @@ export function SubjectDetail({ id }: { id: string }) {
                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                 >
                   <Trash2 className="size-4" />
-                  Löschen
+                  Loeschen
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -472,7 +472,7 @@ export function SubjectDetail({ id }: { id: string }) {
           hidden={tab !== "uebersicht"}
           className="space-y-6"
         >
-          <Section title="Nächste Stunden">
+          <Section title="Naechste Stunden">
             {data.upcoming.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">Keine kommenden Stunden</p>
             ) : (
@@ -495,7 +495,7 @@ export function SubjectDetail({ id }: { id: string }) {
                     {l.status === "cancelled" && (
                       <span className="inline-flex items-center gap-1 rounded bg-muted/50 px-1.5 text-[11px] font-medium text-muted-foreground">
                         <span aria-hidden="true" className="size-1 rounded-full bg-red-500/40" />
-                        Entfällt
+                        Entfaellt
                       </span>
                     )}
                     {l.substitutionText && (
@@ -584,7 +584,7 @@ export function SubjectDetail({ id }: { id: string }) {
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setExamComposing(true)}>
                   <GraduationCap className="size-4" />
-                  Prüfung
+                  Pruefung
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setComposing(true)}>
                   <Plus className="size-4" />
@@ -770,8 +770,8 @@ export function SubjectDetail({ id }: { id: string }) {
             />
           </div>
           <p className="text-[12px] text-muted-foreground">
-            Änderungen werden gespeichert, sobald du das Feld verlässt. Archivieren nimmt das Fach nur
-            aus der Übersicht. Es taucht auch nach einem neuen Untis-Abgleich nicht wieder auf.
+            Aenderungen werden gespeichert, sobald du das Feld verlaesst. Archivieren nimmt das Fach nur
+            aus der Uebersicht. Es taucht auch nach einem neuen Untis-Abgleich nicht wieder auf.
           </p>
         </div>
       </Modal>
@@ -781,19 +781,19 @@ export function SubjectDetail({ id }: { id: string }) {
       <Modal
         open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
-        title={`„${subject.name}“ löschen?`}
-        description="Das lässt sich nicht rückgängig machen."
+        title={`„${subject.name}“ loeschen?`}
+        description="Das laesst sich nicht rueckgaengig machen."
       >
         <ul className="space-y-1.5 text-[13px] text-muted-foreground">
-          <li>Die Notizen dieses Fachs werden mit gelöscht.</li>
-          <li>Die Dateien dieses Fachs werden mit gelöscht.</li>
+          <li>Die Notizen dieses Fachs werden mit geloescht.</li>
+          <li>Die Dateien dieses Fachs werden mit geloescht.</li>
           <li>
             <span className="text-foreground">Die Aufgaben bleiben erhalten</span> und laufen danach
             unter „Allgemein“.
           </li>
         </ul>
         <p className="mt-3 text-[13px] text-muted-foreground">
-          Willst du das Fach nur aus der Übersicht nehmen, archivier es lieber.
+          Willst du das Fach nur aus der Uebersicht nehmen, archivier es lieber.
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
@@ -807,7 +807,7 @@ export function SubjectDetail({ id }: { id: string }) {
             className="bg-destructive text-background hover:bg-destructive/90"
           >
             {busy && <Loader2 className="size-4 animate-spin" />}
-            Endgültig löschen
+            Endgueltig loeschen
           </Button>
         </div>
       </Modal>
@@ -970,7 +970,7 @@ function SubjectCurriculum({
           </Button>
         </div>
         <p className="text-[12px] text-muted-foreground">
-          Markdown wird unterstützt. Ein leerer Text löscht den Lehrplan.
+          Markdown wird unterstuetzt. Ein leerer Text loescht den Lehrplan.
         </p>
       </div>
     );
@@ -981,14 +981,14 @@ function SubjectCurriculum({
       <div className="space-y-3">
         <p className="text-[13px] text-muted-foreground">
           {vorlage === null
-            ? `Für „${subjectName}“ kennt der Kernlehrplan NRW keine Vorlage. Du kannst den Lehrplan selbst eintragen.`
+            ? `Fuer „${subjectName}“ kennt der Kernlehrplan NRW keine Vorlage. Du kannst den Lehrplan selbst eintragen.`
             : "Noch kein Lehrplan hinterlegt."}
         </p>
         <div className="flex flex-wrap gap-2">
           {vorlage && (
             <Button variant="outline" disabled={busy} onClick={() => void ausVorlage()}>
               {busy && <Loader2 className="size-4 animate-spin" />}
-              Aus dem Kernlehrplan NRW füllen
+              Aus dem Kernlehrplan NRW fuellen
             </Button>
           )}
           <Button
@@ -1031,7 +1031,7 @@ function SubjectCurriculum({
         {vorlage && (
           <Button variant="ghost" disabled={busy} onClick={() => setConfirmReset(true)}>
             <RotateCcw className="size-4" />
-            Auf den Kernlehrplan zurücksetzen
+            Auf den Kernlehrplan zuruecksetzen
           </Button>
         )}
         <Button
@@ -1041,15 +1041,15 @@ function SubjectCurriculum({
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="size-4" />
-          Löschen
+          Loeschen
         </Button>
       </div>
 
       <Modal
         open={confirmReset}
         onClose={() => setConfirmReset(false)}
-        title="Auf den Kernlehrplan zurücksetzen?"
-        description="Der jetzige Text wird dabei überschrieben."
+        title="Auf den Kernlehrplan zuruecksetzen?"
+        description="Der jetzige Text wird dabei ueberschrieben."
       >
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmReset(false)}>
@@ -1057,7 +1057,7 @@ function SubjectCurriculum({
           </Button>
           <Button disabled={busy} onClick={() => void ausVorlage()}>
             {busy && <Loader2 className="size-4 animate-spin" />}
-            Zurücksetzen
+            Zuruecksetzen
           </Button>
         </div>
       </Modal>
@@ -1077,7 +1077,7 @@ function SubjectDetailSkeleton() {
         <Skeleton className="h-4 w-64" />
       </div>
       <Skeleton className="h-11 w-full rounded-lg" />
-      {["Übersicht", "Aufgaben"].map((title) => (
+      {["Uebersicht", "Aufgaben"].map((title) => (
         <section key={title} className="overflow-hidden rounded-2xl border bg-card shadow-card">
           <div className="border-b bg-muted/30 px-5 py-3">
             <Skeleton className="h-4 w-24" />

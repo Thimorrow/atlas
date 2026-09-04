@@ -29,7 +29,7 @@ async function cleanup() {
 function punkt(overrides: Partial<PunktDraft> = {}): PunktDraft {
   return {
     titel: "Bruchrechnung",
-    detail: "Brüche addieren und subtrahieren",
+    detail: "Brueche addieren und subtrahieren",
     seiten: "12-14",
     fileIds: [],
     minuten: 30,

@@ -266,7 +266,7 @@ describe("bewerten", () => {
 
     expect(result).toEqual([
       { urteil: "richtig", feedback: "Gut." },
-      { urteil: "falsch", feedback: "Übersprungen" },
+      { urteil: "falsch", feedback: "Uebersprungen" },
       { urteil: "falsch", feedback: "Leider nicht." },
     ]);
 
@@ -304,7 +304,7 @@ describe("bewerten", () => {
 
     expect(result).toEqual([
       { index: 0, urteil: "richtig", feedback: "F1 gut." },
-      { urteil: "falsch", feedback: "Übersprungen" },
+      { urteil: "falsch", feedback: "Uebersprungen" },
       { index: 2, urteil: "teilweise", feedback: "F3 ok." },
     ]);
   });
@@ -343,7 +343,7 @@ describe("bewerten", () => {
       deps,
     );
 
-    expect(result).toEqual([{ urteil: "falsch", feedback: "Übersprungen" }]);
+    expect(result).toEqual([{ urteil: "falsch", feedback: "Uebersprungen" }]);
     expect(calls).toHaveLength(0);
   });
 

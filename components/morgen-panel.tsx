@@ -126,7 +126,7 @@ function subtitleFor(data: MorgenResponse): string {
   const dateLabel = weekdayDateLabel(data.target.date).replace(/^\w+\.,\s*/, "");
   if (data.target.date === data.today) return `Heute, ${dateLabel}`;
   if (data.target.isTomorrow) return `Morgen, ${dateLabel}`;
-  return "Morgen ist schulfrei. Hier der nächste Schultag:";
+  return "Morgen ist schulfrei. Hier der naechste Schultag:";
 }
 
 // --- Inhalt --------------------------------------------------------------------
@@ -389,7 +389,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
       <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: tint }}>
-          Läuft gerade · noch {live.minutesLeft} min
+          Laeuft gerade · noch {live.minutesLeft} min
         </p>
         <p className="mt-0.5 truncate text-[15px] font-medium leading-snug">{live.title}</p>
       </div>
@@ -430,13 +430,13 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
                 className="size-1 rounded-full motion-safe:animate-pulse"
                 style={{ backgroundColor: tint }}
               />
-              läuft
+              laeuft
             </span>
           )}
           {cancelled && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
               <span className="size-1 rounded-full bg-destructive/60" />
-              entfällt
+              entfaellt
             </span>
           )}
           {ev.status === "substituted" && (
@@ -548,7 +548,7 @@ function EmptyState() {
       <div>
         <p className="text-[15px] font-medium">Nichts los.</p>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Keine Schulstunden, keine Aufgabe fällig, keine Prüfung in Sicht.
+          Keine Schulstunden, keine Aufgabe faellig, keine Pruefung in Sicht.
         </p>
       </div>
     </div>
