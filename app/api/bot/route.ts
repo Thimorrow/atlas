@@ -3,6 +3,7 @@ import { buildGreeting, buildSystemPrompt } from "@/lib/bot/context";
 import { botEnabled, streamChatWithFallback, type ChatToolCall } from "@/lib/bot/model";
 import { botTools, runTool, statusTextFor } from "@/lib/bot/tools";
 import { toModelMessages } from "@/lib/bot/history";
+import { ladeLagebild } from "@/lib/bot/lagebild";
 import { ladeStundeKontext, type StundeResponse } from "@/lib/stunde-kontext";
 import {
   appendMessage,
@@ -113,8 +114,8 @@ export async function POST(req: Request) {
 
       try {
         const history = await listMessages(conversationId!);
-        const jetzt = await ladeJetztSicher();
-        const chatMessages = toModelMessages(history, buildSystemPrompt(jetzt));
+        const [jetzt, lagebild] = await Promise.all([ladeJetztSicher(), ladeLagebild().catch(() => null)]);
+        const chatMessages = toModelMessages(history, buildSystemPrompt(jetzt, lagebild));
 
         let finalText = "";
         let round = 0;

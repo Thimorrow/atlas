@@ -87,3 +87,10 @@ Patterns, rules, and lessons learned while building Atlas. This file is read by 
   `components/mobile-header.tsx` (eigenes Array). Neue Route immer in beide.
 - **Live-Unterricht = /stunde, nicht der Fokus.** Der Fokus auf `/` ist die Abend-/Morgen-Sicht;
   alles, was waehrend der Stunde erfasst wird, gehoert ins Cockpit (haengt an `schoolBlockId`).
+- **Der Bot legt nie Faecher an.** `ensureSubjectForUntis` gehoert nur dem Untis-Sync
+  (exakter Match auf `untisSubject`, sonst Neuanlage). Bot-Schreibwerkzeuge gehen ueber
+  `matchSubject` in `lib/bot/tools.ts` (tolerant: "Mathe" -> "Mathematik") und lehnen unbekannte
+  Faecher mit Fehlermeldung ab. Die aktive Faecherliste steht im System-Prompt, sonst raet das Modell Namen.
+- **Bot-Kontext = Lagebild.** `lib/bot/lagebild.ts` schreibt Faecher, Stundenplan heute/naechster
+  Schultag, offene Aufgaben (14 Tage), Pruefungen (30 Tage) und letzte Notizen mit ids in den
+  System-Prompt. Neue Datenarten, die der Bot "wissen" soll, gehoeren dorthin, nicht in neue Regeln.

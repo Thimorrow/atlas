@@ -2,6 +2,7 @@ import { heuteISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
 import { describe, expect, it, vi } from "vitest";
 import type { StundeResponse } from "@/lib/stunde-kontext";
+import type { Lagebild } from "@/lib/bot/lagebild";
 
 // buildGreeting kommt ohne Modellaufruf aus, braucht aber die DB -- die wird
 // hier ueber die beiden Store-Funktionen gemockt, im Stil der uebrigen Tests
@@ -162,5 +163,28 @@ describe("buildSystemPrompt", () => {
   it("weist das Modell an, auch auf Deutsch zu denken", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("Denke auf Deutsch. Auch deine internen Ueberlegungen formulierst du ausschliesslich auf Deutsch.");
+  });
+
+  it("nennt die Faecherliste, wenn ein Lagebild uebergeben wird", () => {
+    const lagebild: Lagebild = {
+      heute: heuteISO(),
+      faecher: [
+        { name: "Mathematik", lehrer: null, raum: null },
+        { name: "Deutsch", lehrer: null, raum: null },
+      ],
+      stundenHeute: [],
+      naechsterSchultag: null,
+      aufgaben: [],
+      pruefungen: [],
+      notizen: [],
+    };
+    const prompt = buildSystemPrompt(null, lagebild);
+    expect(prompt).toContain("Seine Faecher: Mathematik, Deutsch");
+    expect(prompt).toContain("nie ein neues");
+  });
+
+  it("laesst die Faecherliste weg, wenn kein Lagebild uebergeben wird", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).not.toContain("Seine Faecher");
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { SubjectDTO } from "@/lib/subject-store";
 
 // Die Schreibwerkzeuge des Bots sind der einzige Weg, auf dem er echte Daten
 // veraendert. Hier wird geprueft, dass sie nichts zerstoeren koennen -- die
@@ -6,6 +7,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const updateNote = vi.fn();
 const createNote = vi.fn();
+const createAssignment = vi.fn();
 const getAssignment = vi.fn();
 const updateAssignment = vi.fn();
 const listAssignments = vi.fn();
@@ -15,7 +17,6 @@ const isUuid = (v: string) =>
 
 vi.mock("@/lib/subject-store", () => ({
   createNote,
-  ensureSubjectForUntis: vi.fn(),
   isUuid,
   listNotes: vi.fn(),
   listSubjects,
@@ -23,7 +24,7 @@ vi.mock("@/lib/subject-store", () => ({
 }));
 vi.mock("@/lib/calendar-expand", () => ({ expandRange: vi.fn() }));
 vi.mock("@/lib/assignment-store", () => ({
-  createAssignment: vi.fn(),
+  createAssignment,
   getAssignment,
   listAssignments,
   updateAssignment,
@@ -39,13 +40,14 @@ vi.mock("@/lib/grade-store", () => ({
   summarize: vi.fn(),
 }));
 
-const { runTool, botTools } = await import("./tools");
+const { runTool, botTools, matchSubject } = await import("./tools");
 
 const ID = "11111111-2222-3333-4444-555555555555";
 
 beforeEach(() => {
   updateNote.mockReset();
   createNote.mockReset();
+  createAssignment.mockReset();
   getAssignment.mockReset();
   updateAssignment.mockReset();
   listAssignments.mockReset();
@@ -204,6 +206,61 @@ describe("lehrplan_lesen bleibt ehrlich", () => {
     };
     expect(e.hinweis).toContain("Astronomie");
     expect(e.error).toBeUndefined();
+  });
+});
+
+describe("matchSubject findet vorhandene Faecher, ohne welche zu erfinden", () => {
+  const faecher = [
+    { id: "1", name: "Mathematik", untisSubject: "M" },
+    { id: "2", name: "Biologie", untisSubject: "BI" },
+    { id: "3", name: "Religion", untisSubject: "REL" },
+    { id: "4", name: "Geschichte", untisSubject: "GES" },
+    { id: "5", name: "Kunst", untisSubject: "KU" },
+    { id: "6", name: "Kunstgeschichte", untisSubject: "KG" },
+  ] as SubjectDTO[];
+
+  it("findet 'Mathe' als Praefix von Mathematik", () => {
+    expect(matchSubject("Mathe", faecher)?.name).toBe("Mathematik");
+  });
+
+  it("findet 'bio' als Praefix von Biologie", () => {
+    expect(matchSubject("bio", faecher)?.name).toBe("Biologie");
+  });
+
+  it("findet 'reli' als Praefix von Religion", () => {
+    expect(matchSubject("reli", faecher)?.name).toBe("Religion");
+  });
+
+  it("findet 'Franzoesisch' ueber die geschriebene Form gegen 'Französisch'", () => {
+    const mitUmlaut = [...faecher, { id: "7", name: "Französisch", untisSubject: "F" } as SubjectDTO];
+    expect(matchSubject("Franzoesisch", mitUmlaut)?.name).toBe("Französisch");
+  });
+
+  it("laesst 'Ge' (2 Zeichen normalisiert) nicht auf Geschichte matchen", () => {
+    expect(matchSubject("Ge", faecher)).toBeUndefined();
+  });
+
+  it("gibt bei echter Mehrdeutigkeit undefined zurueck", () => {
+    // "Kuns" ist Praefix von sowohl Kunst als auch Kunstgeschichte.
+    expect(matchSubject("Kuns", faecher)).toBeUndefined();
+  });
+});
+
+describe("resolveSubjectId legt nie ein neues Fach an", () => {
+  it("aufgabe_anlegen mit unbekanntem Fach liefert einen Fehler mit den vorhandenen Faechern, ohne anzulegen", async () => {
+    listSubjects.mockResolvedValue([{ id: "1", name: "Mathematik", untisSubject: "M" }]);
+    const ergebnis = (await runTool("aufgabe_anlegen", { titel: "x", fach: "Kunstgeschichte" })) as {
+      error?: string;
+    };
+    expect(ergebnis.error).toContain("Mathematik");
+    expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it("notiz_anlegen mit 'mathe' trifft Mathematik und legt die Notiz dort an", async () => {
+    listSubjects.mockResolvedValue([{ id: "1", name: "Mathematik", untisSubject: "M" }]);
+    createNote.mockResolvedValue({ id: "n1", subjectId: "1", title: "x", body: "" });
+    await runTool("notiz_anlegen", { fach: "mathe", titel: "x", text: "y" });
+    expect(createNote).toHaveBeenCalledWith(expect.objectContaining({ subjectId: "1" }));
   });
 });
 
