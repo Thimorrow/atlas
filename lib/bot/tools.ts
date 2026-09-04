@@ -20,7 +20,6 @@ import { readSubjectFile, type FileContent } from "@/lib/bot/files";
 import { parseFuzzyDate } from "@/lib/bot/dates";
 import {
   createNote,
-  ensureSubjectForUntis,
   isUuid,
   listNotes,
   listSubjects,
@@ -40,16 +39,60 @@ import { heuteISO as localISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
 
 
-// Fach anhand des Namens finden, den das Modell nennt -- case-insensitiv, erst
-// ueber den Anzeigenamen, dann ueber den Untis-Wert. Kein Treffer heisst
+// Normalisiert einen Fachnamen fuers Matching: trim, klein, deutsche
+// Umlaute ausgeschrieben, alles ausser [a-z0-9] weg. "Mathe" und "Mathe."
+// landen so auf demselben Wert, "Franzoesisch" trifft "Französisch".
+function normalizeSubjectName(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+// Fach anhand eines vom Modell genannten Namens finden. Reine Funktion, daher
+// gut isoliert testbar. Reihenfolge: 1) exakter Treffer auf name, 2) exakter
+// Treffer auf untisSubject, 3) genau ein Fach, dessen normalisierter name
+// oder untisSubject mit der Eingabe beginnt (z. B. "mathe" -> "Mathematik"),
+// 4) genau ein Fach, dessen normalisierter name die Eingabe enthaelt. Mehr
+// als ein Treffer in Stufe 3/4 ist Mehrdeutigkeit, kein Treffer -- undefined.
+// Kurze Eingaben (< 3 Zeichen normalisiert) sind zu unspezifisch fuer
+// Praefix-/Enthaelt-Matching und werden nur exakt geprueft.
+export function matchSubject(name: string, subjects: SubjectDTO[]): SubjectDTO | undefined {
+  const needle = normalizeSubjectName(name);
+  if (!needle) return undefined;
+
+  const byName = subjects.find((s) => normalizeSubjectName(s.name) === needle);
+  if (byName) return byName;
+
+  const byUntisSubject = subjects.find(
+    (s) => s.untisSubject && normalizeSubjectName(s.untisSubject) === needle,
+  );
+  if (byUntisSubject) return byUntisSubject;
+
+  if (needle.length < 3) return undefined;
+
+  const praefixTreffer = subjects.filter((s) => {
+    const n = normalizeSubjectName(s.name);
+    const u = s.untisSubject ? normalizeSubjectName(s.untisSubject) : "";
+    return n.startsWith(needle) || (u && u.startsWith(needle));
+  });
+  if (praefixTreffer.length === 1) return praefixTreffer[0];
+  if (praefixTreffer.length > 1) return undefined;
+
+  const enthaeltTreffer = subjects.filter((s) => normalizeSubjectName(s.name).includes(needle));
+  if (enthaeltTreffer.length === 1) return enthaeltTreffer[0];
+  return undefined;
+}
+
+// Fach anhand des Namens finden, den das Modell nennt. Kein Treffer heisst
 // "gibt es (noch) nicht", nicht "Fehler".
 async function findSubjectByName(name: string): Promise<SubjectDTO | undefined> {
   const all = await listSubjects("all");
-  const needle = name.trim().toLowerCase();
-  return (
-    all.find((s) => s.name.toLowerCase() === needle) ??
-    all.find((s) => s.untisSubject?.toLowerCase() === needle)
-  );
+  return matchSubject(name, all);
 }
 
 // --- Datumshilfe fuers Werkzeugergebnis --------------------------------------
@@ -186,7 +229,11 @@ export const botTools: ChatTool[] = [
         type: "object",
         properties: {
           titel: { type: "string", description: "Titel der Aufgabe." },
-          fach: { type: "string", description: "Name des Fachs. Wird bei Bedarf still angelegt." },
+          fach: {
+            type: "string",
+            description:
+              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+          },
           typ: {
             type: "string",
             enum: ["homework", "exam", "test", "presentation", "other"],
@@ -225,7 +272,11 @@ export const botTools: ChatTool[] = [
       parameters: {
         type: "object",
         properties: {
-          fach: { type: "string", description: "Name des Fachs. Wird bei Bedarf still angelegt." },
+          fach: {
+            type: "string",
+            description:
+              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+          },
           titel: { type: "string" },
           text: { type: "string" },
         },
@@ -330,7 +381,11 @@ export const botTools: ChatTool[] = [
       parameters: {
         type: "object",
         properties: {
-          fach: { type: "string", description: "Name des Fachs. Wird bei Bedarf still angelegt." },
+          fach: {
+            type: "string",
+            description:
+              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+          },
           frage: { type: "string" },
           antwort: { type: "string" },
         },
@@ -626,16 +681,30 @@ export function contentForModel(content: FileContent): { typ: string; text?: str
   return { typ: "nicht_lesbar", text: content.hint };
 }
 
-async function resolveSubjectId(fach: string): Promise<string> {
-  const subject = await ensureSubjectForUntis(fach.trim());
-  return subject.id;
+// Findet ein vorhandenes Fach zum genannten Namen. Kein Treffer legt NICHTS
+// an -- der Bot darf nie ein neues Fach anlegen, der Aufrufer bekommt
+// stattdessen eine Fehlermeldung mit der Liste der vorhandenen Faecher.
+async function resolveSubjectId(fach: string): Promise<{ subjectId: string } | { error: string }> {
+  const alle = await listSubjects("active");
+  const subject = matchSubject(fach, alle);
+  if (subject) return { subjectId: subject.id };
+
+  const namen = alle.map((s) => s.name);
+  return {
+    error: `Fach "${fach}" gibt es nicht. Vorhandene Faecher: ${namen.join(", ")}. Frag den Schueler, welches Fach gemeint ist, und lege kein neues an.`,
+  };
 }
 
 async function aufgabeAnlegen(args: Record<string, unknown>) {
   const titel = typeof args.titel === "string" ? args.titel.trim() : "";
   if (!titel) return { error: "titel darf nicht leer sein." };
 
-  const subjectId = typeof args.fach === "string" && args.fach.trim() ? await resolveSubjectId(args.fach) : undefined;
+  let subjectId: string | undefined;
+  if (typeof args.fach === "string" && args.fach.trim()) {
+    const resolved = await resolveSubjectId(args.fach);
+    if ("error" in resolved) return resolved;
+    subjectId = resolved.subjectId;
+  }
 
   const faellig = typeof args.faellig === "string" ? resolveDate(args.faellig) : { iso: null };
 
@@ -695,9 +764,10 @@ async function notizAnlegen(args: Record<string, unknown>) {
   if (!fach) return { error: "fach darf nicht leer sein." };
   if (!titel) return { error: "titel darf nicht leer sein." };
 
-  const subjectId = await resolveSubjectId(fach);
+  const resolved = await resolveSubjectId(fach);
+  if ("error" in resolved) return resolved;
   const notiz = await createNote({
-    subjectId,
+    subjectId: resolved.subjectId,
     title: titel,
     body: typeof args.text === "string" ? args.text : "",
   });
@@ -941,7 +1011,9 @@ async function lernkarteAnlegen(args: Record<string, unknown>) {
   if (!frage) return { error: "frage darf nicht leer sein." };
   if (!antwort) return { error: "antwort darf nicht leer sein." };
 
-  const subjectId = await resolveSubjectId(fach);
+  const resolved = await resolveSubjectId(fach);
+  if ("error" in resolved) return resolved;
+  const subjectId = resolved.subjectId;
   const [karte] = await createCards(subjectId, [{ question: frage, answer: antwort }], "manuell");
   if (!karte) return { error: "Karte konnte nicht angelegt werden." };
 

@@ -2,7 +2,7 @@
 // Modell-Nachrichten (lib/bot/model.ts ChatMessage[]). Reine, testbare
 // Funktion -- app/api/bot/route.ts ruft sie nur noch auf.
 //
-// Fuer die letzten drei Nutzerfragen (ab der drittletzten role: "user")
+// Fuer die letzten sechs Nutzerfragen (ab der sechstletzten role: "user")
 // werden auch die dabei gelaufenen Werkzeuge wieder mitgegeben, als
 // synthetische assistant-Nachricht mit tool_calls plus die passenden
 // tool-Antworten -- sonst "vergisst" das Modell im naechsten Zug, was ein
@@ -12,8 +12,8 @@
 import type { ChatMessage, ChatToolCall } from "@/lib/bot/model";
 import type { MessageDTO } from "@/lib/bot/store";
 
-const MAX_TOOL_RESULT_CHARS = 4000;
-const RECENT_USER_TURNS = 3;
+const MAX_TOOL_RESULT_CHARS = 8000;
+const RECENT_USER_TURNS = 6;
 
 function truncate(text: string): string {
   if (text.length <= MAX_TOOL_RESULT_CHARS) return text;

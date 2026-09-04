@@ -5,7 +5,7 @@
 // Aufgabe darauf zeigt. Abgewaehlte Faecher werden archiviert, nie geloescht,
 // sonst legt der naechste Sync sie wieder an.
 
-import { and, asc, eq, gte, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
@@ -353,6 +353,25 @@ export async function listNotes(subjectId: string): Promise<NoteDTO[]> {
     .where(eq(subjectNotes.subjectId, subjectId))
     .orderBy(sql`${subjectNotes.updatedAt} desc`);
   return rows.map(toNoteDTO);
+}
+
+// Fuer das Bot-Lagebild: die zuletzt geaenderten Notizen ueber alle Faecher
+// hinweg, mit dem Fachnamen dazu (subjectNotes join subjects).
+export type RecentNoteDTO = { id: string; title: string; subjectName: string; updatedAt: string };
+
+export async function listRecentNotes(limit = 8): Promise<RecentNoteDTO[]> {
+  const rows = await db
+    .select({
+      id: subjectNotes.id,
+      title: subjectNotes.title,
+      subjectName: subjects.name,
+      updatedAt: subjectNotes.updatedAt,
+    })
+    .from(subjectNotes)
+    .innerJoin(subjects, eq(subjectNotes.subjectId, subjects.id))
+    .orderBy(desc(subjectNotes.updatedAt))
+    .limit(limit);
+  return rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() }));
 }
 
 export async function getNote(id: string): Promise<NoteDTO | undefined> {
