@@ -19,6 +19,7 @@ import {
   type TeacherTitle,
 } from "@/lib/db/schema";
 import { lehrplanFuer, type LehrplanFach } from "@/lib/lehrplan/nrw-g9-klasse-10";
+import { LERNARTEN, type Lernart } from "@/lib/lernen-types";
 import { lehrplanAlsMarkdown } from "@/lib/lehrplan/rendern";
 import { SUBJECT_COLORS, defaultColorFor } from "@/lib/subject-colors";
 import { TEACHER_TITLES, teacherLabel } from "@/lib/teacher";
@@ -41,6 +42,7 @@ export type SubjectDTO = {
   curriculum: string | null; // Lehrplan als Markdown
   curriculumSource: string | null; // woher der Text stammt, z. B. "Von Hand"
   curriculumUpdatedAt: string | null; // ISO
+  lernart: Lernart | null; // Override fuer den Lernbereich, null = automatisch
   archivedAt: string | null; // ISO
   openAssignments: number;
   noteCount: number;
@@ -101,6 +103,7 @@ function toSubjectDTO(row: SubjectRow): SubjectDTO {
     curriculum: row.curriculum,
     curriculumSource: row.curriculumSource,
     curriculumUpdatedAt: row.curriculumUpdatedAt ? row.curriculumUpdatedAt.toISOString() : null,
+    lernart: row.lernart as Lernart | null,
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     openAssignments: row.openAssignments,
     noteCount: row.noteCount,
@@ -638,6 +641,17 @@ export function parseSubjectPatch(body: unknown): Parsed<Partial<NewSubject>> {
     const w = parseOralWeight(body.oralWeight);
     if (!w.ok) return w;
     patch.oralWeight = w.value;
+  }
+
+  // Lernart-Override fuer den Lernbereich. null = automatisch (lernartFor).
+  if (body.lernart !== undefined) {
+    if (body.lernart === null) {
+      patch.lernart = null;
+    } else if (typeof body.lernart === "string" && (LERNARTEN as readonly string[]).includes(body.lernart)) {
+      patch.lernart = body.lernart;
+    } else {
+      return { ok: false, error: `Lernart muss eine von ${LERNARTEN.join(", ")} oder null sein.` };
+    }
   }
 
   // "now" archiviert, null reaktiviert -- der Client muss keine Uhrzeit kennen.

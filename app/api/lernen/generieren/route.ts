@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isUuid } from "@/lib/subject-store";
 import { generateCards, type GenerateInput } from "@/lib/lernen-generieren";
 import { createCards } from "@/lib/study-store";
+import { CARD_KINDS, type CardKind } from "@/lib/lernen-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,20 +18,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Ungültiger Request-Body." }, { status: 400 });
   }
 
-  const { subjectId, quelle, fileIds, anzahl, thema } = body as Record<string, unknown>;
+  const { subjectId, quelle, fileIds, noteIds, anzahl, thema, topicId, kind } = body as Record<string, unknown>;
   if (typeof subjectId !== "string" || !isUuid(subjectId)) {
     return NextResponse.json({ error: "subjectId ist keine gültige Fach-ID." }, { status: 400 });
   }
   if (typeof quelle !== "string" || !(QUELLEN as readonly string[]).includes(quelle)) {
     return NextResponse.json({ error: `quelle muss eine von ${QUELLEN.join(", ")} sein.` }, { status: 400 });
   }
+  if (topicId !== undefined && topicId !== null && (typeof topicId !== "string" || !isUuid(topicId))) {
+    return NextResponse.json({ error: "topicId muss eine gültige Themen-ID oder null sein." }, { status: 400 });
+  }
+  if (kind !== undefined && !(CARD_KINDS as readonly string[]).includes(kind as string)) {
+    return NextResponse.json({ error: `kind muss eine von ${CARD_KINDS.join(", ")} sein.` }, { status: 400 });
+  }
 
   const input: GenerateInput = {
     subjectId,
     quelle: quelle as GenerateInput["quelle"],
     fileIds: Array.isArray(fileIds) ? fileIds.filter((f): f is string => typeof f === "string") : undefined,
+    noteIds: Array.isArray(noteIds) ? noteIds.filter((f): f is string => typeof f === "string") : undefined,
     anzahl: typeof anzahl === "number" ? anzahl : undefined,
     thema: typeof thema === "string" ? thema : undefined,
+    topicId: (topicId as string | null | undefined) ?? undefined,
+    kind: kind as CardKind | undefined,
   };
 
   try {
@@ -45,6 +55,7 @@ export async function POST(req: Request) {
       result.cards,
       quelleForStore as Parameters<typeof createCards>[2],
       input.fileIds?.[0] ?? null,
+      input.topicId ?? null,
     );
     return NextResponse.json({ cards, hinweis: result.hinweis });
   } catch (err) {

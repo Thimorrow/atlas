@@ -95,7 +95,7 @@ describe.skipIf(!mitDb)("study-store (Integration, Neon)", () => {
     const result = await overview();
     const entry = result.faecher.find((f) => f.subjectId === subjectId);
     expect(entry).toBeDefined();
-    expect(entry?.total).toBeGreaterThan(0);
+    expect(entry?.progress.total).toBeGreaterThan(0);
   });
 
   it("subjectDetail liefert Fach, Karten, Fortschritt und Lehrplan", async () => {

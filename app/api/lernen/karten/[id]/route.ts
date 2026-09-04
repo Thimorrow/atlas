@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isUuid } from "@/lib/subject-store";
 import { deleteCard, updateCard } from "@/lib/study-store";
+import { CARD_KINDS, type CardKind } from "@/lib/lernen-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ function notFound() {
   return NextResponse.json({ error: "Karte nicht gefunden." }, { status: 404 });
 }
 
-// PATCH /api/lernen/karten/[id] -- { question?, answer?, archivedAt? }
+// PATCH /api/lernen/karten/[id] -- { question?, answer?, topicId?, kind?, archivedAt? }
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return notFound();
@@ -23,8 +24,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Ungültiger Request-Body." }, { status: 400 });
   }
 
-  const { question, answer, archivedAt } = body as Record<string, unknown>;
-  const patch: { question?: string; answer?: string; archivedAt?: string | null } = {};
+  const { question, answer, topicId, kind, archivedAt } = body as Record<string, unknown>;
+  const patch: {
+    question?: string;
+    answer?: string;
+    topicId?: string | null;
+    kind?: CardKind;
+    archivedAt?: string | null;
+  } = {};
 
   if (question !== undefined) {
     if (typeof question !== "string" || !question.trim() || question.length > MAX_LEN) {
@@ -40,6 +47,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: `answer darf höchstens ${MAX_LEN} Zeichen lang sein.` }, { status: 400 });
     }
     patch.answer = answer;
+  }
+  if (topicId !== undefined) {
+    if (topicId !== null && (typeof topicId !== "string" || !isUuid(topicId))) {
+      return NextResponse.json({ error: "topicId muss eine gültige Themen-ID oder null sein." }, { status: 400 });
+    }
+    patch.topicId = topicId;
+  }
+  if (kind !== undefined) {
+    if (!(CARD_KINDS as readonly string[]).includes(kind as string)) {
+      return NextResponse.json({ error: `kind muss eine von ${CARD_KINDS.join(", ")} sein.` }, { status: 400 });
+    }
+    patch.kind = kind as CardKind;
   }
   if (archivedAt !== undefined) {
     if (archivedAt !== null && typeof archivedAt !== "string") {
