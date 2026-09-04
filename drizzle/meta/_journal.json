@@ -127,6 +127,13 @@
       "when": 1788516696123,
       "tag": "0017_lernthemen",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788518712239,
+      "tag": "0018_tutor",
+      "breakpoints": true
     }
   ]
 }

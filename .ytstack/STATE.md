@@ -1,7 +1,7 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-09-04T12:10:00Z
+last_updated: 2026-09-04T20:45:00Z
 current_milestone: M003
 active_slice: null
 active_task: null
@@ -16,6 +16,24 @@ Web-App mit fuenf Modulen plus eine eigenstaendige native Android-App.
 Stand belegt am 2026-09-02 durch einen Durchgang durch den echten Code, nicht
 durch Fortschreibung dieser Datei. Zwischen dem vorigen Stand (2026-09-01) und
 heute liegen **51 Commits**, die hier vorher nicht abgebildet waren.
+
+## Nachtrag 2026-09-04 abends (Branch feature/tutor, noch nicht gemergt)
+
+KI-Tutor im Lernbereich nach `TUTOR-SPEC.md` (17 Akzeptanzkriterien):
+`lib/tutor/*` (types, store, note, tools, prompt, session), Tabellen
+`tutor_conversations` / `tutor_messages` (Migration `0018_tutor`), Routen
+`/api/lernen/tutor`, `/api/lernen/tutor/[id]`, `/api/lernen/tutor/[id]/karten`,
+`/api/lernen/karten/[id]/bewerten`, Seite `/lernen/[subjectId]/tutor`
+(`components/lernen-tutor.tsx`), Tutor-Block auf der Themenseite, Pruefen-Feld
+plus "Tutor fragen" (Taste T) in der Kartensession. `bewerteAntwort` in
+`lib/lernen-generieren.ts`. `GET /api/lernen/[subjectId]` liefert jetzt
+`botEnabled`, damit Clients den Bot-Status ohne `GET /api/bot` (legt
+Konversationen an) lesen.
+
+Verifikation lokal: tsc fehlerfrei, 507 Tests gruen (30 skipped ohne
+DATABASE_URL), `next build` 0 Errors, A2 bis A8 belegt. A9 bis A16 (live mit
+DB und Modell) offen: lokal ist DATABASE_URL leer und die Migration 0018 liegt
+noch nicht auf Neon; Live-Pruefung erst nach Deploy oder mit gezogener Env.
 
 ## Nachtrag 2026-09-04 (PR #8, Branch feature/lernbereich-und-cockpit)
 

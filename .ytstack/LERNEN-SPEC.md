@@ -3,6 +3,11 @@
 Stand 2026-09-04. Auftrag des Nutzers: "Lernbereich KOMPLETT verbessern, denk
 nach wie ich lernen will, was ich dann brauche."
 
+Ergaenzung 2026-09-04: Der KI-Tutor (Tutor-Session je Thema, Widgets,
+Probe mit Note, Schwaechen-Coach, Bewertung freier Antworten in der
+Kartensession) ist in `TUTOR-SPEC.md` spezifiziert und baut auf allem hier
+auf. Alles in dieser Datei bleibt gueltig.
+
 ## Wie ein Schueler (10. Klasse, NRW G9) wirklich lernt
 
 1. Ausloeser ist eine konkrete Arbeit: "Mathe am Freitag, quadratische

@@ -7,8 +7,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,16 @@ import { renderMarkdown } from "@/lib/markdown";
 import { localISO } from "@/lib/assignments-view";
 import { queueFor, vokabelStimmt } from "@/lib/lernen";
 import type { SessionModus, StudyCardDTO, SubjectDetail } from "@/lib/lernen-types";
+
+// Urteil einer freien Antwort (bewerteAntwort). Gleiche Werte wie
+// lib/lernen.ts (parseUrteil), hier nur fuers UI gebraucht.
+type Urteil = "richtig" | "teilweise" | "falsch";
+type PruefenErgebnis = { urteil: Urteil; feedback: string };
+
+// Zeitlimit im Client fuer POST /api/lernen/karten/[id]/bewerten -- etwas
+// laenger als das Server-Timeout in bewerteAntwort (30 s), damit der Server
+// im Normalfall zuerst antwortet.
+const PRUEFEN_TIMEOUT_MS = 35_000;
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -46,6 +57,7 @@ export function LernenSession({
   const [index, setIndex] = useState(0);
   const [richtig, setRichtig] = useState<StudyCardDTO[]>([]);
   const [falsch, setFalsch] = useState<StudyCardDTO[]>([]);
+  const botEnabled = data?.botEnabled ?? false;
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -230,6 +242,8 @@ export function LernenSession({
           <SessionKarte
             card={current}
             index={index}
+            subjectId={subjectId}
+            botEnabled={botEnabled}
             toast={toast}
             onAntworten={antworten}
             onGraded={(correct) => registerAnswer(current, correct)}
@@ -249,6 +263,8 @@ export function LernenSession({
 function SessionKarte({
   card,
   index,
+  subjectId,
+  botEnabled,
   toast,
   onAntworten,
   onGraded,
@@ -259,6 +275,8 @@ function SessionKarte({
 }: {
   card: StudyCardDTO;
   index: number;
+  subjectId: string;
+  botEnabled: boolean;
   toast: (message: string, variant?: "error" | "success") => void;
   onAntworten: (correct: boolean) => void;
   onGraded: (correct: boolean) => void;
@@ -267,6 +285,7 @@ function SessionKarte({
   onArchived: () => void;
   onVariante: (card: StudyCardDTO) => void;
 }) {
+  const router = useRouter();
   const [showAnswer, setShowAnswer] = useState(false);
   const [vokabelPhase, setVokabelPhase] = useState<"eingabe" | "richtig" | "manuell">("eingabe");
   const [vokabelValue, setVokabelValue] = useState("");
@@ -278,9 +297,25 @@ function SessionKarte({
   const [erklaerLoading, setErklaerLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [varianteLoading, setVarianteLoading] = useState(false);
+  // Prüfen-Feld freier Antworten (nur wissen/aufgabe, solange die Antwort
+  // verborgen ist und der Bot an ist). Zurückgesetzt bei Kartenwechsel, weil
+  // SessionKarte je Karte über den motion.div-key neu gemountet wird.
+  const [pruefenAntwort, setPruefenAntwort] = useState("");
+  const [pruefenLoading, setPruefenLoading] = useState(false);
+  const [pruefenErgebnis, setPruefenErgebnis] = useState<PruefenErgebnis | null>(null);
   const vokabelRef = useRef<HTMLInputElement | null>(null);
 
   const geklaert = card.kind === "vokabel" ? vokabelPhase !== "eingabe" : showAnswer;
+  // Vorbelegung "Gewusst"/"Nicht gewusst" aus dem Urteil; ohne Urteil (noch
+  // nicht geprüft oder Prüfen fehlgeschlagen) keine Vorbelegung.
+  const vorbelegung = pruefenErgebnis ? pruefenErgebnis.urteil === "richtig" : null;
+  const tutorHref = `/lernen/${subjectId}/tutor?thema=${card.topicId ?? ""}&karte=${card.id}`;
+  const tutorEnabled = botEnabled && card.topicId !== null;
+  const tutorTitle = !botEnabled
+    ? "Der Bot ist nicht eingerichtet."
+    : card.topicId === null
+      ? "Ohne Thema kein Tutor."
+      : undefined;
 
   useEffect(() => {
     if (card.kind === "vokabel") vokabelRef.current?.focus();
@@ -352,6 +387,50 @@ function SessionKarte({
     }
   }
 
+  // Prüft die eingetippte Antwort über den Tutor-Endpunkt. Leer abschicken
+  // zeigt nur die Lösung, wie der bestehende Knopf -- keine Bewertung. Bei
+  // Fehler (Netz, 502, Timeout) wird die Antwort trotzdem aufgedeckt, aber
+  // ohne Vorbelegung.
+  async function pruefen() {
+    if (pruefenLoading) return;
+    const antwort = pruefenAntwort.trim();
+    if (!antwort) {
+      setShowAnswer(true);
+      return;
+    }
+    setPruefenLoading(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PRUEFEN_TIMEOUT_MS);
+    try {
+      const res = await fetch(`/api/lernen/karten/${card.id}/bewerten`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ antwort }),
+        signal: controller.signal,
+      });
+      const body = (await res.json().catch(() => null)) as
+        | { urteil?: Urteil; feedback?: string; error?: string }
+        | null;
+      if (!res.ok || !body?.urteil) {
+        toast(body?.error ?? "Die Antwort konnte nicht geprüft werden.");
+        setShowAnswer(true);
+        return;
+      }
+      setPruefenErgebnis({ urteil: body.urteil, feedback: body.feedback ?? "" });
+      setShowAnswer(true);
+    } catch (err) {
+      toast(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Die Prüfung hat zu lange gedauert."
+          : "Die Antwort konnte nicht geprüft werden.",
+      );
+      setShowAnswer(true);
+    } finally {
+      clearTimeout(timer);
+      setPruefenLoading(false);
+    }
+  }
+
   async function aehnlicheAufgabe() {
     if (varianteLoading) return;
     setVarianteLoading(true);
@@ -405,6 +484,10 @@ function SessionKarte({
           setShowAnswer(true);
           return;
         }
+        if (showAnswer && vorbelegung !== null && e.key === "Enter") {
+          onAntworten(vorbelegung);
+          return;
+        }
         if (showAnswer && e.key === "1") onAntworten(false);
         if (showAnswer && e.key === "2") onAntworten(true);
       } else if (card.kind === "aufgabe") {
@@ -413,15 +496,20 @@ function SessionKarte({
           setShowAnswer(true);
           return;
         }
+        if (showAnswer && vorbelegung !== null && e.key === "Enter") {
+          onAntworten(vorbelegung);
+          return;
+        }
         if (showAnswer && e.key === "1") onAntworten(false);
         if (showAnswer && e.key === "2") onAntworten(true);
       }
       if (geklaert && e.key === "e") void erklaeren();
+      if (tutorEnabled && (e.key === "t" || e.key === "T")) router.push(tutorHref);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showAnswer, editing, geklaert, card.kind, vokabelPhase]);
+  }, [showAnswer, editing, geklaert, card.kind, vokabelPhase, vorbelegung, tutorEnabled, tutorHref]);
 
   if (editing) {
     return (
@@ -476,9 +564,28 @@ function SessionKarte({
           onAntworten={onAntworten}
           onAehnliche={() => void aehnlicheAufgabe()}
           varianteLoading={varianteLoading}
+          botEnabled={botEnabled}
+          pruefenAntwort={pruefenAntwort}
+          onPruefenAntwortChange={setPruefenAntwort}
+          onPruefen={() => void pruefen()}
+          pruefenLoading={pruefenLoading}
+          pruefenErgebnis={pruefenErgebnis}
+          vorbelegung={vorbelegung}
         />
       ) : (
-        <WissenKarte card={card} gezeigt={showAnswer} onZeigen={() => setShowAnswer(true)} onAntworten={onAntworten} />
+        <WissenKarte
+          card={card}
+          gezeigt={showAnswer}
+          onZeigen={() => setShowAnswer(true)}
+          onAntworten={onAntworten}
+          botEnabled={botEnabled}
+          pruefenAntwort={pruefenAntwort}
+          onPruefenAntwortChange={setPruefenAntwort}
+          onPruefen={() => void pruefen()}
+          pruefenLoading={pruefenLoading}
+          pruefenErgebnis={pruefenErgebnis}
+          vorbelegung={vorbelegung}
+        />
       )}
 
       {geklaert && (
@@ -495,6 +602,23 @@ function SessionKarte({
             >
               {erklaerLoading ? "Erklärt …" : "Erklären"}
             </button>
+            {tutorEnabled ? (
+              <Link
+                href={tutorHref}
+                className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Tutor fragen
+              </Link>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title={tutorTitle}
+                className="cursor-not-allowed rounded-md px-1 py-1 font-medium text-muted-foreground/50"
+              >
+                Tutor fragen
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -522,38 +646,86 @@ function WissenKarte({
   gezeigt,
   onZeigen,
   onAntworten,
+  botEnabled,
+  pruefenAntwort,
+  onPruefenAntwortChange,
+  onPruefen,
+  pruefenLoading,
+  pruefenErgebnis,
+  vorbelegung,
 }: {
   card: StudyCardDTO;
   gezeigt: boolean;
   onZeigen: () => void;
   onAntworten: (correct: boolean) => void;
+  botEnabled: boolean;
+  pruefenAntwort: string;
+  onPruefenAntwortChange: (v: string) => void;
+  onPruefen: () => void;
+  pruefenLoading: boolean;
+  pruefenErgebnis: PruefenErgebnis | null;
+  vorbelegung: boolean | null;
 }) {
   return (
     <>
       <p className="text-balance text-lg font-medium sm:text-xl">{card.question}</p>
       {gezeigt && (
-        <div className="mt-4 whitespace-pre-wrap border-t pt-4 text-[15px] text-muted-foreground">
-          {card.answer || "Keine Antwort hinterlegt."}
-        </div>
+        <>
+          {pruefenErgebnis && (
+            <div className="mt-4 flex items-start gap-2 border-t pt-4">
+              <UrteilBadge urteil={pruefenErgebnis.urteil} />
+              {pruefenErgebnis.feedback && (
+                <p className="text-[13.5px] text-muted-foreground">{pruefenErgebnis.feedback}</p>
+              )}
+            </div>
+          )}
+          <div
+            className={cn(
+              "whitespace-pre-wrap pt-4 text-[15px] text-muted-foreground",
+              !pruefenErgebnis && "mt-4 border-t",
+            )}
+          >
+            {card.answer || "Keine Antwort hinterlegt."}
+          </div>
+        </>
       )}
       <div className="mt-6">
-        {!gezeigt ? (
+        {!gezeigt && botEnabled ? (
+          <PruefenFeld
+            value={pruefenAntwort}
+            onChange={onPruefenAntwortChange}
+            onPruefen={onPruefen}
+            onZeigen={onZeigen}
+            loading={pruefenLoading}
+            zeigenLabel="Antwort zeigen"
+          />
+        ) : !gezeigt ? (
           <Button type="button" className="h-11 w-full" onClick={onZeigen}>
             Antwort zeigen
           </Button>
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className="h-11" onClick={() => onAntworten(false)}>
+            <Button
+              type="button"
+              variant={vorbelegung === false ? "default" : "outline"}
+              className="h-11"
+              onClick={() => onAntworten(false)}
+            >
               Nicht gewusst
             </Button>
-            <Button type="button" className="h-11" onClick={() => onAntworten(true)}>
+            <Button
+              type="button"
+              variant={vorbelegung === false ? "outline" : "default"}
+              className="h-11"
+              onClick={() => onAntworten(true)}
+            >
               Gewusst
             </Button>
           </div>
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Antwort · 1 nicht gewusst · 2 gewusst · e erklärt
+        Leertaste zeigt die Antwort · 1 nicht gewusst · 2 gewusst · e erklärt · t Tutor fragen
       </p>
     </>
   );
@@ -566,6 +738,13 @@ function AufgabeKarte({
   onAntworten,
   onAehnliche,
   varianteLoading,
+  botEnabled,
+  pruefenAntwort,
+  onPruefenAntwortChange,
+  onPruefen,
+  pruefenLoading,
+  pruefenErgebnis,
+  vorbelegung,
 }: {
   card: StudyCardDTO;
   gezeigt: boolean;
@@ -573,29 +752,65 @@ function AufgabeKarte({
   onAntworten: (correct: boolean) => void;
   onAehnliche: () => void;
   varianteLoading: boolean;
+  botEnabled: boolean;
+  pruefenAntwort: string;
+  onPruefenAntwortChange: (v: string) => void;
+  onPruefen: () => void;
+  pruefenLoading: boolean;
+  pruefenErgebnis: PruefenErgebnis | null;
+  vorbelegung: boolean | null;
 }) {
   return (
     <>
       <p className="text-balance text-lg font-medium sm:text-xl">{card.question}</p>
       {!gezeigt && <p className="mt-2 text-[13px] text-muted-foreground">Rechne auf Papier.</p>}
       {gezeigt && (
-        <div
-          className={cn(PROSE, "mt-4 border-t pt-4")}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(card.answer || "Kein Lösungsweg hinterlegt.") }}
-        />
+        <>
+          {pruefenErgebnis && (
+            <div className="mt-4 flex items-start gap-2 border-t pt-4">
+              <UrteilBadge urteil={pruefenErgebnis.urteil} />
+              {pruefenErgebnis.feedback && (
+                <p className="text-[13.5px] text-muted-foreground">{pruefenErgebnis.feedback}</p>
+              )}
+            </div>
+          )}
+          <div
+            className={cn(PROSE, "pt-4", !pruefenErgebnis && "mt-4 border-t")}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(card.answer || "Kein Lösungsweg hinterlegt.") }}
+          />
+        </>
       )}
       <div className="mt-6 space-y-2">
-        {!gezeigt ? (
+        {!gezeigt && botEnabled ? (
+          <PruefenFeld
+            value={pruefenAntwort}
+            onChange={onPruefenAntwortChange}
+            onPruefen={onPruefen}
+            onZeigen={onZeigen}
+            loading={pruefenLoading}
+            zeigenLabel="Lösung zeigen"
+          />
+        ) : !gezeigt ? (
           <Button type="button" className="h-11 w-full" onClick={onZeigen}>
             Lösung zeigen
           </Button>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant="outline" className="h-11" onClick={() => onAntworten(false)}>
+              <Button
+                type="button"
+                variant={vorbelegung === false ? "default" : "outline"}
+                className="h-11"
+                onClick={() => onAntworten(false)}
+              >
                 Nicht gelöst
               </Button>
-              <Button type="button" className="h-11" onClick={() => onAntworten(true)}>
+              <Button
+                type="button"
+                variant={vorbelegung === false ? "outline" : "default"}
+                className="h-11"
+                onClick={() => onAntworten(true)}
+              >
                 Gelöst
               </Button>
             </div>
@@ -606,9 +821,84 @@ function AufgabeKarte({
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Lösung · 1 nicht gelöst · 2 gelöst · e erklärt
+        Leertaste zeigt die Lösung · 1 nicht gelöst · 2 gelöst · e erklärt · t Tutor fragen
       </p>
     </>
+  );
+}
+
+// Textarea "Deine Antwort" plus "Prüfen" (Cmd/Ctrl+Enter sendet) fuer wissen/
+// aufgabe, solange die Antwort verborgen ist und der Bot an ist. Leer
+// abschicken zeigt nur die Loesung (siehe pruefen() in SessionKarte).
+function PruefenFeld({
+  value,
+  onChange,
+  onPruefen,
+  onZeigen,
+  loading,
+  zeigenLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onPruefen: () => void;
+  onZeigen: () => void;
+  loading: boolean;
+  zeigenLabel: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <label htmlFor="pruefen-antwort" className="sr-only">
+        Deine Antwort
+      </label>
+      <textarea
+        id="pruefen-antwort"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            onPruefen();
+          }
+        }}
+        rows={3}
+        placeholder="Deine Antwort"
+        disabled={loading}
+        className="w-full resize-none rounded-md border bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" variant="outline" className="h-11" onClick={onZeigen} disabled={loading}>
+          {zeigenLabel}
+        </Button>
+        <Button type="button" className="h-11" onClick={onPruefen} disabled={loading}>
+          {loading ? <Loader2 aria-hidden className="size-4 animate-spin" /> : "Prüfen"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+const URTEIL_STYLE: Record<Urteil, string> = {
+  richtig: "border-green-600/30 bg-green-600/10 text-green-700 dark:border-green-500/30 dark:text-green-400",
+  teilweise: "border-yellow-600/30 bg-yellow-600/10 text-yellow-700 dark:border-yellow-500/30 dark:text-yellow-400",
+  falsch: "border-red-600/30 bg-red-600/10 text-red-700 dark:border-red-500/30 dark:text-red-400",
+};
+
+const URTEIL_LABEL: Record<Urteil, string> = {
+  richtig: "Richtig",
+  teilweise: "Teilweise",
+  falsch: "Falsch",
+};
+
+function UrteilBadge({ urteil }: { urteil: Urteil }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[12px] font-medium",
+        URTEIL_STYLE[urteil],
+      )}
+    >
+      {URTEIL_LABEL[urteil]}
+    </span>
   );
 }
 

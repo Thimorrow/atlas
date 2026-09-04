@@ -145,6 +145,9 @@ export type SubjectDetail = {
   plan: PlanDTO | null;
   dateien: { id: string; name: string; contentType: string }[];
   notizen: { id: string; title: string }[];
+  // Nur von der Route gesetzt (subjectDetail() im Store kennt den Bot nicht):
+  // ob ZAI_API_KEY konfiguriert ist, ohne dafuer eine Bot-Konversation anzulegen.
+  botEnabled?: boolean;
 };
 
 export type SessionModus = "lernen" | "schwach" | "probe";
