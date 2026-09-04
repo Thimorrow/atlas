@@ -4,24 +4,12 @@ import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
 import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
-import { minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
+import { lokalesDatum as heuteLokal, lokaleUhrzeit as jetztLokal, minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// Gleiches Muster wie app/api/home/route.ts: das LOKALE Datum des Servers,
-// nicht toISOString() (das springt abends schon auf den naechsten Tag).
-function heuteLokal(): string {
-  return new Date().toLocaleDateString("sv-SE");
-}
-
-// Die LOKALE Uhrzeit des Servers als "HH:MM" -- dasselbe Format, in dem die
-// Events ihre Zeiten tragen, damit sich beides direkt vergleichen laesst.
-function jetztLokal(): string {
-  return new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
 
 // Wie weit die Suche nach dem naechsten Schultag vorausschaut. 14 Tage decken
 // jede normale Ferienwoche ab, ohne bei laengeren Ferien (Sommer) endlos in

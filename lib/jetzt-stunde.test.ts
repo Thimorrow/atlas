@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { minutesLeft, pickLiveLesson, type LiveCandidate } from "@/lib/jetzt-stunde";
+import {
+  cockpitMode,
+  defaultLesson,
+  lessonProgress,
+  minutesLeft,
+  minutesUntil,
+  pickLiveLesson,
+  pickNextLesson,
+  pickPreviousLesson,
+  type LiveCandidate,
+} from "@/lib/jetzt-stunde";
 
 // --- Reiner Logiktest, kein DB-Zugriff ---------------------------------------
 
@@ -92,5 +102,137 @@ describe("minutesLeft", () => {
   it("unbrauchbare Zeitangaben ergeben 0", () => {
     expect(minutesLeft("10:30", "jetzt")).toBe(0);
     expect(minutesLeft("", "10:07")).toBe(0);
+  });
+});
+
+describe("minutesUntil", () => {
+  it("rechnet die Minuten bis zum Start", () => {
+    expect(minutesUntil("09:45", "09:30")).toBe(15);
+  });
+
+  it("wird nie negativ, auch wenn die Stunde schon laeuft", () => {
+    expect(minutesUntil("09:45", "10:00")).toBe(0);
+  });
+
+  it("genau zum Start sind es 0 Minuten", () => {
+    expect(minutesUntil("09:45", "09:45")).toBe(0);
+  });
+
+  it("unbrauchbare Zeitangaben ergeben 0", () => {
+    expect(minutesUntil("09:45", "jetzt")).toBe(0);
+    expect(minutesUntil("", "09:30")).toBe(0);
+  });
+});
+
+describe("lessonProgress", () => {
+  it("rechnet den Anteil der verstrichenen Zeit", () => {
+    expect(lessonProgress("09:45", "10:30", "10:07")).toBeCloseTo(22 / 45, 5);
+  });
+
+  it("vor Beginn ist der Fortschritt 0", () => {
+    expect(lessonProgress("09:45", "10:30", "09:00")).toBe(0);
+  });
+
+  it("nach Ende ist der Fortschritt geklemmt bei 1", () => {
+    expect(lessonProgress("09:45", "10:30", "11:00")).toBe(1);
+  });
+
+  it("genau am Start ist der Fortschritt 0, genau am Ende 1", () => {
+    expect(lessonProgress("09:45", "10:30", "09:45")).toBe(0);
+    expect(lessonProgress("09:45", "10:30", "10:30")).toBe(1);
+  });
+
+  it("unbrauchbare Zeitangaben ergeben 0", () => {
+    expect(lessonProgress("09:45", "10:30", "jetzt")).toBe(0);
+    expect(lessonProgress("", "10:30", "10:07")).toBe(0);
+  });
+});
+
+describe("pickNextLesson", () => {
+  it("findet die naechste bevorstehende Stunde", () => {
+    expect(pickNextLesson(TAG, "08:50")?.refId).toBe("e2");
+  });
+
+  it("waehrend einer laufenden Stunde ist die naechste die danach", () => {
+    expect(pickNextLesson(TAG, "08:10")?.refId).toBe("e2");
+  });
+
+  it("nach der letzten Stunde gibt es keine naechste mehr", () => {
+    expect(pickNextLesson(TAG, "10:30")).toBeNull();
+  });
+
+  it("ignoriert eine entfallene naechste Stunde nicht -- sie zaehlt trotzdem nicht", () => {
+    const tag = [ERSTE, stunde("cancelled-next", "09:45", "10:30", "cancelled")];
+    expect(pickNextLesson(tag, "08:50")).toBeNull();
+  });
+
+  it("leerer Tag ergibt null", () => {
+    expect(pickNextLesson([], "08:50")).toBeNull();
+  });
+});
+
+describe("pickPreviousLesson", () => {
+  it("findet die zuletzt vorbeigegangene Stunde", () => {
+    expect(pickPreviousLesson(TAG, "09:00")?.refId).toBe("e1");
+  });
+
+  it("genau zum Ende zaehlt die Stunde schon als vorbei", () => {
+    expect(pickPreviousLesson(TAG, "08:45")?.refId).toBe("e1");
+  });
+
+  it("vor der ersten Stunde gibt es keine vorherige", () => {
+    expect(pickPreviousLesson(TAG, "07:30")).toBeNull();
+  });
+
+  it("nach der letzten Stunde ist diese die vorherige", () => {
+    expect(pickPreviousLesson(TAG, "16:00")?.refId).toBe("e2");
+  });
+
+  it("leerer Tag ergibt null", () => {
+    expect(pickPreviousLesson([], "09:00")).toBeNull();
+  });
+});
+
+describe("cockpitMode", () => {
+  it("frei: kein einziger Termin heute", () => {
+    expect(cockpitMode([], "10:00")).toBe("frei");
+  });
+
+  it("frei: nur entfallene Stunden zaehlen wie kein Tag", () => {
+    expect(cockpitMode([stunde("x", "08:00", "08:45", "cancelled")], "10:00")).toBe("frei");
+  });
+
+  it("live: eine Stunde laeuft gerade", () => {
+    expect(cockpitMode(TAG, "10:07")).toBe("live");
+  });
+
+  it("vor: jetzt liegt vor der ersten Stunde", () => {
+    expect(cockpitMode(TAG, "07:30")).toBe("vor");
+  });
+
+  it("nach: jetzt liegt nach der letzten Stunde", () => {
+    expect(cockpitMode(TAG, "16:00")).toBe("nach");
+  });
+
+  it("pause: zwischen zwei Stunden", () => {
+    expect(cockpitMode(TAG, "09:00")).toBe("pause");
+  });
+});
+
+describe("defaultLesson", () => {
+  it("live hat Vorrang", () => {
+    expect(defaultLesson(TAG, "10:07")?.refId).toBe("e2");
+  });
+
+  it("in der Pause die naechste Stunde", () => {
+    expect(defaultLesson(TAG, "09:00")?.refId).toBe("e2");
+  });
+
+  it("nach der Schule die letzte Stunde", () => {
+    expect(defaultLesson(TAG, "16:00")?.refId).toBe("e2");
+  });
+
+  it("an einem freien Tag null", () => {
+    expect(defaultLesson([], "10:00")).toBeNull();
   });
 });

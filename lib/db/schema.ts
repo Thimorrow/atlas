@@ -13,6 +13,7 @@ import {
   timestamp,
   integer,
   doublePrecision,
+  boolean,
   jsonb,
   uniqueIndex,
   index,
@@ -351,6 +352,74 @@ export type NewBotConversation = typeof botConversations.$inferInsert;
 export type BotMessage = typeof botMessages.$inferSelect;
 export type NewBotMessage = typeof botMessages.$inferInsert;
 export type BotMessageRole = BotMessage["role"];
+
+// ---------------------------------------------------------------------------
+// Lernbereich (/lernen) -- Karteikarten nach dem Leitner-System.
+//
+// Box 0..5: box 0 = eben gescheitert oder neu, box 5 = am sichersten. Ein
+// richtiges Review erhoeht die Box (bis max 5), ein falsches wirft auf 0
+// zurueck -- Intervalle und Umsetzung stehen in lib/lernen.ts, hier nur das
+// Schema. study_reviews haelt jede einzelne Antwort fest (fuer "heute
+// gelernt" und spaeter mal eine Lernkurve), study_cards nur den aktuellen
+// Stand der Karte.
+// ---------------------------------------------------------------------------
+
+export const studyCardSource = pgEnum("study_card_source", [
+  "manuell",
+  "notizen",
+  "datei",
+  "lehrplan",
+]);
+
+export const studyCards = pgTable(
+  "study_cards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    answer: text("answer").notNull().default(""),
+    source: studyCardSource("source").notNull().default("manuell"),
+    // Herkunftshinweis, z. B. die id der Quelldatei. Frei, weil die Bedeutung
+    // je nach source unterschiedlich ist.
+    sourceRef: text("source_ref"),
+    box: integer("box").notNull().default(0),
+    // Kein .defaultNow(): date-Spalten bekommen bei Drizzle keinen sauberen
+    // SQL-Default fuer "heute" -- der Store setzt den Wert beim Anlegen.
+    due: date("due").notNull(),
+    reviews: integer("reviews").notNull().default(0),
+    lapses: integer("lapses").notNull().default(0),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("study_cards_subject_due_idx").on(t.subjectId, t.due)],
+);
+
+export type StudyCard = typeof studyCards.$inferSelect;
+export type NewStudyCard = typeof studyCards.$inferInsert;
+export type StudyCardSource = StudyCard["source"];
+
+export const studyReviews = pgTable(
+  "study_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cardId: uuid("card_id")
+      .notNull()
+      .references(() => studyCards.id, { onDelete: "cascade" }),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    correct: boolean("correct").notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("study_reviews_subject_reviewed_idx").on(t.subjectId, t.reviewedAt)],
+);
+
+export type StudyReview = typeof studyReviews.$inferSelect;
+export type NewStudyReview = typeof studyReviews.$inferInsert;
 
 export type Subject = typeof subjects.$inferSelect;
 export type TeacherTitle = Subject["teacherTitle"];

@@ -274,6 +274,9 @@ export async function parseAssignmentPatch(
     if (!d.ok) return d;
     patch.dueDate = d.value;
   }
+  // Native Clients (explicitNulls=false) können null nicht explizit senden:
+  // clearDueDate=true löscht die Fälligkeit, auch ohne dueDate-Feld.
+  if (body.clearDueDate === true) patch.dueDate = null;
 
   if (body.notes !== undefined) patch.notes = body.notes === null ? null : String(body.notes);
 
@@ -282,6 +285,8 @@ export async function parseAssignmentPatch(
     if (!s.ok) return s;
     patch.subjectId = s.value;
   }
+  // Wie oben: clearSubject=true entkoppelt zu Allgemein (null).
+  if (body.clearSubject === true) patch.subjectId = null;
 
   if (patch.subjectId == null && nonEmptyStr(body.untisSubject)) {
     const subject = await ensureSubjectForUntis(body.untisSubject);
