@@ -132,8 +132,13 @@ function userContentBlocks(content: ChatMessage["content"]): AnthropicContentBlo
 // -> Anthropic-Request-Form ({ system, messages, tools }). Siehe Regeln im
 // Auftrag / in den Tests in model.test.ts.
 export function toAnthropicRequest(messages: ChatMessage[], tools: ChatTool[]): AnthropicRequest {
-  const [systemMessage, ...rest] = messages;
-  const system = systemMessage?.role === "system" ? textOf(systemMessage.content) : "";
+  // Nur eine echte system-Nachricht an erster Stelle abziehen. Frueher wurde
+  // die erste Nachricht IMMER abgezogen -- eine Anfrage aus nur einer
+  // user-Nachricht (explainCard, generateVariant, bewerteAntwort) ging dann
+  // ohne Nachrichten an die API und kam als 400 zurueck.
+  const hasSystem = messages[0]?.role === "system";
+  const system = hasSystem ? textOf(messages[0].content) : "";
+  const rest = hasSystem ? messages.slice(1) : messages;
 
   const out: AnthropicMessage[] = [];
 

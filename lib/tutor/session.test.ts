@@ -237,4 +237,25 @@ describe("runTutorTurn", () => {
     expect(JSON.parse((toolResultMessage as { content: string }).content)).toEqual({ auswahl: [], text: "Bitte das Fazit" });
     expect(captured!.some((m) => m.role === "user")).toBe(false);
   });
+
+  it("(e) erster Turn ohne Verlauf schickt einen Startimpuls als user-Nachricht (API verlangt mindestens eine)", async () => {
+    const { deps } = makeDeps({
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+    });
+
+    let captured: ChatMessage[] | undefined;
+    const originalStreamChat = deps.streamChat;
+    deps.streamChat = ((msgs: ChatMessage[], ...rest: unknown[]) => {
+      captured = [...msgs]; // Kopie: das Array wird nach der Runde weiter befuellt
+      return (originalStreamChat as (...a: unknown[]) => AsyncGenerator<StreamEvent>)(msgs, ...rest);
+    }) as unknown as TutorSessionDeps["streamChat"];
+
+    const events = [];
+    for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
+
+    expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
+    expect(captured!.length).toBe(2);
+    expect(captured![0].role).toBe("system");
+    expect(captured![1].role).toBe("user");
+  });
 });

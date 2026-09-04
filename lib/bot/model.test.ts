@@ -59,6 +59,13 @@ describe("toAnthropicRequest", () => {
     expect(out).toEqual([{ role: "user", content: [{ type: "text", text: "Hallo" }] }]);
   });
 
+  it("laesst eine reine user-Nachricht ohne system-Nachricht stehen (kein leerer Request)", () => {
+    const messages: ChatMessage[] = [{ role: "user", content: "Bewerte das." }];
+    const { system, messages: out } = toAnthropicRequest(messages, []);
+    expect(system).toBe("");
+    expect(out).toEqual([{ role: "user", content: [{ type: "text", text: "Bewerte das." }] }]);
+  });
+
   it("fasst zwei aufeinanderfolgende tool-Nachrichten zu einer user-Nachricht mit zwei tool_result-Bloecken zusammen", () => {
     const messages: ChatMessage[] = [
       { role: "system", content: "sys" },

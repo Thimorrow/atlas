@@ -187,6 +187,12 @@ export async function* runTutorTurn(
 
   const history = await deps.listTutorMessages(conversationId);
   const chatMessages = toTutorModelMessages(history, system);
+  // Erster Turn einer neuen Session: es gibt noch keine Nachricht. Die API
+  // verlangt mindestens eine, also ein nicht gespeicherter Startimpuls --
+  // das Modell antwortet laut Prompt mit dem Wissensstand-Widget.
+  if (chatMessages.length === 1) {
+    chatMessages.push({ role: "user", content: "Los, starte die Session." });
+  }
 
   // Aktueller Stand der Checkliste -- wird bei checkliste_erstellen und
   // aufgabe_ergebnis mitgefuehrt, damit fazit() im Modus probe fehlende
