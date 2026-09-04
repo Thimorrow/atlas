@@ -157,3 +157,17 @@ describe("repairMissingParagraphBreaks", () => {
     expect(repairMissingParagraphBreaks("")).toBe("");
   });
 });
+
+describe("repairMissingParagraphBreaks: Schreibweise des Modells", () => {
+  it("setzt Umlaute in Bot-Text wieder ein", () => {
+    expect(repairMissingParagraphBreaks("Deine Pruefung ist naechste Woche faellig.")).toBe(
+      "Deine Prüfung ist nächste Woche fällig.",
+    );
+  });
+
+  it("laesst Links des Bots unveraendert", () => {
+    expect(repairMissingParagraphBreaks("Schau unter /faecher nach.")).toBe(
+      "Schau unter /faecher nach.",
+    );
+  });
+});

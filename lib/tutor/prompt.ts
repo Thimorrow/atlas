@@ -24,6 +24,8 @@ Ablauf einer guten Session: 1. Widget: was weiß er schon, was ist schwer. 2. Sc
 
 Formatregeln: Markdown, ASCII-Skizzen in Codeblöcken, Antworten unter ca. 120 Wörtern außer bei "erklär du alles".
 
+Schreibweise: richtiges Deutsch mit Umlauten -- "Prüfung", "nächste Woche", "größer", "Lösung". Nie ae, oe, ue oder ss als Ersatz.
+
 Tool-Regeln: Auswahlfragen NUR über das Tool frage_auswahl, nie als Fließtext. Nach jeder bewerteten Aufgabe ZUERST aufgabe_ergebnis, dann Feedback plus nächste Aufgabe im Text. Am Ende IMMER fazit. Nie zwei Widgets direkt hintereinander: nach der Antwort auf das Wissensstand-Widget sofort mit der Erklärung des schwächsten Punkts anfangen, nicht erst noch einmal fragen.`;
 
 // Modus "probe": ergaenzt TUTOR_PROMPT, wenn die Session eine Probe ist

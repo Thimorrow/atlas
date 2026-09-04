@@ -38,6 +38,7 @@ import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
 
 import { heuteISO as localISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
+import { mitUmlauten } from "@/lib/umlaute";
 
 
 // Normalisiert einen Fachnamen fuers Matching: trim, klein, deutsche
@@ -714,8 +715,16 @@ async function resolveSubjectId(fach: string): Promise<{ subjectId: string } | {
   };
 }
 
+// Freitext, den das Modell geliefert hat und der so in der Datenbank landet.
+// Der Systemprompt verlangt Umlaute, aber das Modell faellt zurueck -- und
+// anders als Chat-Text laeuft ein Aufgabentitel nie durch das Rendern, wo das
+// Netz sonst greift. Also hier schon beim Schreiben geradeziehen.
+function modelltext(wert: unknown): string {
+  return typeof wert === "string" ? mitUmlauten(wert.trim()) : "";
+}
+
 async function aufgabeAnlegen(args: Record<string, unknown>) {
-  const titel = typeof args.titel === "string" ? args.titel.trim() : "";
+  const titel = modelltext(args.titel);
   if (!titel) return { error: "titel darf nicht leer sein." };
 
   let subjectId: string | undefined;
@@ -751,7 +760,7 @@ async function aufgabeAendern(args: Record<string, unknown>) {
   const patch: Partial<NewAssignment> = {};
   let hinweisFaellig: string | undefined;
 
-  if (typeof args.titel === "string" && args.titel.trim()) patch.title = args.titel.trim();
+  if (modelltext(args.titel)) patch.title = modelltext(args.titel);
   if (typeof args.notiz === "string") patch.notes = args.notiz;
   if (typeof args.faellig === "string") {
     const d = resolveDate(args.faellig);
@@ -779,7 +788,7 @@ async function aufgabeAendern(args: Record<string, unknown>) {
 
 async function notizAnlegen(args: Record<string, unknown>) {
   const fach = typeof args.fach === "string" ? args.fach.trim() : "";
-  const titel = typeof args.titel === "string" ? args.titel.trim() : "";
+  const titel = modelltext(args.titel);
   if (!fach) return { error: "fach darf nicht leer sein." };
   if (!titel) return { error: "titel darf nicht leer sein." };
 
@@ -788,7 +797,7 @@ async function notizAnlegen(args: Record<string, unknown>) {
   const notiz = await createNote({
     subjectId: resolved.subjectId,
     title: titel,
-    body: typeof args.text === "string" ? args.text : "",
+    body: modelltext(args.text),
   });
   return { notiz };
 }
@@ -810,8 +819,8 @@ async function notizAendern(args: Record<string, unknown>) {
   }
 
   const patch: Partial<NewSubjectNote> = {};
-  if (typeof args.titel === "string" && args.titel.trim()) patch.title = args.titel.trim();
-  if (typeof args.text === "string") patch.body = args.text;
+  if (modelltext(args.titel)) patch.title = modelltext(args.titel);
+  if (typeof args.text === "string") patch.body = mitUmlauten(args.text);
 
   if (Object.keys(patch).length === 0) {
     return { error: "Es wurde nichts zum Ändern angegeben." };

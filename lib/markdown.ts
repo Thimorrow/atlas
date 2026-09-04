@@ -1,5 +1,7 @@
 import { Marked, type Tokens } from "marked";
 
+import { mitUmlauten } from "@/lib/umlaute";
+
 // Markdown-Rendering fuer Fach-Notizen.
 //
 // Sicherheit: Das Ergebnis landet in `dangerouslySetInnerHTML`, also darf aus
@@ -111,7 +113,11 @@ const ABSATZ_ANFAENGE = [
 
 export function repairMissingParagraphBreaks(src: string): string {
   if (!src) return src;
-  return src
+  // Hier laeuft der einzige Text durch, den nicht die App, sondern das Modell
+  // geschrieben hat. Es schreibt trotz Ansage im Systemprompt oft "faellig"
+  // statt "fällig", weil in seinem Kontext ueberall ASCII-Werkzeugnamen und
+  // Statuswerte stehen -- mitUmlauten() setzt das gerade.
+  return mitUmlauten(src)
     // "...steht an.Morgen ist frei." -- ein Satzzeichen ohne Leerzeichen
     // dahinter ist immer eine Bruchstelle.
     .replace(/([.!?:])([A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df])/g, "$1\n\n$2")
