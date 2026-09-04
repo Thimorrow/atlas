@@ -27,7 +27,7 @@ import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { lessonProgress, minutesLeft, minutesUntil } from "@/lib/jetzt-stunde";
 import { dueLabel, overdueLabel, weekdayDateLabel, type AssignmentDTO } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
-import type { StundeLessonDTO, StundeResponse } from "@/app/api/stunde/route";
+import type { StundeResponse } from "@/app/api/stunde/route";
 
 // Wie oft Restzeit und Fortschritt clientseitig nachgerechnet werden, ohne
 // dafuer neu zu laden. Gleiches Mass wie der frueherer Vollbild-Stundenmodus.
@@ -252,8 +252,30 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
             </>
           )}
         </p>
+        {/* Die naechste Arbeit als eine Zeile im Kopf statt als eigener Block:
+            im Unterricht reicht der Hinweis, das Lernen selbst passiert auf
+            /lernen. */}
+        {data.naechstePruefung && sel.subjectId && (
+          <Link
+            href={`/lernen/${sel.subjectId}`}
+            className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {data.naechstePruefung.title}{" "}
+            {data.naechstePruefung.tageBis <= 0
+              ? "heute"
+              : data.naechstePruefung.tageBis === 1
+                ? "morgen"
+                : `in ${data.naechstePruefung.tageBis} Tagen`}
+            , zum Lernen
+            <ChevronRight className="size-3" aria-hidden />
+          </Link>
+        )}
       </div>
 
+      {/* Reihenfolge folgt dem Ablauf einer Stunde: erst wird die alte
+          Hausaufgabe kontrolliert (Faellig jetzt), dann wird mitgeschrieben
+          und sich gemeldet (Notiz, Meldung), am Ende kommt die neue
+          Hausaufgabe, und ein Tafelfoto passt jederzeit (Dateien). */}
       {faellig.length > 0 && (
         <Abschnitt titel="Fällig jetzt">
           <ul className="flex flex-col gap-1">
@@ -268,6 +290,32 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           </ul>
         </Abschnitt>
       )}
+
+      <Abschnitt titel="Notiz">
+        {/* Die letzte Stunde steht zugeklappt direkt ueber der Notiz: dort
+            schaut man nach, was letztes Mal dran war, bevor man weiterschreibt.
+            Kein eigener Abschnitt, weil sie nur Zulieferung fuer die Notiz ist. */}
+        {data.letzteNotiz && (
+          <details className="group mb-1.5 rounded-lg px-2.5 py-1">
+            <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-muted-foreground [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
+              Letzte Stunde, {weekdayDateLabel(data.letzteNotiz.date)}
+            </summary>
+            <p className="mt-1 line-clamp-6 whitespace-pre-wrap pl-5 text-[13px] leading-relaxed text-muted-foreground">
+              {data.letzteNotiz.body.slice(0, 400)}
+            </p>
+          </details>
+        )}
+        <div className="rounded-xl border bg-card px-4 pt-1 pb-2 shadow-card">
+          <LessonNoteField schoolBlockId={sel.refId} onSaved={() => {}} placeholder="Was kam dran?" />
+        </div>
+      </Abschnitt>
+
+      <Abschnitt titel="Meldung">
+        <div className="rounded-xl border bg-card px-4 pb-2 shadow-card">
+          <ParticipationCounter schoolBlockId={sel.refId} onSaved={() => {}} />
+        </div>
+      </Abschnitt>
 
       <Abschnitt titel="Hausaufgabe">
         <AssignmentQuickAdd
@@ -292,18 +340,6 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
         )}
       </Abschnitt>
 
-      <Abschnitt titel="Notiz">
-        <div className="rounded-xl border bg-card px-4 pt-1 pb-2 shadow-card">
-          <LessonNoteField schoolBlockId={sel.refId} onSaved={() => {}} placeholder="Was kam dran?" />
-        </div>
-      </Abschnitt>
-
-      <Abschnitt titel="Meldung">
-        <div className="rounded-xl border bg-card px-4 pb-2 shadow-card">
-          <ParticipationCounter schoolBlockId={sel.refId} onSaved={() => {}} />
-        </div>
-      </Abschnitt>
-
       <Abschnitt titel="Dateien">
         {sel.subjectId ? (
           <SubjectFiles subjectId={sel.subjectId} />
@@ -322,8 +358,6 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           </div>
         )}
       </Abschnitt>
-
-      <Kontext data={data} sel={sel} />
     </div>
   );
 }
@@ -359,71 +393,6 @@ function FaelligRow({ a, today, onDone }: { a: AssignmentDTO; today: string; onD
         </span>
       )}
     </li>
-  );
-}
-
-// --- Kontext -----------------------------------------------------------------
-
-function Kontext({ data, sel }: { data: StundeResponse; sel: StundeLessonDTO }) {
-  const hasAny = data.letzteNotiz || data.naechstePruefung || data.demnaechst.length > 0;
-  if (!hasAny) return null;
-
-  return (
-    <div className="space-y-4 border-t pt-5">
-      {data.letzteNotiz && (
-        <Abschnitt titel="Letzte Stunde">
-          <div className="rounded-xl border bg-card px-4 py-3 shadow-card">
-            <p className="text-[12.5px] text-muted-foreground">{weekdayDateLabel(data.letzteNotiz.date)}</p>
-            <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-[13.5px] leading-relaxed">
-              {data.letzteNotiz.body.slice(0, 240)}
-            </p>
-            {sel.subjectId && (
-              <Link
-                href={`/faecher/${sel.subjectId}`}
-                className="mt-2 inline-flex items-center gap-0.5 text-[12.5px] text-muted-foreground hover:text-foreground hover:underline"
-              >
-                Alle Notizen
-                <ChevronRight className="size-3" />
-              </Link>
-            )}
-          </div>
-        </Abschnitt>
-      )}
-
-      {data.naechstePruefung && sel.subjectId && (
-        <Abschnitt titel="Nächste Prüfung">
-          <Link
-            href={`/lernen/${sel.subjectId}`}
-            className="flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-card transition-colors hover:bg-accent/30"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-medium">{data.naechstePruefung.title}</p>
-              <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                {data.naechstePruefung.tageBis <= 0
-                  ? "heute"
-                  : data.naechstePruefung.tageBis === 1
-                    ? "morgen"
-                    : `in ${data.naechstePruefung.tageBis} Tagen`}
-              </p>
-            </div>
-            <span className="shrink-0 rounded-md border px-2.5 py-1 text-[12.5px] font-medium">Lernen</span>
-          </Link>
-        </Abschnitt>
-      )}
-
-      {data.demnaechst.length > 0 && (
-        <Abschnitt titel="Demnächst fällig">
-          <ul className="flex flex-col gap-1 px-2.5">
-            {data.demnaechst.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 text-[13px]">
-                <span className="min-w-0 truncate">{a.title}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{dueLabel(a.dueDate, data.today)}</span>
-              </li>
-            ))}
-          </ul>
-        </Abschnitt>
-      )}
-    </div>
   );
 }
 

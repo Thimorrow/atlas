@@ -99,6 +99,7 @@ function LernenFachBody({
   toast: (message: string) => void;
 }) {
   const { subject, cards, progress, faellig, naechstePruefung, plan, dateien } = data;
+  const [offen, setOffen] = useState<"erzeugen" | "schreiben" | null>(cards.length === 0 ? "erzeugen" : null);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -122,37 +123,68 @@ function LernenFachBody({
 
       <FortschrittBalken progress={progress} tint={tint} />
 
-      {progress.total > 0 ? (
+      {progress.total > 0 && (
         <Link
           href={`/lernen/${subjectId}/session`}
           className={cn(buttonVariants({ size: "default" }), "w-full")}
         >
           {faellig > 0 ? `Lernen starten · ${faellig} fällig` : "Wiederholen"}
         </Link>
-      ) : (
-        <p className="rounded-md border border-dashed px-3 py-2.5 text-center text-[13px] text-muted-foreground">
-          Zum Lernen brauchst du zuerst Karten.
-        </p>
       )}
 
-      <KartenErzeugen
-        subjectId={subjectId}
-        subject={subject}
-        dateien={dateien}
-        toast={toast}
-        onCreated={(neue) => {
-          setData((prev) => (prev ? { ...prev, cards: [...neue, ...prev.cards] } : prev));
-          toast(`${neue.length} ${neue.length === 1 ? "Karte" : "Karten"} erzeugt`);
-        }}
-      />
+      {/* Die beiden Wege, an Karten zu kommen, stehen als zwei ruhige Schalter
+          nebeneinander statt als zwei offene Formulare. Ohne Karten ist
+          "erzeugen" von selbst offen: das ist dann der eine naechste Schritt. */}
+      <div>
+        <div className="flex gap-2" role="group" aria-label="Karten hinzufügen">
+          <Button
+            type="button"
+            variant={offen === "erzeugen" ? "secondary" : "outline"}
+            aria-expanded={offen === "erzeugen"}
+            onClick={() => setOffen(offen === "erzeugen" ? null : "erzeugen")}
+            className="flex-1"
+          >
+            Karten erzeugen
+          </Button>
+          <Button
+            type="button"
+            variant={offen === "schreiben" ? "secondary" : "outline"}
+            aria-expanded={offen === "schreiben"}
+            onClick={() => setOffen(offen === "schreiben" ? null : "schreiben")}
+            className="flex-1"
+          >
+            Karte schreiben
+          </Button>
+        </div>
 
-      <KarteSchreiben
-        subjectId={subjectId}
-        toast={toast}
-        onCreated={(karte) => {
-          setData((prev) => (prev ? { ...prev, cards: [karte, ...prev.cards] } : prev));
-        }}
-      />
+        {offen === "erzeugen" && (
+          <div className="mt-3">
+            <KartenErzeugen
+              subjectId={subjectId}
+              subject={subject}
+              dateien={dateien}
+              toast={toast}
+              onCreated={(neue) => {
+                setData((prev) => (prev ? { ...prev, cards: [...neue, ...prev.cards] } : prev));
+                toast(`${neue.length} ${neue.length === 1 ? "Karte" : "Karten"} erzeugt`);
+                setOffen(null);
+              }}
+            />
+          </div>
+        )}
+
+        {offen === "schreiben" && (
+          <div className="mt-3">
+            <KarteSchreiben
+              subjectId={subjectId}
+              toast={toast}
+              onCreated={(karte) => {
+                setData((prev) => (prev ? { ...prev, cards: [karte, ...prev.cards] } : prev));
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       <KartenListe
         cards={cards}

@@ -8,7 +8,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/toast";
 import { localISO } from "@/lib/assignments-view";
@@ -240,27 +241,27 @@ function SessionEnde({
         <p className="text-lg font-medium">
           {richtig} von {gesamt} gewusst
         </p>
+        {/* Ein Hauptknopf: solange Falsche uebrig sind, ist "nochmal" der
+            naechste Schritt, sonst "Fertig". Die Uebersicht erreicht man
+            ueber die Navigation, dafuer braucht es hier keinen dritten Weg. */}
         <div className="flex flex-col items-center gap-2">
-          {falsche > 0 && (
-            <Button type="button" onClick={onNochmal}>
-              Falsche nochmal
-            </Button>
+          {falsche > 0 ? (
+            <>
+              <Button type="button" onClick={onNochmal}>
+                Falsche nochmal
+              </Button>
+              <Link
+                href={`/lernen/${subjectId}`}
+                className="rounded-md px-1 py-1 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Fertig für heute
+              </Link>
+            </>
+          ) : (
+            <Link href={`/lernen/${subjectId}`} className={cn(buttonVariants({ size: "default" }))}>
+              Fertig
+            </Link>
           )}
-          <div className="flex items-center gap-3 text-[13px]">
-            <Link
-              href={`/lernen/${subjectId}`}
-              className="rounded-md px-1 py-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Zurück zum Fach
-            </Link>
-            <span className="text-muted-foreground">·</span>
-            <Link
-              href="/lernen"
-              className="rounded-md px-1 py-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Zur Übersicht
-            </Link>
-          </div>
         </div>
       </div>
     </div>
