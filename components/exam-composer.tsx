@@ -132,7 +132,7 @@ export function ExamComposer({
   // dann bleibt die Auswahl optional, bis es etwas zum Waehlen gibt.
   const subjectRequired = subjects.length > 0;
   const subjectError =
-    subjectRequired && subjectTouched && !subjectId ? "Bitte ein Fach waehlen." : null;
+    subjectRequired && subjectTouched && !subjectId ? "Bitte ein Fach wählen." : null;
   const collisions = dueDate ? sameDayCount(existingExams, dueDate) : 0;
   const selectedSubject = subjects.find((s) => s.id === subjectId) ?? null;
   // Beim Eintragen steht der Termin meist fest, das Thema noch nicht ("Mathe,
@@ -234,7 +234,7 @@ export function ExamComposer({
       onSaved(data.assignment);
       close();
     } catch {
-      toast("Die Pruefung konnte nicht angelegt werden.");
+      toast("Die Prüfung konnte nicht angelegt werden.");
       setSaving(false);
     }
   }
@@ -281,7 +281,7 @@ export function ExamComposer({
                 <button
                   type="button"
                   onClick={close}
-                  aria-label="Schliessen"
+                  aria-label="Schließen"
                   className="relative -mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]"
                 >
                   <X className="size-4" />
@@ -291,7 +291,7 @@ export function ExamComposer({
                   Formular-Block: drei fast gleichwertige Werte brauchen kein
                   volles Feld mit Label, ein Icon-Toggle traegt die gleiche
                   Information in einer Zeile. */}
-              <div role="group" aria-label="Art der Pruefung" className="mt-2 flex gap-1.5">
+              <div role="group" aria-label="Art der Prüfung" className="mt-2 flex gap-1.5">
                 {EXAM_TYPES.map((t) => {
                   const Icon = TYPE_ICON[t];
                   const active = type === t;
@@ -381,7 +381,7 @@ export function ExamComposer({
                     {collisions > 0 && (
                       <span className="font-medium text-foreground/70">
                         {" "}
-                        · {collisions} weitere {collisions === 1 ? "Pruefung" : "Pruefungen"} an diesem Tag
+                        · {collisions} weitere {collisions === 1 ? "Prüfung" : "Prüfungen"} an diesem Tag
                       </span>
                     )}
                   </p>
@@ -402,7 +402,7 @@ export function ExamComposer({
                 </label>
                 {subjects.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground">
-                    Noch kein Fach angelegt. Die Pruefung wird ohne Fach gespeichert.
+                    Noch kein Fach angelegt. Die Prüfung wird ohne Fach gespeichert.
                   </p>
                 ) : (
                   <div className="relative">
@@ -432,7 +432,7 @@ export function ExamComposer({
                       aria-invalid={Boolean(subjectError)}
                       aria-describedby={subjectError ? `${uid}-subject-error` : undefined}
                     >
-                      <option value="">Fach waehlen …</option>
+                      <option value="">Fach wählen …</option>
                       {subjects.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}

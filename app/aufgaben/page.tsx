@@ -112,7 +112,7 @@ export default function AssignmentsPage() {
         : `${upcoming.length} anstehend.`
       : open.length === 0
         ? "Nichts offen."
-        : `${open.length} offen ueber alle Faecher.`;
+        : `${open.length} offen über alle Fächer.`;
 
   return (
     // Gleiches Seiten-Geruest wie /settings: die Layout-Hoehe ist fix, gescrollt
@@ -126,7 +126,7 @@ export default function AssignmentsPage() {
             className="relative mb-4 inline-flex items-center gap-1 rounded text-sm text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
           >
             <ChevronLeft className="size-4" />
-            Zurueck zum Stundenplan
+            Zurück zum Stundenplan
           </Link>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -136,7 +136,7 @@ export default function AssignmentsPage() {
             {tab === "pruefungen" && !loading && !loadError && (
               <Button size="sm" className="gap-1.5" onClick={() => setComposerOpen(true)}>
                 <Plus className="size-4" />
-                Neue Pruefung
+                Neue Prüfung
               </Button>
             )}
           </div>
@@ -145,13 +145,13 @@ export default function AssignmentsPage() {
         <StaggerItem>
           <div
             role="tablist"
-            aria-label="Aufgaben und Pruefungen"
+            aria-label="Aufgaben und Prüfungen"
             className="flex gap-1 rounded-lg border bg-card p-1 shadow-card"
           >
             {(
               [
                 { id: "offen", label: "Offen" },
-                { id: "pruefungen", label: "Pruefungen" },
+                { id: "pruefungen", label: "Prüfungen" },
               ] as const
             ).map((t) => (
               <button

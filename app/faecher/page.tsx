@@ -78,7 +78,7 @@ export default function SubjectsPage() {
       await load(showArchived);
       toast(reconcileMeldung(json));
     } catch {
-      toast("Der Abgleich hat nicht geklappt. Versuch es spaeter erneut.");
+      toast("Der Abgleich hat nicht geklappt. Versuch es später erneut.");
     } finally {
       setReconciling(false);
     }
@@ -88,8 +88,8 @@ export default function SubjectsPage() {
     if (failed) {
       return (
         <EmptyPanel
-          title="Die Faecher konnten nicht geladen werden"
-          text="Pruef deine Verbindung und versuch es noch einmal."
+          title="Die Fächer konnten nicht geladen werden"
+          text="Prüf deine Verbindung und versuch es noch einmal."
         >
           <Button variant="outline" onClick={() => void load(showArchived)}>
             Erneut versuchen
@@ -116,11 +116,11 @@ export default function SubjectsPage() {
 
     if (subjects.length === 0) {
       return showArchived ? (
-        <EmptyPanel title="Kein archiviertes Fach" text="Hier landen Faecher, die du abwaehlst." />
+        <EmptyPanel title="Kein archiviertes Fach" text="Hier landen Fächer, die du abwählst." />
       ) : (
         <EmptyPanel
-          title="Keine aktiven Faecher"
-          text="Alle Faecher sind archiviert. Du kannst eines reaktivieren oder ein neues anlegen."
+          title="Keine aktiven Fächer"
+          text="Alle Fächer sind archiviert. Du kannst eines reaktivieren oder ein neues anlegen."
         >
           <Button variant="outline" onClick={() => setShowArchived(true)}>
             Archivierte zeigen
@@ -156,7 +156,7 @@ export default function SubjectsPage() {
         <StaggerItem>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h1 className="text-xl font-semibold leading-tight tracking-tight">Faecher</h1>
+              <h1 className="text-xl font-semibold leading-tight tracking-tight">Fächer</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Noten, Stammdaten, Notizen und Aufgaben pro Fach.
               </p>
@@ -211,7 +211,7 @@ export default function SubjectsPage() {
 
 function SubjectsSkeleton() {
   return (
-    <div className="flex flex-col gap-4" aria-label="Faecher werden geladen" aria-busy="true">
+    <div className="flex flex-col gap-4" aria-label="Fächer werden geladen" aria-busy="true">
       <Skeleton className="h-16 w-full rounded-xl" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -245,10 +245,10 @@ function reconcileMeldung(r: {
   if (r.skipped) return "Es gibt noch keinen Stundenplan zum Abgleichen.";
 
   const teile: string[] = [];
-  if (r.created > 0) teile.push(plural(r.created, "Fach ergaenzt", "Faecher ergaenzt"));
-  if (r.updated > 0) teile.push(plural(r.updated, "Fach aktualisiert", "Faecher aktualisiert"));
-  if (r.archived > 0) teile.push(plural(r.archived, "Fach archiviert", "Faecher archiviert"));
-  if (r.deleted > 0) teile.push(plural(r.deleted, "Fach entfernt", "Faecher entfernt"));
+  if (r.created > 0) teile.push(plural(r.created, "Fach ergänzt", "Fächer ergänzt"));
+  if (r.updated > 0) teile.push(plural(r.updated, "Fach aktualisiert", "Fächer aktualisiert"));
+  if (r.archived > 0) teile.push(plural(r.archived, "Fach archiviert", "Fächer archiviert"));
+  if (r.deleted > 0) teile.push(plural(r.deleted, "Fach entfernt", "Fächer entfernt"));
 
   return teile.length === 0 ? "Alles war schon aktuell." : teile.join(", ") + ".";
 }

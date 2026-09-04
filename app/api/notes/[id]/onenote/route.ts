@@ -26,7 +26,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   const subject = await getSubject(note.subjectId);
   if (!subject?.onenoteSectionId) {
     return NextResponse.json(
-      { error: "Fuer dieses Fach ist noch kein OneNote-Abschnitt ausgewaehlt." },
+      { error: "Für dieses Fach ist noch kein OneNote-Abschnitt ausgewählt." },
       { status: 409 },
     );
   }

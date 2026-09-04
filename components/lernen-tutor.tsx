@@ -358,7 +358,7 @@ export function LernenTutor({
           `modus=${modus}`,
           cardId ? `karte=${cardId}` : null,
           einheitId ? `einheit=${einheitId}` : null,
-          pruefung ? `pruefung=${pruefung}` : null,
+          pruefung ? `prüfung=${pruefung}` : null,
           `session=${data.conversation.id}`,
         ]
           .filter(Boolean)
@@ -472,7 +472,7 @@ export function LernenTutor({
           href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
           className="text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          {topicId ? "Zurueck zum Thema" : "Zum Fach"}
+          {topicId ? "Zurück zum Thema" : "Zum Fach"}
         </Link>
       </div>
     );
@@ -500,7 +500,7 @@ export function LernenTutor({
           className="relative flex shrink-0 items-center gap-1 rounded-md py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft aria-hidden className="size-3.5" />
-          Zurueck
+          Zurück
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">
           {topicId ? (topicTitle ?? "Thema") : "Simulation"}
@@ -534,7 +534,7 @@ export function LernenTutor({
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-1.5">
               <QuickButton label="skip" onClick={() => void sendMessage("skip")} disabled={streaming || ended} />
-              <QuickButton label="erklaer du alles" onClick={() => void sendMessage("erklaer du alles")} disabled={streaming || ended} />
+              <QuickButton label="erklär du alles" onClick={() => void sendMessage("erklär du alles")} disabled={streaming || ended} />
               <QuickButton label="gecheckt" onClick={() => void sendMessage("gecheckt")} disabled={streaming || ended} />
             </div>
             <div className="flex items-end gap-2">
@@ -830,7 +830,7 @@ function FazitCard({
       <div className="flex flex-wrap gap-2 pt-1">
         {showKartenButton && (
           <Button type="button" size="sm" className="min-h-11" onClick={onLegeKartenAn} disabled={anlegend}>
-            {anlegend ? "Legt an …" : `${ergebnis.neueKarten.length} Karten zu deinen Luecken anlegen`}
+            {anlegend ? "Legt an …" : `${ergebnis.neueKarten.length} Karten zu deinen Lücken anlegen`}
           </Button>
         )}
         {topicId && (
@@ -842,14 +842,14 @@ function FazitCard({
             onClick={() => window.location.assign(`/lernen/${subjectId}/tutor?thema=${topicId}&modus=lernen`)}
             className="inline-flex min-h-11 items-center rounded-md border px-3 text-[13px] font-medium transition-colors hover:bg-accent"
           >
-            Nochmal ueben
+            Nochmal üben
           </button>
         )}
         <Link
           href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
           className="inline-flex min-h-11 items-center rounded-md px-3 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          {topicId ? "Zurueck zum Thema" : "Zum Fach"}
+          {topicId ? "Zurück zum Thema" : "Zum Fach"}
         </Link>
       </div>
     </div>

@@ -35,7 +35,7 @@ describe("POST /api/lernen/plan/bewerten", () => {
     expect(res.status).toBe(503);
   });
 
-  it("ungueltige subjectId -> 400", async () => {
+  it("ungültige subjectId -> 400", async () => {
     const res = await POST(req({ subjectId: "x", antworten: [{ frage: "f", musterantwort: "m", antwort: "a" }] }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("subjectId");
@@ -53,18 +53,18 @@ describe("POST /api/lernen/plan/bewerten", () => {
     expect(res.status).toBe(400);
   });
 
-  it("antwort ueber 500 Zeichen -> 400", async () => {
+  it("antwort über 500 Zeichen -> 400", async () => {
     const res = await POST(
       req({ subjectId: SUBJECT_ID, antworten: [{ frage: "f", musterantwort: "m", antwort: "a".repeat(501) }] }),
     );
     expect(res.status).toBe(400);
   });
 
-  it("richtig, Unsinn, null -> drei Urteile, null wird als Uebersprungen gesendet", async () => {
+  it("richtig, Unsinn, null -> drei Urteile, null wird als Übersprungen gesendet", async () => {
     vi.mocked(bewerten).mockResolvedValue([
       { urteil: "richtig", feedback: "Passt." },
       { urteil: "falsch", feedback: "Nein." },
-      { urteil: "falsch", feedback: "Uebersprungen" },
+      { urteil: "falsch", feedback: "Übersprungen" },
     ]);
     const res = await POST(
       req({
@@ -86,7 +86,7 @@ describe("POST /api/lernen/plan/bewerten", () => {
     );
   });
 
-  it("LernplanGenFehler wird in Status+Code uebersetzt", async () => {
+  it("LernplanGenFehler wird in Status+Code übersetzt", async () => {
     vi.mocked(bewerten).mockRejectedValue(new LernplanGenFehler(502, "modell"));
     const res = await POST(
       req({ subjectId: SUBJECT_ID, antworten: [{ frage: "f", musterantwort: "m", antwort: "a" }] }),

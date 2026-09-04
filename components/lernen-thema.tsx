@@ -180,7 +180,7 @@ function LernenThemaBody({
             />
           </div>
           <span className="shrink-0 tabular-nums text-[12.5px] text-muted-foreground">
-            {progress.bereit}% bereit · {progress.faellig} faellig
+            {progress.bereit}% bereit · {progress.faellig} fällig
           </span>
         </div>
       </div>
@@ -341,10 +341,10 @@ function PruefungsSelect({
       <span>
         {exam ? (
           <>
-            Pruefung: <span className="font-medium text-foreground">{exam.title}</span> · {tageBisLabel(exam.tageBis)}
+            Prüfung: <span className="font-medium text-foreground">{exam.title}</span> · {tageBisLabel(exam.tageBis)}
           </>
         ) : (
-          "Keine Pruefung zugeordnet"
+          "Keine Prüfung zugeordnet"
         )}
       </span>
       <select
@@ -424,9 +424,9 @@ function TutorBlock({
       if (!res.ok) throw new Error("delete failed");
       setPendingDeleteId(null);
       await loadSessions();
-      toast("Session geloescht", "success");
+      toast("Session gelöscht", "success");
     } catch {
-      toast("Die Session konnte nicht geloescht werden.");
+      toast("Die Session konnte nicht gelöscht werden.");
     }
   }
 
@@ -484,7 +484,7 @@ function TutorBlock({
                     onClick={() => void deleteSession(s.id)}
                     className="relative min-h-11 rounded-md px-2 text-[12px] font-medium text-destructive before:absolute before:-inset-1 before:content-[''] hover:bg-accent"
                   >
-                    Wirklich loeschen?
+                    Wirklich löschen?
                   </button>
                   <button
                     type="button"
@@ -498,7 +498,7 @@ function TutorBlock({
                 <button
                   type="button"
                   onClick={() => setPendingDeleteId(s.id)}
-                  aria-label="Session loeschen"
+                  aria-label="Session löschen"
                   className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
@@ -612,7 +612,7 @@ function LernzettelBlock({
         </div>
       ) : (
         <div className="rounded-xl border border-dashed px-4 py-6 text-center">
-          <p className="text-[13px] text-muted-foreground">Noch kein Lernzettel fuer dieses Thema.</p>
+          <p className="text-[13px] text-muted-foreground">Noch kein Lernzettel für dieses Thema.</p>
         </div>
       )}
 
@@ -741,7 +741,7 @@ function KartenBlock({
 
   return (
     <section className="space-y-2">
-      <div className="flex gap-2" role="group" aria-label="Karten hinzufuegen">
+      <div className="flex gap-2" role="group" aria-label="Karten hinzufügen">
         <Button
           type="button"
           variant={offen === "erzeugen" ? "secondary" : "outline"}
@@ -1069,7 +1069,7 @@ function KartenZeile({
       onDeleted(card.id);
       setPendingDelete(false);
     } catch {
-      toast("Die Karte konnte nicht geloescht werden.");
+      toast("Die Karte konnte nicht gelöscht werden.");
     } finally {
       setDeleting(false);
     }
@@ -1164,7 +1164,7 @@ function KartenZeile({
         <button
           type="button"
           onClick={() => setPendingDelete(true)}
-          aria-label="Karte loeschen"
+          aria-label="Karte löschen"
           className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <Trash2 className="size-4" />
@@ -1200,10 +1200,10 @@ function KartenZeile({
               className="relative w-full max-w-sm rounded-t-2xl border bg-card p-5 shadow-popover sm:rounded-2xl"
             >
               <h3 id={`${uid}-confirm`} className="text-[15px] font-semibold tracking-tight">
-                Karte loeschen?
+                Karte löschen?
               </h3>
               <p className="mt-1 text-[13px] text-muted-foreground">
-                Die Karte wird endgueltig entfernt. Das laesst sich nicht rueckgaengig machen.
+                Die Karte wird endgültig entfernt. Das lässt sich nicht rückgängig machen.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button
@@ -1223,7 +1223,7 @@ function KartenZeile({
                   disabled={deleting}
                   className="bg-destructive text-background hover:bg-destructive/90"
                 >
-                  {deleting ? "Loescht …" : "Loeschen"}
+                  {deleting ? "Löscht …" : "Löschen"}
                 </Button>
               </div>
             </motion.div>

@@ -2,7 +2,11 @@
 
 # Schreibweise im UI
 
-Die App nutzt KEINE Umlaute und kein Eszett. Jeder user-facing Text (Labels,
-Buttons, Toasts, Fehlermeldungen, Prompts, Seed-Daten) wird transliteriert:
-ae, oe, ue, Ae, Oe, Ue, ss. Beispiel: "Naechste Woche", "Loeschen", "Schuelerin",
-"Gross". Gilt auch fuer neu hinzugefuegten Code und Kommentare.
+Sichtbarer Text steht in korrekter deutscher Rechtschreibung, mit Umlauten und
+Eszett: "Fächer", "Prüfung", "Nächste Woche", "Löschen", "groß". Das gilt fuer
+Labels, Buttons, Toasts, Fehlermeldungen, Prompts und Seed-Daten.
+
+Nicht betroffen und bewusst ASCII: Bezeichner, Routen (`/faecher`), Enum- und
+Statuswerte (`"ueben"`, `"ueberfaellig"`, `"laedt"`), Query-Parameter,
+Werkzeugnamen des Bots (`aufgabe_aendern`) und Kommentare. Wer dort einen
+Umlaut einbaut, bricht Vergleiche und Links.

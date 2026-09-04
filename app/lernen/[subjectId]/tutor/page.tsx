@@ -4,7 +4,7 @@ import type { TutorModusDTO } from "@/lib/tutor/types";
 
 // In Next 16 sind Route- und Search-Params ein Promise. Pflicht ist `thema`
 // ODER `pruefung` (Simulation ueber den ganzen Plan, siehe SPEC.md "Tutor
-// kennt die Blaetter des Punkts") -- alles andere hat einen Default. Die
+// kennt die Blätter des Punkts") -- alles andere hat einen Default. Die
 // Client-Komponente laedt Conversation/Verlauf selbst ueber /api/lernen/tutor.
 export default async function LernenTutorPage({
   params,

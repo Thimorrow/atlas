@@ -125,7 +125,7 @@ export function LernenQuellen({
       {zeigeDateien && dateien.length > 0 && (
         <div>
           <p className="mb-1 text-[12.5px] font-medium text-muted-foreground">
-            Dateien {quelle === "alles" ? "(optional einschraenken)" : ""}
+            Dateien {quelle === "alles" ? "(optional einschränken)" : ""}
           </p>
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
             {dateien.map((f) => (
@@ -148,7 +148,7 @@ export function LernenQuellen({
       {zeigeNotizen && notizen.length > 0 && (
         <div>
           <p className="mb-1 text-[12.5px] font-medium text-muted-foreground">
-            Notizen {quelle === "alles" ? "(optional einschraenken)" : ""}
+            Notizen {quelle === "alles" ? "(optional einschränken)" : ""}
           </p>
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
             {notizen.map((n) => (

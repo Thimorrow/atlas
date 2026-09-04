@@ -29,7 +29,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   const vorlage = vorlageFuerFach(subject);
   if (!vorlage) {
     return NextResponse.json(
-      { error: `Fuer „${subject.name}“ ist im Kernlehrplan NRW kein Lehrplan hinterlegt.` },
+      { error: `Für „${subject.name}“ ist im Kernlehrplan NRW kein Lehrplan hinterlegt.` },
       { status: 404 },
     );
   }

@@ -16,19 +16,19 @@ describe("runde5 und addTageISO", () => {
     expect(runde5(8)).toBe(10);
   });
 
-  it("rechnet Tage in UTC, auch ueber Monatsgrenzen", () => {
+  it("rechnet Tage in UTC, auch über Monatsgrenzen", () => {
     expect(addTageISO("2026-01-31", 1)).toBe("2026-02-01");
     expect(addTageISO("2026-03-01", -1)).toBe("2026-02-28");
   });
 });
 
 describe("einheitenFuer", () => {
-  it("Sicherheit 90: nur ueben, kein lernen/probe", () => {
+  it("Sicherheit 90: nur üben, kein lernen/probe", () => {
     const einheiten = einheitenFuer({ minuten: 60, sicherheit: 90 }, 0);
     expect(einheiten).toEqual([{ pointIndex: 0, phase: "ueben", minuten: 10 }]);
   });
 
-  it("Sicherheit 50: Faktor 1, lernen/ueben/probe in der Reihenfolge", () => {
+  it("Sicherheit 50: Faktor 1, lernen/üben/probe in der Reihenfolge", () => {
     const einheiten = einheitenFuer({ minuten: 60, sicherheit: 50 }, 2);
     expect(einheiten).toEqual([
       { pointIndex: 2, phase: "lernen", minuten: 60 },
@@ -106,7 +106,7 @@ describe("verteilen", () => {
     expect(items[1].date).toBe("2026-01-10");
   });
 
-  it("Einheit ueber dem Tagesbudget bekommt einen ganzen Tag", () => {
+  it("Einheit über dem Tagesbudget bekommt einen ganzen Tag", () => {
     const { items } = verteilen(
       [
         { pointIndex: 0, phase: "lernen", minuten: 50 },
@@ -127,7 +127,7 @@ describe("verteilen", () => {
     expect(grosse.date).not.toBe(kleine.date);
   });
 
-  it("ueben liegt fruehestens am Folgetag von lernen desselben Punkts", () => {
+  it("üben liegt frühestens am Folgetag von lernen desselben Punkts", () => {
     const { items } = verteilen(
       [
         { pointIndex: 0, phase: "lernen", minuten: 20 },
@@ -179,7 +179,7 @@ describe("verteilen", () => {
     expect(items.some((i) => i.phase === "simulation")).toBe(false);
   });
 
-  it("streicht bei zu wenig Platz erst probe (>=40), dann alle probe, dann ueben (>=80)", () => {
+  it("streicht bei zu wenig Platz erst probe (>=40), dann alle probe, dann üben (>=80)", () => {
     const einheiten = [
       { pointIndex: 0, phase: "lernen" as const, minuten: 10 },
       { pointIndex: 0, phase: "ueben" as const, minuten: 10 },
@@ -245,7 +245,7 @@ const basisOpts = {
 };
 
 describe("neuVerteilen", () => {
-  it("Umfang ueberfaellig: nur offene Einheiten vor heute werden ersetzt", () => {
+  it("Umfang überfällig: nur offene Einheiten vor heute werden ersetzt", () => {
     const plan: NeuVerteilenInput = {
       items: [
         { id: "a", pointIndex: 0, phase: "lernen", minuten: 20, date: "2026-01-08", doneAt: null },
@@ -258,7 +258,7 @@ describe("neuVerteilen", () => {
     expect(ergebnis.neu.some((i) => i.phase === "lernen")).toBe(true);
   });
 
-  it("Umfang ueberfaellig: eine offene, nicht ueberfaellige Simulation wird nicht verdoppelt", () => {
+  it("Umfang überfällig: eine offene, nicht überfällige Simulation wird nicht verdoppelt", () => {
     const plan: NeuVerteilenInput = {
       items: [
         { id: "a", pointIndex: 0, phase: "lernen", minuten: 20, date: "2026-01-08", doneAt: null },
@@ -285,7 +285,7 @@ describe("neuVerteilen", () => {
     expect(ergebnis.neu.some((i) => i.phase === "ueben")).toBe(true);
   });
 
-  it("Punkt < 40 ohne offene ueben bekommt eine zusaetzliche", () => {
+  it("Punkt < 40 ohne offene üben bekommt eine zusätzliche", () => {
     const plan: NeuVerteilenInput = {
       items: [{ id: "a", pointIndex: 0, phase: "probe", minuten: 10, date: "2026-01-08", doneAt: "2026-01-08T10:00:00Z" }],
       punkte: [{ sicherheit: 20 }],
@@ -305,7 +305,7 @@ describe("neuVerteilen", () => {
     expect(ergebnis.neu.some((i) => i.phase === "probe")).toBe(false);
   });
 
-  it("behaltenes lernen schraenkt die Folgetag-Regel fuer eine neue ueben-Einheit desselben Punkts ein", () => {
+  it("behaltenes lernen schränkt die Folgetag-Regel für eine neue üben-Einheit desselben Punkts ein", () => {
     // Lernen am 14. bleibt (nicht ueberfaellig), Sicherheit < 40 loest eine
     // zusaetzliche ueben-Einheit fuer denselben Punkt aus -- die darf wegen
     // der Folgetag-Regel nicht vor dem 15. landen, obwohl vorher noch Tage
@@ -332,7 +332,7 @@ describe("neuVerteilen", () => {
     expect(ueben!.date > "2026-09-14").toBe(true);
   });
 
-  it("erledigte Einheiten bleiben unveraendert", () => {
+  it("erledigte Einheiten bleiben unverändert", () => {
     const plan: NeuVerteilenInput = {
       items: [
         { id: "a", pointIndex: 0, phase: "lernen", minuten: 20, date: "2026-01-08", doneAt: "2026-01-08T09:00:00Z" },

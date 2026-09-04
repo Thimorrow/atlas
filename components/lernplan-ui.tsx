@@ -10,7 +10,7 @@ import type { Phase } from "@/lib/lernplan-types";
 
 export const PHASE_LABEL: Record<Phase, string> = {
   lernen: "Lernen",
-  ueben: "Ueben",
+  ueben: "Üben",
   probe: "Probe",
   simulation: "Simulation",
 };

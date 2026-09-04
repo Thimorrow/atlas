@@ -22,7 +22,7 @@ export function AssignmentQuickAdd({
   onCreated,
   defaultSubjectId = null,
   defaultDueDate = null,
-  placeholder = "Hausaufgabe hinzufuegen …",
+  placeholder = "Hausaufgabe hinzufügen …",
 }: {
   onCreated: (a: AssignmentDTO) => void;
   // Vorbelegtes Fach, wenn der Kontext es schon kennt -- im
@@ -164,7 +164,7 @@ export function AssignmentQuickAdd({
               disabled={saving}
               className="relative min-h-9 shrink-0 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground transition-[opacity,scale] active:scale-[0.96] disabled:opacity-60 [touch-action:manipulation]"
             >
-              {saving ? "Speichert …" : "Hinzufuegen"}
+              {saving ? "Speichert …" : "Hinzufügen"}
             </button>
           )}
         </div>

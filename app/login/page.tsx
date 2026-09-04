@@ -57,7 +57,7 @@ function LoginForm() {
           <div>
             <h1 className="text-[17px] font-semibold tracking-tight">Atlas</h1>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
-              Diese Seite ist geschuetzt.
+              Diese Seite ist geschützt.
             </p>
           </div>
         </div>

@@ -17,9 +17,9 @@ describe("parseBotEvent", () => {
   });
 
   it("liest ein thinking-Ereignis", () => {
-    expect(parseBotEvent('{"type":"thinking","delta":"Ich ueberlege"}')).toEqual({
+    expect(parseBotEvent('{"type":"thinking","delta":"Ich überlege"}')).toEqual({
       type: "thinking",
-      delta: "Ich ueberlege",
+      delta: "Ich überlege",
     });
   });
 
@@ -57,23 +57,23 @@ describe("parseBotEvent", () => {
     });
   });
 
-  it("gibt bei Leerzeile null zurueck", () => {
+  it("gibt bei Leerzeile null zurück", () => {
     expect(parseBotEvent("")).toBeNull();
     expect(parseBotEvent("   ")).toBeNull();
   });
 
-  it("gibt bei kaputtem JSON null zurueck, statt zu werfen", () => {
+  it("gibt bei kaputtem JSON null zurück, statt zu werfen", () => {
     expect(parseBotEvent('{"type":"text",')).toBeNull();
   });
 
-  it("gibt bei unbekanntem Typ oder fehlenden Feldern null zurueck", () => {
+  it("gibt bei unbekanntem Typ oder fehlenden Feldern null zurück", () => {
     expect(parseBotEvent('{"type":"unbekannt"}')).toBeNull();
     expect(parseBotEvent('{"type":"status"}')).toBeNull();
   });
 });
 
 describe("splitNDJSON", () => {
-  it("trennt vollstaendige Zeilen vom unvollstaendigen Rest", () => {
+  it("trennt vollständige Zeilen vom unvollständigen Rest", () => {
     const { lines, rest } = splitNDJSON('{"a":1}\n{"b":2}\n{"c":');
     expect(lines).toEqual(['{"a":1}', '{"b":2}']);
     expect(rest).toBe('{"c":');

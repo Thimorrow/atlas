@@ -44,7 +44,7 @@ describe.skipIf(!mitDb)("Stundennotizen: saveLessonNote (Integration, Neon)", ()
 
   afterAll(cleanup);
 
-  it("legt eine Notiz an und liefert sie ueber getLessonNote zurueck", async () => {
+  it("legt eine Notiz an und liefert sie über getLessonNote zurück", async () => {
     const saved = await saveLessonNote(blockId, "Erste Fassung");
     expect(saved?.body).toBe("Erste Fassung");
 
@@ -59,7 +59,7 @@ describe.skipIf(!mitDb)("Stundennotizen: saveLessonNote (Integration, Neon)", ()
     expect(rows[0].body).toBe("Zweite Fassung");
   });
 
-  it("loescht die Notiz, wenn der Body (nach trim) leer ist", async () => {
+  it("löscht die Notiz, wenn der Body (nach trim) leer ist", async () => {
     const result = await saveLessonNote(blockId, "   ");
     expect(result).toBeNull();
 
@@ -67,7 +67,7 @@ describe.skipIf(!mitDb)("Stundennotizen: saveLessonNote (Integration, Neon)", ()
     expect(rows).toHaveLength(0);
   });
 
-  it("liefert null fuer eine unbekannte Stunde", async () => {
+  it("liefert null für eine unbekannte Stunde", async () => {
     const result = await saveLessonNote("00000000-0000-0000-0000-000000000000", "Text");
     expect(result).toBeNull();
   });
@@ -113,7 +113,7 @@ describe.skipIf(!mitDb)("Stundennotizen: Fach-Zuordnung (Integration, Neon)", ()
 
   afterAll(cleanup2);
 
-  it("loest subjectId ueber den Namen auf, wenn untisSubject nicht matcht", async () => {
+  it("löst subjectId über den Namen auf, wenn untisSubject nicht matcht", async () => {
     const saved = await saveLessonNote(blockId, "Notiz zum Namensfach");
     expect(saved).not.toBeNull();
 
@@ -121,7 +121,7 @@ describe.skipIf(!mitDb)("Stundennotizen: Fach-Zuordnung (Integration, Neon)", ()
     expect(row.subjectId).toBe(subjectId);
   });
 
-  it("listSubjectLessonNotes findet auch verwaiste Notizen (subjectId null) ueber den Namen", async () => {
+  it("listSubjectLessonNotes findet auch verwaiste Notizen (subjectId null) über den Namen", async () => {
     // subjectId hart auf null setzen -- simuliert eine Notiz, die entstand,
     // bevor es das Fach gab.
     await db.update(lessonNotes).set({ subjectId: null }).where(eq(lessonNotes.schoolBlockId, blockId));

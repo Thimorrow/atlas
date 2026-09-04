@@ -60,8 +60,8 @@ describe("lesen", () => {
         textEvent(
           "```json\n" +
             lesenAntwort([
-              { titel: "Bruchrechnung", detail: "Brueche kuerzen", seiten: "12-14", blaetter: [], minuten: 20, frage: "Was ist 1/2 + 1/4?", musterantwort: "3/4" },
-              { titel: "Gleichungen", detail: "Lineare Gleichungen loesen", seiten: null, blaetter: [], minuten: 30, frage: null, musterantwort: null },
+              { titel: "Bruchrechnung", detail: "Brüche kürzen", seiten: "12-14", blaetter: [], minuten: 20, frage: "Was ist 1/2 + 1/4?", musterantwort: "3/4" },
+              { titel: "Gleichungen", detail: "Lineare Gleichungen lösen", seiten: null, blaetter: [], minuten: 30, frage: null, musterantwort: null },
             ]) +
             "\n```",
         ),
@@ -79,7 +79,7 @@ describe("lesen", () => {
     expect(result.entwurf.checklisteText).toBe("Checkliste");
   });
 
-  it("verwirft unbekannte Blattnamen, behaelt bekannte", async () => {
+  it("verwirft unbekannte Blattnamen, behält bekannte", async () => {
     const dateien: FakeFile[] = [
       { id: "f1", name: "Arbeitsblatt1.pdf", contentType: "application/pdf", content: { kind: "text", text: "Inhalt des Arbeitsblatts, lang genug." } },
     ];
@@ -127,7 +127,7 @@ describe("lesen", () => {
     expect(hasImage).toBe(true);
   });
 
-  it("keine_punkte, wenn kein Punkt gueltig ist", async () => {
+  it("keine_punkte, wenn kein Punkt gültig ist", async () => {
     const { deps } = makeDeps({ rounds: [textEvent(lesenAntwort([]))] });
 
     await expect(
@@ -135,7 +135,7 @@ describe("lesen", () => {
     ).rejects.toMatchObject({ status: 422, code: "keine_punkte" });
   });
 
-  it("kuerzt 25 Punkte auf 20 mit Hinweis", async () => {
+  it("kürzt 25 Punkte auf 20 mit Hinweis", async () => {
     const punkte = Array.from({ length: 25 }, (_, i) => ({
       titel: `Punkt ${i + 1}`,
       detail: "d",
@@ -163,7 +163,7 @@ describe("lesen", () => {
     expect(result.entwurf.punkte[0].minuten).toBe(30);
   });
 
-  it("Injection-Text in einem Blatt aendert das Schema nicht und landet als Inhalt im Prompt", async () => {
+  it("Injection-Text in einem Blatt ändert das Schema nicht und landet als Inhalt im Prompt", async () => {
     const dateien: FakeFile[] = [
       {
         id: "f1",
@@ -217,11 +217,11 @@ describe("lesen", () => {
           ...deps,
           readSubjectFile: (async () => ({
             file: { id: "x", name: "Datei.xyz", contentType: "application/xyz" },
-            content: { kind: "unsupported", hint: "Dieser Dateityp wird nicht unterstuetzt." },
+            content: { kind: "unsupported", hint: "Dieser Dateityp wird nicht unterstützt." },
           })) as unknown as LernplanGenDeps["readSubjectFile"],
         },
       ),
-    ).rejects.toMatchObject({ status: 422, code: "datei_nicht_lesbar", hinweis: "Dieser Dateityp wird nicht unterstuetzt." });
+    ).rejects.toMatchObject({ status: 422, code: "datei_nicht_lesbar", hinweis: "Dieser Dateityp wird nicht unterstützt." });
   });
 
   it("Timeout/Modellfehler -> 502 modell", async () => {
@@ -240,7 +240,7 @@ describe("lesen", () => {
 });
 
 describe("bewerten", () => {
-  it("bewahrt die Reihenfolge und ueberspringt null-Antworten ohne Modellaufruf dafuer (Modell ohne index -> Positions-Fallback)", async () => {
+  it("bewahrt die Reihenfolge und überspringt null-Antworten ohne Modellaufruf dafür (Modell ohne index -> Positions-Fallback)", async () => {
     const { deps, calls } = makeDeps({
       rounds: [
         textEvent(
@@ -266,7 +266,7 @@ describe("bewerten", () => {
 
     expect(result).toEqual([
       { urteil: "richtig", feedback: "Gut." },
-      { urteil: "falsch", feedback: "Uebersprungen" },
+      { urteil: "falsch", feedback: "Übersprungen" },
       { urteil: "falsch", feedback: "Leider nicht." },
     ]);
 
@@ -277,7 +277,7 @@ describe("bewerten", () => {
     expect(userMessage.content).not.toContain("F2");
   });
 
-  it("ordnet Urteile ueber index zu, auch wenn das Modell die Reihenfolge vertauscht", async () => {
+  it("ordnet Urteile über index zu, auch wenn das Modell die Reihenfolge vertauscht", async () => {
     const { deps } = makeDeps({
       rounds: [
         textEvent(
@@ -304,12 +304,12 @@ describe("bewerten", () => {
 
     expect(result).toEqual([
       { index: 0, urteil: "richtig", feedback: "F1 gut." },
-      { urteil: "falsch", feedback: "Uebersprungen" },
+      { urteil: "falsch", feedback: "Übersprungen" },
       { index: 2, urteil: "teilweise", feedback: "F3 ok." },
     ]);
   });
 
-  it("fehlender index bei einem Eintrag, obwohl andere Eintraege einen haben -> 502 modell", async () => {
+  it("fehlender index bei einem Eintrag, obwohl andere Einträge einen haben -> 502 modell", async () => {
     const { deps } = makeDeps({
       rounds: [
         textEvent(
@@ -335,7 +335,7 @@ describe("bewerten", () => {
     ).rejects.toMatchObject({ status: 502, code: "modell" });
   });
 
-  it("keine Antworten zu senden (alle uebersprungen) -> kein Modellaufruf", async () => {
+  it("keine Antworten zu senden (alle übersprungen) -> kein Modellaufruf", async () => {
     const { deps, calls } = makeDeps({ rounds: [] });
 
     const result = await bewerten(
@@ -343,11 +343,11 @@ describe("bewerten", () => {
       deps,
     );
 
-    expect(result).toEqual([{ urteil: "falsch", feedback: "Uebersprungen" }]);
+    expect(result).toEqual([{ urteil: "falsch", feedback: "Übersprungen" }]);
     expect(calls).toHaveLength(0);
   });
 
-  it("falsche Antwortlaenge vom Modell -> 502 modell", async () => {
+  it("falsche Antwortlänge vom Modell -> 502 modell", async () => {
     const { deps } = makeDeps({
       rounds: [textEvent(JSON.stringify([{ urteil: "richtig", feedback: "Gut." }]))],
     });

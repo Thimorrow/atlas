@@ -33,7 +33,7 @@ describe("buildGreeting", () => {
     expect(greeting.suggestions).toHaveLength(3);
   });
 
-  it("nennt Faecher und eine anstehende Arbeit fuer morgen", async () => {
+  it("nennt Fächer und eine anstehende Arbeit für morgen", async () => {
     const morgen = heuteLokal(1);
     expandRange.mockResolvedValue({
       days: [
@@ -101,7 +101,7 @@ describe("buildGreeting", () => {
     };
   }
 
-  it("live-Modus: nennt das laufende Fach, die Restzeit und faellige Aufgaben", async () => {
+  it("live-Modus: nennt das laufende Fach, die Restzeit und fällige Aufgaben", async () => {
     listAssignments.mockResolvedValue([]);
     const jetzt = fixtureJetzt({
       faellig: [
@@ -120,22 +120,22 @@ describe("buildGreeting", () => {
     });
 
     const greeting = await buildGreeting(jetzt);
-    expect(greeting.text).toContain("Gerade laeuft Mathe");
+    expect(greeting.text).toContain("Gerade läuft Mathe");
     expect(greeting.text).toContain("noch 30 Minuten");
-    expect(greeting.text).toContain("1 Aufgabe(n) faellig");
-    expect(greeting.suggestions).toContain("Was ist heute noch faellig?");
+    expect(greeting.text).toContain("1 Aufgabe(n) fällig");
+    expect(greeting.suggestions).toContain("Was ist heute noch fällig?");
   });
 
-  it("pause/vor-Modus: nennt die naechste Stunde mit Uhrzeit und Raum", async () => {
+  it("pause/vor-Modus: nennt die nächste Stunde mit Uhrzeit und Raum", async () => {
     listAssignments.mockResolvedValue([]);
     const jetzt = fixtureJetzt({ modus: "vor" });
 
     const greeting = await buildGreeting(jetzt);
-    expect(greeting.text).toContain("Als Naechstes Mathe um 09:00");
+    expect(greeting.text).toContain("Als Nächstes Mathe um 09:00");
     expect(greeting.text).toContain("Raum R204");
   });
 
-  it("haengt in jedem Fall einen Pruefungshinweis an, wenn in den naechsten 7 Tagen eine Pruefung ansteht", async () => {
+  it("hängt in jedem Fall einen Prüfungshinweis an, wenn in den nächsten 7 Tagen eine Prüfung ansteht", async () => {
     expandRange.mockResolvedValue({
       days: Array.from({ length: 8 }, (_, i) => ({ date: heuteLokal(i), events: [] })),
     });
@@ -156,17 +156,17 @@ describe("buildGreeting", () => {
 
     const greeting = await buildGreeting();
     expect(greeting.text).toContain("Matheklausur");
-    expect(greeting.suggestions[0]).toBe("Hilf mir, fuer Mathe zu lernen");
+    expect(greeting.suggestions[0]).toBe("Hilf mir, für Mathe zu lernen");
   });
 });
 
 describe("buildSystemPrompt", () => {
   it("weist das Modell an, auch auf Deutsch zu denken", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain("Denke auf Deutsch. Auch deine internen Ueberlegungen formulierst du ausschliesslich auf Deutsch.");
+    expect(prompt).toContain("Denke auf Deutsch. Auch deine internen Überlegungen formulierst du ausschließlich auf Deutsch.");
   });
 
-  it("nennt die Faecherliste, wenn ein Lagebild uebergeben wird", () => {
+  it("nennt die Fächerliste, wenn ein Lagebild übergeben wird", () => {
     const lagebild: Lagebild = {
       heute: heuteISO(),
       faecher: [
@@ -180,12 +180,12 @@ describe("buildSystemPrompt", () => {
       notizen: [],
     };
     const prompt = buildSystemPrompt(null, lagebild);
-    expect(prompt).toContain("Seine Faecher: Mathematik, Deutsch");
+    expect(prompt).toContain("Seine Fächer: Mathematik, Deutsch");
     expect(prompt).toContain("nie ein neues");
   });
 
-  it("laesst die Faecherliste weg, wenn kein Lagebild uebergeben wird", () => {
+  it("lässt die Fächerliste weg, wenn kein Lagebild übergeben wird", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).not.toContain("Seine Faecher");
+    expect(prompt).not.toContain("Seine Fächer");
   });
 });

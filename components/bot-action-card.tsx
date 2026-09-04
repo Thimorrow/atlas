@@ -144,7 +144,7 @@ export function ActionCard({
       <motion.div {...enter} className={cn("max-w-[92%] rounded-xl border bg-card px-4 py-3", dimmed && "opacity-55")}>
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <ListChecks className="size-3.5" />
-          {tool === "aufgabe_anlegen" ? "Aufgabe angelegt" : "Aufgabe geaendert"}
+          {tool === "aufgabe_anlegen" ? "Aufgabe angelegt" : "Aufgabe geändert"}
         </div>
         <p className={cn("mt-1.5 text-[15px] font-medium leading-snug", dimmed && "line-through decoration-foreground/30")}>
           {a.title}
@@ -160,7 +160,7 @@ export function ActionCard({
               {TYPE_LABEL[a.type]}
             </span>
           )}
-          {a.dueDate && <span className="tabular-nums">Faellig am {fmtDate(a.dueDate)}</span>}
+          {a.dueDate && <span className="tabular-nums">Fällig am {fmtDate(a.dueDate)}</span>}
         </div>
         {footerNode}
       </motion.div>
@@ -172,7 +172,7 @@ export function ActionCard({
     <motion.div {...enter} className={cn("max-w-[92%] rounded-xl border bg-card px-4 py-3", dimmed && "opacity-55")}>
       <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         <NotebookPen className="size-3.5" />
-        {tool === "notiz_anlegen" ? "Notiz angelegt" : "Notiz geaendert"}
+        {tool === "notiz_anlegen" ? "Notiz angelegt" : "Notiz geändert"}
       </div>
       <p className={cn("mt-1.5 text-[15px] font-medium leading-snug", dimmed && "line-through decoration-foreground/30")}>
         {n.title}

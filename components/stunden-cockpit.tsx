@@ -205,7 +205,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
   // gesetzt schneller (gleiche Regel wie frueher im Vollbild-Stundenmodus).
   const [statusWort, statusRest] =
     data.modus === "live"
-      ? ["Laeuft", `noch ${restLeft} min`]
+      ? ["Läuft", `noch ${restLeft} min`]
       : data.modus === "vor" || data.modus === "pause"
         ? ["Beginnt", `in ${restUntil} min`]
         : ["Vorbei", `${sel.startTime}${sel.endTime ? ` bis ${sel.endTime}` : ""}`];
@@ -284,7 +284,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           und sich gemeldet (Notiz, Meldung), am Ende kommt die neue
           Hausaufgabe, und ein Tafelfoto passt jederzeit (Dateien). */}
       {(faellig.length > 0 || ohneTermin.length > 0) && (
-        <Abschnitt titel="Faellig jetzt">
+        <Abschnitt titel="Fällig jetzt">
           <ul className="flex flex-col gap-1">
             {faellig.map((a) => (
               <FaelligRow
@@ -354,7 +354,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
         />
         {data.naechsterTermin && (
           <p className="mt-1 px-2.5 text-[12px] text-muted-foreground">
-            Faellig bis zur naechsten Stunde am {weekdayDateLabel(data.naechsterTermin)}.
+            Fällig bis zur nächsten Stunde am {weekdayDateLabel(data.naechsterTermin)}.
           </p>
         )}
         {neu.length > 0 && (
@@ -374,14 +374,14 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
         ) : (
           <div className="rounded-xl border border-dashed px-4 py-4 text-center">
             <p className="text-[13px] text-muted-foreground">
-              Zu „{sel.title}“ ist noch kein Fach angelegt. Notiz und Meldung haengen an der Stunde, Dateien brauchen
+              Zu „{sel.title}“ ist noch kein Fach angelegt. Notiz und Meldung hängen an der Stunde, Dateien brauchen
               ein Fach.
             </p>
             <Link
               href="/faecher"
               className="mt-2 inline-flex rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
             >
-              Faecher abgleichen
+              Fächer abgleichen
             </Link>
           </div>
         )}

@@ -27,7 +27,7 @@ import {
 } from "@/lib/lernen";
 
 describe("schedule", () => {
-  it("erhoeht die Box bei einer richtigen Antwort und setzt due nach Intervall", () => {
+  it("erhöht die Box bei einer richtigen Antwort und setzt due nach Intervall", () => {
     const result = schedule({ box: 1 }, true, "2026-01-01");
     expect(result.box).toBe(2);
     expect(BOX_INTERVALS[2]).toBe(3);
@@ -45,7 +45,7 @@ describe("schedule", () => {
     expect(result.due).toBe("2026-01-01");
   });
 
-  it("box 0 -> richtig -> box 1, faellig nach BOX_INTERVALS[1] Tagen", () => {
+  it("box 0 -> richtig -> box 1, fällig nach BOX_INTERVALS[1] Tagen", () => {
     const result = schedule({ box: 0 }, true, "2026-01-01");
     expect(result.box).toBe(1);
     expect(result.due).toBe("2026-01-02");
@@ -53,25 +53,25 @@ describe("schedule", () => {
 });
 
 describe("isDue", () => {
-  it("ist faellig, wenn due <= heute und nicht archiviert", () => {
+  it("ist fällig, wenn due <= heute und nicht archiviert", () => {
     const card: CardLike = { box: 0, due: "2026-01-01", reviews: 0 };
     expect(isDue(card, "2026-01-01")).toBe(true);
     expect(isDue(card, "2026-01-02")).toBe(true);
   });
 
-  it("ist nicht faellig, wenn due in der Zukunft liegt", () => {
+  it("ist nicht fällig, wenn due in der Zukunft liegt", () => {
     const card: CardLike = { box: 0, due: "2026-01-05", reviews: 0 };
     expect(isDue(card, "2026-01-01")).toBe(false);
   });
 
-  it("ist nie faellig, wenn archiviert", () => {
+  it("ist nie fällig, wenn archiviert", () => {
     const card: CardLike = { box: 0, due: "2026-01-01", reviews: 0, archivedAt: "2026-01-01T00:00:00Z" };
     expect(isDue(card, "2026-01-01")).toBe(false);
   });
 });
 
 describe("sessionQueue", () => {
-  it("faellige zuerst (niedrige Box zuerst, dann aeltestes due), dann neue Karten", () => {
+  it("fällige zuerst (niedrige Box zuerst, dann ältestes due), dann neue Karten", () => {
     const cards: CardLike[] = [
       { box: 2, due: "2026-01-01", reviews: 3 }, // faellig
       { box: 0, due: "2026-01-01", reviews: 1 }, // faellig, niedrigste Box
@@ -91,7 +91,7 @@ describe("sessionQueue", () => {
     expect(sessionQueue(cards, "2026-01-01", 2)).toHaveLength(2);
   });
 
-  it("schliesst archivierte Karten aus", () => {
+  it("schließt archivierte Karten aus", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0, archivedAt: "2026-01-01" },
       { box: 0, due: "2026-01-01", reviews: 1 },
@@ -102,7 +102,7 @@ describe("sessionQueue", () => {
 });
 
 describe("progress", () => {
-  it("zaehlt neu (reviews 0), sicher (box >= MASTERED_BOX), lernend (Rest)", () => {
+  it("zählt neu (reviews 0), sicher (box >= MASTERED_BOX), lernend (Rest)", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0 }, // neu
       { box: 1, due: "2026-01-01", reviews: 2 }, // lernend
@@ -112,7 +112,7 @@ describe("progress", () => {
     expect(progress(cards)).toEqual({ total: 4, neu: 1, lernend: 1, sicher: 2 });
   });
 
-  it("archivierte Karten zaehlen nicht mit", () => {
+  it("archivierte Karten zählen nicht mit", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0, archivedAt: "2026-01-01" },
       { box: 0, due: "2026-01-01", reviews: 0 },
@@ -138,19 +138,19 @@ describe("planForExam", () => {
     expect(plan.proTag).toBe(2);
   });
 
-  it("Pruefung heute: tageBis 0, proTag = offen (Division durch 1 statt 0)", () => {
+  it("Prüfung heute: tageBis 0, proTag = offen (Division durch 1 statt 0)", () => {
     const cards: CardLike[] = Array.from({ length: 3 }, () => ({ box: 0, due: "2026-01-01", reviews: 0 }));
     const plan = planForExam(cards, "2026-01-01", "2026-01-01");
     expect(plan.tageBis).toBe(0);
     expect(plan.proTag).toBe(3);
   });
 
-  it("Pruefung in der Vergangenheit: tageBis nie negativ", () => {
+  it("Prüfung in der Vergangenheit: tageBis nie negativ", () => {
     const plan = planForExam([], "2025-12-01", "2026-01-01");
     expect(plan.tageBis).toBe(0);
   });
 
-  it("nur nicht-sichere Karten (box < MASTERED_BOX) zaehlen als offen", () => {
+  it("nur nicht-sichere Karten (box < MASTERED_BOX) zählen als offen", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0 },
       { box: MASTERED_BOX, due: "2026-01-01", reviews: 5 },
@@ -159,7 +159,7 @@ describe("planForExam", () => {
     expect(plan.offen).toBe(1);
   });
 
-  it("archivierte Karten zaehlen nicht als offen", () => {
+  it("archivierte Karten zählen nicht als offen", () => {
     const cards: CardLike[] = [{ box: 0, due: "2026-01-01", reviews: 0, archivedAt: "2026-01-01" }];
     const plan = planForExam(cards, "2026-01-11", "2026-01-01");
     expect(plan.offen).toBe(0);
@@ -176,7 +176,7 @@ describe("lernartFor", () => {
 
   it("Sprachen -> vokabeln", () => {
     expect(lernartFor("Englisch")).toBe("vokabeln");
-    expect(lernartFor("Franzoesisch")).toBe("vokabeln");
+    expect(lernartFor("Französisch")).toBe("vokabeln");
     expect(lernartFor("Latein")).toBe("vokabeln");
     expect(lernartFor("Spanisch")).toBe("vokabeln");
   });
@@ -186,7 +186,7 @@ describe("lernartFor", () => {
     expect(lernartFor("Erdkunde")).toBe("wissen");
   });
 
-  it("Teilstring und Gross/Kleinschreibung egal, Kuerzel bleiben wissen", () => {
+  it("Teilstring und Groß/Kleinschreibung egal, Kürzel bleiben wissen", () => {
     expect(lernartFor("mathe leistungskurs")).toBe("aufgaben");
     expect(lernartFor("M")).toBe("wissen");
     expect(lernartFor("E")).toBe("wissen");
@@ -203,7 +203,7 @@ describe("defaultKindFor", () => {
 });
 
 describe("readiness", () => {
-  it("0..100 gewichtete Sicherheit ueber min(box, MASTERED_BOX)", () => {
+  it("0..100 gewichtete Sicherheit über min(box, MASTERED_BOX)", () => {
     const cards: CardLike[] = [
       { box: MASTERED_BOX, due: "2026-01-01", reviews: 1 },
       { box: 0, due: "2026-01-01", reviews: 0 },
@@ -216,7 +216,7 @@ describe("readiness", () => {
     expect(readiness([])).toBe(0);
   });
 
-  it("archivierte Karten zaehlen nicht mit", () => {
+  it("archivierte Karten zählen nicht mit", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0, archivedAt: "2026-01-01" },
       { box: MASTERED_BOX, due: "2026-01-01", reviews: 1 },
@@ -226,7 +226,7 @@ describe("readiness", () => {
 });
 
 describe("progressOf", () => {
-  it("liefert progress() plus faellig und bereit", () => {
+  it("liefert progress() plus fällig und bereit", () => {
     const cards: CardLike[] = [
       { box: 0, due: "2026-01-01", reviews: 0 },
       { box: MASTERED_BOX, due: "2026-01-05", reviews: 3 },
@@ -245,12 +245,12 @@ describe("queueFor", () => {
     { box: 4, due: "2026-01-01", reviews: 4, lapses: 0 },
   ];
 
-  it("modus lernen verhaelt sich wie sessionQueue", () => {
+  it("modus lernen verhält sich wie sessionQueue", () => {
     const queue = queueFor("lernen", cards, "2026-01-01");
     expect(queue.map((c) => c.lapses)).toEqual([3, 5, 0]);
   });
 
-  it("modus lernen: ohne faellige/neue Karten die schwaechsten (box asc)", () => {
+  it("modus lernen: ohne fällige/neue Karten die schwächsten (box asc)", () => {
     const nichtFaellig: QueueCardLike[] = [
       { box: 3, due: "2026-02-01", reviews: 2, lapses: 0 },
       { box: 1, due: "2026-02-01", reviews: 1, lapses: 0 },
@@ -294,7 +294,7 @@ describe("queueFor", () => {
 });
 
 describe("heutePlan", () => {
-  it("Thema mit Pruefung: anzahl = max(faellig, ceil(offen / tageBis))", () => {
+  it("Thema mit Prüfung: anzahl = max(fällig, ceil(offen / tageBis))", () => {
     const themen: HeuteThema[] = [
       {
         subjectId: "s1",
@@ -313,7 +313,7 @@ describe("heutePlan", () => {
     expect(plan.karten).toBe(2);
   });
 
-  it("Thema ohne Pruefung: anzahl = faellig, 0 wird weggelassen", () => {
+  it("Thema ohne Prüfung: anzahl = fällig, 0 wird weggelassen", () => {
     const themen: HeuteThema[] = [
       {
         subjectId: "s1",
@@ -343,7 +343,7 @@ describe("heutePlan", () => {
     expect(plan.items[0].grund).toBe("faellig");
   });
 
-  it("sortiert Pruefungen nach tageBis asc, dann Faellige nach Anzahl desc", () => {
+  it("sortiert Prüfungen nach tageBis asc, dann Fällige nach Anzahl desc", () => {
     const themen: HeuteThema[] = [
       {
         subjectId: "s1",
@@ -389,7 +389,7 @@ describe("normalizeVokabel und vokabelStimmt", () => {
     expect(normalizeVokabel("café")).toBe("cafe");
   });
 
-  it("vokabelStimmt ignoriert Artikel und Gross/Kleinschreibung", () => {
+  it("vokabelStimmt ignoriert Artikel und Groß/Kleinschreibung", () => {
     expect(vokabelStimmt("the dog", "the Dog")).toBe(true);
     expect(vokabelStimmt("Dog", "the dog")).toBe(true);
   });
@@ -398,7 +398,7 @@ describe("normalizeVokabel und vokabelStimmt", () => {
     expect(vokabelStimmt("cafe", "café")).toBe(true);
   });
 
-  it("bei mehreren Bedeutungen reicht eine Uebereinstimmung", () => {
+  it("bei mehreren Bedeutungen reicht eine Übereinstimmung", () => {
     expect(vokabelStimmt("Tisch", "Wort1, Tisch")).toBe(true);
     expect(vokabelStimmt("falsch", "Wort1, Tisch")).toBe(false);
   });
@@ -435,8 +435,8 @@ describe("parseGeneratedCards", () => {
   });
 
   it("verwirft zu kurze Frage/Antwort", () => {
-    const text = '[{"frage":"ab","antwort":"okay"},{"frage":"Gueltige Frage?","antwort":"Jawohl"}]';
-    expect(parseGeneratedCards(text)).toEqual([{ question: "Gueltige Frage?", answer: "Jawohl" }]);
+    const text = '[{"frage":"ab","antwort":"okay"},{"frage":"Gültige Frage?","antwort":"Jawohl"}]';
+    expect(parseGeneratedCards(text)).toEqual([{ question: "Gültige Frage?", answer: "Jawohl" }]);
   });
 
   it("entfernt Duplikate mit gleicher Frage", () => {
@@ -456,12 +456,12 @@ describe("parseGeneratedCards", () => {
     expect(parseGeneratedCards(text)).toEqual([{ question: "Frage mit Leerzeichen", answer: "Antwort" }]);
   });
 
-  it("uebernimmt ein gueltiges art-Feld als kind", () => {
+  it("übernimmt ein gültiges art-Feld als kind", () => {
     const text = '[{"frage":"Merkregel?","antwort":"So gehts","art":"wissen"}]';
     expect(parseGeneratedCards(text)).toEqual([{ question: "Merkregel?", answer: "So gehts", kind: "wissen" }]);
   });
 
-  it("ignoriert ein ungueltiges art-Feld (kein kind gesetzt)", () => {
+  it("ignoriert ein ungültiges art-Feld (kein kind gesetzt)", () => {
     const text = '[{"frage":"Was ist 1+1?","antwort":"Zwei","art":"quatsch"}]';
     expect(parseGeneratedCards(text)).toEqual([{ question: "Was ist 1+1?", answer: "Zwei" }]);
   });
@@ -469,8 +469,8 @@ describe("parseGeneratedCards", () => {
 
 describe("parseGeneratedVariant", () => {
   it("parst ein einzelnes JSON-Objekt", () => {
-    const text = '{"frage":"Loese 3x+2=8","antwort":"x=2"}';
-    expect(parseGeneratedVariant(text)).toEqual({ question: "Loese 3x+2=8", answer: "x=2" });
+    const text = '{"frage":"Löse 3x+2=8","antwort":"x=2"}';
+    expect(parseGeneratedVariant(text)).toEqual({ question: "Löse 3x+2=8", answer: "x=2" });
   });
 
   it("akzeptiert question/answer und entfernt Code-Fences", () => {
@@ -531,7 +531,7 @@ describe("parseUrteile", () => {
     expect(parseUrteile('[{"urteil":"falsch"}]')).toEqual([{ urteil: "falsch", feedback: "" }]);
   });
 
-  it("Eintraege mit unbekanntem/fehlendem urteil werden verworfen, der Rest bleibt", () => {
+  it("Einträge mit unbekanntem/fehlendem urteil werden verworfen, der Rest bleibt", () => {
     const text = '[{"urteil":"richtig","feedback":"a"},{"urteil":"keine_ahnung","feedback":"b"},{"feedback":"c"}]';
     expect(parseUrteile(text)).toEqual([{ urteil: "richtig", feedback: "a" }]);
   });
@@ -544,7 +544,7 @@ describe("parseUrteile", () => {
     expect(parseUrteile("[{urteil: richtig}]")).toBeNull();
   });
 
-  it("gibt das index-Feld zurueck, wenn vorhanden", () => {
+  it("gibt das index-Feld zurück, wenn vorhanden", () => {
     const text = '[{"index":2,"urteil":"richtig","feedback":"a"},{"index":0,"urteil":"falsch","feedback":"b"}]';
     expect(parseUrteile(text)).toEqual([
       { index: 2, urteil: "richtig", feedback: "a" },

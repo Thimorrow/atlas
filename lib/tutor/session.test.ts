@@ -184,7 +184,7 @@ function toolCallEvent(name: string, args: unknown): StreamEvent {
 describe("runTutorTurn", () => {
   it("(a) endet nach frage_auswahl mit widget dann done", async () => {
     const { deps } = makeDeps({
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     const events = [];
@@ -193,7 +193,7 @@ describe("runTutorTurn", () => {
     expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
     const widget = events[0];
     if (widget.type === "widget") {
-      expect(widget.frage).toBe("Was weisst du?");
+      expect(widget.frage).toBe("Was weißt du?");
       expect(widget.optionen).toEqual(["Viel", "Wenig"]);
     }
   });
@@ -203,12 +203,12 @@ describe("runTutorTurn", () => {
       rounds: [
         [
           toolCallEvent("checkliste_erstellen", {
-            titel: "Uebung",
+            titel: "Übung",
             aufgaben: [1, 2, 3, 4, 5].map((nr) => ({ nr, text: `Aufgabe ${nr}`, schwierigkeit: 1 })),
           }),
         ],
         [toolCallEvent("aufgabe_ergebnis", { nr: 1, status: "richtig" })],
-        [{ type: "text", delta: "Aufgabe 2: Loese x^2 = 4." }],
+        [{ type: "text", delta: "Aufgabe 2: Löse x^2 = 4." }],
       ],
     });
 
@@ -263,7 +263,7 @@ describe("runTutorTurn", () => {
         role: "assistant",
         content: "",
         toolName: "frage_auswahl",
-        toolArgs: { frage: "Wie sicher fuehlst du dich?", optionen: ["Sicher", "Unsicher"], mehrfach: false },
+        toolArgs: { frage: "Wie sicher fühlst du dich?", optionen: ["Sicher", "Unsicher"], mehrfach: false },
         toolResult: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
@@ -302,7 +302,7 @@ describe("runTutorTurn", () => {
 
   it("(e) erster Turn ohne Verlauf schickt einen Startimpuls als user-Nachricht (API verlangt mindestens eine)", async () => {
     const { deps } = makeDeps({
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     let captured: ChatMessage[] | undefined;
@@ -357,7 +357,7 @@ describe("runTutorTurn", () => {
     expect(sicherheitAusFazit).toHaveBeenCalled();
   });
 
-  it("(g, A16) mit itemId enthaelt der System-Prompt die Arbeitsblaetter des Punkts", async () => {
+  it("(g, A16) mit itemId enthält der System-Prompt die Arbeitsblätter des Punkts", async () => {
     const ladePunktMitBlaettern = vi.fn(async () => ({
       punkt: makePunkt(),
       blaetter: [{ id: FILE_ID, name: "Zettel.pdf" }],
@@ -372,7 +372,7 @@ describe("runTutorTurn", () => {
       itemId: ITEM_ID,
       ladePunktMitBlaettern,
       readSubjectFile,
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     let captured: ChatMessage[] | undefined;
@@ -387,7 +387,7 @@ describe("runTutorTurn", () => {
     expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
 
     const system = captured!.find((m) => m.role === "system");
-    expect(system?.content).toContain("Arbeitsblaetter zu diesem Punkt");
+    expect(system?.content).toContain("Arbeitsblätter zu diesem Punkt");
     expect(system?.content).toContain("Inhalt des gestubbten PDFs.");
   });
 
@@ -442,7 +442,7 @@ describe("runTutorTurn", () => {
     ]);
   });
 
-  it("(h2) Simulation-Fazit setzt punkte/gesamt nicht und rechnet die Note aus dem Durchschnitt der punktePlan-Eintraege", async () => {
+  it("(h2) Simulation-Fazit setzt punkte/gesamt nicht und rechnet die Note aus dem Durchschnitt der punktePlan-Einträge", async () => {
     const ladePlan = vi.fn(async () =>
       makePlan([makePunkt({ id: "p1", titel: "Bruchrechnen" }), makePunkt({ id: "p2", titel: "Gleichungen", blaetter: [] })]),
     );

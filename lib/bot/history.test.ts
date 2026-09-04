@@ -21,7 +21,7 @@ describe("toModelMessages", () => {
     expect(result).toEqual([{ role: "system", content: "Du bist Atlas." }]);
   });
 
-  it("aeltere Zuege (vor den letzten sechs Nutzerfragen) behalten nur den Text, keine Werkzeugergebnisse", () => {
+  it("ältere Züge (vor den letzten sechs Nutzerfragen) behalten nur den Text, keine Werkzeugergebnisse", () => {
     const history: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Frage eins" }),
       msg({ id: "2", role: "tool", toolName: "faecher_lesen", toolArgs: {}, toolResult: { faecher: [] } }),
@@ -32,8 +32,8 @@ describe("toModelMessages", () => {
       msg({ id: "7", role: "assistant", content: "Antwort drei" }),
       msg({ id: "8", role: "user", content: "Frage vier" }),
       msg({ id: "9", role: "assistant", content: "Antwort vier" }),
-      msg({ id: "10", role: "user", content: "Frage fuenf" }),
-      msg({ id: "11", role: "assistant", content: "Antwort fuenf" }),
+      msg({ id: "10", role: "user", content: "Frage fünf" }),
+      msg({ id: "11", role: "assistant", content: "Antwort fünf" }),
       msg({ id: "12", role: "user", content: "Frage sechs" }),
       msg({ id: "13", role: "assistant", content: "Antwort sechs" }),
       msg({ id: "14", role: "user", content: "Frage sieben" }),
@@ -53,8 +53,8 @@ describe("toModelMessages", () => {
       { role: "assistant", content: "Antwort drei" },
       { role: "user", content: "Frage vier" },
       { role: "assistant", content: "Antwort vier" },
-      { role: "user", content: "Frage fuenf" },
-      { role: "assistant", content: "Antwort fuenf" },
+      { role: "user", content: "Frage fünf" },
+      { role: "assistant", content: "Antwort fünf" },
       { role: "user", content: "Frage sechs" },
       { role: "assistant", content: "Antwort sechs" },
       { role: "user", content: "Frage sieben" },
@@ -62,7 +62,7 @@ describe("toModelMessages", () => {
     ]);
   });
 
-  it("gibt fuer die letzten sechs Nutzerfragen die Werkzeugaufrufe als synthetische tool_calls mit", () => {
+  it("gibt für die letzten sechs Nutzerfragen die Werkzeugaufrufe als synthetische tool_calls mit", () => {
     const history: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Was steht an?" }),
       msg({
@@ -100,7 +100,7 @@ describe("toModelMessages", () => {
     ]);
   });
 
-  it("buendelt mehrere aufeinanderfolgende Werkzeugaufrufe einer Runde in einer assistant-Nachricht", () => {
+  it("bündelt mehrere aufeinanderfolgende Werkzeugaufrufe einer Runde in einer assistant-Nachricht", () => {
     const history: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Leg eine Mathe-Aufgabe an." }),
       msg({ id: "2", role: "tool", toolName: "faecher_lesen", toolArgs: {}, toolResult: { faecher: [] } }),
@@ -128,7 +128,7 @@ describe("toModelMessages", () => {
     expect(result[5]).toEqual({ role: "assistant", content: "Erledigt." });
   });
 
-  it("kuerzt ein sehr langes Werkzeugergebnis auf 8000 Zeichen mit Hinweis", () => {
+  it("kürzt ein sehr langes Werkzeugergebnis auf 8000 Zeichen mit Hinweis", () => {
     const langesErgebnis = { text: "x".repeat(9000) };
     const history: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Lies die Datei." }),
@@ -141,7 +141,7 @@ describe("toModelMessages", () => {
     expect(typeof toolMessage?.content).toBe("string");
     const content = toolMessage!.content as string;
     expect(content.length).toBeLessThan(JSON.stringify(langesErgebnis).length);
-    expect(content.endsWith("… [gekuerzt]")).toBe(true);
+    expect(content.endsWith("… [gekürzt]")).toBe(true);
   });
 
   it("gibt alle Werkzeugergebnisse mit, wenn es insgesamt weniger als sechs Nutzerfragen gibt", () => {

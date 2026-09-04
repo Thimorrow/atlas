@@ -14,7 +14,7 @@ describe("summarizeParticipation", () => {
     expect(summarizeParticipation([1, 2, 3])).toEqual({ lessons: 3, total: 6, average: 2, best: 3 });
   });
 
-  it("rundet nicht, average bleibt eine praezise Fliesskommazahl", () => {
+  it("rundet nicht, average bleibt eine präzise Fließkommazahl", () => {
     const s = summarizeParticipation([1, 2]);
     expect(s.average).toBeCloseTo(1.5);
     expect(s.lessons).toBe(2);
@@ -72,7 +72,7 @@ describe("parseCount", () => {
   it("lehnt 100 ab", () => {
     const r = parseCount(100);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toContain("hoechstens");
+    if (!r.ok) expect(r.error).toContain("höchstens");
   });
 
   it("lehnt 1.5 ab (keine ganze Zahl)", () => {

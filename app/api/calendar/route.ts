@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   // "2026-02-30" rutschte still auf den 2. Maerz durch. Beides endet jetzt hier.
   if (!DATE_RE.test(date) || !isRealDate(date)) {
     return NextResponse.json(
-      { error: "date muss ein gueltiges Datum im Format JJJJ-MM-TT sein." },
+      { error: "date muss ein gültiges Datum im Format JJJJ-MM-TT sein." },
       { status: 400 },
     );
   }

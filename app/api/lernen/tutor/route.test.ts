@@ -44,7 +44,7 @@ describe("POST /api/lernen/tutor", () => {
     expect(res.status).toBe(400);
   });
 
-  it("mit gueltiger UUID aber unbekanntem Thema -> 404", async () => {
+  it("mit gültiger UUID aber unbekanntem Thema -> 404", async () => {
     vi.mocked(getTopic).mockResolvedValue(undefined);
     const res = await POST(req({ topicId: TOPIC_ID }));
     expect(res.status).toBe(404);
@@ -56,7 +56,7 @@ describe("POST /api/lernen/tutor", () => {
     expect(res.status).toBe(503);
   });
 
-  it("gluecklicher Pfad -> 201, createTutorConversation aufgerufen", async () => {
+  it("glücklicher Pfad -> 201, createTutorConversation aufgerufen", async () => {
     vi.mocked(getTopic).mockResolvedValue({
       id: TOPIC_ID,
       subjectId: SUBJECT_ID,
@@ -117,17 +117,17 @@ describe("POST /api/lernen/tutor", () => {
     expect(res.status).toBe(404);
   });
 
-  it("pruefung ohne topicId und ohne modus=probe -> 400", async () => {
+  it("prüfung ohne topicId und ohne modus=probe -> 400", async () => {
     const res = await POST(req({ pruefung: ASSIGNMENT_ID }));
     expect(res.status).toBe(400);
   });
 
-  it("pruefung ohne topicId und modus=lernen -> 400", async () => {
+  it("prüfung ohne topicId und modus=lernen -> 400", async () => {
     const res = await POST(req({ pruefung: ASSIGNMENT_ID, modus: "lernen" }));
     expect(res.status).toBe(400);
   });
 
-  it("pruefung ohne topicId mit modus=probe -> 201, Store bekommt topicId null und assignmentId", async () => {
+  it("prüfung ohne topicId mit modus=probe -> 201, Store bekommt topicId null und assignmentId", async () => {
     vi.mocked(getAssignment).mockResolvedValue({
       id: ASSIGNMENT_ID,
       subjectId: SUBJECT_ID,
@@ -167,7 +167,7 @@ describe("POST /api/lernen/tutor", () => {
     });
   });
 
-  it("pruefung ohne Fach -> 400", async () => {
+  it("prüfung ohne Fach -> 400", async () => {
     vi.mocked(getAssignment).mockResolvedValue({
       id: ASSIGNMENT_ID,
       subjectId: null,
@@ -201,7 +201,7 @@ describe("GET /api/lernen/tutor", () => {
       itemId: null,
       assignmentId: null,
         checkliste: {
-          titel: "Uebung",
+          titel: "Übung",
           aufgaben: [
             { nr: 1, text: "A1", schwierigkeit: 1, status: "richtig" },
             { nr: 2, text: "A2", schwierigkeit: 1, status: "falsch" },

@@ -40,7 +40,7 @@ describe("lessonToSchoolBlock", () => {
     expect(lessonToSchoolBlock({ ...base, su: [] }).subject).toBe("?");
   });
 
-  it("faellt auf das Kuerzel zurueck, wenn Untis keinen Nachnamen liefert", () => {
+  it("fällt auf das Kürzel zurück, wenn Untis keinen Nachnamen liefert", () => {
     expect(lessonToSchoolBlock({ ...base, te: [{ name: "Mu" }] }).teacher).toBe("Mu");
   });
 
@@ -57,9 +57,6 @@ describe("lessonToSchoolBlock", () => {
     expect(normalizeSubject("Informatik/ang. Mathematik")).toBe("Informatik");
     expect(normalizeSubject("Informatorische Bildung")).toBe("Deutsch");
     expect(normalizeSubject("Englisch")).toBe("Englisch"); // unveraendert
-    // Untis schreibt mit Umlaut, die App nicht.
-    expect(normalizeSubject("Franz\u00f6sisch")).toBe("Franzoesisch");
-    expect(normalizeSubject("Sport (M\u00e4dchen)")).toBe("Sport (Maedchen)");
   });
 
   it("lessonToSchoolBlock wendet Normalisierung an", () => {

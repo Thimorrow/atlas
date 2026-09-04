@@ -100,7 +100,7 @@ export function Modal({
                   </p>
                 )}
               </div>
-              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Schliessen">
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Schließen">
                 <X className="size-4" />
               </Button>
             </div>
@@ -237,7 +237,7 @@ export function NewSubjectDialog({
       open={open}
       onClose={() => onOpenChange(false)}
       title="Fach anlegen"
-      description="Fuer alles, was nicht aus Untis kommt, etwa eine AG."
+      description="Für alles, was nicht aus Untis kommt, etwa eine AG."
     >
       <form onSubmit={submit} className="space-y-4">
         <label className="block">
@@ -340,8 +340,8 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
   if (failed) {
     return (
       <EmptyPanel
-        title="Die Faecher konnten nicht geladen werden"
-        text="Pruef deine Verbindung und versuch es noch einmal."
+        title="Die Fächer konnten nicht geladen werden"
+        text="Prüf deine Verbindung und versuch es noch einmal."
       >
         <Button variant="outline" onClick={() => void load()}>
           Erneut versuchen
@@ -354,7 +354,7 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
     return (
       <div className="flex items-center gap-2 rounded-2xl border bg-card px-5 py-8 text-sm text-muted-foreground shadow-card">
         <Loader2 className="size-4 animate-spin" />
-        Faecher werden geladen…
+        Fächer werden geladen…
       </div>
     );
   }
@@ -367,7 +367,7 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
       <>
         <EmptyPanel
           title="Noch keine Stunden da"
-          text="Atlas kennt deine Faecher aus dem Stundenplan. Sobald einmal mit WebUntis abgeglichen wurde, kannst du hier auswaehlen, welche Faecher du behalten willst."
+          text="Atlas kennt deine Fächer aus dem Stundenplan. Sobald einmal mit WebUntis abgeglichen wurde, kannst du hier auswählen, welche Fächer du behalten willst."
         >
           <ButtonLink href="/settings">
             <CalendarClock className="size-4" />
@@ -393,24 +393,24 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
     <section className="overflow-hidden rounded-2xl border bg-card shadow-card">
       <header className="border-b bg-muted/30 px-5 py-4">
         <h2 className="text-[15px] font-semibold leading-tight tracking-tight">
-          Welche Faecher hast du?
+          Welche Fächer hast du?
         </h2>
         <p className="mt-0.5 text-[13px] text-muted-foreground">
-          Das sind alle Faecher aus deinem Stundenplan. Nimm den Haken weg bei allem, was du nicht
+          Das sind alle Fächer aus deinem Stundenplan. Nimm den Haken weg bei allem, was du nicht
           brauchst. Diese Frage kommt nur einmal.
         </p>
       </header>
 
       <div className="flex items-center justify-between gap-3 border-b px-5 py-2.5">
         <span className="text-[13px] tabular-nums text-muted-foreground">
-          {selected.size} von {data.candidates.length} ausgewaehlt
+          {selected.size} von {data.candidates.length} ausgewählt
         </span>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setSelected(allSelected ? new Set() : new Set(data.candidates))}
         >
-          {allSelected ? "Alle abwaehlen" : "Alle auswaehlen"}
+          {allSelected ? "Alle abwählen" : "Alle auswählen"}
         </Button>
       </div>
 
@@ -454,11 +454,11 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t px-5 py-4">
         <p className="text-[12px] text-muted-foreground">
-          Abgewaehlte Faecher werden archiviert, nicht geloescht.
+          Abgewählte Fächer werden archiviert, nicht gelöscht.
         </p>
         <Button onClick={() => void confirm()} disabled={saving}>
           {saving && <Loader2 className="size-4 animate-spin" />}
-          Auswahl bestaetigen
+          Auswahl bestätigen
         </Button>
       </div>
     </section>

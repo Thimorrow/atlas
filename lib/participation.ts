@@ -50,6 +50,6 @@ export function parseCount(v: unknown): Parsed<number> {
   if (!Number.isFinite(n)) return { ok: false, error: "count muss eine Zahl sein." };
   if (!Number.isInteger(n)) return { ok: false, error: "count muss eine ganze Zahl sein." };
   if (n < 0) return { ok: false, error: "count darf nicht negativ sein." };
-  if (n > MAX_COUNT) return { ok: false, error: `count darf hoechstens ${MAX_COUNT} sein.` };
+  if (n > MAX_COUNT) return { ok: false, error: `count darf höchstens ${MAX_COUNT} sein.` };
   return { ok: true, value: n };
 }

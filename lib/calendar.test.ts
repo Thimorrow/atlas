@@ -42,7 +42,7 @@ describe.skipIf(!mitDb)("Wochen-Expansion (Integration, Neon)", () => {
     expect(school.some((e) => e.status === "cancelled")).toBe(true);
   });
 
-  it("setzt hasNote nur fuer Bloecke mit Stundennotiz", async () => {
+  it("setzt hasNote nur für Blöcke mit Stundennotiz", async () => {
     const [regBlock] = await db
       .select()
       .from(schoolBlocks)
@@ -71,21 +71,21 @@ describe.skipIf(!mitDb)("Wochen-Expansion: hasAssignment (Integration, Neon)", (
   async function cleanup3() {
     await db.delete(schoolBlocks).where(eq(schoolBlocks.date, D3));
     await db.delete(assignments).where(eq(assignments.title, "TST-Aufgabe"));
-    await db.delete(subjects).where(eq(subjects.name, "TST-Faelligkeitsfach"));
+    await db.delete(subjects).where(eq(subjects.name, "TST-Fälligkeitsfach"));
   }
 
   beforeAll(async () => {
     await cleanup3();
     const rows: NewSchoolBlock[] = [
-      { untisLessonId: "s2t4-due", date: D3, startTime: "08:00", endTime: "08:45", subject: "TST-Faelligkeitsfach", status: "regular" },
-      { untisLessonId: "s2t4-nodue", date: D3, startTime: "10:00", endTime: "10:45", subject: "TST-Faelligkeitsfach-Anders", status: "regular" },
+      { untisLessonId: "s2t4-due", date: D3, startTime: "08:00", endTime: "08:45", subject: "TST-Fälligkeitsfach", status: "regular" },
+      { untisLessonId: "s2t4-nodue", date: D3, startTime: "10:00", endTime: "10:45", subject: "TST-Fälligkeitsfach-Anders", status: "regular" },
     ];
     const { upsertSchoolBlocks } = await import("@/lib/untis/sync");
     await upsertSchoolBlocks(rows);
 
     const [subject] = await db
       .insert(subjects)
-      .values({ name: "TST-Faelligkeitsfach", untisSubject: "TST-Faelligkeitsfach" })
+      .values({ name: "TST-Fälligkeitsfach", untisSubject: "TST-Fälligkeitsfach" })
       .returning();
     await db.insert(assignments).values({
       title: "TST-Aufgabe",
@@ -97,11 +97,11 @@ describe.skipIf(!mitDb)("Wochen-Expansion: hasAssignment (Integration, Neon)", (
 
   afterAll(cleanup3);
 
-  it("setzt hasAssignment nur an der Stunde mit passendem Fach und Faelligkeitsdatum", async () => {
+  it("setzt hasAssignment nur an der Stunde mit passendem Fach und Fälligkeitsdatum", async () => {
     const range = await expandWeek(D3);
     const day = range.days.find((d) => d.date === D3)!;
-    const due = day.events.find((e) => e.title === "TST-Faelligkeitsfach");
-    const other = day.events.find((e) => e.title === "TST-Faelligkeitsfach-Anders");
+    const due = day.events.find((e) => e.title === "TST-Fälligkeitsfach");
+    const other = day.events.find((e) => e.title === "TST-Fälligkeitsfach-Anders");
     expect(due?.hasAssignment).toBe(true);
     expect(other?.hasAssignment).toBe(false);
   });

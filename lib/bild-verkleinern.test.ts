@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { zielmasse } from "@/lib/bild-verkleinern";
 
 describe("zielmasse", () => {
-  it("laesst kleine Bilder unveraendert", () => {
+  it("lässt kleine Bilder unverändert", () => {
     expect(zielmasse(1000, 800)).toEqual({ breite: 1000, hoehe: 800 });
   });
 
@@ -18,7 +18,7 @@ describe("zielmasse", () => {
     expect(zielmasse(3000, 1500, 1000)).toEqual({ breite: 1000, hoehe: 500 });
   });
 
-  it("genau an der Grenze bleibt unveraendert", () => {
+  it("genau an der Grenze bleibt unverändert", () => {
     expect(zielmasse(2000, 1000)).toEqual({ breite: 2000, hoehe: 1000 });
   });
 });

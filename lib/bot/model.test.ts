@@ -15,7 +15,7 @@ import {
 // zusammengesetzt werden -- das simulieren diese Tests ohne Netzwerk.
 
 describe("applyToolCallDelta / finishedToolCalls", () => {
-  it("setzt Argumente aus mehreren Chunks fuer denselben Index zusammen", () => {
+  it("setzt Argumente aus mehreren Chunks für denselben Index zusammen", () => {
     const acc: ToolCallAccumulator = new Map();
     applyToolCallDelta(acc, 0, { id: "call_1", name: "aufgabe_anlegen" });
     applyToolCallDelta(acc, 0, { arguments: '{"titel":' });
@@ -31,7 +31,7 @@ describe("applyToolCallDelta / finishedToolCalls", () => {
     ]);
   });
 
-  it("haelt mehrere gleichzeitige Werkzeugaufrufe ueber ihren Index auseinander", () => {
+  it("hält mehrere gleichzeitige Werkzeugaufrufe über ihren Index auseinander", () => {
     const acc: ToolCallAccumulator = new Map();
     applyToolCallDelta(acc, 0, { id: "call_a", name: "faecher_lesen" });
     applyToolCallDelta(acc, 0, { arguments: "{}" });
@@ -59,14 +59,14 @@ describe("toAnthropicRequest", () => {
     expect(out).toEqual([{ role: "user", content: [{ type: "text", text: "Hallo" }] }]);
   });
 
-  it("laesst eine reine user-Nachricht ohne system-Nachricht stehen (kein leerer Request)", () => {
+  it("lässt eine reine user-Nachricht ohne system-Nachricht stehen (kein leerer Request)", () => {
     const messages: ChatMessage[] = [{ role: "user", content: "Bewerte das." }];
     const { system, messages: out } = toAnthropicRequest(messages, []);
     expect(system).toBe("");
     expect(out).toEqual([{ role: "user", content: [{ type: "text", text: "Bewerte das." }] }]);
   });
 
-  it("fasst zwei aufeinanderfolgende tool-Nachrichten zu einer user-Nachricht mit zwei tool_result-Bloecken zusammen", () => {
+  it("fasst zwei aufeinanderfolgende tool-Nachrichten zu einer user-Nachricht mit zwei tool_result-Blöcken zusammen", () => {
     const messages: ChatMessage[] = [
       { role: "system", content: "sys" },
       {
@@ -94,7 +94,7 @@ describe("toAnthropicRequest", () => {
     ]);
   });
 
-  it("uebersetzt assistant mit tool_calls in text- und tool_use-Bloecke", () => {
+  it("übersetzt assistant mit tool_calls in text- und tool_use-Blöcke", () => {
     const messages: ChatMessage[] = [
       { role: "system", content: "sys" },
       {
@@ -121,7 +121,7 @@ describe("toAnthropicRequest", () => {
     ]);
   });
 
-  it("laesst den text-Block weg, wenn assistant-content leer ist", () => {
+  it("lässt den text-Block weg, wenn assistant-content leer ist", () => {
     const messages: ChatMessage[] = [
       { role: "system", content: "sys" },
       {
@@ -138,7 +138,7 @@ describe("toAnthropicRequest", () => {
     ]);
   });
 
-  it("uebersetzt image_url-Parts zu image/source.url", () => {
+  it("übersetzt image_url-Parts zu image/source.url", () => {
     const messages: ChatMessage[] = [
       { role: "system", content: "sys" },
       {
@@ -155,13 +155,13 @@ describe("toAnthropicRequest", () => {
     ]);
   });
 
-  it("uebersetzt Werkzeuge vom OpenAI- ins Anthropic-Format", () => {
+  it("übersetzt Werkzeuge vom OpenAI- ins Anthropic-Format", () => {
     const tools: ChatTool[] = [
       {
         type: "function",
         function: {
           name: "faecher_lesen",
-          description: "Liste der Faecher.",
+          description: "Liste der Fächer.",
           parameters: { type: "object", properties: {} },
         },
       },
@@ -170,7 +170,7 @@ describe("toAnthropicRequest", () => {
     expect(out).toEqual([
       {
         name: "faecher_lesen",
-        description: "Liste der Faecher.",
+        description: "Liste der Fächer.",
         input_schema: { type: "object", properties: {} },
       },
     ]);
@@ -210,7 +210,7 @@ describe("streamChat / SSE-Parser", () => {
           JSON.stringify({
             type: "content_block_delta",
             index: 0,
-            delta: { type: "thinking_delta", thinking: "Ich ueberlege kurz." },
+            delta: { type: "thinking_delta", thinking: "Ich überlege kurz." },
           }),
           JSON.stringify({ type: "message_stop" }),
         ]),
@@ -219,12 +219,12 @@ describe("streamChat / SSE-Parser", () => {
 
     const events = await collect([{ role: "system", content: "sys" }, { role: "user", content: "Hallo" }]);
     expect(events).toEqual([
-      { type: "thinking", delta: "Ich ueberlege kurz." },
+      { type: "thinking", delta: "Ich überlege kurz." },
       { type: "done" },
     ]);
   });
 
-  it("liefert text_delta weiterhin unveraendert als text-Ereignis", async () => {
+  it("liefert text_delta weiterhin unverändert als text-Ereignis", async () => {
     vi.stubEnv("ZAI_API_KEY", "test-key");
     vi.stubGlobal(
       "fetch",

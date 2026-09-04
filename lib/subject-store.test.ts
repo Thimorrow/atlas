@@ -17,7 +17,7 @@ function faktisches(id: string, untisSubject: string | null, archivedAt: Date | 
 }
 
 describe("planSubjectSetup", () => {
-  it("archiviert ein Fach, das aus selected herausfaellt", () => {
+  it("archiviert ein Fach, das aus selected herausfällt", () => {
     const existing = [faktisches("1", "Mathe", null)];
     const plan = planSubjectSetup(existing, [], ["Mathe"]);
     expect(plan.toArchive).toEqual(["1"]);
@@ -33,7 +33,7 @@ describe("planSubjectSetup", () => {
     expect(plan.toCreate).toEqual([]);
   });
 
-  it("laesst ein Fach mit untisSubject null unangetastet, egal was in selected steht", () => {
+  it("lässt ein Fach mit untisSubject null unangetastet, egal was in selected steht", () => {
     const existing = [faktisches("1", null, null)];
     const planLeer = planSubjectSetup(existing, [], []);
     const planVoll = planSubjectSetup(existing, ["Irgendwas"], ["Irgendwas"]);
@@ -43,7 +43,7 @@ describe("planSubjectSetup", () => {
     expect(planVoll.toReactivate).toEqual([]);
   });
 
-  it("erzeugt beim zweiten Aufruf mit denselben Eingaben keine Aenderung", () => {
+  it("erzeugt beim zweiten Aufruf mit denselben Eingaben keine Änderung", () => {
     const existing = [
       faktisches("1", "Mathe", null), // schon aktiv, bleibt aktiv
       faktisches("2", "Kunst", new Date("2024-01-01")), // schon archiviert, bleibt archiviert
@@ -94,7 +94,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toArchive).toEqual([]);
   });
 
-  it("uebernimmt Lehrer und Raum aus dem Stundenplan", () => {
+  it("übernimmt Lehrer und Raum aus dem Stundenplan", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Mathe")],
       [{ subject: "Mathe", teacher: "Sch", room: "A120" }],
@@ -104,7 +104,7 @@ describe("planSubjectReconcile", () => {
     ]);
   });
 
-  it("laesst alles stehen, wenn Untis nichts weiss", () => {
+  it("lässt alles stehen, wenn Untis nichts weiß", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Mathe", { teacher: "Schulz", room: "A120" })],
       [{ subject: "Mathe", teacher: null, room: null }],
@@ -112,7 +112,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toUpdate).toEqual([]);
   });
 
-  it("aendert nichts, wenn Lehrer und Raum schon stimmen (idempotent)", () => {
+  it("ändert nichts, wenn Lehrer und Raum schon stimmen (idempotent)", () => {
     const plan = planSubjectReconcile(
       [
         fach("1", "Mathe", {
@@ -130,7 +130,7 @@ describe("planSubjectReconcile", () => {
   // Der Fall, fuer den es untisTeacher ueberhaupt gibt: zu manchen Lehrern
   // kennt Untis nur ein Kuerzel, der lesbare Name kann dann nur von Hand
   // kommen -- und muss den naechsten Sync ueberleben.
-  it("laesst eine Handeingabe stehen, auch wenn Untis weiter sein Kuerzel liefert", () => {
+  it("lässt eine Handeingabe stehen, auch wenn Untis weiter sein Kürzel liefert", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Chemie", { teacher: "Bergmann", untisTeacher: "BRM" })],
       [{ subject: "Chemie", teacher: "BRM", room: null }],
@@ -138,7 +138,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toUpdate).toEqual([]);
   });
 
-  it("uebernimmt einen Lehrerwechsel, solange niemand von Hand eingegriffen hat", () => {
+  it("übernimmt einen Lehrerwechsel, solange niemand von Hand eingegriffen hat", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Mathe", { teacher: "Wirth", untisTeacher: "Wirth" })],
       [{ subject: "Mathe", teacher: "Schulze", room: null }],
@@ -160,7 +160,7 @@ describe("planSubjectReconcile", () => {
     ]);
   });
 
-  it("loescht ein Fach ohne Stunden und ohne Inhalt", () => {
+  it("löscht ein Fach ohne Stunden und ohne Inhalt", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Informatik/ang. Mathematik", { archivedAt: new Date("2024-01-01") })],
       [{ subject: "Informatik", teacher: null, room: null }],
@@ -170,7 +170,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toCreate.map((c) => c.subject)).toEqual(["Informatik"]);
   });
 
-  it("archiviert statt zu loeschen, sobald Inhalte daran haengen", () => {
+  it("archiviert statt zu löschen, sobald Inhalte daran hängen", () => {
     const plan = planSubjectReconcile([fach("1", "Kunst", { content: 3 })], [
       { subject: "Mathe", teacher: null, room: null },
     ]);
@@ -187,7 +187,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toDelete).toEqual([]);
   });
 
-  it("reaktiviert ein abgewaehltes Fach nicht, nur weil es im Stundenplan steht", () => {
+  it("reaktiviert ein abgewähltes Fach nicht, nur weil es im Stundenplan steht", () => {
     const plan = planSubjectReconcile(
       [fach("1", "Kunst", { archivedAt: new Date("2024-01-01") })],
       [{ subject: "Kunst", teacher: null, room: null }],
@@ -197,7 +197,7 @@ describe("planSubjectReconcile", () => {
     expect(plan.toDelete).toEqual([]);
   });
 
-  it("laesst manuell angelegte Faecher (untisSubject null) unangetastet", () => {
+  it("lässt manuell angelegte Fächer (untisSubject null) unangetastet", () => {
     const plan = planSubjectReconcile(
       [fach("1", null, { teacher: "Frau Meyer" })],
       [{ subject: "Mathe", teacher: null, room: null }],
@@ -211,7 +211,7 @@ describe("planSubjectReconcile", () => {
 // planCurriculumSeed ist die reine Zuordnung hinter seedCurricula: welches
 // Fach bekommt welchen Text aus der statischen Vorlage, und welches gar keinen.
 describe("planCurriculumSeed", () => {
-  it("findet die Vorlage ueber den Fachnamen", () => {
+  it("findet die Vorlage über den Fachnamen", () => {
     const plan = planCurriculumSeed([{ id: "1", name: "Mathematik", untisSubject: null }]);
     expect(plan.toWrite).toHaveLength(1);
     expect(plan.toWrite[0].vorlage).toBe("Mathematik");
@@ -219,7 +219,7 @@ describe("planCurriculumSeed", () => {
     expect(plan.ohneVorlage).toEqual([]);
   });
 
-  it("faellt auf den Untis-Wert zurueck, wenn der Anzeigename nichts trifft", () => {
+  it("fällt auf den Untis-Wert zurück, wenn der Anzeigename nichts trifft", () => {
     const plan = planCurriculumSeed([{ id: "1", name: "Mathe LK Frau Meyer", untisSubject: "M" }]);
     expect(plan.toWrite[0]?.vorlage).toBe("Mathematik");
   });

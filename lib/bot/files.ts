@@ -13,7 +13,7 @@ import { blobEnabled } from "@/lib/subject-file-store";
 // Ab dieser Zeichenzahl wird gekuerzt -- lang genug fuer die meisten
 // Zusammenfassungen, kurz genug, um den Kontext des Modells nicht zu sprengen.
 export const MAX_CHARS = 20_000;
-const TRUNCATED_HINT = "\n\n[... gekuerzt, die Datei ist laenger ...]";
+const TRUNCATED_HINT = "\n\n[... gekürzt, die Datei ist länger ...]";
 
 // Reine Funktion, damit sie ohne Netzwerk testbar ist.
 export function truncate(text: string, maxChars = MAX_CHARS): string {
@@ -86,7 +86,7 @@ export async function readSubjectFile(
     file,
     content: {
       kind: "unsupported",
-      hint: `Dateien vom Typ "${row.contentType}" koennen aktuell nicht gelesen werden.`,
+      hint: `Dateien vom Typ "${row.contentType}" können aktuell nicht gelesen werden.`,
     },
   };
 }

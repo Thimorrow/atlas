@@ -43,7 +43,7 @@ describe("oklchToHex, von Hand nachgerechnete Graustufen", () => {
 // die Farbmatrizen ueberhaupt in die richtige Richtung zeigen: bei Blau muss
 // der Blaukanal fuehren, bei Rot der Rotkanal.
 describe("oklchToRgb, bunte Token", () => {
-  it("faerbt 'blue' blau, mit Blau als staerkstem Kanal", () => {
+  it("färbt 'blue' blau, mit Blau als stärkstem Kanal", () => {
     const { r, g, b } = oklchToRgb(0.58, 0.16, 255);
     expect(b).toBeGreaterThan(g);
     expect(g).toBeGreaterThan(r);
@@ -53,13 +53,13 @@ describe("oklchToRgb, bunte Token", () => {
     expect(oklchToHex("oklch(0.58 0.16 255)")).toBe("#2b7ad6");
   });
 
-  it("faerbt 'rose' rot", () => {
+  it("färbt 'rose' rot", () => {
     const { r, g, b } = oklchToRgb(0.6, 0.19, 20);
     expect(r).toBeGreaterThan(g);
     expect(r).toBeGreaterThan(b);
   });
 
-  it("bleibt in allen Kanaelen im Bereich 0 bis 255", () => {
+  it("bleibt in allen Kanälen im Bereich 0 bis 255", () => {
     for (const h of [0, 45, 90, 135, 180, 225, 270, 315]) {
       const rgb = oklchToRgb(0.65, 0.3, h);
       for (const v of [rgb.r, rgb.g, rgb.b]) {
@@ -79,7 +79,7 @@ describe("parseOklch", () => {
     expect(parseOklch("oklch(58% 0.16 255)")).toEqual({ l: 0.58, c: 0.16, h: 255 });
   });
 
-  it("gibt bei allem anderen null zurueck, statt zu werfen", () => {
+  it("gibt bei allem anderen null zurück, statt zu werfen", () => {
     // Genau diese Faelle stehen in der Palette und in globals.css und duerfen
     // /api/colors nicht mit einer 500 beenden.
     expect(parseOklch("var(--subject-white)")).toBeNull();

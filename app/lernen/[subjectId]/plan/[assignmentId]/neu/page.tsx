@@ -2,7 +2,7 @@ import { LernplanErstellen } from "@/components/lernplan-erstellen";
 
 // Erstell-Seite des Lernplans, vier Schritte ueber ?schritt=1..4. In Next 16
 // sind params und searchParams ein Promise; alles Weitere (Gate-Pruefung,
-// Laden der Pruefung/Dateien) uebernimmt die Client-Komponente selbst.
+// Laden der Prüfung/Dateien) uebernimmt die Client-Komponente selbst.
 export default async function LernplanNeuPage({
   params,
   searchParams,

@@ -16,7 +16,7 @@ const beispiel: LehrplanFach = {
 };
 
 describe("lehrplanAlsMarkdown", () => {
-  it("macht aus jedem Inhaltsfeld eine Ueberschrift mit Liste", () => {
+  it("macht aus jedem Inhaltsfeld eine Überschrift mit Liste", () => {
     const md = lehrplanAlsMarkdown(beispiel);
     expect(md).toContain("## Erstes Feld");
     expect(md).toContain("- Ein Schwerpunkt");
@@ -24,7 +24,7 @@ describe("lehrplanAlsMarkdown", () => {
     expect(md).toContain("## Zweites Feld");
   });
 
-  it("haengt die Quelle ans Ende", () => {
+  it("hängt die Quelle ans Ende", () => {
     const md = lehrplanAlsMarkdown(beispiel);
     expect(md.trimEnd().endsWith("Quelle: https://example.org/lehrplan.pdf")).toBe(true);
   });
@@ -35,14 +35,14 @@ describe("lehrplanAlsMarkdown", () => {
     expect(lehrplanAlsMarkdown(beispiel)).not.toContain("Hinweis:");
   });
 
-  it("laesst sich vom Markdown-Renderer als Ueberschrift, Liste und Link darstellen", () => {
+  it("lässt sich vom Markdown-Renderer als Überschrift, Liste und Link darstellen", () => {
     const html = renderMarkdown(lehrplanAlsMarkdown(beispiel));
     expect(html).toContain("<h2>Erstes Feld</h2>");
     expect(html).toContain("<li>Ein Schwerpunkt</li>");
     expect(html).toContain('href="https://example.org/lehrplan.pdf"');
   });
 
-  it("erzeugt fuer jedes Fach der Vorlage einen nicht leeren Text", () => {
+  it("erzeugt für jedes Fach der Vorlage einen nicht leeren Text", () => {
     for (const fach of LEHRPLAN_NRW_G9_KLASSE_10) {
       const md = lehrplanAlsMarkdown(fach);
       expect(md.trim().length, `leerer Lehrplan-Text: ${fach.fach}`).toBeGreaterThan(0);

@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/lernen/plan -- Validierung", () => {
-  it("ungueltige assignmentId -> 400", async () => {
+  it("ungültige assignmentId -> 400", async () => {
     const res = await POST(req(gueltigerBody({ assignmentId: "keine-uuid" })));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("assignmentId");
@@ -59,7 +59,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect(res.status).toBe(400);
   });
 
-  it("fileIds mit ungueltiger UUID -> 400", async () => {
+  it("fileIds mit ungültiger UUID -> 400", async () => {
     const res = await POST(req(gueltigerBody({ fileIds: ["keine-uuid"] })));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("fileIds");
@@ -70,7 +70,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect(res.status).toBe(400);
   });
 
-  it("minutesWeekday ausserhalb 10..240 -> 400", async () => {
+  it("minutesWeekday außerhalb 10..240 -> 400", async () => {
     const res = await POST(req(gueltigerBody({ minutesWeekday: 5 })));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("minutesWeekday");
@@ -81,7 +81,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect(res.status).toBe(400);
   });
 
-  it("minutesWeekend ausserhalb 10..240 -> 400", async () => {
+  it("minutesWeekend außerhalb 10..240 -> 400", async () => {
     const res = await POST(req(gueltigerBody({ minutesWeekend: 300 })));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("minutesWeekend");
@@ -104,12 +104,12 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect((await res.json()).error).toBe("punkte");
   });
 
-  it("punkt-minuten ausserhalb 10..90 -> 400", async () => {
+  it("punkt-minuten außerhalb 10..90 -> 400", async () => {
     const res = await POST(req(gueltigerBody({ punkte: [gueltigerPunkt({ minuten: 5 })] })));
     expect(res.status).toBe(400);
   });
 
-  it("punkt-fileIds mit ungueltiger UUID -> 400", async () => {
+  it("punkt-fileIds mit ungültiger UUID -> 400", async () => {
     const res = await POST(req(gueltigerBody({ punkte: [gueltigerPunkt({ fileIds: ["keine-uuid"] })] })));
     expect(res.status).toBe(400);
   });
@@ -120,7 +120,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect((await res.json()).error).toBe("checks");
   });
 
-  it("checks mit ungueltigem urteil -> 400", async () => {
+  it("checks mit ungültigem urteil -> 400", async () => {
     const res = await POST(
       req(gueltigerBody({ checks: [{ frage: "f", musterantwort: "m", antwort: "a", urteil: "vielleicht", feedback: "" }] })),
     );
@@ -128,7 +128,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect((await res.json()).error).toBe("checks");
   });
 
-  it("checks: null ist gueltig (ohne Test planen)", async () => {
+  it("checks: null ist gültig (ohne Test planen)", async () => {
     vi.mocked(planAnlegen).mockResolvedValue({
       plan: { id: "p", assignmentId: ASSIGNMENT_ID } as never,
       createdTopicIds: [],
@@ -138,7 +138,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect(planAnlegen).toHaveBeenCalledWith(expect.objectContaining({ checks: null }), expect.anything());
   });
 
-  it("gluecklicher Pfad ruft planAnlegen auf und gibt 200", async () => {
+  it("glücklicher Pfad ruft planAnlegen auf und gibt 200", async () => {
     vi.mocked(planAnlegen).mockResolvedValue({
       plan: { id: "p", assignmentId: ASSIGNMENT_ID } as never,
       createdTopicIds: ["t1"],
@@ -149,7 +149,7 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect(json.createdTopicIds).toEqual(["t1"]);
   });
 
-  it("LernplanStoreFehler wird in Status+Code uebersetzt (409 bei Doppel-Submit)", async () => {
+  it("LernplanStoreFehler wird in Status+Code übersetzt (409 bei Doppel-Submit)", async () => {
     vi.mocked(planAnlegen).mockRejectedValue(new LernplanStoreFehler(409, "plan_gerade_erstellt", "Plan wurde gerade erstellt."));
     const res = await POST(req(gueltigerBody()));
     expect(res.status).toBe(409);

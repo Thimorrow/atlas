@@ -31,7 +31,7 @@ export async function POST(_req: Request, { params }: Ctx) {
           controller.enqueue(encoder.encode(delta));
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Die Erklaerung konnte nicht erzeugt werden.";
+        const message = err instanceof Error ? err.message : "Die Erklärung konnte nicht erzeugt werden.";
         controller.enqueue(encoder.encode(message));
       } finally {
         controller.close();

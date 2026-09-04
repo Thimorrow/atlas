@@ -9,32 +9,32 @@
 UPDATE "subjects" SET
   "curriculum" = '## Sprache
 
-- Strukturen in Texten: Kohaerenz, Textaufbau, sprachliche Mittel
-- Sprachebenen: Sprachvarietaeten, Sprachstile, Diskriminierung durch Sprache
+- Strukturen in Texten: Kohärenz, Textaufbau, sprachliche Mittel
+- Sprachebenen: Sprachvarietäten, Sprachstile, Diskriminierung durch Sprache
 - Sprachgeschichte und Sprachwandel
 - Mehrsprachigkeit
 
 ## Texte
 
-- Konfiguration, Handlungsfuehrung und Textaufbau: Roman, Erzaehlung, Drama, kurze epische Texte
+- Konfiguration, Handlungsführung und Textaufbau: Roman, Erzählung, Drama, kurze epische Texte
 - Literarische Sprache und bildliche Ausdrucksformen: Gedichte
 - Sachtexte
-- Textuebergreifende Zusammenhaenge: Gattungen, Produktions- und Rezeptionsgeschichte
+- Textübergreifende Zusammenhänge: Gattungen, Produktions- und Rezeptionsgeschichte
 - Schreibprozess
-- Literarische Texte: Fiktionalitaet, Literarizitaet
+- Literarische Texte: Fiktionalität, Literarizität
 
 ## Kommunikation
 
-- Kommunikationssituationen: Praesentation, Bewerbungsgespraech, formalisierte Diskussionsformen
+- Kommunikationssituationen: Präsentation, Bewerbungsgespräch, formalisierte Diskussionsformen
 - Kommunikationsrollen
 - Kommunikationskonventionen
-- Gespraechsstrategien
+- Gesprächsstrategien
 
 ## Medien
 
 - Medien als Hilfsmittel
 - Medienrezeption: audiovisuelle Texte
-- Qualitaet und Darstellung von Informationen
+- Qualität und Darstellung von Informationen
 - Meinungsbildung als medialer Prozess
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_d_klp_3409_2019_06_23.pdf',
@@ -51,7 +51,7 @@ UPDATE "subjects" SET
 - Zahlbereichserweiterung reelle Zahlen
 - Potenzen, Wurzeln, Logarithmen
 - Potenz- und Wurzelgesetze
-- Loesungsverfahren quadratischer Gleichungen: quadratische Ergaenzung, p-q-Formel, Satz von Vieta
+- Lösungsverfahren quadratischer Gleichungen: quadratische Ergänzung, p-q-Formel, Satz von Vieta
 - Exponentialgleichungen
 
 ## Funktionen
@@ -62,8 +62,8 @@ UPDATE "subjects" SET
 
 ## Geometrie
 
-- Kreis: Umfang, Flaecheninhalt, Tangente
-- Koerper: Kugel, Zylinder, Prisma, Kegel, Pyramide
+- Kreis: Umfang, Flächeninhalt, Tangente
+- Körper: Kugel, Zylinder, Prisma, Kegel, Pyramide
 - Zentrische Streckung und Aehnlichkeit
 - Satz des Pythagoras, Kosinussatz
 - Trigonometrie: Sinus, Kosinus, Tangens
@@ -71,7 +71,7 @@ UPDATE "subjects" SET
 ## Stochastik
 
 - Statistische Daten: Erhebung, Diagramm, Manipulation
-- Bedingte Wahrscheinlichkeit, stochastische Unabhaengigkeit
+- Bedingte Wahrscheinlichkeit, stochastische Unabhängigkeit
 - Vierfeldertafel, Baumdiagramme, Pfadregeln
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_m_klp_3401_2019_06_23_0.pdf',
@@ -83,7 +83,7 @@ WHERE "curriculum" IS NULL
 --> statement-breakpoint
 -- Englisch
 UPDATE "subjects" SET
-  "curriculum" = '## Persoenliche Lebensgestaltung
+  "curriculum" = '## Persönliche Lebensgestaltung
 
 - Lebenssituation, Alltag, Freizeitgestaltung Jugendlicher
 - Lernen und Arbeiten
@@ -95,20 +95,20 @@ UPDATE "subjects" SET
 
 - Schulsystem und Schulalltag in einem weiteren anglophonen Land
 - Schulisches Lernen im digitalen und globalisierten Zeitalter
-- Schueleraustausch
+- Schüleraustausch
 
 ## Teilhabe am gesellschaftlichen Leben
 
 - Anglophone Lebenswirklichkeiten global: geografisch, wirtschaftlich-technologisch, kulturell, sozial, politisch
-- Migration und Mobilitaet
-- Digitale Medien fuer die Gesellschaft
+- Migration und Mobilität
+- Digitale Medien für die Gesellschaft
 - Werbung, Konsum, Verbraucherschutz
 - Gesellschaftliches Engagement
 - Demokratie und Menschenrechte
 
 ## Berufsorientierung
 
-- Schuelerjobs, Praktika
+- Schülerjobs, Praktika
 - Berufsprofile im digitalen Zeitalter
 - Bewerbungsverfahren
 
@@ -123,14 +123,14 @@ WHERE "curriculum" IS NULL
 UPDATE "subjects" SET
   "curriculum" = '## Antike Welt
 
-- Gesellschaft: Staende, soziale Spannungen
+- Gesellschaft: Stände, soziale Spannungen
 - Staat und Politik: Republik/Prinzipat, Herrschaftsanspruch, Expansion
 - Philosophie: Stoa, Epikureismus
 - Literatur: zentrale Autoren und Werke
 
 ## Textgestaltung
 
-- Textstruktur: Argumentationsstrategien, Erzaehlperspektive, Leserlenkung
+- Textstruktur: Argumentationsstrategien, Erzählperspektive, Leserlenkung
 - Sprachlich-stilistische Gestaltung: Hypotaxe/Parataxe, Stilmittel
 - Textsorten: Fabel, Gedicht, Bericht, politische Rede
 
@@ -139,11 +139,11 @@ UPDATE "subjects" SET
 - Erweiterter Grundwortschatz
 - e- und u-Deklination
 - Futur I
-- Konjunktiv Praesens und Perfekt
+- Konjunktiv Präsens und Perfekt
 - Deponentien
 - Ablativus absolutus
 - Gerundium und Gerundivum
-- Konjunktivische Hauptsaetze
+- Konjunktivische Hauptsätze
 - Komparation
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_l_klp_3402_2019_06_23_0.pdf',
@@ -158,19 +158,19 @@ UPDATE "subjects" SET
   "curriculum" = '## Oekologie und Naturschutz
 
 - Merkmale eines Oekosystems: heimisches Oekosystem, charakteristische Arten und Angepasstheiten, biotische Wechselwirkungen
-- Energiefluss und Stoffkreislaeufe: Fotosynthese, Kohlenstoffkreislauf, Nahrungsnetze
+- Energiefluss und Stoffkreisläufe: Fotosynthese, Kohlenstoffkreislauf, Nahrungsnetze
 - Naturschutz und Nachhaltigkeit: Eingriffe des Menschen, Biotop- und Artenschutz
 
 ## Evolution
 
-- Grundzuege der Evolutionstheorie: Variabilitaet, natuerliche Selektion, Fortpflanzungserfolg
+- Grundzüge der Evolutionstheorie: Variabilität, natürliche Selektion, Fortpflanzungserfolg
 - Entwicklung des Lebens auf der Erde: Erdzeitalter, Leitfossilien, biologischer Artbegriff
 - Evolution des Menschen: Hominidenevolution
 
 ## Genetik
 
-- Cytogenetik: DNA, Chromosomen, Mitose, Meiose, Karyogramm, Genommutation, Praenataldiagnostik
-- Regeln der Vererbung: Gen- und Allelbegriff, Familienstammbaeume
+- Cytogenetik: DNA, Chromosomen, Mitose, Meiose, Karyogramm, Genommutation, Pränataldiagnostik
+- Regeln der Vererbung: Gen- und Allelbegriff, Familienstammbäume
 
 ## Mensch und Gesundheit
 
@@ -181,8 +181,8 @@ UPDATE "subjects" SET
 ## Sexualerziehung
 
 - Hormonelle Steuerung des Zyklus
-- Verhuetung, Schwangerschaftsabbruch
-- Umgang mit der eigenen Sexualitaet
+- Verhütung, Schwangerschaftsabbruch
+- Umgang mit der eigenen Sexualität
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_bi_klp_-3413_2019_06_23_0.pdf',
   "curriculum_source" = 'Kernlehrplan NRW G9, Klasse 10',
@@ -202,34 +202,34 @@ UPDATE "subjects" SET
 ## Salze und Ionen
 
 - Ionenbindung: Anionen, Kationen, Ionengitter
-- Eigenschaften von Ionenverbindungen: Kristalle, Leitfaehigkeit
-- Verhaeltnisformel, Gesetz der konstanten Massenverhaeltnisse, Reaktionsgleichung
+- Eigenschaften von Ionenverbindungen: Kristalle, Leitfähigkeit
+- Verhältnisformel, Gesetz der konstanten Massenverhältnisse, Reaktionsgleichung
 
-## Chemische Reaktionen durch Elektronenuebertragung
+## Chemische Reaktionen durch Elektronenübertragung
 
 - Oxidation, Reduktion
 - Galvanisches Element, Akkumulator, Batterie, Brennstoffzelle
 - Elektrolyse
 
-## Molekuelverbindungen
+## Molekülverbindungen
 
 - Unpolare und polare Elektronenpaarbindung
-- Elektronenpaarabstossungsmodell, raeumliche Strukturen, Dipolmolekuele
-- Zwischenmolekulare Wechselwirkungen: Wasserstoffbruecken
+- Elektronenpaarabstossungsmodell, räumliche Strukturen, Dipolmoleküle
+- Zwischenmolekulare Wechselwirkungen: Wasserstoffbrücken
 - Katalysator
 
-## Saure und alkalische Loesungen
+## Saure und alkalische Lösungen
 
-- Eigenschaften saurer und alkalischer Loesungen
+- Eigenschaften saurer und alkalischer Lösungen
 - Neutralisation und Salzbildung
-- Einfache stoechiometrische Berechnungen: Stoffmenge, Stoffmengenkonzentration
+- Einfache stöchiometrische Berechnungen: Stoffmenge, Stoffmengenkonzentration
 - Protonenabgabe und -aufnahme
 
 ## Organische Chemie
 
 - Alkane und Alkanole
-- Makromolekuele: ausgewaehlte Kunststoffe
-- Zwischenmolekulare Wechselwirkungen: Van-der-Waals-Kraefte
+- Makromoleküle: ausgewählte Kunststoffe
+- Zwischenmolekulare Wechselwirkungen: Van-der-Waals-Kräfte
 - Treibhauseffekt
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_ch_klp_3415_2019_06_23.pdf',
@@ -255,16 +255,16 @@ UPDATE "subjects" SET
 ## Bewegung, Kraft und Energie
 
 - Geschwindigkeit, Beschleunigung
-- Kraft: Wechselwirkungsprinzip, Gewichtskraft und Masse, Kraefteaddition, Reibung
+- Kraft: Wechselwirkungsprinzip, Gewichtskraft und Masse, Kräfteaddition, Reibung
 - Goldene Regel der Mechanik: einfache Maschinen
 - Energieformen und Energieumwandlung, Leistung
 
 ## Druck und Auftrieb
 
-- Druck in Fluessigkeiten und Gasen: Dichte, Schweredruck, Auftrieb
+- Druck in Flüssigkeiten und Gasen: Dichte, Schweredruck, Auftrieb
 - Archimedisches Prinzip, Luftdruck
 
-## Elektrizitaet
+## Elektrizität
 
 - Elektrostatik: Ladungen und Felder, Spannung
 - Elektrische Stromkreise: Widerstand, Reihen- und Parallelschaltung
@@ -292,21 +292,21 @@ WHERE "curriculum" IS NULL
 UPDATE "subjects" SET
   "curriculum" = '## Lebenswelten im Mittelalter
 
-- Staedte und ihre Bewohnerinnen und Bewohner
+- Städte und ihre Bewohnerinnen und Bewohner
 - Begegnungen von Christen, Juden und Muslimen
 - Transkontinentale Handelsbeziehungen zwischen Europa, Asien und Afrika
 
-## Fruehe Neuzeit: Neue Welten, neue Horizonte
+## Frühe Neuzeit: Neue Welten, neue Horizonte
 
 - Renaissance, Humanismus, Reformation
-- Hexenverfolgungen und Dreissigjaehriger Krieg
+- Hexenverfolgungen und Dreißigjähriger Krieg
 - Entdeckungen und Eroberungen
 - Vernetzung und Verlagerung globaler Handelswege
 
 ## Das lange 19. Jahrhundert
 
-- Franzoesische Revolution und Wiener Kongress
-- Revolution von 1848/49 und deutsche Reichsgruendung
+- Französische Revolution und Wiener Kongress
+- Revolution von 1848/49 und deutsche Reichsgründung
 - Industrialisierung und Arbeitswelten
 
 ## Imperialismus und Erster Weltkrieg
@@ -314,7 +314,7 @@ UPDATE "subjects" SET
 - Imperialistische Expansionen in Afrika
 - Ursachen, Merkmale und Verlauf des Ersten Weltkriegs
 - Epochenjahr 1917
-- Pariser Friedensvertraege
+- Pariser Friedensverträge
 
 ## Weimarer Republik
 
@@ -327,14 +327,14 @@ UPDATE "subjects" SET
 
 - Ende des Rechts- und Verfassungsstaats 1933/34
 - Ideologie und Herrschaftssystem des Nationalsozialismus
-- Alltagsleben in der NS-Diktatur: Zustimmung, Unterdrueckung, Verfolgung, Widerstand
+- Alltagsleben in der NS-Diktatur: Zustimmung, Unterdrückung, Verfolgung, Widerstand
 - Zweiter Weltkrieg, Vernichtungskrieg und Holocaust
-- Flucht und Vertreibung im europaeischen Kontext
+- Flucht und Vertreibung im europäischen Kontext
 
 ## Internationale Verflechtungen seit 1945
 
-- Aufteilung der Welt in Bloecke, Stellvertreterkriege
-- Wiedererlangung staatlicher Souveraenitaet beider deutscher Staaten
+- Aufteilung der Welt in Blöcke, Stellvertreterkriege
+- Wiedererlangung staatlicher Souveränität beider deutscher Staaten
 - Entkolonialisierung
 - Ende des Ost-West-Konflikts, Wiedervereinigung
 
@@ -359,43 +359,43 @@ UPDATE "subjects" SET
 - Schalenbau der Erde: Erdkern, Erdmantel, Erdkruste
 - Plattentektonik: Konvergenz, Divergenz, Subduktion
 - Naturereignisse: Erdbeben, Seebeben, Vulkanismus
-- Leben und Wirtschaften in Risikoraeumen
+- Leben und Wirtschaften in Risikoräumen
 
 ## Wetter und Klima
 
-- Schraegstellung der Erdachse, Beleuchtungszonen, Jahreszeiten
-- Klima und Klimasystem: Atmosphaere, Klimaelemente, Wasserkreislauf
+- Schrägstellung der Erdachse, Beleuchtungszonen, Jahreszeiten
+- Klima und Klimasystem: Atmosphäre, Klimaelemente, Wasserkreislauf
 - Ursachen und Auswirkungen globaler Klimaschwankungen
 
 ## Landwirtschaftliche Produktion in unterschiedlichen Landschaftszonen
 
-- Naturraeumliche Bedingungen in Tropen, Subtropen, Mittelbreiten
+- Naturräumliche Bedingungen in Tropen, Subtropen, Mittelbreiten
 - Wirtschaftsformen: Ackerbau, Viehwirtschaft, Plantagenwirtschaft, Subsistenzwirtschaft
-- Folgen unangepasster Nutzung: Regenwaldzerstoerung, Desertifikation, Erosion
+- Folgen unangepasster Nutzung: Regenwaldzerstörung, Desertifikation, Erosion
 - Nachhaltiges Wirtschaften
 
-## Innerstaatliche und globale Disparitaeten
+## Innerstaatliche und globale Disparitäten
 
-- Entwicklungsindikatoren: Bildung, Demografie, Ernaehrung, Gesundheit, HDI
-- Laender und Regionen unterschiedlichen Entwicklungsstandes
+- Entwicklungsindikatoren: Bildung, Demografie, Ernährung, Gesundheit, HDI
+- Länder und Regionen unterschiedlichen Entwicklungsstandes
 - Entwicklungszusammenarbeit, Handelsabkommen
 
-## Wachstum und Verteilung der Weltbevoelkerung
+## Wachstum und Verteilung der Weltbevölkerung
 
-- Entwicklung und raeumliche Verteilung der Weltbevoelkerung
-- Tragfaehigkeit, Ernaehrungssicherung
+- Entwicklung und räumliche Verteilung der Weltbevölkerung
+- Tragfähigkeit, Ernährungssicherung
 - Migration: Push- und Pull-Faktoren
 
-## Verstaedterung und Stadtentwicklung
+## Verstädterung und Stadtentwicklung
 
-- Merkmale und Wandel von Staedten
+- Merkmale und Wandel von Städten
 - Urbanisierung, Megacities, Metropolisierung, Segregation
-- Mobilitaet, Umweltbelastung, demografischer und sozialer Wandel
+- Mobilität, Umweltbelastung, demografischer und sozialer Wandel
 
-## Raeumliche Strukturen unter dem Einfluss von Globalisierung und Digitalisierung
+## Räumliche Strukturen unter dem Einfluss von Globalisierung und Digitalisierung
 
 - Merkmale der Globalisierung
-- Standortgefuege, multinationale Konzerne, Global Cities
+- Standortgefüge, multinationale Konzerne, Global Cities
 - Wandel von Unternehmen durch Digitalisierung
 
 Quelle: https://lehrplannavigator.nrw.de/system/files/media/document/file/g9_ek_klp_3408_2019_06_23.pdf',
@@ -417,28 +417,28 @@ UPDATE "subjects" SET
 ## Sicherung und Weiterentwicklung der Demokratie
 
 - Demokratische Institutionen auf Landes- und Bundesebene
-- Wahlen und Parlamentarismus im foederalen System
+- Wahlen und Parlamentarismus im föderalen System
 - Gewaltenteilung, Verfassungsstaatlichkeit
-- Gefaehrdungen der Demokratie, Rolle der Medien
+- Gefährdungen der Demokratie, Rolle der Medien
 
-## Identitaet und Lebensgestaltung
+## Identität und Lebensgestaltung
 
 - Individuelle Lebensgestaltung und soziale Verantwortung
 - Selbstbestimmung in der digitalisierten Welt
-- Jugendkriminalitaet und Jugendstrafrecht
+- Jugendkriminalität und Jugendstrafrecht
 
 ## Unternehmen und Gewerkschaften in der Sozialen Marktwirtschaft
 
 - Ziele, Grundfunktionen und Strukturen von Unternehmen
 - Strukturwandel der Arbeitswelt durch Digitalisierung
-- Gewerkschaften, Arbeitgeberverbaende, betriebliche Mitbestimmung
-- Berufswahl, Existenzgruendung
+- Gewerkschaften, Arbeitgeberverbände, betriebliche Mitbestimmung
+- Berufswahl, Existenzgründung
 
 ## Soziale Sicherung in Deutschland
 
 - Soziale Ungleichheit
 - Prinzipien der sozialen Sicherung
-- Saeulen des Sozialversicherungssystems
+- Säulen des Sozialversicherungssystems
 
 ## Handeln als Verbraucherinnen und Verbraucher
 
@@ -447,12 +447,12 @@ UPDATE "subjects" SET
 - Verbraucherschutz, nachhaltiges Handeln
 - Werbung, Algorithmen und Filter
 
-## Die Europaeische Union als wirtschaftliche und politische Gemeinschaft
+## Die Europäische Union als wirtschaftliche und politische Gemeinschaft
 
 - Europa als Wertegemeinschaft
 - Institutionen der EU
 - Grundfreiheiten des EU-Binnenmarktes
-- Europaeische Waehrungsunion
+- Europäische Währungsunion
 
 ## Globalisierte Strukturen und Prozesse in der Wirtschaft
 
@@ -491,13 +491,13 @@ UPDATE "subjects" SET
 - Jesu Botschaft vom Reich Gottes
 - Kreuzestod und Auferstehung Jesu Christi
 
-## Kirche und andere Formen religioeser Gemeinschaft
+## Kirche und andere Formen religiöser Gemeinschaft
 
-- Kirche und religioese Gemeinschaften im Wandel
-- Verhaeltnis von Kirche, Staat und Gesellschaft
-- Kirche in totalitaeren Systemen
+- Kirche und religiöse Gemeinschaften im Wandel
+- Verhältnis von Kirche, Staat und Gesellschaft
+- Kirche in totalitären Systemen
 
-## Zugaenge zur Bibel
+## Zugänge zur Bibel
 
 - Biblische Texte als gedeutete Glaubenserfahrungen
 
@@ -507,7 +507,7 @@ UPDATE "subjects" SET
 
 ## Religion in Alltag und Kultur
 
-- Religioese Symbole in Kultur und Gesellschaft
+- Religiöse Symbole in Kultur und Gesellschaft
 - Umgang mit Tod und Trauer
 - Fundamentalismus und Religion
 
@@ -522,7 +522,7 @@ WHERE "curriculum" IS NULL
 UPDATE "subjects" SET
   "curriculum" = '## Bewegungsstruktur und Bewegungslernen
 
-- Wahrnehmung und Koerpererfahrung
+- Wahrnehmung und Körpererfahrung
 - Informationsaufnahme und -verarbeitung
 - Struktur und Funktion von Bewegungen
 - Motorisches Lernen
@@ -530,7 +530,7 @@ UPDATE "subjects" SET
 ## Bewegungsgestaltung
 
 - Variation von Bewegung
-- Praesentation von Bewegungsgestaltungen
+- Präsentation von Bewegungsgestaltungen
 - Ausgangspunkte von Gestaltungen
 - Gestaltungskriterien
 
@@ -541,8 +541,8 @@ UPDATE "subjects" SET
 
 ## Leistung
 
-- Faktoren sportlicher Leistungsfaehigkeit
-- Leistungsverstaendnis im Sport
+- Faktoren sportlicher Leistungsfähigkeit
+- Leistungsverständnis im Sport
 - Trainingsplanung und -organisation
 
 ## Kooperation und Konkurrenz
@@ -554,19 +554,19 @@ UPDATE "subjects" SET
 
 - Unfall- und Verletzungsprophylaxe
 - Gesundheitlicher Nutzen und Risiken
-- Gesundheitsverstaendnis und Koerperbilder
+- Gesundheitsverständnis und Körperbilder
 
-## Bewegungsfelder und Sportbereiche (verbindlich fuer die gesamte Sek I)
+## Bewegungsfelder und Sportbereiche (verbindlich für die gesamte Sek I)
 
-- Den Koerper wahrnehmen und Bewegungsfaehigkeiten auspraegen
-- Das Spielen entdecken und Spielraeume nutzen
+- Den Körper wahrnehmen und Bewegungsfähigkeiten ausprägen
+- Das Spielen entdecken und Spielräume nutzen
 - Laufen, Springen, Werfen: Leichtathletik
 - Bewegen im Wasser: Schwimmen
-- Bewegen an Geraeten: Turnen
-- Gestalten, Tanzen, Darstellen: Gymnastik/Tanz, Bewegungskuenste
+- Bewegen an Geräten: Turnen
+- Gestalten, Tanzen, Darstellen: Gymnastik/Tanz, Bewegungskünste
 - Spielen in und mit Regelstrukturen: Sportspiele
 - Gleiten, Fahren, Rollen: Rollsport/Bootssport/Wintersport
-- Ringen und Kaempfen: Zweikampfsport
+- Ringen und Kämpfen: Zweikampfsport
 
 Quelle: https://www.schulsport-nrw.de/fileadmin/user_upload/g9_sp_klp_3426_2019_06_23.pdf',
   "curriculum_source" = 'Kernlehrplan NRW G9, Klasse 10',
@@ -580,7 +580,7 @@ UPDATE "subjects" SET
   "curriculum" = '## Information und Daten
 
 - Daten und ihre Codierung
-- Verschluesselungsverfahren
+- Verschlüsselungsverfahren
 - Erfassung, Verarbeitung und Verwaltung von Daten
 
 ## Algorithmen
@@ -594,11 +594,11 @@ UPDATE "subjects" SET
 - Aufbau und Wirkungsweise von Automaten
 - Erstellung und Analyse von Quelltexten
 
-## Kuenstliche Intelligenz und maschinelles Lernen
+## Künstliche Intelligenz und maschinelles Lernen
 
 - Ueberwachtes Lernen
-- Unueberwachtes Lernen
-- Bestaerkendes Lernen
+- Unüberwachtes Lernen
+- Bestärkendes Lernen
 
 ## Informatiksysteme
 

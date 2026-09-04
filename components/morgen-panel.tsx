@@ -126,7 +126,7 @@ function subtitleFor(data: MorgenResponse): string {
   const dateLabel = weekdayDateLabel(data.target.date).replace(/^\w+\.,\s*/, "");
   if (data.target.date === data.today) return `Heute, ${dateLabel}`;
   if (data.target.isTomorrow) return `Morgen, ${dateLabel}`;
-  return "Morgen ist schulfrei. Hier der naechste Schultag:";
+  return "Morgen ist schulfrei. Hier der nächste Schultag:";
 }
 
 // --- Inhalt --------------------------------------------------------------------
@@ -257,7 +257,7 @@ function ExamCard({ exam }: { exam: AssignmentDTO }) {
   if (!exam.subjectId) return body;
   return (
     <Link
-      href={`/faecher/${exam.subjectId}`}
+      href={`/fächer/${exam.subjectId}`}
       className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {body}
@@ -389,7 +389,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
       <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: tint }}>
-          Laeuft gerade · noch {live.minutesLeft} min
+          Läuft gerade · noch {live.minutesLeft} min
         </p>
         <p className="mt-0.5 truncate text-[15px] font-medium leading-snug">{live.title}</p>
       </div>
@@ -430,13 +430,13 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
                 className="size-1 rounded-full motion-safe:animate-pulse"
                 style={{ backgroundColor: tint }}
               />
-              laeuft
+              läuft
             </span>
           )}
           {cancelled && (
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-1.5 py-px text-[11px] font-medium text-muted-foreground">
               <span className="size-1 rounded-full bg-destructive/60" />
-              entfaellt
+              entfällt
             </span>
           )}
           {ev.status === "substituted" && (
@@ -489,7 +489,7 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
           {inner}
         </Link>
       ) : ev.subjectId ? (
-        <Link href={`/faecher/${ev.subjectId}`} className={className}>
+        <Link href={`/fächer/${ev.subjectId}`} className={className}>
           {inner}
         </Link>
       ) : (
@@ -507,7 +507,7 @@ function MaterialCard({ material }: { material: MaterialDTO }) {
 
   return (
     <Link
-      href={`/faecher/${material.subjectId}`}
+      href={`/fächer/${material.subjectId}`}
       className="group block rounded-xl border bg-card px-3.5 py-3 shadow-card transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <div className="flex items-center gap-2">
@@ -548,7 +548,7 @@ function EmptyState() {
       <div>
         <p className="text-[15px] font-medium">Nichts los.</p>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Keine Schulstunden, keine Aufgabe faellig, keine Pruefung in Sicht.
+          Keine Schulstunden, keine Aufgabe fällig, keine Prüfung in Sicht.
         </p>
       </div>
     </div>

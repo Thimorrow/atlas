@@ -33,7 +33,7 @@ export async function verkleinereBild(file: File): Promise<File> {
   canvas.width = breite;
   canvas.height = hoehe;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas nicht verfuegbar");
+  if (!ctx) throw new Error("Canvas nicht verfügbar");
   ctx.drawImage(bitmap, 0, 0, breite, hoehe);
   bitmap.close();
 
@@ -41,7 +41,7 @@ export async function verkleinereBild(file: File): Promise<File> {
     canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITAET),
   );
   if (!blob) throw new Error("Bild konnte nicht verkleinert werden");
-  if (blob.size > MAX_BYTES) throw new Error("Bild zu gross");
+  if (blob.size > MAX_BYTES) throw new Error("Bild zu groß");
 
   const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
   return new File([blob], name, { type: "image/jpeg" });

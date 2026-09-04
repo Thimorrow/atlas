@@ -41,14 +41,14 @@ describe("pickTargetDay", () => {
     expect(result).toEqual({ date: MI, isTomorrow: true });
   });
 
-  it("springt zum naechsten Schultag, wenn morgen Wochenende ist", () => {
+  it("springt zum nächsten Schultag, wenn morgen Wochenende ist", () => {
     // Freitag ist heute, Montag danach hat wieder Stunden.
     const hasLessons = (d: string) => d === MO_NAECHSTE;
     const result = pickTargetDay(FR, hasLessons);
     expect(result).toEqual({ date: MO_NAECHSTE, isTomorrow: false });
   });
 
-  it("ueberspringt mehrere schulfreie Tage (z.B. bewegliche Ferientage)", () => {
+  it("überspringt mehrere schulfreie Tage (z.B. bewegliche Ferientage)", () => {
     // Heute Mittwoch, Donnerstag und Freitag frei, erst Montag wieder Schule.
     const hasLessons = (d: string) => d === MO_NAECHSTE;
     const result = pickTargetDay(MI, hasLessons);
@@ -56,7 +56,7 @@ describe("pickTargetDay", () => {
     expect(result.isTomorrow).toBe(false);
   });
 
-  it("faellt auf morgen zurueck, wenn im Suchfenster gar kein Schultag steht", () => {
+  it("fällt auf morgen zurück, wenn im Suchfenster gar kein Schultag steht", () => {
     const result = pickTargetDay(DI, () => false, 5);
     expect(result).toEqual({ date: MI, isTomorrow: true });
   });
@@ -76,7 +76,7 @@ describe("pickFocusDay", () => {
     expect(targetDayLabel(result, DI)).toBe("Heute");
   });
 
-  it("zeigt morgen, wenn heute nichts mehr laeuft", () => {
+  it("zeigt morgen, wenn heute nichts mehr läuft", () => {
     const result = pickFocusDay(DI, (d) => d === MI, false);
     expect(result).toEqual({ date: MI, isTomorrow: true });
   });
@@ -89,11 +89,11 @@ describe("pickFocusDay", () => {
 });
 
 describe("targetDayLabel", () => {
-  it("heisst 'Morgen', wenn der Zieltag der naechste Kalendertag ist", () => {
+  it("heißt 'Morgen', wenn der Zieltag der nächste Kalendertag ist", () => {
     expect(targetDayLabel({ date: MI, isTomorrow: true }, DI)).toBe("Morgen");
   });
 
-  it("heisst 'Heute', wenn explizit heute angefragt ist", () => {
+  it("heißt 'Heute', wenn explizit heute angefragt ist", () => {
     expect(targetDayLabel({ date: DI, isTomorrow: true }, DI)).toBe("Heute");
   });
 
@@ -103,7 +103,7 @@ describe("targetDayLabel", () => {
 });
 
 describe("dueUntilTarget", () => {
-  it("nimmt Faelliges bis inklusive Zieltag, Ueberfaelliges eingeschlossen", () => {
+  it("nimmt Fälliges bis inklusive Zieltag, Überfälliges eingeschlossen", () => {
     const items = [
       make({ dueDate: DI, title: "ueberfaellig" }), // heute = ueberfaellig relativ zu morgen
       make({ dueDate: MI, title: "am zieltag" }),
@@ -113,42 +113,42 @@ describe("dueUntilTarget", () => {
     expect(result.map((i) => i.title)).toEqual(["ueberfaellig", "am zieltag"]);
   });
 
-  it("laesst erledigte Aufgaben weg", () => {
+  it("lässt erledigte Aufgaben weg", () => {
     const items = [make({ dueDate: MI, completedAt: "2025-07-15T10:00:00Z" })];
     expect(dueUntilTarget(items, MI, DI)).toEqual([]);
   });
 
-  it("laesst Aufgaben ohne Datum weg", () => {
+  it("lässt Aufgaben ohne Datum weg", () => {
     const items = [make({ dueDate: null })];
     expect(dueUntilTarget(items, MI, DI)).toEqual([]);
   });
 
-  it("sortiert nach Datum, dann Pruefung vor Hausaufgabe", () => {
+  it("sortiert nach Datum, dann Prüfung vor Hausaufgabe", () => {
     const items = [
-      make({ dueDate: DI, type: "homework", title: "hausaufgabe frueh" }),
-      make({ dueDate: DI, type: "exam", title: "arbeit frueh" }),
+      make({ dueDate: DI, type: "homework", title: "hausaufgabe früh" }),
+      make({ dueDate: DI, type: "exam", title: "arbeit früh" }),
       make({ dueDate: MI, title: "spaeter" }),
     ];
     const result = dueUntilTarget(items, MI, DI);
-    expect(result.map((i) => i.title)).toEqual(["arbeit frueh", "hausaufgabe frueh", "spaeter"]);
+    expect(result.map((i) => i.title)).toEqual(["arbeit früh", "hausaufgabe früh", "spaeter"]);
   });
 
-  it("laesst eine Pruefung genau am Zieltag weg -- die steht schon in der Pruefungskarte", () => {
+  it("lässt eine Prüfung genau am Zieltag weg -- die steht schon in der Prüfungskarte", () => {
     const items = [
-      make({ dueDate: MI, type: "exam", title: "klassenarbeit heute faellig" }),
+      make({ dueDate: MI, type: "exam", title: "klassenarbeit heute fällig" }),
       make({ dueDate: MI, type: "homework", title: "hausaufgabe" }),
     ];
     expect(dueUntilTarget(items, MI, DI).map((i) => i.title)).toEqual(["hausaufgabe"]);
   });
 
-  it("eine ueberfaellige Pruefung (vor dem Zieltag) bleibt trotzdem in der Liste", () => {
+  it("eine überfällige Prüfung (vor dem Zieltag) bleibt trotzdem in der Liste", () => {
     const items = [make({ dueDate: DI, type: "exam", title: "verpasste arbeit" })];
     expect(dueUntilTarget(items, MI, DI).map((i) => i.title)).toEqual(["verpasste arbeit"]);
   });
 });
 
 describe("examsOnTarget", () => {
-  it("nur Pruefungen genau am Zieltag", () => {
+  it("nur Prüfungen genau am Zieltag", () => {
     const items = [
       make({ dueDate: MI, type: "exam", title: "klassenarbeit" }),
       make({ dueDate: MI, type: "homework", title: "hausaufgabe" }),
@@ -159,7 +159,7 @@ describe("examsOnTarget", () => {
     expect(result.map((i) => i.title)).toEqual(["klassenarbeit", "referat"]);
   });
 
-  it("laesst erledigte Pruefungen weg", () => {
+  it("lässt erledigte Prüfungen weg", () => {
     const items = [make({ dueDate: MI, type: "exam", completedAt: "2025-07-15T10:00:00Z" })];
     expect(examsOnTarget(items, MI)).toEqual([]);
   });

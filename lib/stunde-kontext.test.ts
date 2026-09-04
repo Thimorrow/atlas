@@ -36,15 +36,15 @@ beforeEach(() => {
   listSubjects.mockResolvedValue([]);
 });
 
-describe("ladeStundeKontext traegt lernen", () => {
-  it("liefert lernen als [], wenn kein Lernplan fuer heute existiert", async () => {
+describe("ladeStundeKontext trägt lernen", () => {
+  it("liefert lernen als [], wenn kein Lernplan für heute existiert", async () => {
     lernenFuerTag.mockResolvedValue([]);
     const result = await ladeStundeKontext();
     expect(result.lernen).toEqual([]);
     expect(lernenFuerTag).toHaveBeenCalledWith(result.today);
   });
 
-  it("reicht die Eintraege von lernenFuerTag unveraendert durch", async () => {
+  it("reicht die Einträge von lernenFuerTag unverändert durch", async () => {
     const eintrag = {
       planId: "p1",
       subjectId: "s1",

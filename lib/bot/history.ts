@@ -17,7 +17,7 @@ const RECENT_USER_TURNS = 6;
 
 function truncate(text: string): string {
   if (text.length <= MAX_TOOL_RESULT_CHARS) return text;
-  return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}… [gekuerzt]`;
+  return `${text.slice(0, MAX_TOOL_RESULT_CHARS)}… [gekürzt]`;
 }
 
 export function toModelMessages(history: MessageDTO[], systemPrompt: string): ChatMessage[] {

@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const blockParam = url.searchParams.get("block");
   if (blockParam !== null && !isUuid(blockParam)) {
-    return NextResponse.json({ error: "block ist keine gueltige id." }, { status: 400 });
+    return NextResponse.json({ error: "block ist keine gültige id." }, { status: 400 });
   }
 
   const result = await ladeStundeKontext(blockParam);

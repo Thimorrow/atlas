@@ -16,26 +16,26 @@ const MODI = ["lernen", "probe"] as const;
 
 // POST /api/lernen/tutor -- { topicId, modus?, cardId?, einheitId?, pruefung? }
 // -> legt eine neue Tutor-Session an. Reihenfolge der Pruefungen siehe
-// TUTOR-SPEC.md "API" und SPEC.md "Tutor kennt die Blaetter des Punkts".
+// TUTOR-SPEC.md "API" und SPEC.md "Tutor kennt die Blätter des Punkts".
 //
 // topicId ist Pflicht -- ausser bei pruefung ohne topicId (Simulation ueber
 // den ganzen Plan): dann muss modus "probe" sein, sonst 400.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  if (!isObj(body)) return NextResponse.json({ error: "Ungueltiger Body." }, { status: 400 });
+  if (!isObj(body)) return NextResponse.json({ error: "Ungültiger Body." }, { status: 400 });
 
   const hasTopicId = body.topicId !== undefined && body.topicId !== null;
   if (hasTopicId && (typeof body.topicId !== "string" || !isUuid(body.topicId))) {
-    return NextResponse.json({ error: "topicId ist ungueltig." }, { status: 400 });
+    return NextResponse.json({ error: "topicId ist ungültig." }, { status: 400 });
   }
 
   const hasPruefung = body.pruefung !== undefined && body.pruefung !== null;
   if (hasPruefung && (typeof body.pruefung !== "string" || !isUuid(body.pruefung))) {
-    return NextResponse.json({ error: "pruefung ist ungueltig." }, { status: 400 });
+    return NextResponse.json({ error: "prüfung ist ungültig." }, { status: 400 });
   }
 
   if (!hasTopicId && !hasPruefung) {
-    return NextResponse.json({ error: "topicId fehlt oder ist ungueltig." }, { status: 400 });
+    return NextResponse.json({ error: "topicId fehlt oder ist ungültig." }, { status: 400 });
   }
 
   if (body.modus !== undefined && !(MODI as readonly string[]).includes(body.modus as string)) {
@@ -51,12 +51,12 @@ export async function POST(req: Request) {
 
   if (body.cardId !== undefined && body.cardId !== null) {
     if (typeof body.cardId !== "string" || !isUuid(body.cardId)) {
-      return NextResponse.json({ error: "cardId ist ungueltig." }, { status: 400 });
+      return NextResponse.json({ error: "cardId ist ungültig." }, { status: 400 });
     }
   }
   if (body.einheitId !== undefined && body.einheitId !== null) {
     if (typeof body.einheitId !== "string" || !isUuid(body.einheitId)) {
-      return NextResponse.json({ error: "einheitId ist ungueltig." }, { status: 400 });
+      return NextResponse.json({ error: "einheitId ist ungültig." }, { status: 400 });
     }
   }
 
@@ -74,8 +74,8 @@ export async function POST(req: Request) {
     subjectId = topic.subjectId;
   } else {
     const assignment = await getAssignment(body.pruefung as string);
-    if (!assignment) return NextResponse.json({ error: "Pruefung nicht gefunden." }, { status: 404 });
-    if (!assignment.subjectId) return NextResponse.json({ error: "Pruefung hat kein Fach." }, { status: 400 });
+    if (!assignment) return NextResponse.json({ error: "Prüfung nicht gefunden." }, { status: 404 });
+    if (!assignment.subjectId) return NextResponse.json({ error: "Prüfung hat kein Fach." }, { status: 400 });
     subjectId = assignment.subjectId;
   }
 
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   if (card) {
     await appendTutorMessage(conversation.id, {
       role: "user",
-      content: `Ich haenge bei dieser Frage: ${card.question}`,
+      content: `Ich hänge bei dieser Frage: ${card.question}`,
     });
   }
 
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const topicId = searchParams.get("topicId");
   if (!topicId || !isUuid(topicId)) {
-    return NextResponse.json({ error: "topicId fehlt oder ist ungueltig." }, { status: 400 });
+    return NextResponse.json({ error: "topicId fehlt oder ist ungültig." }, { status: 400 });
   }
 
   const conversations = await listTutorConversations(topicId);

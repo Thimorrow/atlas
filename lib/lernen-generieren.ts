@@ -112,29 +112,29 @@ async function collectContext(
 function kindRegel(lernart: Lernart, kind: CardKind): string {
   if (kind === "aufgabe") {
     return (
-      `Erzeuge Uebungsaufgaben, wie sie in einer Klassenarbeit stehen wuerden: ` +
+      `Erzeuge Übungsaufgaben, wie sie in einer Klassenarbeit stehen würden: ` +
       `konkrete Zahlen/Werte, der Aufgabentext steht in "frage". "antwort" ist der ` +
-      `Loesungsweg Schritt fuer Schritt mit dem Endergebnis, kurz gehalten. ` +
-      `Baue zusaetzlich ein paar Merkregeln/Formeln als eigene Karten ein -- gib diesen ` +
-      `Karten zusaetzlich "art":"wissen".`
+      `Lösungsweg Schritt für Schritt mit dem Endergebnis, kurz gehalten. ` +
+      `Baue zusätzlich ein paar Merkregeln/Formeln als eigene Karten ein -- gib diesen ` +
+      `Karten zusätzlich "art":"wissen".`
     );
   }
   if (kind === "vokabel") {
     return (
       `Erzeuge Vokabelkarten: "frage" ist das deutsche Wort, "antwort" das Wort in der ` +
       `Zielsprache. Hat ein Wort mehrere Bedeutungen, trenne sie in "antwort" mit Komma ` +
-      `("Wort1, Wort2"). Baue zusaetzlich ein paar Grammatikregeln mit Beispielsatz als ` +
-      `eigene Karten ein -- gib diesen Karten zusaetzlich "art":"wissen".`
+      `("Wort1, Wort2"). Baue zusätzlich ein paar Grammatikregeln mit Beispielsatz als ` +
+      `eigene Karten ein -- gib diesen Karten zusätzlich "art":"wissen".`
     );
   }
   if (lernart === "texte") {
     return (
       `Erzeuge Karten zu Stilmitteln (Name in "frage", Definition + ein Beispiel in ` +
-      `"antwort"), Analysebausteinen und dem Aufbau von Eroerterung/Analyse.`
+      `"antwort"), Analysebausteinen und dem Aufbau von Erörterung/Analyse.`
     );
   }
   return (
-    `Erzeuge Erklaerfragen (Warum/Wie/Vergleiche/Folgen), nicht nur "Was ist"-Fragen.`
+    `Erzeuge Erklärfragen (Warum/Wie/Vergleiche/Folgen), nicht nur "Was ist"-Fragen.`
   );
 }
 
@@ -152,14 +152,14 @@ async function focusText(input: GenerateInput): Promise<string | undefined> {
 function systemPrompt(anzahl: number, subjectName: string, lernart: Lernart, kind: CardKind, fokus?: string): string {
   const fokusHinweis = fokus ? `\nFokussiere dich dabei besonders auf: ${fokus}.` : "";
   return (
-    `Du bist Lernkarten-Autor fuer einen Schueler der 10. Klasse (NRW G9) im Fach ${subjectName}. ` +
+    `Du bist Lernkarten-Autor für einen Schüler der 10. Klasse (NRW G9) im Fach ${subjectName}. ` +
     `Erzeuge genau ${anzahl} Karteikarten NUR aus dem gelieferten Material -- erfinde nichts dazu.${fokusHinweis}\n\n` +
     `${kindRegel(lernart, kind)}\n\n` +
     `Regeln:\n` +
-    `- Frage praezise und eindeutig.\n` +
-    `- Antwort kurz (1 bis 3 Saetze oder Stichpunkte, bei Aufgaben der komplette Loesungsweg).\n` +
+    `- Frage präzise und eindeutig.\n` +
+    `- Antwort kurz (1 bis 3 Sätze oder Stichpunkte, bei Aufgaben der komplette Lösungsweg).\n` +
     `- Auf Deutsch, ausser bei Vokabeln/Grammatik in der Zielsprache.\n` +
-    `- Ausgabe AUSSCHLIESSLICH als JSON-Array ohne Erklaertext, in genau dieser Form: ` +
+    `- Ausgabe AUSSCHLIESSLICH als JSON-Array ohne Erklärtext, in genau dieser Form: ` +
     `[{"frage":"...","antwort":"...","art":"wissen"}] -- "art" nur bei Karten, die von der ` +
     `Standard-Kartenart (${kind}) abweichen, sonst weglassen.`
   );
@@ -216,20 +216,20 @@ function summaryPrompt(subjectName: string, lernart: Lernart, fokus?: string): s
   const fokusHinweis = fokus ? `\nDreht sich um: ${fokus}.` : "";
   const artHinweis =
     lernart === "aufgaben"
-      ? "Formeln/Regeln als Liste, dazu je eine kurze Musterloesung."
+      ? "Formeln/Regeln als Liste, dazu je eine kurze Musterlösung."
       : lernart === "vokabeln"
-        ? "Grammatikuebersicht mit Beispielsaetzen, dazu eine Wortfeld-Liste."
+        ? "Grammatikübersicht mit Beispielsätzen, dazu eine Wortfeld-Liste."
         : lernart === "texte"
           ? "Ein Schreibleitfaden: Aufbau, Formulierungshilfen, Stilmittel."
-          : "Eine Zusammenfassung mit den wichtigsten Zusammenhaengen.";
+          : "Eine Zusammenfassung mit den wichtigsten Zusammenhängen.";
 
   return (
-    `Du schreibst einen Lernzettel fuer einen Schueler der 10. Klasse (NRW G9) im Fach ` +
+    `Du schreibst einen Lernzettel für einen Schüler der 10. Klasse (NRW G9) im Fach ` +
     `${subjectName}. Nutze NUR das gelieferte Material, erfinde nichts dazu.${fokusHinweis}\n\n` +
     `${artHinweis}\n\n` +
-    `Form: Markdown mit Ueberschriften und Stichpunkten, Definitionen und Formeln hervorgehoben, ` +
-    `je Abschnitt ein Beispiel. Hoechstens etwa ${MAX_SUMMARY_WORDS} Woerter. Gib NUR den ` +
-    `Lernzettel-Text zurueck, keine Erklaerungen drumherum.`
+    `Form: Markdown mit Überschriften und Stichpunkten, Definitionen und Formeln hervorgehoben, ` +
+    `je Abschnitt ein Beispiel. Höchstens etwa ${MAX_SUMMARY_WORDS} Wörter. Gib NUR den ` +
+    `Lernzettel-Text zurück, keine Erklärungen drumherum.`
   );
 }
 
@@ -287,9 +287,9 @@ export async function* explainCard(cardId: string): AsyncGenerator<string> {
   const kontext = topic?.summary ? `\n\nLernzettel des Themas "${topic.title}":\n${topic.summary}` : "";
 
   const prompt =
-    `Du erklaerst einem Schueler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
-    `eine Karteikarte in maximal 120 Woertern, mit einem Beispiel und, wenn passend, einer ` +
-    `Merkhilfe. Antworte nur mit der Erklaerung, ohne Einleitung.\n\n` +
+    `Du erklärst einem Schüler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
+    `eine Karteikarte in maximal 120 Wörtern, mit einem Beispiel und, wenn passend, einer ` +
+    `Merkhilfe. Antworte nur mit der Erklärung, ohne Einleitung.\n\n` +
     `Frage: ${card.question}\nAntwort: ${card.answer}${kontext}`;
 
   const messages: ChatMessage[] = [{ role: "user", content: prompt }];
@@ -320,10 +320,10 @@ export async function generateVariant(cardId: string): Promise<{ question: strin
   const subject = await getSubject(card.subjectId);
 
   const prompt =
-    `Du erzeugst fuer einen Schueler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
-    `eine Variante der folgenden Uebungsaufgabe: andere Zahlen/Werte, gleiche Schwierigkeit, ` +
-    `gleiches Thema. Antwort ist der Loesungsweg Schritt fuer Schritt mit Endergebnis, kurz. ` +
-    `Ausgabe AUSSCHLIESSLICH als JSON-Objekt ohne Erklaertext: {"frage":"...","antwort":"..."}.\n\n` +
+    `Du erzeugst für einen Schüler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
+    `eine Variante der folgenden Übungsaufgabe: andere Zahlen/Werte, gleiche Schwierigkeit, ` +
+    `gleiches Thema. Antwort ist der Lösungsweg Schritt für Schritt mit Endergebnis, kurz. ` +
+    `Ausgabe AUSSCHLIESSLICH als JSON-Objekt ohne Erklärtext: {"frage":"...","antwort":"..."}.\n\n` +
     `Aufgabe: ${card.question}\nLoesung: ${card.answer}`;
 
   const messages: ChatMessage[] = [{ role: "user", content: prompt }];
@@ -361,15 +361,15 @@ export async function bewerteAntwort(
 
   const aufgabeHinweis =
     card.kind === "aufgabe"
-      ? " Es ist eine Uebungsaufgabe: Endergebnis und Rechenweg zaehlen, kleine Schreibfehler sind egal."
+      ? " Es ist eine Übungsaufgabe: Endergebnis und Rechenweg zählen, kleine Schreibfehler sind egal."
       : "";
 
   const prompt =
-    `Du bewertest fuer einen Schueler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
+    `Du bewertest für einen Schüler der 10. Klasse (NRW G9) im Fach ${subject?.name ?? ""} ` +
     `Timos eigene Antwort auf eine Karteikarte. Urteile nach dem Kern der Sache, nicht nach dem ` +
-    `Wortlaut.${aufgabeHinweis} Feedback maximal 40 Woerter, ehrlich, kein falsches Lob. Bei ` +
-    `"falsch" gib einen Hint statt der Loesung.\n\n` +
-    `Ausgabe AUSSCHLIESSLICH als JSON-Objekt ohne Erklaertext: ` +
+    `Wortlaut.${aufgabeHinweis} Feedback maximal 40 Wörter, ehrlich, kein falsches Lob. Bei ` +
+    `"falsch" gib einen Hint statt der Lösung.\n\n` +
+    `Ausgabe AUSSCHLIESSLICH als JSON-Objekt ohne Erklärtext: ` +
     `{"urteil":"richtig|teilweise|falsch","feedback":"..."}.\n\n` +
     `Frage: ${card.question}\nMusterantwort: ${card.answer}\nTimos Antwort: ${antwort}`;
 

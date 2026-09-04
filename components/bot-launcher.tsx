@@ -120,8 +120,8 @@ export function BotLauncher() {
         onPointerEnter={prefetchChat}
         onFocus={prefetchChat}
         aria-expanded={open}
-        aria-label={open ? "Atlas-Bot schliessen" : "Atlas-Bot oeffnen (⌘K)"}
-        title={open ? "Schliessen" : "Atlas-Bot (⌘K)"}
+        aria-label={open ? "Atlas-Bot schließen" : "Atlas-Bot öffnen (⌘K)"}
+        title={open ? "Schließen" : "Atlas-Bot (⌘K)"}
         whileTap={reduce ? undefined : { scale: 0.94 }}
         transition={{ duration: 0.16, ease: EASE }}
         className="pointer-events-auto grid size-14 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 outline-none transition-shadow [touch-action:manipulation] hover:shadow-xl hover:shadow-primary/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -162,7 +162,7 @@ function PanelHeader({ onClose }: { onClose: () => void }) {
         <p className="truncate text-[14px] font-semibold tracking-tight">Atlas</p>
         <p className="truncate text-[11.5px] text-muted-foreground">Dein Assistent im Stundenplan</p>
       </div>
-      <Link href="/bot/verlauf" onClick={onClose} aria-label="Verlauf oeffnen" title="Verlauf" className={action}>
+      <Link href="/bot/verlauf" onClick={onClose} aria-label="Verlauf öffnen" title="Verlauf" className={action}>
         <History className="size-4" />
       </Link>
       <button
@@ -174,7 +174,7 @@ function PanelHeader({ onClose }: { onClose: () => void }) {
       >
         <SquarePen className="size-4" />
       </button>
-      <button type="button" onClick={onClose} aria-label="Schliessen" title="Schliessen" className={action}>
+      <button type="button" onClick={onClose} aria-label="Schließen" title="Schließen" className={action}>
         <Minus className="size-4" />
       </button>
     </header>

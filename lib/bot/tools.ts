@@ -38,15 +38,20 @@ import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
 
 import { heuteISO as localISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
-import { vergleichbar } from "@/lib/umlaute";
 
 
 // Normalisiert einen Fachnamen fuers Matching: trim, klein, deutsche
 // Umlaute ausgeschrieben, alles ausser [a-z0-9] weg. "Mathe" und "Mathe."
-// landen so auf demselben Wert, und der Untis-Name mit Umlaut trifft den
-// transliterierten Fachnamen der App.
+// landen so auf demselben Wert, "Franzoesisch" trifft "Französisch".
 function normalizeSubjectName(s: string): string {
-  return vergleichbar(s).replace(/[^a-z0-9]/g, "");
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]/g, "");
 }
 
 // Fach anhand eines vom Modell genannten Namens finden. Reine Funktion, daher
@@ -103,7 +108,7 @@ function resolveDate(input: string | undefined | null): { iso: string | null; hi
 // --- Schemas -------------------------------------------------------------
 
 const DATE_DESC =
-  "Datum, bevorzugt ISO (JJJJ-MM-TT). Deutsche Angaben wie \"morgen\" oder \"naechsten Montag\" werden ebenfalls verstanden.";
+  "Datum, bevorzugt ISO (JJJJ-MM-TT). Deutsche Angaben wie \"morgen\" oder \"nächsten Montag\" werden ebenfalls verstanden.";
 
 export const botTools: ChatTool[] = [
   {
@@ -126,7 +131,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "aufgaben_lesen",
       description:
-        "Liest Aufgaben (Hausaufgaben, Klassenarbeiten, ...), optional gefiltert. Fuer eine Frage nach anstehenden Pruefungen setze typ auf [\"exam\", \"test\", \"presentation\"], statt alles zu lesen und selbst zu sortieren.",
+        "Liest Aufgaben (Hausaufgaben, Klassenarbeiten, ...), optional gefiltert. Für eine Frage nach anstehenden Prüfungen setze typ auf [\"exam\", \"test\", \"presentation\"], statt alles zu lesen und selbst zu sortieren.",
       parameters: {
         type: "object",
         properties: {
@@ -139,7 +144,7 @@ export const botTools: ChatTool[] = [
               enum: ["homework", "exam", "test", "presentation", "other"],
             },
             description:
-              "Auf diese Arten einschraenken. homework = Hausaufgabe, exam = Klassenarbeit, test = Test, presentation = Referat.",
+              "Auf diese Arten einschränken. homework = Hausaufgabe, exam = Klassenarbeit, test = Test, presentation = Referat.",
           },
         },
       },
@@ -149,7 +154,7 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "faecher_lesen",
-      description: "Liste der aktiven Faecher mit Lehrer, Raum und Farbe.",
+      description: "Liste der aktiven Fächer mit Lehrer, Raum und Farbe.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -172,7 +177,7 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "noten_lesen",
-      description: "Liest Noten samt Fachschnitt, optional auf ein Fach eingeschraenkt.",
+      description: "Liest Noten samt Fachschnitt, optional auf ein Fach eingeschränkt.",
       parameters: {
         type: "object",
         properties: { fach: { type: "string", description: "Name des Fachs." } },
@@ -184,7 +189,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "lehrplan_lesen",
       description:
-        "Liest den Lehrplan eines Fachs -- was in diesem Schuljahr an Themen ansteht. Nutze ihn fuer Fragen wie \"was kommt als Naechstes dran\" oder \"worauf muss ich mich vorbereiten\". Der Lehrplan ist eine Orientierung, keine Planung der Lehrkraft.",
+        "Liest den Lehrplan eines Fachs -- was in diesem Schuljahr an Themen ansteht. Nutze ihn für Fragen wie \"was kommt als Nächstes dran\" oder \"worauf muss ich mich vorbereiten\". Der Lehrplan ist eine Orientierung, keine Planung der Lehrkraft.",
       parameters: {
         type: "object",
         properties: { fach: { type: "string", description: "Name des Fachs." } },
@@ -196,7 +201,7 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "dateien_auflisten",
-      description: "Listet Name, Typ und Groesse der Dateien eines Fachs (oder aller Faecher).",
+      description: "Listet Name, Typ und Größe der Dateien eines Fachs (oder aller Fächer).",
       parameters: {
         type: "object",
         properties: { fach: { type: "string", description: "Name des Fachs." } },
@@ -228,7 +233,7 @@ export const botTools: ChatTool[] = [
           fach: {
             type: "string",
             description:
-              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+              "Name eines vorhandenen Fachs, exakt wie in der Fächerliste. Unbekannte Fächer werden abgelehnt, nicht angelegt.",
           },
           typ: {
             type: "string",
@@ -236,7 +241,7 @@ export const botTools: ChatTool[] = [
             description: "Aufgabentyp. Standard: homework.",
           },
           faellig: { type: "string", description: DATE_DESC },
-          notiz: { type: "string", description: "Zusaetzliche Notiz zur Aufgabe." },
+          notiz: { type: "string", description: "Zusätzliche Notiz zur Aufgabe." },
         },
         required: ["titel"],
       },
@@ -246,7 +251,7 @@ export const botTools: ChatTool[] = [
     type: "function",
     function: {
       name: "aufgabe_aendern",
-      description: "Aendert eine bestehende Aufgabe, z. B. Faelligkeit oder erledigt-Status.",
+      description: "Ändert eine bestehende Aufgabe, z. B. Fälligkeit oder erledigt-Status.",
       parameters: {
         type: "object",
         properties: {
@@ -271,7 +276,7 @@ export const botTools: ChatTool[] = [
           fach: {
             type: "string",
             description:
-              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+              "Name eines vorhandenen Fachs, exakt wie in der Fächerliste. Unbekannte Fächer werden abgelehnt, nicht angelegt.",
           },
           titel: { type: "string" },
           text: { type: "string" },
@@ -285,7 +290,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "notiz_aendern",
       description:
-        "Aendert Titel und/oder Text einer bestehenden Fach-Notiz. Der neue Text ersetzt den alten vollstaendig, gib also immer den kompletten gewuenschten Inhalt an. Ein leerer Text wird abgelehnt, weil er die Notiz loeschen wuerde. Soll nur der Titel geaendert werden, lass text weg.",
+        "Ändert Titel und/oder Text einer bestehenden Fach-Notiz. Der neue Text ersetzt den alten vollständig, gib also immer den kompletten gewünschten Inhalt an. Ein leerer Text wird abgelehnt, weil er die Notiz löschen würde. Soll nur der Titel geändert werden, lass text weg.",
       parameters: {
         type: "object",
         properties: {
@@ -293,7 +298,7 @@ export const botTools: ChatTool[] = [
           titel: { type: "string" },
           text: {
             type: "string",
-            description: "Der vollstaendige neue Inhalt. Darf nicht leer sein.",
+            description: "Der vollständige neue Inhalt. Darf nicht leer sein.",
           },
         },
         required: ["notizId"],
@@ -305,13 +310,13 @@ export const botTools: ChatTool[] = [
     function: {
       name: "note_vorschlagen",
       description:
-        "Schlaegt eine Note zum Eintragen vor. Legt NICHTS an -- die Oberflaeche zeigt eine Vorschau, die der Schueler erst bestaetigen muss.",
+        "Schlägt eine Note zum Eintragen vor. Legt NICHTS an -- die Oberfläche zeigt eine Vorschau, die der Schüler erst bestätigen muss.",
       parameters: {
         type: "object",
         properties: {
           fach: { type: "string", description: "Name des Fachs." },
           punkte: { type: "number", description: "Punkte von 0 bis 15." },
-          art: { type: "string", enum: ["oral", "written"], description: "muendlich oder schriftlich." },
+          art: { type: "string", enum: ["oral", "written"], description: "mündlich oder schriftlich." },
           bezeichnung: { type: "string", description: "z. B. \"Klausur 1\"." },
           datum: { type: "string", description: DATE_DESC },
           gewicht: { type: "number", description: "Gewichtung, 1 = einfach, 2 = doppelt. Standard: 1." },
@@ -325,7 +330,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "jetzt_lesen",
       description:
-        "Liest die aktuelle Cockpit-Situation: laeuft gerade Unterricht, ist Pause, oder ist die Schule schon vorbei, dazu die naechste/laufende Stunde, heute faellige Aufgaben, die naechste Pruefung und der Tagesplan. Nutze es fuer Fragen wie 'was ist gerade/jetzt' oder 'was kommt als Naechstes heute'.",
+        "Liest die aktuelle Cockpit-Situation: läuft gerade Unterricht, ist Pause, oder ist die Schule schon vorbei, dazu die nächste/laufende Stunde, heute fällige Aufgaben, die nächste Prüfung und der Tagesplan. Nutze es für Fragen wie 'was ist gerade/jetzt' oder 'was kommt als Nächstes heute'.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -334,14 +339,14 @@ export const botTools: ChatTool[] = [
     function: {
       name: "lernstand_lesen",
       description:
-        "Liest den Lernstand (Karteikarten-Fortschritt je Fach: faellig/neu/lernend/sicher, naechste Pruefung, Lernplan). Nutze es IMMER zuerst, bevor du zu Lernen oder einer Pruefungsvorbereitung etwas vorschlaegst -- erst nachsehen, dann konkret vorschlagen (z. B. Karten erzeugen, Sitzung starten), statt allgemeine Lerntipps zu geben.",
+        "Liest den Lernstand (Karteikarten-Fortschritt je Fach: fällig/neu/lernend/sicher, nächste Prüfung, Lernplan). Nutze es IMMER zuerst, bevor du zu Lernen oder einer Prüfungsvorbereitung etwas vorschlägst -- erst nachsehen, dann konkret vorschlagen (z. B. Karten erzeugen, Sitzung starten), statt allgemeine Lerntipps zu geben.",
       parameters: {
         type: "object",
         properties: {
-          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: Uebersicht ueber alle Faecher." },
+          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: Übersicht über alle Fächer." },
           mitKarten: {
             type: "boolean",
-            description: "Nur mit fach: gibt zusaetzlich die ersten 30 Karten mit Frage/Antwort zurueck.",
+            description: "Nur mit fach: gibt zusätzlich die ersten 30 Karten mit Frage/Antwort zurück.",
           },
         },
       },
@@ -352,11 +357,11 @@ export const botTools: ChatTool[] = [
     function: {
       name: "lernplan_lesen",
       description:
-        "Liest den Lernplan zu einer Pruefung: Datum, Tage bis dahin, Fortschritt, Sicherheit je Punkt mit Quelle, Einheiten von heute und ueberfaellige. Nutze es fuer Fragen wie 'Wie steht mein Lernplan?' oder 'Was muss ich heute fuer die Arbeit lernen?'. Lesend, kein Schreibzugriff.",
+        "Liest den Lernplan zu einer Prüfung: Datum, Tage bis dahin, Fortschritt, Sicherheit je Punkt mit Quelle, Einheiten von heute und überfällige. Nutze es für Fragen wie 'Wie steht mein Lernplan?' oder 'Was muss ich heute für die Arbeit lernen?'. Lesend, kein Schreibzugriff.",
       parameters: {
         type: "object",
         properties: {
-          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: alle Lernplaene." },
+          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: alle Lernpläne." },
         },
       },
     },
@@ -366,7 +371,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "lernkarten_erzeugen",
       description:
-        "Erzeugt per KI neue Karteikarten aus Notizen, Dateien oder Lehrplan eines Fachs und legt sie direkt an. NUR auf ausdruecklichen Wunsch des Schuelers nutzen oder nachdem du nachgefragt und er zugestimmt hat -- nie ungefragt Karten erzeugen.",
+        "Erzeugt per KI neue Karteikarten aus Notizen, Dateien oder Lehrplan eines Fachs und legt sie direkt an. NUR auf ausdrücklichen Wunsch des Schülers nutzen oder nachdem du nachgefragt und er zugestimmt hat -- nie ungefragt Karten erzeugen.",
       parameters: {
         type: "object",
         properties: {
@@ -394,7 +399,7 @@ export const botTools: ChatTool[] = [
           fach: {
             type: "string",
             description:
-              "Name eines vorhandenen Fachs, exakt wie in der Faecherliste. Unbekannte Faecher werden abgelehnt, nicht angelegt.",
+              "Name eines vorhandenen Fachs, exakt wie in der Fächerliste. Unbekannte Fächer werden abgelehnt, nicht angelegt.",
           },
           frage: { type: "string" },
           antwort: { type: "string" },
@@ -415,7 +420,7 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
     case "aufgaben_lesen":
       return fach ? `liest Aufgaben in ${fach}` : "liest die Aufgaben";
     case "faecher_lesen":
-      return "liest die Faecherliste";
+      return "liest die Fächerliste";
     case "notizen_lesen":
       return fach ? `liest Notizen in ${fach}` : "liest die Notizen";
     case "noten_lesen":
@@ -429,25 +434,25 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
     case "aufgabe_anlegen":
       return "legt eine Aufgabe an";
     case "aufgabe_aendern":
-      return "aendert eine Aufgabe";
+      return "ändert eine Aufgabe";
     case "notiz_anlegen":
       return "legt eine Notiz an";
     case "notiz_aendern":
-      return "aendert eine Notiz";
+      return "ändert eine Notiz";
     case "note_vorschlagen":
-      return "schlaegt eine Note vor";
+      return "schlägt eine Note vor";
     case "jetzt_lesen":
       return "liest die aktuelle Stunde";
     case "lernstand_lesen":
       return fach ? `liest den Lernstand in ${fach}` : "liest den Lernstand";
     case "lernplan_lesen":
-      return fach ? `liest den Lernplan in ${fach}` : "liest die Lernplaene";
+      return fach ? `liest den Lernplan in ${fach}` : "liest die Lernpläne";
     case "lernkarten_erzeugen":
       return fach ? `erzeugt Lernkarten in ${fach}` : "erzeugt Lernkarten";
     case "lernkarte_anlegen":
       return "legt eine Lernkarte an";
     default:
-      return `fuehrt ${name} aus`;
+      return `führt ${name} aus`;
   }
 }
 
@@ -636,7 +641,7 @@ async function notenLesen(args: Record<string, unknown>) {
 // soll das ehrlich sagen statt sich Themen auszudenken.
 async function lehrplanLesen(args: Record<string, unknown>) {
   const fach = typeof args.fach === "string" ? args.fach.trim() : "";
-  if (!fach) return { hinweis: "Ohne Fachnamen laesst sich kein Lehrplan nachschlagen.", lehrplan: null };
+  if (!fach) return { hinweis: "Ohne Fachnamen lässt sich kein Lehrplan nachschlagen.", lehrplan: null };
 
   const subject = await findSubjectByName(fach);
   if (!subject) return { hinweis: `Fach "${fach}" wurde nicht gefunden.`, lehrplan: null };
@@ -645,7 +650,7 @@ async function lehrplanLesen(args: Record<string, unknown>) {
     return {
       fach: subject.name,
       lehrplan: null,
-      hinweis: `Fuer ${subject.name} ist kein Lehrplan hinterlegt.`,
+      hinweis: `Für ${subject.name} ist kein Lehrplan hinterlegt.`,
     };
   }
 
@@ -679,7 +684,7 @@ async function dateienAuflisten(args: Record<string, unknown>) {
 
 async function dateiLesen(args: Record<string, unknown>) {
   const dateiId = typeof args.dateiId === "string" ? args.dateiId : "";
-  if (!isUuid(dateiId)) return { error: "dateiId ist keine gueltige id." };
+  if (!isUuid(dateiId)) return { error: "dateiId ist keine gültige id." };
 
   const result = await readSubjectFile(dateiId);
   if (!result) return { error: "Datei nicht gefunden." };
@@ -705,7 +710,7 @@ async function resolveSubjectId(fach: string): Promise<{ subjectId: string } | {
 
   const namen = alle.map((s) => s.name);
   return {
-    error: `Fach "${fach}" gibt es nicht. Vorhandene Faecher: ${namen.join(", ")}. Frag den Schueler, welches Fach gemeint ist, und lege kein neues an.`,
+    error: `Fach "${fach}" gibt es nicht. Vorhandene Fächer: ${namen.join(", ")}. Frag den Schüler, welches Fach gemeint ist, und lege kein neues an.`,
   };
 }
 
@@ -725,7 +730,7 @@ async function aufgabeAnlegen(args: Record<string, unknown>) {
   const typ = typeof args.typ === "string" ? args.typ : "homework";
   const erlaubteTypen = ["homework", "exam", "test", "presentation", "other"] as const;
   if (!(erlaubteTypen as readonly string[]).includes(typ))
-    return { error: "typ ist kein gueltiger Aufgabentyp." };
+    return { error: "typ ist kein gültiger Aufgabentyp." };
 
   const assignment = await createAssignment({
     title: titel,
@@ -740,7 +745,7 @@ async function aufgabeAnlegen(args: Record<string, unknown>) {
 
 async function aufgabeAendern(args: Record<string, unknown>) {
   const aufgabeId = typeof args.aufgabeId === "string" ? args.aufgabeId : "";
-  if (!isUuid(aufgabeId)) return { error: "aufgabeId ist keine gueltige id." };
+  if (!isUuid(aufgabeId)) return { error: "aufgabeId ist keine gültige id." };
   if (!(await getAssignment(aufgabeId))) return { error: "Aufgabe nicht gefunden." };
 
   const patch: Partial<NewAssignment> = {};
@@ -790,7 +795,7 @@ async function notizAnlegen(args: Record<string, unknown>) {
 
 async function notizAendern(args: Record<string, unknown>) {
   const notizId = typeof args.notizId === "string" ? args.notizId : "";
-  if (!isUuid(notizId)) return { error: "notizId ist keine gueltige id." };
+  if (!isUuid(notizId)) return { error: "notizId ist keine gültige id." };
 
   // Ein leerer Text ist faktisch ein Loeschen: der bisherige Inhalt waere weg,
   // ohne Rueckgaengig und ohne dass jemand es bemerkt. Der Bot darf nicht
@@ -800,7 +805,7 @@ async function notizAendern(args: Record<string, unknown>) {
   if (typeof args.text === "string" && !args.text.trim()) {
     return {
       error:
-        "Ein leerer Text wuerde die Notiz loeschen. Das ist nicht erlaubt. Lass text weg, wenn nur der Titel geaendert werden soll.",
+        "Ein leerer Text würde die Notiz löschen. Das ist nicht erlaubt. Lass text weg, wenn nur der Titel geändert werden soll.",
     };
   }
 
@@ -809,7 +814,7 @@ async function notizAendern(args: Record<string, unknown>) {
   if (typeof args.text === "string") patch.body = args.text;
 
   if (Object.keys(patch).length === 0) {
-    return { error: "Es wurde nichts zum Aendern angegeben." };
+    return { error: "Es wurde nichts zum Ändern angegeben." };
   }
 
   const notiz = await updateNote(notizId, patch);
@@ -954,7 +959,7 @@ async function lernplanLesen(args: Record<string, unknown>) {
   if (plaene.length === 0) {
     return {
       plaene: [],
-      hinweis: fach ? `Kein Lernplan zu "${fach}" gefunden.` : "Keine Lernplaene vorhanden.",
+      hinweis: fach ? `Kein Lernplan zu "${fach}" gefunden.` : "Keine Lernpläne vorhanden.",
     };
   }
 

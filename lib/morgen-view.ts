@@ -62,7 +62,7 @@ const WEEKDAYS_FULL = [
   "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag",
 ];
 const MONTHS = [
-  "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
+  "Januar", "Februar", "März", "April", "Mai", "Juni",
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
 

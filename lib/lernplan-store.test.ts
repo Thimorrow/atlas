@@ -29,7 +29,7 @@ async function cleanup() {
 function punkt(overrides: Partial<PunktDraft> = {}): PunktDraft {
   return {
     titel: "Bruchrechnung",
-    detail: "Brueche addieren und subtrahieren",
+    detail: "Brüche addieren und subtrahieren",
     seiten: "12-14",
     fileIds: [],
     minuten: 30,
@@ -82,7 +82,7 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     await planLoeschen(plan.id, createdTopicIds);
   });
 
-  it("ersetzt einen bestehenden Plan (ersetzen: true) und behaelt/erneuert Themen nach Titel", async () => {
+  it("ersetzt einen bestehenden Plan (ersetzen: true) und behält/erneuert Themen nach Titel", async () => {
     const erster = await planAnlegen(
       { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false },
       heute,
@@ -149,7 +149,7 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     await planLoeschen(plan.id, createdTopicIds);
   });
 
-  it("DELETE mit topicIds loescht nur diese Themen; fremde topicIds -> 400 themen_fremd", async () => {
+  it("DELETE mit topicIds löscht nur diese Themen; fremde topicIds -> 400 themen_fremd", async () => {
     const { plan, createdTopicIds } = await planAnlegen(
       { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false },
       heute,
@@ -224,7 +224,7 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     await planLoeschen(plan.id, createdTopicIds);
   });
 
-  it("A14 reviewCard einer Karte des Themas schreibt die Punkt-Sicherheit zurueck (Quelle karten)", async () => {
+  it("A14 reviewCard einer Karte des Themas schreibt die Punkt-Sicherheit zurück (Quelle karten)", async () => {
     const { plan, createdTopicIds } = await planAnlegen(
       { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false },
       heute,

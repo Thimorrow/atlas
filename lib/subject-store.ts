@@ -583,7 +583,7 @@ export function parseOralWeight(v: unknown): Parsed<number> {
 function parseColor(v: unknown): Parsed<string | null> {
   if (v === null) return { ok: true, value: null };
   if (typeof v !== "string" || !COLOR_TOKENS.includes(v))
-    return { ok: false, error: "Farbe ist kein gueltiger Farbwert." };
+    return { ok: false, error: "Farbe ist kein gültiger Farbwert." };
   return { ok: true, value: v };
 }
 
@@ -650,7 +650,7 @@ export function parseSubjectPatch(body: unknown): Parsed<Partial<NewSubject>> {
       patch.onenoteSectionId = body.onenoteSectionId.trim();
       patch.onenoteSectionName = body.onenoteSectionName.trim();
     } else {
-      return { ok: false, error: "Der OneNote-Abschnitt ist unvollstaendig." };
+      return { ok: false, error: "Der OneNote-Abschnitt ist unvollständig." };
     }
   }
 
@@ -716,7 +716,7 @@ export function parseNotePatch(body: unknown): Parsed<Partial<NewSubjectNote>> {
 export function parseCurriculumBody(input: unknown): Parsed<string> {
   if (typeof input !== "string") return { ok: false, error: "body muss ein Text sein." };
   if (input.length > MAX_CURRICULUM_LEN)
-    return { ok: false, error: `Der Lehrplan darf hoechstens ${MAX_CURRICULUM_LEN} Zeichen lang sein.` };
+    return { ok: false, error: `Der Lehrplan darf höchstens ${MAX_CURRICULUM_LEN} Zeichen lang sein.` };
   return { ok: true, value: input };
 }
 
@@ -731,7 +731,7 @@ export function parseSetupBody(body: unknown): Parsed<{ selected: string[]; all:
   const selected = asNames(body.selected ?? []);
   const all = asNames(body.all ?? []);
   if (!selected || !all)
-    return { ok: false, error: "selected und all muessen Listen von Fachnamen sein." };
+    return { ok: false, error: "selected und all müssen Listen von Fachnamen sein." };
   return { ok: true, value: { selected, all } };
 }
 

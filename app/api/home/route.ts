@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   const date = new URL(req.url).searchParams.get("date") ?? heuteLokal();
   if (!DATE_RE.test(date) || !isRealDate(date)) {
     return NextResponse.json(
-      { error: "date muss ein gueltiges Datum im Format JJJJ-MM-TT sein." },
+      { error: "date muss ein gültiges Datum im Format JJJJ-MM-TT sein." },
       { status: 400 },
     );
   }

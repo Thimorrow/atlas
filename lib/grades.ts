@@ -12,7 +12,7 @@ export const GRADE_KINDS = ["oral", "written"] as const;
 export type GradeKind = (typeof GRADE_KINDS)[number];
 
 export const KIND_LABEL: Record<GradeKind, string> = {
-  oral: "Muendlich",
+  oral: "Mündlich",
   written: "Schriftlich",
 };
 
@@ -23,7 +23,7 @@ export const ORAL_WEIGHT_PRESETS = [50, 40] as const;
 export const DEFAULT_ORAL_WEIGHT = 50;
 
 // Kurz gehalten: welche Seite gemeint ist, steht direkt darueber im Schnitt
-// ("Muendlich ... Schriftlich"). Ein langes Label sprengt auf dem Handy die Karte.
+// ("Mündlich ... Schriftlich"). Ein langes Label sprengt auf dem Handy die Karte.
 export const ORAL_WEIGHT_LABEL: Record<number, string> = {
   50: "50 : 50",
   40: "40 : 60",

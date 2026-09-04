@@ -197,21 +197,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function parseType(v: unknown): Parsed<AssignmentType> {
   if (typeof v !== "string" || !ASSIGNMENT_TYPES.includes(v as AssignmentType))
-    return { ok: false, error: "Typ ist kein gueltiger Aufgabentyp." };
+    return { ok: false, error: "Typ ist kein gültiger Aufgabentyp." };
   return { ok: true, value: v as AssignmentType };
 }
 
 function parseDueDate(v: unknown): Parsed<string | null> {
   if (v === null || v === "") return { ok: true, value: null };
   if (typeof v !== "string" || !DATE_RE.test(v))
-    return { ok: false, error: "Faelligkeitsdatum muss im Format JJJJ-MM-TT sein." };
+    return { ok: false, error: "Fälligkeitsdatum muss im Format JJJJ-MM-TT sein." };
   return { ok: true, value: v };
 }
 
 function parseSubjectId(v: unknown): Parsed<string | null> {
   if (v === null || v === "") return { ok: true, value: null };
   if (typeof v !== "string" || !UUID_RE.test(v))
-    return { ok: false, error: "subjectId ist keine gueltige Fach-ID." };
+    return { ok: false, error: "subjectId ist keine gültige Fach-ID." };
   return { ok: true, value: v };
 }
 
@@ -274,8 +274,8 @@ export async function parseAssignmentPatch(
     if (!d.ok) return d;
     patch.dueDate = d.value;
   }
-  // Native Clients (explicitNulls=false) koennen null nicht explizit senden:
-  // clearDueDate=true loescht die Faelligkeit, auch ohne dueDate-Feld.
+  // Native Clients (explicitNulls=false) können null nicht explizit senden:
+  // clearDueDate=true löscht die Fälligkeit, auch ohne dueDate-Feld.
   if (body.clearDueDate === true) patch.dueDate = null;
 
   if (body.notes !== undefined) patch.notes = body.notes === null ? null : String(body.notes);
@@ -295,7 +295,7 @@ export async function parseAssignmentPatch(
 
   if (body.completedAt !== undefined) {
     if (body.completedAt !== null)
-      return { ok: false, error: "completedAt laesst sich nur ueber /complete setzen." };
+      return { ok: false, error: "completedAt lässt sich nur über /complete setzen." };
     patch.completedAt = null;
   }
 

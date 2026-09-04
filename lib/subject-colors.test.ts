@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultColorFor } from "@/lib/subject-colors";
 
 describe("defaultColorFor", () => {
-  it("nimmt bei zwei passenden Wunschfarben die laengere Nadel", () => {
+  it("nimmt bei zwei passenden Wunschfarben die längere Nadel", () => {
     // "Informatik/ang. Mathematik" enthaelt "mathe" und "informatik". Solange
     // die Listenreihenfolge entschied, bekam das Fach Mathes Blau: in der
     // Faecherliste sassen dann zwei blaue Punkte untereinander, waehrend das
@@ -14,23 +14,23 @@ describe("defaultColorFor", () => {
     expect(defaultColorFor("Mathematik")).toBe("blue");
   });
 
-  it("trifft Wunschfarben unabhaengig von Gross- und Kleinschreibung", () => {
+  it("trifft Wunschfarben unabhängig von Groß- und Kleinschreibung", () => {
     expect(defaultColorFor("BIOLOGIE")).toBe("green");
     expect(defaultColorFor("Geschichte bilingual")).toBe("violet");
   });
 
-  it("teilt per Hash niemals Weiss zu", () => {
+  it("teilt per Hash niemals Weiß zu", () => {
     // Weiss ist im Hellmodus ein sehr helles Grau. Selbst gewaehlt ist das
     // eine Entscheidung, per Los sieht es aus wie ein Loch.
     const namen = Array.from({ length: 500 }, (_, i) => `Fach ${i}`);
     for (const name of namen) expect(defaultColorFor(name)).not.toBe("white");
   });
 
-  it("laesst Weiss als Wunschfarbe weiterhin zu", () => {
+  it("lässt Weiß als Wunschfarbe weiterhin zu", () => {
     expect(defaultColorFor("Evangelische Religionslehre")).toBe("white");
   });
 
-  it("gibt fuer denselben Namen immer dieselbe Farbe", () => {
+  it("gibt für denselben Namen immer dieselbe Farbe", () => {
     expect(defaultColorFor("Wirtschaft/Politik")).toBe(defaultColorFor("Wirtschaft/Politik"));
   });
 });
