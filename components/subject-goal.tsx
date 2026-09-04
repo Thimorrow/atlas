@@ -98,10 +98,10 @@ export function SubjectGoal({
       return `Dein Schnitt liegt schon bei ${formatPoints(outcome.current)} Punkten. Eine ${targetLabel} hast du damit schon erreicht.`;
     }
     if (outcome.status === "unreachable") {
-      return `Selbst mit 15 Punkten kämst du auf ${formatPoints(outcome.atMax)} Punkte. Eine ${targetLabel} geht dieses Halbjahr nicht mehr.`;
+      return `Selbst mit 15 Punkten kaemst du auf ${formatPoints(outcome.atMax)} Punkte. Eine ${targetLabel} geht dieses Halbjahr nicht mehr.`;
     }
-    const where = kind === "written" ? "Arbeit" : "mündlichen Note";
-    return `Für eine ${targetLabel} brauchst du in der nächsten ${where} ${outcome.points} Punkte.`;
+    const where = kind === "written" ? "Arbeit" : "muendlichen Note";
+    return `Fuer eine ${targetLabel} brauchst du in der naechsten ${where} ${outcome.points} Punkte.`;
   }, [outcome, targetLabel, kind]);
 
   return (
@@ -126,7 +126,7 @@ export function SubjectGoal({
         </label>
 
         <SegmentedControl
-          ariaLabel="Art der nächsten Note"
+          ariaLabel="Art der naechsten Note"
           value={kind}
           onChange={setKind}
           options={[
@@ -136,7 +136,7 @@ export function SubjectGoal({
         />
 
         <SegmentedControl
-          ariaLabel="Gewichtung der nächsten Note"
+          ariaLabel="Gewichtung der naechsten Note"
           value={weight}
           onChange={setWeight}
           options={NEXT_WEIGHT_OPTIONS}

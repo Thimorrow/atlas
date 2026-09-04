@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const subjectId = url.searchParams.get("subjectId");
   if (subjectId && !isUuid(subjectId)) {
-    return NextResponse.json({ error: "subjectId ist keine gültige Fach-ID." }, { status: 400 });
+    return NextResponse.json({ error: "subjectId ist keine gueltige Fach-ID." }, { status: 400 });
   }
 
   const assignments = await listAssignments({

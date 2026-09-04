@@ -20,8 +20,8 @@ export function planText(total: number, plan: PlanDTO | null): string {
   if (total === 0) return "Noch keine Karten";
   if (!plan) return "";
   if (plan.offen === 0) return "Alle Karten sicher";
-  if (plan.tageBis <= 0) return `Heute ist die Prüfung, ${plan.offen} noch offen`;
-  if (plan.tageBis === 1) return `Morgen ist die Prüfung, ${plan.offen} noch offen`;
+  if (plan.tageBis <= 0) return `Heute ist die Pruefung, ${plan.offen} noch offen`;
+  if (plan.tageBis === 1) return `Morgen ist die Pruefung, ${plan.offen} noch offen`;
   return `${plan.proTag} Karten pro Tag, ${plan.offen} noch offen`;
 }
 
@@ -33,7 +33,7 @@ export function tageBisLabel(tageBis: number): string {
 
 function grundText(item: HeuteItem): string {
   if (item.grund === "pruefung" && item.pruefung) return `Arbeit ${tageBisLabel(item.pruefung.tageBis)}`;
-  return "fällig";
+  return "faellig";
 }
 
 export function LernenUebersicht() {
@@ -98,7 +98,7 @@ export function LernenUebersicht() {
             ? `Heute ${data.heute.karten} ${data.heute.karten === 1 ? "Karte" : "Karten"}, etwa ${data.heute.minuten} ${
                 data.heute.minuten === 1 ? "Minute" : "Minuten"
               } · ${data.heuteGelernt} gelernt`
-            : `Heute nichts fällig · ${data.heuteGelernt} gelernt`}
+            : `Heute nichts faellig · ${data.heuteGelernt} gelernt`}
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export function LernenUebersicht() {
       {data.pruefungen.length > 0 && (
         <section className="space-y-2">
           <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Prüfungen bald
+            Pruefungen bald
           </h2>
           <div className="space-y-2">
             {data.pruefungen.map((p) => (
@@ -129,14 +129,14 @@ export function LernenUebersicht() {
       {leer && (
         <div className="rounded-xl border border-dashed px-4 py-8 text-center">
           <p className="text-[14px] text-muted-foreground">
-            Noch keine Lernkarten. Öffne ein Fach und lass Karten aus deinen Notizen erzeugen.
+            Noch keine Lernkarten. Oeffne ein Fach und lass Karten aus deinen Notizen erzeugen.
           </p>
         </div>
       )}
 
       <section className="space-y-2">
         <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Alle Fächer
+          Alle Faecher
         </h2>
         <ul className="divide-y rounded-xl border">
           {[...data.faecher]
@@ -254,7 +254,7 @@ function FachZeile({ fach }: { fach: SubjectOverview }) {
         />
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{fach.name}</span>
         <span className="shrink-0 tabular-nums text-[12.5px] text-muted-foreground">
-          {progress.total === 0 ? "Keine Karten" : `${progress.faellig} fällig · ${progress.bereit}% bereit`}
+          {progress.total === 0 ? "Keine Karten" : `${progress.faellig} faellig · ${progress.bereit}% bereit`}
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </Link>

@@ -108,11 +108,11 @@ export const GROUP_ORDER: GroupKey[] = [
 ];
 
 export const GROUP_LABEL: Record<GroupKey, string> = {
-  overdue: "Überfällig",
+  overdue: "Ueberfaellig",
   today: "Heute",
   tomorrow: "Morgen",
   week: "Diese Woche",
-  later: "Später",
+  later: "Spaeter",
   undated: "Ohne Datum",
 };
 
@@ -126,7 +126,7 @@ export function groupOf(dueDate: string | null, todayISO: string): GroupKey {
 }
 
 // Innerhalb einer Gruppe: Pruefungen zuerst, dann nach Fach, dann nach Titel.
-// Bei "Später" zusaetzlich das Datum voran, sonst stuende der uebernaechste
+// Bei "Spaeter" zusaetzlich das Datum voran, sonst stuende der uebernaechste
 // Monat ueber der naechsten Woche.
 export function compareInGroup(a: AssignmentDTO, b: AssignmentDTO): number {
   const examDiff = Number(isExam(b.type)) - Number(isExam(a.type));
@@ -154,7 +154,7 @@ export function groupAssignments(
   }
   return GROUP_ORDER.filter((k) => (buckets.get(k)?.length ?? 0) > 0).map((key) => {
     const items = buckets.get(key)!;
-    // "Später" laeuft chronologisch, alle anderen Gruppen haben ohnehin nur
+    // "Spaeter" laeuft chronologisch, alle anderen Gruppen haben ohnehin nur
     // einen Tag (bzw. gar kein Datum) und sortieren rein inhaltlich.
     items.sort(
       key === "later" || key === "overdue" || key === "week"
@@ -165,17 +165,17 @@ export function groupAssignments(
   });
 }
 
-// "seit gestern" / "3 Tage überfällig" -- fuer den Ueberfaellig-Block.
+// "seit gestern" / "3 Tage ueberfaellig" -- fuer den Ueberfaellig-Block.
 export function overdueLabel(dueISO: string, todayISO: string = localISO()): string {
   const days = daysBetween(dueISO, todayISO);
-  if (days <= 0) return "überfällig";
+  if (days <= 0) return "ueberfaellig";
   if (days === 1) return "seit gestern";
-  return `${days} Tage überfällig`;
+  return `${days} Tage ueberfaellig`;
 }
 
 const WEEKDAYS_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const MONTHS = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Januar", "Februar", "Maerz", "April", "Mai", "Juni",
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
 
@@ -276,7 +276,7 @@ export function groupExamsByWeek(
       );
       let label: string;
       if (weekStart === todayWeekStart) label = "Diese Woche";
-      else if (weekStart === addDays(todayWeekStart, 7)) label = "Nächste Woche";
+      else if (weekStart === addDays(todayWeekStart, 7)) label = "Naechste Woche";
       else label = `Woche vom ${dateOnlyLabel(weekStart)}`;
       return { key: weekStart, label, items: sorted, crowded: sorted.length >= 3 };
     });

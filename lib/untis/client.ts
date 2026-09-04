@@ -102,7 +102,7 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
           teachers: [],
           schoolyear: jahr,
           window: null,
-          hinweis: `Der Zeitraum liegt außerhalb des Schuljahres ${jahr.name} (${jahr.start} bis ${jahr.end}).`,
+          hinweis: `Der Zeitraum liegt ausserhalb des Schuljahres ${jahr.name} (${jahr.start} bis ${jahr.end}).`,
         };
       }
       if (isoTag(von) !== isoTag(start) || isoTag(bis) !== isoTag(end)) {
@@ -126,8 +126,8 @@ export async function fetchTimetable(start: Date, end: Date): Promise<TimetableR
           window: { start: isoTag(von), end: isoTag(bis) },
           hinweis:
             untisCode === -8509
-              ? "Untis gibt den Stundenplan für diesen Zeitraum noch nicht frei."
-              : "Untis nimmt diesen Zeitraum nicht an, er liegt außerhalb des erlaubten Bereichs.",
+              ? "Untis gibt den Stundenplan fuer diesen Zeitraum noch nicht frei."
+              : "Untis nimmt diesen Zeitraum nicht an, er liegt ausserhalb des erlaubten Bereichs.",
         };
       }
       throw err;

@@ -21,7 +21,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   const body = await req.json().catch(() => null);
   if (typeof body !== "object" || body === null) {
-    return NextResponse.json({ error: "Ungültiger Request-Body." }, { status: 400 });
+    return NextResponse.json({ error: "Ungueltiger Request-Body." }, { status: 400 });
   }
 
   const { title, summary, assignmentId, archivedAt } = body as Record<string, unknown>;
@@ -38,13 +38,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   if (summary !== undefined) {
     if (typeof summary !== "string" || summary.length > MAX_SUMMARY_LEN) {
-      return NextResponse.json({ error: `summary darf höchstens ${MAX_SUMMARY_LEN} Zeichen lang sein.` }, { status: 400 });
+      return NextResponse.json({ error: `summary darf hoechstens ${MAX_SUMMARY_LEN} Zeichen lang sein.` }, { status: 400 });
     }
     patch.summary = summary;
   }
   if (assignmentId !== undefined) {
     if (assignmentId !== null && (typeof assignmentId !== "string" || !isUuid(assignmentId))) {
-      return NextResponse.json({ error: "assignmentId muss eine gültige ID oder null sein." }, { status: 400 });
+      return NextResponse.json({ error: "assignmentId muss eine gueltige ID oder null sein." }, { status: 400 });
     }
     patch.assignmentId = assignmentId;
   }

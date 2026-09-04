@@ -42,7 +42,7 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
 
   if (!naechster) {
     return {
-      text: "Für die nächsten Tage stehen keine Schulstunden im Plan.",
+      text: "Fuer die naechsten Tage stehen keine Schulstunden im Plan.",
       suggestions: ["Was steht bei mir offen?", "Fass mir meine letzten Notizen zusammen", "Trag mir eine Aufgabe ein"],
     };
   }
@@ -60,7 +60,7 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
   }
 
   const suggestions = [
-    istMorgen ? "Was muss ich für morgen machen?" : `Was muss ich für ${weekdayName(naechster.date)} machen?`,
+    istMorgen ? "Was muss ich fuer morgen machen?" : `Was muss ich fuer ${weekdayName(naechster.date)} machen?`,
     faecher[0] ? `Fass mir meine ${faecher[0]}-Notizen zusammen` : "Fass mir meine letzten Notizen zusammen",
     "Trag mir eine Hausaufgabe ein",
   ];
@@ -71,15 +71,15 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
 // modus "live": laeuft gerade Unterricht.
 function liveGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResponse["selected"]> }): Greeting {
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
-  let text = `Gerade läuft ${fach}, noch ${jetzt.selected.minutesLeft} Minuten.`;
+  let text = `Gerade laeuft ${fach}, noch ${jetzt.selected.minutesLeft} Minuten.`;
   if (jetzt.faellig.length > 0) {
-    text += ` Dafür ist heute ${jetzt.faellig.length} Aufgabe(n) fällig.`;
+    text += ` Dafuer ist heute ${jetzt.faellig.length} Aufgabe(n) faellig.`;
   }
 
   return {
     text,
     suggestions: [
-      "Was ist heute noch fällig?",
+      "Was ist heute noch faellig?",
       `Trag mir eine Hausaufgabe in ${fach} ein`,
       `Was kam letzte Stunde in ${fach} dran?`,
     ],
@@ -90,13 +90,13 @@ function liveGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResp
 // (defaultLesson faellt in diesen Modi auf pickNextLesson zurueck).
 function pauseVorGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResponse["selected"]> }): Greeting {
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
-  let text = `Als Nächstes ${fach} um ${jetzt.selected.startTime}.`;
+  let text = `Als Naechstes ${fach} um ${jetzt.selected.startTime}.`;
   if (jetzt.selected.room) text += ` Raum ${jetzt.selected.room}.`;
 
   return {
     text,
     suggestions: [
-      "Was ist heute noch fällig?",
+      "Was ist heute noch faellig?",
       `Trag mir eine Hausaufgabe in ${fach} ein`,
       `Was kam letzte Stunde in ${fach} dran?`,
     ],
@@ -125,7 +125,7 @@ async function withExamHint(base: Greeting): Promise<Greeting> {
 
   const text = `${base.text} Am ${weekdayName(exam.dueDate)} ist die ${exam.title}.`;
   const fach = exam.subjectName ?? exam.title;
-  const suggestions = [`Hilf mir, für ${fach} zu lernen`, ...base.suggestions.slice(1)];
+  const suggestions = [`Hilf mir, fuer ${fach} zu lernen`, ...base.suggestions.slice(1)];
 
   return { text, suggestions };
 }
@@ -203,6 +203,7 @@ Heutiges Datum: ${heute} (JJJJ-MM-TT), ${weekdayName(heute)}. Uhrzeit: ${uhrzeit
 Regeln:
 - Antworte kurz und konkret, auf Deutsch, ohne Gedankenstriche.
 - Denke auf Deutsch. Auch deine internen Ueberlegungen formulierst du ausschliesslich auf Deutsch.
+- Schreib ohne Umlaute und ohne Eszett: ae, oe, ue, Ae, Oe, Ue, ss. Also "Pruefung", "naechste Woche", "gross". Das gilt auch fuer Titel und Texte, die du ueber Werkzeuge speicherst.
 - Was im Lagebild steht, darfst du direkt verwenden. Fuer alles, was dort nicht steht (Notiztexte, Dateien, Noten, Lernstand, aeltere oder erledigte Aufgaben, andere Tage), nutze ein Werkzeug -- rate nichts.
 - Die ids aus dem Lagebild kannst du direkt in aufgabe_aendern und notiz_aendern verwenden, ohne vorher zu lesen.
 - Stammt eine Aussage aus einer Notiz oder Datei, nenne die Quelle (z. B. "steht in Mathe/Ableitungen.pdf").

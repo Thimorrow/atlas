@@ -61,7 +61,7 @@ export default async function RootLayout({
               {/* Unteres Inset an der Inhaltsspalte: die Seiten scrollen jeweils
                   in sich (main mit overflow-y-auto), ihr letztes Element endete
                   sonst hinter dem Home-Balken -- genau dort sitzen "Jetzt
-                  synchronisieren", "Archivieren" und "Löschen". */}
+                  synchronisieren", "Archivieren" und "Loeschen". */}
               <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
                 <MobileHeader />
                 <div className="min-h-0 flex-1 overflow-hidden">{children}</div>

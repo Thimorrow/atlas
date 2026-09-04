@@ -265,7 +265,7 @@ export async function reviewCard(id: string, correct: boolean): Promise<StudyCar
   // Sicherheit schreibt sich zurueck (SPEC.md): dynamischer Import statt
   // statischem, weil lib/lernplan-store.ts umgekehrt aus dieser Datei
   // importiert (createTopic/updateTopic/deleteTopic) -- ein statischer Import
-  // hier waere ein Zirkel. Fehler dürfen das Review nicht kaputt machen.
+  // hier waere ein Zirkel. Fehler duerfen das Review nicht kaputt machen.
   if (card.topicId) {
     try {
       const { aktualisiereAusKarten } = await import("@/lib/lernplan-store");

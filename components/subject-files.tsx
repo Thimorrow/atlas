@@ -143,7 +143,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
       let selected = incoming;
       if (selected.length > MAX_FILES_PER_UPLOAD) {
         selected = selected.slice(0, MAX_FILES_PER_UPLOAD);
-        toast(`Höchstens ${MAX_FILES_PER_UPLOAD} Dateien auf einmal, die ersten ${MAX_FILES_PER_UPLOAD} werden hochgeladen.`);
+        toast(`Hoechstens ${MAX_FILES_PER_UPLOAD} Dateien auf einmal, die ersten ${MAX_FILES_PER_UPLOAD} werden hochgeladen.`);
       }
 
       // Vorab im Browser pruefen. Das Token und der Server halten dieselben
@@ -159,7 +159,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
         valid.push(file);
       }
       if (skipped > 0) {
-        toast(`${skipped} ${skipped === 1 ? "Datei" : "Dateien"} übersprungen: falscher Typ oder größer als 10 MB.`);
+        toast(`${skipped} ${skipped === 1 ? "Datei" : "Dateien"} uebersprungen: falscher Typ oder groesser als 10 MB.`);
       }
       if (valid.length === 0) return;
 
@@ -210,16 +210,16 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
       setFiles((prev) => prev.filter((f) => f.id !== id));
       setPending(null);
     } catch {
-      toast("Die Datei konnte nicht gelöscht werden.");
+      toast("Die Datei konnte nicht geloescht werden.");
     } finally {
       setDeleting(false);
     }
   }
 
   // Fokus in das Overlay ziehen, sonst bleibt er auf dem verschwundenen
-  // Löschen-Knopf der Zeile hängen. Beim Schließen geht er dorthin zurück, wo er
+  // Loeschen-Knopf der Zeile haengen. Beim Schliessen geht er dorthin zurueck, wo er
   // herkam -- sonst faellt er auf <body> und die Tastatur-Navigation faengt von
-  // vorn an. Die Zeile kann nach dem Löschen weg sein, daher der optionale Aufruf.
+  // vorn an. Die Zeile kann nach dem Loeschen weg sein, daher der optionale Aufruf.
   useEffect(() => {
     if (!pending) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
@@ -238,7 +238,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
         <p className="text-[13px] text-muted-foreground">Wird geladen …</p>
       ) : !enabled ? (
         // Token fehlt: ein ruhiger Hinweis, kein Upload, keine Fehlerfarbe.
-        // Der Rest der Seite bleibt davon unberührt.
+        // Der Rest der Seite bleibt davon unberuehrt.
         <p className="rounded-lg border border-dashed px-4 py-6 text-center text-[13px] text-muted-foreground">
           Der Dateispeicher ist noch nicht eingerichtet.
         </p>
@@ -296,10 +296,10 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
             >
               <Upload aria-hidden className="size-4 text-muted-foreground" />
               <span className="text-[13px] font-medium">
-                {uploading ? `Wird hochgeladen … (${batchDone} von ${batchTotal})` : "Datei auswählen oder hierher ziehen"}
+                {uploading ? `Wird hochgeladen … (${batchDone} von ${batchTotal})` : "Datei auswaehlen oder hierher ziehen"}
               </span>
               <span className="text-[12px] text-muted-foreground">
-                PDF, PNG, JPG, WEBP oder HEIC, bis 10 MB pro Datei, mehrere auf einmal möglich
+                PDF, PNG, JPG, WEBP oder HEIC, bis 10 MB pro Datei, mehrere auf einmal moeglich
               </span>
             </label>
           </div>
@@ -390,7 +390,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                     <button
                       type="button"
                       onClick={() => setPending(f)}
-                      aria-label={`${f.name} löschen`}
+                      aria-label={`${f.name} loeschen`}
                       className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       <Trash2 className="size-4" />
@@ -403,7 +403,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
         </>
       )}
 
-      {/* Eigenes Bestätigungs-Overlay statt window.confirm: das native Fenster
+      {/* Eigenes Bestaetigungs-Overlay statt window.confirm: das native Fenster
           bricht optisch aus der App aus und ist nicht gestaltbar. */}
       <AnimatePresence>
         {pending && (
@@ -434,10 +434,10 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
               className="relative w-full max-w-sm rounded-t-2xl border bg-card p-5 shadow-popover sm:rounded-2xl"
             >
               <h3 id={`${uid}-confirm`} className="text-[15px] font-semibold tracking-tight">
-                Datei löschen?
+                Datei loeschen?
               </h3>
               <p className="mt-1 text-[13px] text-muted-foreground">
-                {pending.name} wird endgültig entfernt. Das lässt sich nicht rückgängig machen.
+                {pending.name} wird endgueltig entfernt. Das laesst sich nicht rueckgaengig machen.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <Button
@@ -458,7 +458,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                   // Es gibt kein --destructive-foreground-Token: text-background traegt.
                   className="bg-destructive text-background hover:bg-destructive/90"
                 >
-                  {deleting ? "Löscht …" : "Löschen"}
+                  {deleting ? "Loescht …" : "Loeschen"}
                 </Button>
               </div>
             </motion.div>

@@ -42,10 +42,10 @@ async function withExistenceCheck(m: MessageDTO): Promise<MessageDTO & { stillEx
 // Aufgaben und Notizen -- additiv, die uebrigen Felder bleiben gleich.
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  if (!isUuid(id)) return NextResponse.json({ error: "Ungültige id." }, { status: 400 });
+  if (!isUuid(id)) return NextResponse.json({ error: "Ungueltige id." }, { status: 400 });
 
   const conversation = await getConversation(id);
-  if (!conversation) return NextResponse.json({ error: "Gespräch nicht gefunden." }, { status: 404 });
+  if (!conversation) return NextResponse.json({ error: "Gespraech nicht gefunden." }, { status: 404 });
 
   const rawMessages = await listMessages(id);
   const messages = await Promise.all(rawMessages.map(withExistenceCheck));

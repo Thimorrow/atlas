@@ -141,7 +141,7 @@ describe("toModelMessages", () => {
     expect(typeof toolMessage?.content).toBe("string");
     const content = toolMessage!.content as string;
     expect(content.length).toBeLessThan(JSON.stringify(langesErgebnis).length);
-    expect(content.endsWith("… [gekürzt]")).toBe(true);
+    expect(content.endsWith("… [gekuerzt]")).toBe(true);
   });
 
   it("gibt alle Werkzeugergebnisse mit, wenn es insgesamt weniger als sechs Nutzerfragen gibt", () => {

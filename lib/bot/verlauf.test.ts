@@ -90,7 +90,7 @@ describe("toolPastLabel", () => {
 
   it("kennt jedes Werkzeug mit einem eigenen Klartext", () => {
     expect(toolPastLabel("stundenplan_lesen", {})).toBe("hat den Stundenplan gelesen");
-    expect(toolPastLabel("unbekanntes_werkzeug", {})).toBe("hat unbekanntes_werkzeug ausgeführt");
+    expect(toolPastLabel("unbekanntes_werkzeug", {})).toBe("hat unbekanntes_werkzeug ausgefuehrt");
   });
 
   it("kennzeichnet einen gescheiterten Schreibversuch als gescheitert", () => {

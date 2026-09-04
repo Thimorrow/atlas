@@ -286,9 +286,14 @@ describe("matchSubject findet vorhandene Faecher, ohne welche zu erfinden", () =
     expect(matchSubject("reli", faecher)?.name).toBe("Religion");
   });
 
-  it("findet 'Franzoesisch' ueber die geschriebene Form gegen 'Französisch'", () => {
-    const mitUmlaut = [...faecher, { id: "7", name: "Französisch", untisSubject: "F" } as SubjectDTO];
-    expect(matchSubject("Franzoesisch", mitUmlaut)?.name).toBe("Französisch");
+  it("findet ein Fach unabhaengig von der Umlaut-Schreibweise", () => {
+    // Der Fachname der App ist transliteriert, aus Untis oder aus der Tastatur
+    // des Schuelers kommt er mit Umlaut. Beide Richtungen muessen treffen.
+    const mitUmlaut = [...faecher, { id: "7", name: "Franz\u00f6sisch", untisSubject: "F" } as SubjectDTO];
+    expect(matchSubject("Franzoesisch", mitUmlaut)?.name).toBe("Franz\u00f6sisch");
+
+    const transliteriert = [...faecher, { id: "8", name: "Franzoesisch", untisSubject: "F" } as SubjectDTO];
+    expect(matchSubject("Franz\u00f6sisch", transliteriert)?.name).toBe("Franzoesisch");
   });
 
   it("laesst 'Ge' (2 Zeichen normalisiert) nicht auf Geschichte matchen", () => {

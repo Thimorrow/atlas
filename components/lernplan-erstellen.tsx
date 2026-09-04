@@ -65,15 +65,15 @@ function leererEntwurf(): Entwurf {
 }
 
 const FEHLER_TEXT: Record<string, string> = {
-  dateien_fremd: "Eine der Dateien gehört nicht zu diesem Fach.",
+  dateien_fremd: "Eine der Dateien gehoert nicht zu diesem Fach.",
   datei_laden: "Eine Datei konnte nicht geladen werden.",
   datei_nicht_lesbar: "Eine Datei kann nicht gelesen werden.",
-  pdf_ohne_text: "Das PDF enthält keinen Text. Als Foto hochladen oder Text einfügen.",
+  pdf_ohne_text: "Das PDF enthaelt keinen Text. Als Foto hochladen oder Text einfuegen.",
   modell: "Das Modell hat nicht geantwortet.",
-  keine_punkte: "Keine Punkte erkannt. Text prüfen und erneut versuchen.",
+  keine_punkte: "Keine Punkte erkannt. Text pruefen und erneut versuchen.",
   speichern: "Der Plan konnte nicht gespeichert werden.",
-  pruefung: "Diese Prüfung gibt es nicht mehr.",
-  keine_tage: "Bis zur Prüfung sind keine Tage mehr.",
+  pruefung: "Diese Pruefung gibt es nicht mehr.",
+  keine_tage: "Bis zur Pruefung sind keine Tage mehr.",
   plan_gerade_erstellt: "Der Plan wurde gerade erstellt.",
 };
 
@@ -105,7 +105,7 @@ async function bildFallsNoetigVerkleinern(file: File): Promise<File> {
   try {
     return await verkleinereBild(file);
   } catch (e) {
-    throw new Error(e instanceof Error && e.message === "Bild zu groß" ? "Bild zu groß" : "Das Bild konnte nicht verarbeitet werden.");
+    throw new Error(e instanceof Error && e.message === "Bild zu gross" ? "Bild zu gross" : "Das Bild konnte nicht verarbeitet werden.");
   }
 }
 
@@ -160,16 +160,16 @@ export function LernplanErstellen({
         setBestehenderPlan(pRes.status === 200);
 
         if (!found) {
-          setGateGrund("Diese Prüfung gibt es nicht (mehr).");
+          setGateGrund("Diese Pruefung gibt es nicht (mehr).");
           setGate("fehlt");
         } else if (!found.subjectId) {
-          setGateGrund("Diese Prüfung hat kein Fach.");
+          setGateGrund("Diese Pruefung hat kein Fach.");
           setGate("fehlt");
         } else if (!found.dueDate || found.dueDate <= localISO()) {
-          setGateGrund("Bis zur Prüfung sind keine Tage mehr.");
+          setGateGrund("Bis zur Pruefung sind keine Tage mehr.");
           setGate("fehlt");
         } else if (!sData.botEnabled) {
-          setGateGrund("Die KI ist nicht eingerichtet, ein Lernplan lässt sich gerade nicht erstellen.");
+          setGateGrund("Die KI ist nicht eingerichtet, ein Lernplan laesst sich gerade nicht erstellen.");
           setGate("fehlt");
         } else {
           setAssignment({ id: found.id, title: found.title, dueDate: found.dueDate });
@@ -233,13 +233,13 @@ export function LernplanErstellen({
     return (
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
-          <p className="text-[15px] font-medium">Lernplan lässt sich nicht erstellen</p>
+          <p className="text-[15px] font-medium">Lernplan laesst sich nicht erstellen</p>
           <p className="text-[13px] text-muted-foreground">{gateGrund}</p>
           <Link
             href={`/lernen/${subjectId}`}
             className="rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Zurück zum Fach
+            Zurueck zum Fach
           </Link>
         </div>
       </div>
@@ -259,7 +259,7 @@ export function LernplanErstellen({
 
       {bestehenderPlan && (
         <div className="rounded-lg border border-dashed px-3 py-2.5 text-[13px] text-muted-foreground">
-          Es gibt schon einen Plan zu dieser Prüfung, ein neuer ersetzt ihn.
+          Es gibt schon einen Plan zu dieser Pruefung, ein neuer ersetzt ihn.
         </div>
       )}
       {speicherWarnung && (
@@ -324,7 +324,7 @@ export function LernplanErstellen({
               `Lernplan mit ${anzahlEinheiten} ${anzahlEinheiten === 1 ? "Einheit" : "Einheiten"} angelegt`,
               "success",
               {
-                label: "Rückgängig",
+                label: "Rueckgaengig",
                 onClick: () => {
                   void fetch(`/api/lernen/plan/${planId}`, {
                     method: "DELETE",
@@ -344,7 +344,7 @@ export function LernplanErstellen({
 
 // --- Fortschrittsanzeige der vier Schritte ----------------------------------
 
-const SCHRITT_LABEL = ["Material", "Punkte prüfen", "Diagnosetest", "Plan"];
+const SCHRITT_LABEL = ["Material", "Punkte pruefen", "Diagnosetest", "Plan"];
 
 function Fortschritt({ schritt }: { schritt: number }) {
   return (
@@ -539,7 +539,7 @@ function SchrittMaterial({
             Aus Fach-Dateien
           </ChipRadio>
           <ChipRadio checked={entwurf.checklistMode === "text"} onChange={() => setEntwurf((e) => ({ ...e, checklistMode: "text" }))}>
-            Text einfügen
+            Text einfuegen
           </ChipRadio>
         </div>
 
@@ -568,7 +568,7 @@ function SchrittMaterial({
                 <Upload className="size-4 text-muted-foreground" />
               )}
               <span className="text-[13px] font-medium">
-                {entwurf.checklistFileId ? entwurf.checklistFileName : "Foto oder PDF wählen"}
+                {entwurf.checklistFileId ? entwurf.checklistFileName : "Foto oder PDF waehlen"}
               </span>
             </button>
           </div>
@@ -599,7 +599,7 @@ function SchrittMaterial({
             value={entwurf.checklistText}
             onChange={(e) => setEntwurf((prev) => ({ ...prev, checklistText: e.target.value.slice(0, MAX_TEXT) }))}
             rows={6}
-            placeholder="Checkliste einfügen"
+            placeholder="Checkliste einfuegen"
             className="w-full resize-none rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         )}
@@ -611,7 +611,7 @@ function SchrittMaterial({
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-[13px] font-semibold">Arbeitsblätter</h2>
+        <h2 className="text-[13px] font-semibold">Arbeitsblaetter</h2>
         <p className="text-[12.5px] text-muted-foreground">Optional, Mehrfachauswahl.</p>
         <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
           {dateien.length === 0 && <li className="px-2 py-1.5 text-[13px] text-muted-foreground">Noch keine Fach-Dateien.</li>}
@@ -788,7 +788,7 @@ function SchrittPunkte({
   return (
     <div className="space-y-4">
       <p className="text-[13px] text-muted-foreground">
-        {entwurf.punkte.length} {entwurf.punkte.length === 1 ? "Punkt" : "Punkte"} erkannt. Titel, Seiten, Blätter und Minuten
+        {entwurf.punkte.length} {entwurf.punkte.length === 1 ? "Punkt" : "Punkte"} erkannt. Titel, Seiten, Blaetter und Minuten
         lassen sich anpassen.
       </p>
 
@@ -862,7 +862,7 @@ function SchrittPunkte({
               </div>
               <button
                 type="button"
-                aria-label={`${p.titel || "Punkt"} löschen`}
+                aria-label={`${p.titel || "Punkt"} loeschen`}
                 onClick={() => loeschePunkt(p.key)}
                 className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -876,7 +876,7 @@ function SchrittPunkte({
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={punktHinzufuegen}>
           <Plus className="size-3.5" />
-          Punkt hinzufügen
+          Punkt hinzufuegen
         </Button>
         <Button type="button" variant="outline" size="sm" disabled={markiert.length !== 2} onClick={zusammenlegen}>
           Zusammenlegen
@@ -904,7 +904,7 @@ function SchrittPunkte({
 
       <div className="flex gap-2">
         <Button type="button" variant="ghost" className="h-11" onClick={onZurueck}>
-          Zurück
+          Zurueck
         </Button>
         <Button type="button" className="h-11 flex-1" disabled={entwurf.punkte.length === 0} onClick={onWeiter}>
           Weiter zum Test
@@ -1037,7 +1037,7 @@ function SchrittTest({
       const zuSenden = fragePunkte.filter((p) => entwurf.antworten[p.key] !== null && entwurf.antworten[p.key] !== undefined);
 
       // Alle Diagnosefragen uebersprungen: kein POST noetig, Checks direkt
-      // lokal bauen (alle "falsch", Feedback "Übersprungen").
+      // lokal bauen (alle "falsch", Feedback "Uebersprungen").
       if (zuSenden.length === 0) {
         const checks: CheckDraft[] = fragePunkte.map((p) => ({
           pointIndex: entwurf.punkte.findIndex((q) => q.key === p.key),
@@ -1045,7 +1045,7 @@ function SchrittTest({
           musterantwort: p.musterantwort ?? "",
           antwort: null,
           urteil: "falsch",
-          feedback: "Übersprungen",
+          feedback: "Uebersprungen",
         }));
         setEntwurf((e) => ({ ...e, checks }));
         return;
@@ -1083,7 +1083,7 @@ function SchrittTest({
         const pointIndex = entwurf.punkte.findIndex((q) => q.key === p.key);
         const antwort = entwurf.antworten[p.key] ?? null;
         if (antwort === null) {
-          return { pointIndex, frage: p.frage!, musterantwort: p.musterantwort ?? "", antwort: null, urteil: "falsch", feedback: "Übersprungen" };
+          return { pointIndex, frage: p.frage!, musterantwort: p.musterantwort ?? "", antwort: null, urteil: "falsch", feedback: "Uebersprungen" };
         }
         const urteil = data[urteilIndex];
         urteilIndex += 1;
@@ -1129,7 +1129,7 @@ function SchrittTest({
           )}
         </Button>
         <Button type="button" variant="ghost" className="h-11 w-full" onClick={() => setIndex(0)}>
-          Zurück zu den Fragen
+          Zurueck zu den Fragen
         </Button>
       </div>
     );
@@ -1168,7 +1168,7 @@ function SchrittTest({
           />
           <div className="grid grid-cols-2 gap-2">
             <Button type="button" variant="outline" className="h-11" onClick={() => antworten(null)}>
-              Weiß ich nicht
+              Weiss ich nicht
             </Button>
             <Button type="submit" className="h-11">
               Weiter
@@ -1239,7 +1239,7 @@ function TestErgebnis({
       </ul>
       <div className="flex gap-2">
         <Button type="button" variant="ghost" className="h-11" onClick={onZurueck}>
-          Zurück
+          Zurueck
         </Button>
         <Button type="button" className="h-11 flex-1" onClick={onWeiter}>
           Plan erstellen
@@ -1324,7 +1324,7 @@ function SchrittPlan({
       <div className="rounded-xl border bg-card p-4 shadow-card">
         <p className="text-[13.5px] font-medium">{assignment.title}</p>
         <p className="mt-1 text-[12.5px] text-muted-foreground">
-          {punkteAnzahl} {punkteAnzahl === 1 ? "Punkt" : "Punkte"} · {minutenGesamt} Minuten geschätzt
+          {punkteAnzahl} {punkteAnzahl === 1 ? "Punkt" : "Punkte"} · {minutenGesamt} Minuten geschaetzt
         </p>
       </div>
 
@@ -1344,7 +1344,7 @@ function SchrittPlan({
 
       <div className="flex gap-2">
         <Button type="button" variant="ghost" className="h-11" onClick={onZurueck} disabled={loading}>
-          Zurück
+          Zurueck
         </Button>
         <Button
           type="button"

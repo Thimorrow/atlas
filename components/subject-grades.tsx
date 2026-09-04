@@ -44,7 +44,7 @@ const WEIGHT_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: "Einfach" },
   { value: 2, label: "Doppelt" },
   { value: 0.5, label: "Halb" },
-  { value: 0, label: "Zählt nicht" },
+  { value: 0, label: "Zaehlt nicht" },
 ];
 
 function todayISO(): string {
@@ -107,7 +107,7 @@ export function SubjectGrades({
       if (!res.ok) throw new Error();
       setGrades((prev) => prev.filter((g) => g.id !== id));
     } catch {
-      toast("Die Note konnte nicht gelöscht werden.");
+      toast("Die Note konnte nicht geloescht werden.");
     } finally {
       setBusyId(null);
     }
@@ -122,7 +122,7 @@ export function SubjectGrades({
           <span className="shrink-0">Gewichtung</span>
           <select
             // 16px, sonst zoomt iOS-Safari beim Antippen in die Seite hinein.
-            aria-label="Gewichtung mündlich zu schriftlich"
+            aria-label="Gewichtung muendlich zu schriftlich"
             className="h-9 rounded-lg border bg-background px-2 text-[16px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             value={oralWeight}
             onChange={(e) => void changeOralWeight(Number(e.target.value))}
@@ -159,7 +159,7 @@ export function SubjectGrades({
       {grades.length === 0 ? (
         !composing && (
           <p className="text-[13px] text-muted-foreground">
-            Noch keine Note eingetragen. Trag deine erste Klausur oder mündliche Note ein, dann
+            Noch keine Note eingetragen. Trag deine erste Klausur oder muendliche Note ein, dann
             steht hier dein Schnitt.
           </p>
         )
@@ -200,7 +200,7 @@ export function SubjectGrades({
                 type="button"
                 onClick={() => void remove(g.id)}
                 disabled={busyId === g.id}
-                aria-label={`Note „${g.label}“ löschen`}
+                aria-label={`Note „${g.label}“ loeschen`}
                 // Die Trefferflaeche reicht ueber das Symbol hinaus (before),
                 // sonst sind es auf dem Handy 16 statt 44 Pixel.
                 className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"

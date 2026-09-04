@@ -36,7 +36,7 @@ export function UntisSyncNotice({
   const reduce = useReducedMotion();
   const age =
     lastSyncOk == null
-      ? "auf diesem Gerät noch nie abgeglichen"
+      ? "auf diesem Geraet noch nie abgeglichen"
       : `zuletzt ${ageInWords(Date.now() - lastSyncOk)} aktualisiert`;
 
   return (

@@ -121,11 +121,11 @@ describe("POST /api/lernen/plan/lesen", () => {
   });
 
   it("LernplanGenFehler wird in Status+Code uebersetzt", async () => {
-    vi.mocked(lesen).mockRejectedValue(new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text prüfen."));
+    vi.mocked(lesen).mockRejectedValue(new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text pruefen."));
     const res = await POST(req({ assignmentId: ASSIGNMENT_ID, checklist: { text: "x" }, fileIds: [] }));
     expect(res.status).toBe(422);
     const json = await res.json();
     expect(json.error).toBe("keine_punkte");
-    expect(json.hinweis).toContain("prüfen");
+    expect(json.hinweis).toContain("pruefen");
   });
 });

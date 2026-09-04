@@ -142,7 +142,7 @@ function LernenFachBody({
             ? `${naechstePruefung.title} ${tageBisLabel(naechstePruefung.tageBis)}${
                 plan && progress.total > 0 ? ` · ${planText(progress.total, plan)}` : ""
               }`
-            : "Keine Prüfung eingetragen"}
+            : "Keine Pruefung eingetragen"}
         </p>
       </div>
 
@@ -176,13 +176,13 @@ function LernenFachBody({
             href={`/lernen/${subjectId}/session`}
             className={cn(buttonVariants({ size: "default" }), "flex-1")}
           >
-            {progress.faellig > 0 ? `Lernen · ${progress.faellig} fällig` : "Lernen"}
+            {progress.faellig > 0 ? `Lernen · ${progress.faellig} faellig` : "Lernen"}
           </Link>
           <Link
             href={`/lernen/${subjectId}/session?modus=schwach`}
             className={cn(buttonVariants({ size: "default", variant: "outline" }), "flex-1")}
           >
-            Schwache üben
+            Schwache ueben
           </Link>
         </div>
       )}
@@ -218,7 +218,7 @@ function LernenFachBody({
                           <div className="h-full rounded-full" style={{ width: `${bereit}%`, backgroundColor: tint }} />
                         </div>
                         <span className="tabular-nums text-[12px] text-muted-foreground">
-                          {t.progress.faellig} fällig
+                          {t.progress.faellig} faellig
                         </span>
                       </div>
                     </div>
@@ -367,7 +367,7 @@ function NeuesThema({
       {pruefungen.length > 0 && (
         <div>
           <label htmlFor={`${uid}-pruefung`} className="mb-1 block text-[12.5px] font-medium text-muted-foreground">
-            Prüfung (optional)
+            Pruefung (optional)
           </label>
           <select
             id={`${uid}-pruefung`}

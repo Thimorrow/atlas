@@ -109,25 +109,25 @@ describe("markdownPreview", () => {
 describe("repairMissingParagraphBreaks", () => {
   // Echtes Beispiel aus einem gestreamten Bot-Text: der letzte Listenpunkt
   // und der folgende Absatz liefen ohne jedes Trennzeichen ineinander, sodass
-  // "Außerdem ..." als Teil des Listenpunkts gerendert wurde statt als
+  // "Ausserdem ..." als Teil des Listenpunkts gerendert wurde statt als
   // eigener Absatz danach.
   const real =
-    '- Englisch: Vokabeln Unit 4 lernenAußerdem sind zwei Aufgaben heute überfällig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.';
+    '- Englisch: Vokabeln Unit 4 lernenAusserdem sind zwei Aufgaben heute ueberfaellig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.';
 
   it("trennt den echten Beispielfall in Listenpunkt und neuen Absatz", () => {
     const repaired = repairMissingParagraphBreaks(real);
     expect(repaired).toBe(
-      '- Englisch: Vokabeln Unit 4 lernen\n\nAußerdem sind zwei Aufgaben heute überfällig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.',
+      '- Englisch: Vokabeln Unit 4 lernen\n\nAusserdem sind zwei Aufgaben heute ueberfaellig (03.09.): Biologie (Arbeitsblatt Zellatmung) und Mathe.',
     );
   });
 
   it("beendet die Liste beim Rendern und startet einen eigenen Absatz", () => {
     const html = renderMarkdown(repairMissingParagraphBreaks(real));
     expect(html).toContain("<li>Englisch: Vokabeln Unit 4 lernen</li>");
-    expect(html).toContain("<p>Außerdem sind zwei Aufgaben heute überfällig");
+    expect(html).toContain("<p>Ausserdem sind zwei Aufgaben heute ueberfaellig");
     // Der zweite Satz darf nicht mehr im li landen.
-    expect(html).not.toContain("lernenAußerdem");
-    expect(html).not.toMatch(/<li>[^<]*Außerdem/);
+    expect(html).not.toContain("lernenAusserdem");
+    expect(html).not.toMatch(/<li>[^<]*Ausserdem/);
   });
 
   it("trennt zwei direkt aneinandergrenzende Saetze auch ohne Liste", () => {
@@ -136,12 +136,12 @@ describe("repairMissingParagraphBreaks", () => {
     );
   });
 
-  it("lässt normalen Text mit echten Wortzwischenraeumen unveraendert", () => {
+  it("laesst normalen Text mit echten Wortzwischenraeumen unveraendert", () => {
     const normal = "Morgen hast du Englisch, Mathematik und Physik. Viel Erfolg!";
     expect(repairMissingParagraphBreaks(normal)).toBe(normal);
   });
 
-  it("lässt bereits vorhandene Absaetze unveraendert", () => {
+  it("laesst bereits vorhandene Absaetze unveraendert", () => {
     const ok = "Erster Satz.\n\nZweiter Satz beginnt sauber.";
     expect(repairMissingParagraphBreaks(ok)).toBe(ok);
   });

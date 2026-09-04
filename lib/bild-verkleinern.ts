@@ -41,7 +41,7 @@ export async function verkleinereBild(file: File): Promise<File> {
     canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITAET),
   );
   if (!blob) throw new Error("Bild konnte nicht verkleinert werden");
-  if (blob.size > MAX_BYTES) throw new Error("Bild zu groß");
+  if (blob.size > MAX_BYTES) throw new Error("Bild zu gross");
 
   const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
   return new File([blob], name, { type: "image/jpeg" });

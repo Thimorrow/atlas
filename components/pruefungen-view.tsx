@@ -80,7 +80,7 @@ function NextExamCard({ exam, today }: { exam: AssignmentDTO; today: string }) {
     <div className="flex items-start justify-between gap-4 pl-2">
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Nächste Prüfung
+          Naechste Pruefung
         </p>
         <h2 className="mt-1 truncate text-lg font-semibold leading-snug">{exam.title}</h2>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
@@ -194,7 +194,7 @@ function NextExamLernplanDetails({
     <div className="mt-3 space-y-2.5 border-t pt-3 pl-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Lernplan{plan.heuteLeer ? " · nächste offene" : ""}
+          Lernplan{plan.heuteLeer ? " · naechste offene" : ""}
         </p>
         <Link
           href={`/lernen/${subjectId}/plan/${assignmentId}`}
@@ -297,7 +297,7 @@ function WeekSection({ group, today }: { group: ExamWeekGroup; today: string }) 
         {/* Dezenter Hinweis statt bunter Warnung: drei oder mehr Pruefungen in
             derselben Woche sind die eigentliche Information, aber kein Alarm. */}
         {group.crowded && (
-          <span className="text-[11px] text-muted-foreground/70">· gehäuft</span>
+          <span className="text-[11px] text-muted-foreground/70">· gehaeuft</span>
         )}
       </h3>
       <ul className="mt-1 flex flex-col gap-1">
@@ -434,7 +434,7 @@ function PastExams({
         className="relative flex items-center gap-1.5 rounded px-1 py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-        {open ? "Vergangene Prüfungen ausblenden" : "Vergangene Prüfungen anzeigen"}
+        {open ? "Vergangene Pruefungen ausblenden" : "Vergangene Pruefungen anzeigen"}
         <span className="font-mono tabular-nums text-muted-foreground/70">({items.length})</span>
       </button>
       {open && (
@@ -505,7 +505,7 @@ export function PruefungenEmpty({ onAdd }: { onAdd: () => void }) {
       </div>
       <Button size="sm" variant="outline" className="mt-1 gap-1.5" onClick={onAdd}>
         <Plus className="size-4" />
-        Prüfung eintragen
+        Pruefung eintragen
       </Button>
     </div>
   );
@@ -515,7 +515,7 @@ export function PruefungenEmpty({ onAdd }: { onAdd: () => void }) {
 
 export function PruefungenSkeleton() {
   return (
-    <div className="flex flex-col gap-5" aria-label="Prüfungen werden geladen" aria-busy="true">
+    <div className="flex flex-col gap-5" aria-label="Pruefungen werden geladen" aria-busy="true">
       <div className="rounded-2xl border bg-card p-5 shadow-card">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-2.5 h-5 w-48" />

@@ -120,10 +120,10 @@ describe("buildGreeting", () => {
     });
 
     const greeting = await buildGreeting(jetzt);
-    expect(greeting.text).toContain("Gerade läuft Mathe");
+    expect(greeting.text).toContain("Gerade laeuft Mathe");
     expect(greeting.text).toContain("noch 30 Minuten");
-    expect(greeting.text).toContain("1 Aufgabe(n) fällig");
-    expect(greeting.suggestions).toContain("Was ist heute noch fällig?");
+    expect(greeting.text).toContain("1 Aufgabe(n) faellig");
+    expect(greeting.suggestions).toContain("Was ist heute noch faellig?");
   });
 
   it("pause/vor-Modus: nennt die naechste Stunde mit Uhrzeit und Raum", async () => {
@@ -131,7 +131,7 @@ describe("buildGreeting", () => {
     const jetzt = fixtureJetzt({ modus: "vor" });
 
     const greeting = await buildGreeting(jetzt);
-    expect(greeting.text).toContain("Als Nächstes Mathe um 09:00");
+    expect(greeting.text).toContain("Als Naechstes Mathe um 09:00");
     expect(greeting.text).toContain("Raum R204");
   });
 
@@ -156,7 +156,7 @@ describe("buildGreeting", () => {
 
     const greeting = await buildGreeting();
     expect(greeting.text).toContain("Matheklausur");
-    expect(greeting.suggestions[0]).toBe("Hilf mir, für Mathe zu lernen");
+    expect(greeting.suggestions[0]).toBe("Hilf mir, fuer Mathe zu lernen");
   });
 });
 

@@ -64,7 +64,7 @@ describe("POST /api/lernen/plan/bewerten", () => {
     vi.mocked(bewerten).mockResolvedValue([
       { urteil: "richtig", feedback: "Passt." },
       { urteil: "falsch", feedback: "Nein." },
-      { urteil: "falsch", feedback: "Übersprungen" },
+      { urteil: "falsch", feedback: "Uebersprungen" },
     ]);
     const res = await POST(
       req({

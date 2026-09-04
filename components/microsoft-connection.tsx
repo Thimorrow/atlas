@@ -17,11 +17,11 @@ const RESULTS: Record<string, { ok: boolean; text: string }> = {
   abgebrochen: { ok: false, text: "Die Anmeldung bei Microsoft wurde abgebrochen." },
   ungueltig: {
     ok: false,
-    text: "Die Anmeldung hat zu lange gedauert oder gehört nicht zu diesem Browser. Starte sie noch einmal.",
+    text: "Die Anmeldung hat zu lange gedauert oder gehoert nicht zu diesem Browser. Starte sie noch einmal.",
   },
   fehler: {
     ok: false,
-    text: "Microsoft hat die Anmeldung abgelehnt. Prüf Client-ID, Geheimnis und Verzeichnis-ID.",
+    text: "Microsoft hat die Anmeldung abgelehnt. Pruef Client-ID, Geheimnis und Verzeichnis-ID.",
   },
   "kein-refresh": {
     ok: false,
@@ -139,7 +139,7 @@ export function MicrosoftConnection() {
 
       <p className="text-[12px] text-muted-foreground">
         Atlas darf damit dein Profil lesen, deine OneNote-Abschnitte sehen und neue Seiten anlegen.
-        Bestehende Seiten werden nie verändert.
+        Bestehende Seiten werden nie veraendert.
       </p>
     </div>
   );

@@ -78,7 +78,7 @@ async function legeThemaAn(deps: KartenQueueDeps, punkt: PunktDTO): Promise<stri
     const data = (await res.json()) as { thema: { id: string } };
     return data.thema.id;
   } catch (err) {
-    console.warn(`[lernplan] Thema für Punkt ${punkt.id}:`, err);
+    console.warn(`[lernplan] Thema fuer Punkt ${punkt.id}:`, err);
     return null;
   }
 }
@@ -115,7 +115,7 @@ async function verarbeitePunkt(deps: KartenQueueDeps, punkt: PunktDTO, anzahl: n
     deps.onStatus?.(punkt.id, "fertig");
     return "fertig";
   } catch (err) {
-    console.warn(`[lernplan] Karten für Punkt ${punkt.id}:`, err);
+    console.warn(`[lernplan] Karten fuer Punkt ${punkt.id}:`, err);
     await patchCardsState(deps, punkt.id, "fehler");
     deps.onStatus?.(punkt.id, "fehler");
     return "fehler";

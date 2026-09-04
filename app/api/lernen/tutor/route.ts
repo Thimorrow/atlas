@@ -16,7 +16,7 @@ const MODI = ["lernen", "probe"] as const;
 
 // POST /api/lernen/tutor -- { topicId, modus?, cardId?, einheitId?, pruefung? }
 // -> legt eine neue Tutor-Session an. Reihenfolge der Pruefungen siehe
-// TUTOR-SPEC.md "API" und SPEC.md "Tutor kennt die Blätter des Punkts".
+// TUTOR-SPEC.md "API" und SPEC.md "Tutor kennt die Blaetter des Punkts".
 //
 // topicId ist Pflicht -- ausser bei pruefung ohne topicId (Simulation ueber
 // den ganzen Plan): dann muss modus "probe" sein, sonst 400.
@@ -74,8 +74,8 @@ export async function POST(req: Request) {
     subjectId = topic.subjectId;
   } else {
     const assignment = await getAssignment(body.pruefung as string);
-    if (!assignment) return NextResponse.json({ error: "Prüfung nicht gefunden." }, { status: 404 });
-    if (!assignment.subjectId) return NextResponse.json({ error: "Prüfung hat kein Fach." }, { status: 400 });
+    if (!assignment) return NextResponse.json({ error: "Pruefung nicht gefunden." }, { status: 404 });
+    if (!assignment.subjectId) return NextResponse.json({ error: "Pruefung hat kein Fach." }, { status: 400 });
     subjectId = assignment.subjectId;
   }
 
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   if (card) {
     await appendTutorMessage(conversation.id, {
       role: "user",
-      content: `Ich hänge bei dieser Frage: ${card.question}`,
+      content: `Ich haenge bei dieser Frage: ${card.question}`,
     });
   }
 

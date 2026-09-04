@@ -184,7 +184,7 @@ function toolCallEvent(name: string, args: unknown): StreamEvent {
 describe("runTutorTurn", () => {
   it("(a) endet nach frage_auswahl mit widget dann done", async () => {
     const { deps } = makeDeps({
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     const events = [];
@@ -193,7 +193,7 @@ describe("runTutorTurn", () => {
     expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
     const widget = events[0];
     if (widget.type === "widget") {
-      expect(widget.frage).toBe("Was weißt du?");
+      expect(widget.frage).toBe("Was weisst du?");
       expect(widget.optionen).toEqual(["Viel", "Wenig"]);
     }
   });
@@ -263,7 +263,7 @@ describe("runTutorTurn", () => {
         role: "assistant",
         content: "",
         toolName: "frage_auswahl",
-        toolArgs: { frage: "Wie sicher fühlst du dich?", optionen: ["Sicher", "Unsicher"], mehrfach: false },
+        toolArgs: { frage: "Wie sicher fuehlst du dich?", optionen: ["Sicher", "Unsicher"], mehrfach: false },
         toolResult: null,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
@@ -302,7 +302,7 @@ describe("runTutorTurn", () => {
 
   it("(e) erster Turn ohne Verlauf schickt einen Startimpuls als user-Nachricht (API verlangt mindestens eine)", async () => {
     const { deps } = makeDeps({
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     let captured: ChatMessage[] | undefined;
@@ -372,7 +372,7 @@ describe("runTutorTurn", () => {
       itemId: ITEM_ID,
       ladePunktMitBlaettern,
       readSubjectFile,
-      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weißt du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
+      rounds: [[toolCallEvent("frage_auswahl", { frage: "Was weisst du?", optionen: ["Viel", "Wenig"], mehrfach: false })]],
     });
 
     let captured: ChatMessage[] | undefined;
@@ -387,7 +387,7 @@ describe("runTutorTurn", () => {
     expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
 
     const system = captured!.find((m) => m.role === "system");
-    expect(system?.content).toContain("Arbeitsblätter zu diesem Punkt");
+    expect(system?.content).toContain("Arbeitsblaetter zu diesem Punkt");
     expect(system?.content).toContain("Inhalt des gestubbten PDFs.");
   });
 

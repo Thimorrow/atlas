@@ -38,20 +38,15 @@ import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
 
 import { heuteISO as localISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
+import { vergleichbar } from "@/lib/umlaute";
 
 
 // Normalisiert einen Fachnamen fuers Matching: trim, klein, deutsche
 // Umlaute ausgeschrieben, alles ausser [a-z0-9] weg. "Mathe" und "Mathe."
-// landen so auf demselben Wert, "Franzoesisch" trifft "Französisch".
+// landen so auf demselben Wert, und der Untis-Name mit Umlaut trifft den
+// transliterierten Fachnamen der App.
 function normalizeSubjectName(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss")
-    .replace(/[^a-z0-9]/g, "");
+  return vergleichbar(s).replace(/[^a-z0-9]/g, "");
 }
 
 // Fach anhand eines vom Modell genannten Namens finden. Reine Funktion, daher

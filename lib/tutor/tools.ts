@@ -18,7 +18,7 @@ export const tutorTools: ChatTool[] = [
     function: {
       name: "frage_auswahl",
       description:
-        "Stellt Timo eine Auswahlfrage als Widget -- IMMER benutzen statt einer Frage im Fließtext, wenn er zwischen Optionen waehlen soll (Wissensstand, gecheckt?, welche Erklaerung). 2 bis 6 Optionen.",
+        "Stellt Timo eine Auswahlfrage als Widget -- IMMER benutzen statt einer Frage im Fliesstext, wenn er zwischen Optionen waehlen soll (Wissensstand, gecheckt?, welche Erklaerung). 2 bis 6 Optionen.",
       parameters: {
         type: "object",
         properties: {
@@ -139,7 +139,7 @@ function isObj(v: unknown): v is Record<string, unknown> {
 export type FrageAuswahl = { frage: string; optionen: string[]; mehrfach: boolean };
 
 export function parseFrageAuswahl(args: unknown): ParseResult<FrageAuswahl> {
-  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
 
   const frage = args.frage;
   if (typeof frage !== "string" || !frage.trim()) {
@@ -167,7 +167,7 @@ export type ChecklisteAufgabe = { nr: number; text: string; schwierigkeit: numbe
 export type ChecklisteInput = { titel: string; aufgaben: ChecklisteAufgabe[] };
 
 export function parseCheckliste(args: unknown): ParseResult<ChecklisteInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
 
   const titel = args.titel;
   if (typeof titel !== "string" || !titel.trim()) {
@@ -203,7 +203,7 @@ const AUFGABE_ERGEBNIS_STATUS = ["richtig", "falsch", "uebersprungen"] as const;
 export type AufgabeErgebnisInput = { nr: number; status: "richtig" | "falsch" | "uebersprungen"; punkte?: number };
 
 export function parseAufgabeErgebnis(args: unknown): ParseResult<AufgabeErgebnisInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
 
   const nr = args.nr;
   if (typeof nr !== "number") return { ok: false, error: "nr muss eine Zahl sein." };
@@ -243,7 +243,7 @@ function stringListe(v: unknown): string[] {
 }
 
 export function parseFazit(args: unknown): ParseResult<FazitInput> {
-  if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
+  if (!isObj(args)) return { ok: false, error: "Ungueltige Argumente." };
 
   const gutWar = stringListe(args.gutWar);
   const schwach = stringListe(args.schwach);

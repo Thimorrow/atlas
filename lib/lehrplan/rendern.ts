@@ -15,7 +15,7 @@ export function lehrplanAlsMarkdown(fach: LehrplanFach): string {
   // soll zuerst wissen, dass er nicht belegt ist.
   if (fach.unsicher) {
     teile.push(
-      "**Hinweis:** Dieser Lehrplan konnte nicht vollständig aus der offiziellen Quelle belegt werden. Nimm ihn als groben Anhaltspunkt und richte dich nach deiner Lehrkraft.",
+      "**Hinweis:** Dieser Lehrplan konnte nicht vollstaendig aus der offiziellen Quelle belegt werden. Nimm ihn als groben Anhaltspunkt und richte dich nach deiner Lehrkraft.",
     );
   }
 

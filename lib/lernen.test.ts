@@ -176,7 +176,7 @@ describe("lernartFor", () => {
 
   it("Sprachen -> vokabeln", () => {
     expect(lernartFor("Englisch")).toBe("vokabeln");
-    expect(lernartFor("Französisch")).toBe("vokabeln");
+    expect(lernartFor("Franzoesisch")).toBe("vokabeln");
     expect(lernartFor("Latein")).toBe("vokabeln");
     expect(lernartFor("Spanisch")).toBe("vokabeln");
   });

@@ -101,10 +101,10 @@ describe("groupAssignments", () => {
       "undated",
     ]);
     expect(groups.map((g) => g.label)).toEqual([
-      "Überfällig",
+      "Ueberfaellig",
       "Heute",
       "Morgen",
-      "Später",
+      "Spaeter",
       "Ohne Datum",
     ]);
   });
@@ -184,7 +184,7 @@ describe("groupAssignments", () => {
     expect(titles(groups[0].items)).toEqual(["Lesen", "Skizze", "Allgemein-Kram"]);
   });
 
-  it("sortiert 'Später' zuerst chronologisch, dann inhaltlich", () => {
+  it("sortiert 'Spaeter' zuerst chronologisch, dann inhaltlich", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: "2025-08-10", type: "exam", subjectName: "Mathe", title: "Spaete Arbeit" }),
@@ -198,7 +198,7 @@ describe("groupAssignments", () => {
     expect(titles(later.items)).toEqual(["A-Zettel", "B-Zettel", "Spaete Arbeit"]);
   });
 
-  it("sortiert 'Überfällig' zuerst chronologisch, dann inhaltlich", () => {
+  it("sortiert 'Ueberfaellig' zuerst chronologisch, dann inhaltlich", () => {
     const groups = groupAssignments(
       [
         make({ dueDate: DI, type: "homework", subjectName: "Deutsch", title: "Von gestern" }),
@@ -215,7 +215,7 @@ describe("groupAssignments", () => {
 describe("overdueLabel", () => {
   it("beschreibt den Abstand zum Faelligkeitstag", () => {
     expect(overdueLabel(DI, MI)).toBe("seit gestern");
-    expect(overdueLabel(MO, DO)).toBe("3 Tage überfällig");
+    expect(overdueLabel(MO, DO)).toBe("3 Tage ueberfaellig");
   });
 });
 
@@ -366,7 +366,7 @@ describe("groupExamsByWeek", () => {
     );
     expect(groups.map((g) => g.label)).toEqual([
       "Diese Woche",
-      "Nächste Woche",
+      "Naechste Woche",
       "Woche vom 4. August",
     ]);
   });

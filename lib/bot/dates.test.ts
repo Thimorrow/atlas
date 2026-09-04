@@ -23,7 +23,7 @@ describe("parseFuzzyDate", () => {
 
   it("versteht 'heute' und 'uebermorgen'", () => {
     expect(parseFuzzyDate("heute", MITTWOCH)).toEqual({ iso: "2025-07-16" });
-    expect(parseFuzzyDate("übermorgen", MITTWOCH)).toEqual({ iso: "2025-07-18" });
+    expect(parseFuzzyDate("uebermorgen", MITTWOCH)).toEqual({ iso: "2025-07-18" });
   });
 
   it("versteht 'naechsten Montag' als den kommenden, nicht den heutigen", () => {

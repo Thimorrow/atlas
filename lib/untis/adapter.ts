@@ -1,3 +1,4 @@
+import { ohneUmlaute } from "@/lib/umlaute";
 import type { NewSchoolBlock } from "@/lib/db/schema";
 
 // Minimal-Shape einer Untis-Lesson (nur was wir brauchen).
@@ -43,7 +44,10 @@ export function normalizeSubject(raw: string): string {
   for (const [needle, clean] of SUBJECT_RULES) {
     if (s.includes(needle)) return clean;
   }
-  return raw;
+  // Faellt keine Regel, wird der Untis-Name direkt zum Anzeigenamen. Untis
+  // schreibt mit Umlauten, die App nicht (siehe CLAUDE.md) -- deshalb hier
+  // transliterieren, sonst steht der Umlaut-Name im Stundenplan.
+  return ohneUmlaute(raw);
 }
 
 // Untis-Lesson -> Atlas SchoolBlock. Untis-Feldnamen leben NUR hier

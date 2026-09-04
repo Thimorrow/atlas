@@ -180,7 +180,7 @@ export function SubjectOnenote({
     <div className="space-y-2">
       {/* Persistentes Label ueber dem Feld, kein Platzhalter als Beschriftung. */}
       <label htmlFor={selectId} className="block text-[13px] font-medium">
-        Abschnitt für dieses Fach
+        Abschnitt fuer dieses Fach
       </label>
       <div className="flex items-center gap-2">
         <select
@@ -208,7 +208,7 @@ export function SubjectOnenote({
       <p className="text-[12px] text-muted-foreground">
         {sectionId
           ? "Notizen dieses Fachs lassen sich mit einem Klick als OneNote-Seite anlegen."
-          : "Wähl einen Abschnitt, dann bekommt jede Notiz einen Knopf zum Senden."}
+          : "Waehl einen Abschnitt, dann bekommt jede Notiz einen Knopf zum Senden."}
       </p>
     </div>
   );

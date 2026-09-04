@@ -102,5 +102,5 @@ const MAX_DUMP_CHARS = 4000;
 
 function truncateDump(json: string): string {
   if (json.length <= MAX_DUMP_CHARS) return json;
-  return `${json.slice(0, MAX_DUMP_CHARS)}\n… (gekürzt, ${json.length} Zeichen insgesamt)`;
+  return `${json.slice(0, MAX_DUMP_CHARS)}\n… (gekuerzt, ${json.length} Zeichen insgesamt)`;
 }

@@ -58,7 +58,7 @@ async function main() {
     // noch leeren Antwort. Erscheint sie nicht rechtzeitig, wird trotzdem
     // fotografiert (kein harter Fehlschlag der Runde).
     await page
-      .locator("p", { hasText: /liest|schlägt|legt|ändert|führt/ })
+      .locator("p", { hasText: /liest|schlaegt|legt|aendert|fuehrt/ })
       .first()
       .waitFor({ timeout: 4000 })
       .catch(() => {});
@@ -80,11 +80,11 @@ async function main() {
   // dann erst zurueck, statt das Werkzeug aufzurufen. Einmal bestaetigen.
   await page.waitForTimeout(PAUSE);
   await input.fill(
-    '"ZZ Testfach" ist der echte, absichtlich so benannte Fachname. Schlag dort eine Note vor: 13 Punkte, mündlich, "Mitarbeit", heute.',
+    '"ZZ Testfach" ist der echte, absichtlich so benannte Fachname. Schlag dort eine Note vor: 13 Punkte, muendlich, "Mitarbeit", heute.',
   );
   await input.press("Enter");
   await page.waitForTimeout(9000);
-  if (await page.getByText(/bestätig/i).count()) {
+  if (await page.getByText(/bestaetig/i).count()) {
     await input.fill("Ja, bitte.");
     await input.press("Enter");
     await page.waitForTimeout(9000);

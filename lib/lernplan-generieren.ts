@@ -282,7 +282,7 @@ export async function lesen(
       gekuerzt = true;
     }
   }
-  if (gekuerzt) hinweis.push("Arbeitsblätter wurden gekürzt (zu lang für einen Durchgang).");
+  if (gekuerzt) hinweis.push("Arbeitsblaetter wurden gekuerzt (zu lang fuer einen Durchgang).");
 
   const blattNamen = [...includedTextBlaetter.map((b) => b.name), ...imageBlaetter.map((b) => b.name)];
   const nameToFileId = new Map<string, string>([
@@ -374,7 +374,7 @@ export async function lesen(
   }
 
   if (finalPunkte.length === 0) {
-    throw new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text prüfen.");
+    throw new LernplanGenFehler(422, "keine_punkte", "Keine Punkte erkannt, Text pruefen.");
   }
 
   return {
@@ -395,7 +395,7 @@ export async function bewerten(
     .filter((a): a is BewertenAntwort & { antwort: string; index: number } => a.antwort !== null);
 
   if (zuSenden.length === 0) {
-    return input.antworten.map(() => ({ urteil: "falsch" as const, feedback: "Übersprungen" }));
+    return input.antworten.map(() => ({ urteil: "falsch" as const, feedback: "Uebersprungen" }));
   }
 
   const messages: ChatMessage[] = [
@@ -445,7 +445,7 @@ export async function bewerten(
 
   let idx = 0;
   return input.antworten.map((a, i) => {
-    if (a.antwort === null) return { urteil: "falsch" as const, feedback: "Übersprungen" };
+    if (a.antwort === null) return { urteil: "falsch" as const, feedback: "Uebersprungen" };
     if (byIndex) return byIndex.get(i)!;
     return parsed[idx++];
   });
