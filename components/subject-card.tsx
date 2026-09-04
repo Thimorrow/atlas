@@ -46,19 +46,19 @@ export function SubjectCard({
         // Die GANZE Karte ist der Link -- kein verschachtelter Titel-Link, der
         // nur ein paar Pixel breit waere. min-h haelt die Trefferflaeche auch
         // bei kurzem Namen weit ueber 44px.
-        "group flex min-h-[104px] flex-col justify-between rounded-xl border bg-card p-4 text-left shadow-card",
+        "group relative flex min-h-[104px] flex-col justify-between overflow-hidden rounded-xl border bg-card p-4 pl-5 text-left shadow-card",
         "transition-[background-color,border-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation]",
         "hover:bg-accent/40 active:scale-[0.985]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         archived && "opacity-70",
       )}
     >
+      <span
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{ backgroundColor: colorValue(subject.color) }}
+      />
       <div className="flex items-start gap-2.5">
-        <span
-          aria-hidden="true"
-          className="mt-1 size-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: colorValue(subject.color) }}
-        />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold leading-tight tracking-tight">
             {subject.name}

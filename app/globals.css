@@ -129,6 +129,16 @@
     -moz-osx-font-smoothing: grayscale;
     overscroll-behavior: none;
   }
+  /* Die App ist eine Shell: jede Seite scrollt in ihrem eigenen <main>, das
+     Dokument selbst nie. Ohne diese Sperre kann ein Radscroll am Ende einer
+     Seite in das Dokument weiterlaufen (Firefox/Zen), und die ganze App
+     samt Sidebar rutscht nach oben aus dem Bild; nur fixierte Elemente wie
+     der Bot-Knopf bleiben stehen. */
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     background-color: var(--background);
     color: var(--foreground);

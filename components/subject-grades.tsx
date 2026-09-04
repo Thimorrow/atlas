@@ -7,7 +7,7 @@
 // Eintragen richtig da, ohne eine zweite Runde zum Server -- und er kann nicht
 // von der Serverantwort abweichen, weil es nur eine Rechnung gibt.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
@@ -61,16 +61,26 @@ export function SubjectGrades({
   subjectId,
   initialGrades,
   initialOralWeight,
+  onChange,
 }: {
   subjectId: string;
   initialGrades: GradeDTO[];
   initialOralWeight: number;
+  // Feuert bei jeder Aenderung der internen Notenliste (Eintragen, Loeschen)
+  // -- die Fach-Detailseite hebt den Stand damit fuer ihren Kopfbereich hoch,
+  // ohne dass sich am sonstigen Verhalten dieser Komponente etwas aendert.
+  onChange?: (grades: GradeDTO[]) => void;
 }) {
   const toast = useToast();
   const [grades, setGrades] = useState<GradeDTO[]>(initialGrades);
   const [oralWeight, setOralWeight] = useState(initialOralWeight);
   const [composing, setComposing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    onChange?.(grades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grades]);
 
   const summary = useMemo(() => subjectAverage(grades, oralWeight), [grades, oralWeight]);
 

@@ -1,10 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Archive, ArchiveRestore, GraduationCap, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  Archive,
+  ArchiveRestore,
+  GraduationCap,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { ColorPicker, EmptyPanel, Modal, ButtonLink } from "@/components/subject-setup";
 import type { SubjectDTO } from "@/components/subject-card";
 import { AssignmentList } from "@/components/assignment-list";
@@ -19,6 +37,7 @@ import { SubjectOnenote, useMicrosoftStatus } from "@/components/subject-onenote
 import { useToast } from "@/components/toast";
 import { renderMarkdown } from "@/lib/markdown";
 import { colorValue } from "@/lib/subject-colors";
+import { subjectAverage, formatPoints } from "@/lib/grades";
 import { TEACHER_TITLES } from "@/lib/teacher";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -135,6 +154,34 @@ function Section({
   );
 }
 
+// --- Tabs ---------------------------------------------------------------
+
+type Tab = "uebersicht" | "noten" | "aufgaben" | "notizen" | "material";
+const TAB_IDS: Tab[] = ["uebersicht", "noten", "aufgaben", "notizen", "material"];
+
+// Gleiches Muster wie /aufgaben: der Tab kommt direkt aus der URL, kein
+// zusaetzlicher Umweg ueber useEffect noetig.
+function initialTab(): Tab {
+  if (typeof window === "undefined") return "uebersicht";
+  const raw = new URLSearchParams(window.location.search).get("tab");
+  return (TAB_IDS as string[]).includes(raw ?? "") ? (raw as Tab) : "uebersicht";
+}
+
+// Ersetzt in `full` genau die Eintraege, die auch im ausgewerteten Ausschnitt
+// standen -- unveraendert gebliebene Aufgaben ausserhalb des Ausschnitts
+// bleiben unangetastet, geloeschte fallen raus. Gebraucht, weil die
+// Uebersicht AssignmentList nur die ersten fuenf offenen Aufgaben zeigt,
+// dessen onChange aber nur diesen Ausschnitt kennt.
+function mergeAssignments(
+  full: AssignmentDTO[],
+  oldSubset: AssignmentDTO[],
+  newSubset: AssignmentDTO[],
+): AssignmentDTO[] {
+  const oldIds = new Set(oldSubset.map((a) => a.id));
+  const byId = new Map(newSubset.map((a) => [a.id, a]));
+  return full.filter((a) => !oldIds.has(a.id) || byId.has(a.id)).map((a) => byId.get(a.id) ?? a);
+}
+
 export function SubjectDetail({ id }: { id: string }) {
   const toast = useToast();
   // Einmal pro Seite abgefragt: die Abschnittswahl und der Sende-Knopf an der
@@ -148,6 +195,7 @@ export function SubjectDetail({ id }: { id: string }) {
   const [name, setName] = useState("");
   const [teacher, setTeacher] = useState("");
   const [room, setRoom] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -161,6 +209,9 @@ export function SubjectDetail({ id }: { id: string }) {
   // Eintrag nach dem Leeren+Wiederbeschreiben an der richtigen Stelle zurueck
   // in die Liste einzufuegen (siehe onSaved am LessonNoteEditor unten).
   const [noteMeta, setNoteMeta] = useState<{ date: string; startTime: string } | null>(null);
+
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   const load = useCallback(async () => {
     setState("loading");
@@ -185,6 +236,15 @@ export function SubjectDetail({ id }: { id: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const switchTab = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      const url = next === "uebersicht" ? `/faecher/${id}` : `/faecher/${id}?tab=${next}`;
+      window.history.replaceState(null, "", url);
+    },
+    [id],
+  );
 
   async function patch(body: Record<string, unknown>) {
     if (!data) return;
@@ -266,6 +326,30 @@ export function SubjectDetail({ id }: { id: string }) {
   const subject = data.subject;
   const archived = Boolean(subject.archivedAt);
 
+  const nextLesson = data.upcoming[0];
+  const subtitleParts = [
+    subject.teacherLabel,
+    subject.room ? `Raum ${subject.room}` : null,
+    nextLesson
+      ? `Nächste Stunde ${dueLabel(nextLesson.date)} ${hm(nextLesson.startTime)}${
+          nextLesson.status === "cancelled" ? " entfällt" : ""
+        }`
+      : null,
+  ].filter(Boolean);
+
+  const average = subjectAverage(data.grades, subject.oralWeight).average;
+
+  const openAssignments = data.assignments.filter((a) => !a.completedAt);
+  const notesCount = data.notes.length + data.lessonNotes.length;
+
+  const tabs: { id: Tab; label: string; badge?: number }[] = [
+    { id: "uebersicht", label: "Übersicht" },
+    { id: "noten", label: "Noten" },
+    { id: "aufgaben", label: "Aufgaben", badge: openAssignments.length },
+    { id: "notizen", label: "Notizen", badge: notesCount },
+    { id: "material", label: "Material" },
+  ];
+
   return (
     <Shell>
       <StaggerItem>
@@ -276,294 +360,327 @@ export function SubjectDetail({ id }: { id: string }) {
           <ChevronLeft className="size-4" />
           Alle Fächer
         </Link>
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="size-3 shrink-0 rounded-full"
-            style={{ backgroundColor: colorValue(subject.color) }}
-          />
-          <h1 className="min-w-0 truncate text-xl font-semibold leading-tight tracking-tight">
-            {subject.name}
-          </h1>
-          {archived && (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Archiviert
-            </span>
-          )}
+
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="size-3 shrink-0 rounded-full"
+                style={{ backgroundColor: colorValue(subject.color) }}
+              />
+              <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">
+                {subject.name}
+              </h1>
+              {archived && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Archiviert
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {subtitleParts.length > 0 ? subtitleParts.join(" · ") : "Keine Stammdaten hinterlegt"}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-start gap-2">
+            {average ? (
+              <div className="text-right tabular-nums">
+                <div className="text-3xl font-semibold leading-none">{formatPoints(average.points)}</div>
+                <div className="mt-1 text-[12px] text-muted-foreground">Note {average.label}</div>
+              </div>
+            ) : (
+              <div className="text-right text-[12px] text-muted-foreground">Noch keine Note</div>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Mehr">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+                  <Pencil className="size-4" />
+                  Bearbeiten
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void patch({ archivedAt: archived ? null : "now" })}>
+                  {archived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
+                  {archived ? "Reaktivieren" : "Archivieren"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => setConfirmDelete(true)}
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                >
+                  <Trash2 className="size-4" />
+                  Löschen
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </StaggerItem>
 
-      {/* --- Noten ---
-          Steht bewusst ganz oben: der Schnitt ist die Zahl, wegen der diese
-          Seite ueberhaupt geoeffnet wird. Stammdaten sind Einstellungen. */}
       <StaggerItem>
-        <Section title="Noten">
-          <SubjectGrades
-            subjectId={subject.id}
-            initialGrades={data.grades}
-            initialOralWeight={subject.oralWeight}
-          />
-        </Section>
+        <div
+          role="tablist"
+          aria-label="Fachbereiche"
+          className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 shadow-card"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            const idx = tabs.findIndex((t) => t.id === tab);
+            const dir = e.key === "ArrowRight" ? 1 : -1;
+            const next = tabs[(idx + dir + tabs.length) % tabs.length];
+            switchTab(next.id);
+            tabRefs.current[next.id]?.focus();
+          }}
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              ref={(el) => {
+                tabRefs.current[t.id] = el;
+              }}
+              id={`fach-tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              aria-controls={`fach-panel-${t.id}`}
+              onClick={() => switchTab(t.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:flex-1",
+                tab === t.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t.label}
+              {!!t.badge && (
+                <span className="rounded bg-muted px-1.5 text-[11px] tabular-nums">{t.badge}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </StaggerItem>
 
-      {/* --- Meldungen ---
-          Direkt unter den Noten: der Meldungsschnitt gehoert zur muendlichen
-          Note, deshalb steht er nah dran statt weiter unten in der Seite. */}
+      {/* --- Uebersicht --- */}
       <StaggerItem>
-        <Section title="Meldungen">
-          <SubjectParticipation data={data.participation} />
-        </Section>
-      </StaggerItem>
+        <div
+          id="fach-panel-uebersicht"
+          role="tabpanel"
+          aria-labelledby="fach-tab-uebersicht"
+          hidden={tab !== "uebersicht"}
+          className="space-y-6"
+        >
+          <Section title="Nächste Stunden">
+            {data.upcoming.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground">Keine kommenden Stunden</p>
+            ) : (
+              <ul className="divide-y">
+                {data.upcoming.slice(0, 5).map((l) => (
+                  <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-[13px]">
+                    <span className="w-32 shrink-0 font-medium">{dueLabel(l.date)}</span>
+                    <span className="font-mono tabular-nums text-muted-foreground">
+                      {hm(l.startTime)}
+                      {l.endTime ? `–${hm(l.endTime)}` : ""}
+                    </span>
+                    {l.room && <span className="text-muted-foreground">{l.room}</span>}
+                    {/* Chips im Stil des Stundenplans: Vertretung bernstein,
+                        Ausfall leise grau mit rotem Punkt. */}
+                    {l.status === "substituted" && (
+                      <span className="inline-flex rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400">
+                        Vertretung
+                      </span>
+                    )}
+                    {l.status === "cancelled" && (
+                      <span className="inline-flex items-center gap-1 rounded bg-muted/50 px-1.5 text-[11px] font-medium text-muted-foreground">
+                        <span aria-hidden="true" className="size-1 rounded-full bg-red-500/40" />
+                        Entfällt
+                      </span>
+                    )}
+                    {l.substitutionText && (
+                      <span className="text-muted-foreground">{l.substitutionText}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
 
-      {/* --- Stammdaten --- */}
-      <StaggerItem>
-        <Section title="Stammdaten">
-          <div className="space-y-4">
-            <label className="block">
-              <span className="mb-1.5 block text-[13px] font-medium">Name</span>
-              <input
-                className={FIELD}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onBlur={() => {
-                  const v = name.trim();
-                  if (!v) {
-                    setName(subject.name);
-                    return;
+          <Section title="Offen">
+            {openAssignments.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground">Nichts offen.</p>
+            ) : (
+              <>
+                <AssignmentList
+                  assignments={openAssignments.slice(0, 5)}
+                  onChange={(next) =>
+                    setData((prev) => {
+                      if (!prev) return prev;
+                      const oldSubset = prev.assignments.filter((a) => !a.completedAt).slice(0, 5);
+                      return { ...prev, assignments: mergeAssignments(prev.assignments, oldSubset, next) };
+                    })
                   }
-                  if (v !== subject.name) void patch({ name: v });
-                }}
-              />
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-[13px] font-medium">Lehrer</span>
-                {/* Untis kennt nur den Nachnamen, nicht das Geschlecht. Die
-                    Anrede sitzt deshalb direkt am Feld statt in einer eigenen
-                    Zeile -- sie ist Teil desselben Namens, keine zweite
-                    Einstellung. */}
-                <div className="flex gap-2">
-                  <TitlePicker
-                    value={subject.teacherTitle}
-                    onChange={(v) => void patch({ teacherTitle: v })}
-                  />
-                  <input
-                    className={FIELD}
-                    value={teacher}
-                    placeholder="Nicht hinterlegt"
-                    onChange={(e) => setTeacher(e.target.value)}
-                    onBlur={() => {
-                      const v = teacher.trim();
-                      if (v !== (subject.teacher ?? "")) void patch({ teacher: v || null });
-                    }}
-                  />
-                </div>
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-[13px] font-medium">Raum</span>
-                <input
-                  className={FIELD}
-                  value={room}
-                  placeholder="Nicht hinterlegt"
-                  onChange={(e) => setRoom(e.target.value)}
-                  onBlur={() => {
-                    const v = room.trim();
-                    if (v !== (subject.room ?? "")) void patch({ room: v || null });
-                  }}
+                  grouped={false}
+                  showSubject={false}
+                  emptyLabel="Nichts offen."
                 />
-              </label>
-            </div>
-            <div>
-              <span className="mb-1 block text-[13px] font-medium">Farbe</span>
-              <ColorPicker
-                value={subject.color}
-                onChange={(token) => void patch({ color: token })}
-                label="Farbe des Fachs"
-              />
-            </div>
-            <p className="text-[12px] text-muted-foreground">
-              Änderungen werden gespeichert, sobald du das Feld verlässt.
-            </p>
-          </div>
-        </Section>
+                {openAssignments.length > 5 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => switchTab("aufgaben")}
+                  >
+                    Alle {openAssignments.length} anzeigen
+                  </Button>
+                )}
+              </>
+            )}
+          </Section>
+
+          <Section title="Meldungen">
+            <SubjectParticipation data={data.participation} />
+          </Section>
+        </div>
       </StaggerItem>
 
-      {/* --- Aktionen --- */}
+      {/* --- Noten --- */}
       <StaggerItem>
-        <Section title="Aktionen">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => void patch({ archivedAt: archived ? null : "now" })}
-            >
-              {archived ? <ArchiveRestore className="size-4" /> : <Archive className="size-4" />}
-              {archived ? "Reaktivieren" : "Archivieren"}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setConfirmDelete(true)}
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-              Löschen
-            </Button>
-          </div>
-          <p className="mt-3 text-[12px] text-muted-foreground">
-            Archivieren nimmt das Fach nur aus der Übersicht. Es taucht auch nach einem neuen
-            Untis-Abgleich nicht wieder auf.
-          </p>
-        </Section>
-      </StaggerItem>
-
-      {/* --- Naechste Stunden --- */}
-      <StaggerItem>
-        <Section title="Nächste Stunden">
-          {data.upcoming.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">Keine kommenden Stunden</p>
-          ) : (
-            <ul className="divide-y">
-              {data.upcoming.map((l) => (
-                <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-[13px]">
-                  <span className="w-32 shrink-0 font-medium">{dueLabel(l.date)}</span>
-                  <span className="font-mono tabular-nums text-muted-foreground">
-                    {hm(l.startTime)}
-                    {l.endTime ? `–${hm(l.endTime)}` : ""}
-                  </span>
-                  {l.room && <span className="text-muted-foreground">{l.room}</span>}
-                  {/* Chips im Stil des Stundenplans: Vertretung bernstein,
-                      Ausfall leise grau mit rotem Punkt. */}
-                  {l.status === "substituted" && (
-                    <span className="inline-flex rounded bg-amber-500/20 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-400">
-                      Vertretung
-                    </span>
-                  )}
-                  {l.status === "cancelled" && (
-                    <span className="inline-flex items-center gap-1 rounded bg-muted/50 px-1.5 text-[11px] font-medium text-muted-foreground">
-                      <span aria-hidden="true" className="size-1 rounded-full bg-red-500/40" />
-                      Entfällt
-                    </span>
-                  )}
-                  {l.substitutionText && (
-                    <span className="text-muted-foreground">{l.substitutionText}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
+        <div
+          id="fach-panel-noten"
+          role="tabpanel"
+          aria-labelledby="fach-tab-noten"
+          hidden={tab !== "noten"}
+        >
+          <Section title="Noten">
+            <SubjectGrades
+              subjectId={subject.id}
+              initialGrades={data.grades}
+              initialOralWeight={subject.oralWeight}
+              onChange={(grades) => setData((prev) => (prev ? { ...prev, grades } : prev))}
+            />
+          </Section>
+        </div>
       </StaggerItem>
 
       {/* --- Aufgaben --- */}
       <StaggerItem>
-        <Section
-          title="Aufgaben"
-          // gap-2 statt gap-1: beide Buttons blaehen ihre Trefferflaeche
-          // unsichtbar per before-Pseudo-Element auf (siehe ui/button.tsx),
-          // bei zu wenig Abstand ueberlappen sich die beiden Zonen. Beide
-          // Beschriftungen bewusst kurz gehalten -- der Section-Header
-          // umbricht nicht, und "Aufgabe hinzufuegen" plus ein zweiter Button
-          // sprengt auf schmalen Handys die Breite neben dem Titel.
-          action={
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setExamComposing(true)}>
-                <GraduationCap className="size-4" />
-                Prüfung
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setComposing(true)}>
-                <Plus className="size-4" />
-                Aufgabe
-              </Button>
-            </div>
-          }
+        <div
+          id="fach-panel-aufgaben"
+          role="tabpanel"
+          aria-labelledby="fach-tab-aufgaben"
+          hidden={tab !== "aufgaben"}
         >
-          <AssignmentList
-            assignments={data.assignments}
-            onChange={(next) => setData((prev) => (prev ? { ...prev, assignments: next } : prev))}
-            grouped={false}
-            showSubject={false}
-            emptyLabel="Keine Aufgaben in diesem Fach."
-          />
-        </Section>
-      </StaggerItem>
-
-      {/* --- Lehrplan ---
-          Steht vor den Notizen: er beantwortet "was kommt dran", die Notizen
-          "was war". Der Abschnitt holt sich seinen Stand selbst nach, weil nur
-          die Lehrplan-Route weiss, ob es zu dem Fach eine Vorlage gibt. */}
-      <StaggerItem>
-        <Section title="Lehrplan">
-          <SubjectCurriculum
-            subjectId={subject.id}
-            subjectName={subject.name}
-            initial={{
-              curriculum: subject.curriculum,
-              curriculumSource: subject.curriculumSource,
-              curriculumUpdatedAt: subject.curriculumUpdatedAt,
-            }}
-          />
-        </Section>
-      </StaggerItem>
-
-      {/* --- Notizen ---
-          Freie Notizen und Stundennotizen sind zwei getrennte Datenmodelle,
-          stehen dem Nutzer aber als EIN chronologisch gemischter Abschnitt
-          gegenueber -- zwei Abschnitte mit demselben Oberbegriff "Notizen"
-          fuehrten dazu, dass Stundennotizen im falschen Abschnitt gesucht
-          wurden. */}
-      <StaggerItem>
-        <Section title="Notizen">
-          <SubjectNotes
-            subjectId={subject.id}
-            initialNotes={data.notes}
-            lessonNotes={data.lessonNotes}
-            onenoteReady={Boolean(microsoft?.connected && subject.onenoteSectionId)}
-            onOpenLessonNote={(n) => {
-              setNoteMeta({ date: n.date, startTime: n.startTime });
-              setNoteTarget({
-                schoolBlockId: n.schoolBlockId,
-                subject: subject.name,
-                dayLabel: fmtLessonDate(n.date),
-                time: hm(n.startTime),
-                color: colorValue(subject.color),
-              });
-            }}
-          />
-        </Section>
-      </StaggerItem>
-
-      {/* --- OneNote --- */}
-      <StaggerItem>
-        <Section title="OneNote">
-          <SubjectOnenote
-            subjectId={subject.id}
-            status={microsoft}
-            sectionId={subject.onenoteSectionId}
-            sectionName={subject.onenoteSectionName}
-            onChange={(next) =>
-              setData((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      subject: {
-                        ...prev.subject,
-                        onenoteSectionId: next.id,
-                        onenoteSectionName: next.name,
-                      },
-                    }
-                  : prev,
-              )
+          <Section
+            title="Aufgaben"
+            // gap-2 statt gap-1: beide Buttons blaehen ihre Trefferflaeche
+            // unsichtbar per before-Pseudo-Element auf (siehe ui/button.tsx),
+            // bei zu wenig Abstand ueberlappen sich die beiden Zonen. Beide
+            // Beschriftungen bewusst kurz gehalten -- der Section-Header
+            // umbricht nicht, und "Aufgabe hinzufuegen" plus ein zweiter Button
+            // sprengt auf schmalen Handys die Breite neben dem Titel.
+            action={
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setExamComposing(true)}>
+                  <GraduationCap className="size-4" />
+                  Prüfung
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setComposing(true)}>
+                  <Plus className="size-4" />
+                  Aufgabe
+                </Button>
+              </div>
             }
-          />
-        </Section>
+          >
+            <AssignmentList
+              assignments={data.assignments}
+              onChange={(next) => setData((prev) => (prev ? { ...prev, assignments: next } : prev))}
+              grouped={false}
+              showSubject={false}
+              emptyLabel="Keine Aufgaben in diesem Fach."
+            />
+          </Section>
+        </div>
       </StaggerItem>
 
-      {/* --- Dateien --- */}
+      {/* --- Notizen --- */}
       <StaggerItem>
-        <Section title="Dateien">
-          <SubjectFiles subjectId={subject.id} />
-        </Section>
+        <div
+          id="fach-panel-notizen"
+          role="tabpanel"
+          aria-labelledby="fach-tab-notizen"
+          hidden={tab !== "notizen"}
+        >
+          <Section title="Notizen">
+            <SubjectNotes
+              subjectId={subject.id}
+              initialNotes={data.notes}
+              lessonNotes={data.lessonNotes}
+              onenoteReady={Boolean(microsoft?.connected && subject.onenoteSectionId)}
+              onOpenLessonNote={(n) => {
+                setNoteMeta({ date: n.date, startTime: n.startTime });
+                setNoteTarget({
+                  schoolBlockId: n.schoolBlockId,
+                  subject: subject.name,
+                  dayLabel: fmtLessonDate(n.date),
+                  time: hm(n.startTime),
+                  color: colorValue(subject.color),
+                });
+              }}
+            />
+          </Section>
+        </div>
+      </StaggerItem>
+
+      {/* --- Material --- */}
+      <StaggerItem>
+        <div
+          id="fach-panel-material"
+          role="tabpanel"
+          aria-labelledby="fach-tab-material"
+          hidden={tab !== "material"}
+          className="space-y-6"
+        >
+          <Section title="Lehrplan">
+            <SubjectCurriculum
+              subjectId={subject.id}
+              subjectName={subject.name}
+              initial={{
+                curriculum: subject.curriculum,
+                curriculumSource: subject.curriculumSource,
+                curriculumUpdatedAt: subject.curriculumUpdatedAt,
+              }}
+            />
+          </Section>
+
+          <Section title="Dateien">
+            <SubjectFiles subjectId={subject.id} />
+          </Section>
+
+          <Section title="OneNote">
+            <SubjectOnenote
+              subjectId={subject.id}
+              status={microsoft}
+              sectionId={subject.onenoteSectionId}
+              sectionName={subject.onenoteSectionName}
+              onChange={(next) =>
+                setData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        subject: {
+                          ...prev.subject,
+                          onenoteSectionId: next.id,
+                          onenoteSectionName: next.name,
+                        },
+                      }
+                    : prev,
+                )
+              }
+            />
+          </Section>
+        </div>
       </StaggerItem>
 
       <AssignmentComposer
@@ -586,6 +703,78 @@ export function SubjectDetail({ id }: { id: string }) {
           setData((prev) => (prev ? { ...prev, assignments: [a, ...prev.assignments] } : prev))
         }
       />
+
+      {/* --- Stammdaten-Modal --- */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Fach bearbeiten">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block text-[13px] font-medium">Name</span>
+            <input
+              className={FIELD}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                const v = name.trim();
+                if (!v) {
+                  setName(subject.name);
+                  return;
+                }
+                if (v !== subject.name) void patch({ name: v });
+              }}
+            />
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium">Lehrer</span>
+              {/* Untis kennt nur den Nachnamen, nicht das Geschlecht. Die
+                  Anrede sitzt deshalb direkt am Feld statt in einer eigenen
+                  Zeile -- sie ist Teil desselben Namens, keine zweite
+                  Einstellung. */}
+              <div className="flex gap-2">
+                <TitlePicker
+                  value={subject.teacherTitle}
+                  onChange={(v) => void patch({ teacherTitle: v })}
+                />
+                <input
+                  className={FIELD}
+                  value={teacher}
+                  placeholder="Nicht hinterlegt"
+                  onChange={(e) => setTeacher(e.target.value)}
+                  onBlur={() => {
+                    const v = teacher.trim();
+                    if (v !== (subject.teacher ?? "")) void patch({ teacher: v || null });
+                  }}
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium">Raum</span>
+              <input
+                className={FIELD}
+                value={room}
+                placeholder="Nicht hinterlegt"
+                onChange={(e) => setRoom(e.target.value)}
+                onBlur={() => {
+                  const v = room.trim();
+                  if (v !== (subject.room ?? "")) void patch({ room: v || null });
+                }}
+              />
+            </label>
+          </div>
+          <div>
+            <span className="mb-1 block text-[13px] font-medium">Farbe</span>
+            <ColorPicker
+              value={subject.color}
+              onChange={(token) => void patch({ color: token })}
+              label="Farbe des Fachs"
+            />
+          </div>
+          <p className="text-[12px] text-muted-foreground">
+            Änderungen werden gespeichert, sobald du das Feld verlässt. Archivieren nimmt das Fach nur
+            aus der Übersicht. Es taucht auch nach einem neuen Untis-Abgleich nicht wieder auf.
+          </p>
+        </div>
+      </Modal>
 
       {/* Eigenes Bestaetigungs-Overlay statt window.confirm -- und es benennt
           ausdruecklich, was mitgeht und was bleibt. */}
@@ -881,13 +1070,14 @@ function SubjectDetailSkeleton() {
     <div className="flex flex-col gap-6" aria-label="Fach wird geladen" aria-busy="true">
       <div className="flex flex-col gap-4">
         <Skeleton className="h-4 w-32" />
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start justify-between gap-4">
           <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-9 w-24 rounded-md" />
+          <Skeleton className="h-10 w-16" />
         </div>
         <Skeleton className="h-4 w-64" />
       </div>
-      {["Stammdaten", "Aufgaben", "Notizen", "Dateien"].map((title) => (
+      <Skeleton className="h-11 w-full rounded-lg" />
+      {["Übersicht", "Aufgaben"].map((title) => (
         <section key={title} className="overflow-hidden rounded-2xl border bg-card shadow-card">
           <div className="border-b bg-muted/30 px-5 py-3">
             <Skeleton className="h-4 w-24" />
@@ -907,7 +1097,7 @@ function SubjectDetailSkeleton() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
-      <Stagger className="mx-auto max-w-2xl space-y-6">{children}</Stagger>
+      <Stagger className="mx-auto max-w-3xl space-y-6">{children}</Stagger>
     </main>
   );
 }
