@@ -9,6 +9,7 @@ import { listSubjects, listRecentNotes } from "@/lib/subject-store";
 import { expandRange, type CalendarEvent } from "@/lib/calendar-expand";
 import { listAssignments } from "@/lib/assignment-store";
 import { isExamPageType, TYPE_LABEL, type AssignmentType } from "@/lib/assignments-view";
+import { lernplaeneAnzahl } from "@/lib/lernplan-store";
 
 import { heuteISO as localISO } from "@/lib/zeit";
 import { addDays } from "@/lib/assignments-view";
@@ -32,6 +33,9 @@ export type Lagebild = {
   aufgaben: AufgabeKurz[];
   pruefungen: AufgabeKurz[];
   notizen: NotizKurz[];
+  // Optional, damit bestehende Lagebild-Literale (z. B. in Tests) ohne das
+  // Feld weiter gueltig bleiben. Fehlt es, wird kein Satz dazu ausgegeben.
+  lernplaene?: number;
 };
 
 function toStunde(e: CalendarEvent): Stunde {
@@ -94,7 +98,9 @@ export async function ladeLagebild(): Promise<Lagebild> {
     notizen = [];
   }
 
-  return { heute, faecher, stundenHeute, naechsterSchultag, aufgaben, pruefungen, notizen };
+  const lernplaene = await lernplaeneAnzahl().catch(() => undefined);
+
+  return { heute, faecher, stundenHeute, naechsterSchultag, aufgaben, pruefungen, notizen, lernplaene };
 }
 
 // Relative Tagesangabe: "(heute)", "(morgen)", "(in 3 Tagen)",
@@ -174,6 +180,10 @@ export function lagebildAlsText(l: Lagebild): string {
       const fachTeil = p.fach ? ` ${p.fach}` : "";
       zeilen.push(`- [${p.id}] ${typLabel}${fachTeil} "${p.titel}" am ${p.faellig} ${relativTag(p.faellig!, l.heute)}`);
     }
+  }
+
+  if (l.lernplaene) {
+    zeilen.push(`Lernpläne: ${l.lernplaene} aktiv`);
   }
 
   zeilen.push("Zuletzt geaenderte Notizen:");

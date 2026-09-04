@@ -96,6 +96,7 @@ describe("buildGreeting", () => {
       naechstePruefung: null,
       letzteNotiz: null,
       naechsterTermin: null,
+      lernen: [],
       ...overrides,
     };
   }

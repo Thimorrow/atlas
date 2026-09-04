@@ -32,6 +32,8 @@ function makeConversation() {
     subjectId: SUBJECT_ID,
     modus: "lernen" as const,
     cardId: null,
+      itemId: null,
+      assignmentId: null,
     checkliste: null,
     ergebnis: null,
     kartenAngelegt: false,

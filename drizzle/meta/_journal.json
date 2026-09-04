@@ -134,6 +134,13 @@
       "when": 1788518712239,
       "tag": "0018_tutor",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788555147228,
+      "tag": "0019_lernplan",
+      "breakpoints": true
     }
   ]
 }

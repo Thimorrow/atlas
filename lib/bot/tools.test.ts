@@ -39,6 +39,8 @@ vi.mock("@/lib/grade-store", () => ({
   listGrades: vi.fn(),
   summarize: vi.fn(),
 }));
+const lernplanUebersicht = vi.fn().mockResolvedValue([]);
+vi.mock("@/lib/lernplan-store", () => ({ lernplanUebersicht }));
 
 const { runTool, botTools, matchSubject } = await import("./tools");
 
@@ -206,6 +208,59 @@ describe("lehrplan_lesen bleibt ehrlich", () => {
     };
     expect(e.hinweis).toContain("Astronomie");
     expect(e.error).toBeUndefined();
+  });
+});
+
+describe("lernplan_lesen liest den gemockten Store und formatiert", () => {
+  beforeEach(() => {
+    lernplanUebersicht.mockReset();
+  });
+
+  it("ruft lernplanUebersicht mit dem Fach und formatiert die Antwort", async () => {
+    lernplanUebersicht.mockResolvedValue([
+      {
+        planId: "plan1",
+        assignmentId: "a1",
+        subjectId: "s1",
+        subjectName: "Mathe",
+        examTitle: "Klassenarbeit Funktionen",
+        examDate: "2026-09-20",
+        tageBis: 16,
+        total: 10,
+        done: 3,
+        punkte: [{ titel: "Quadratische Funktionen", sicherheit: 40, quelle: "diagnose" }],
+        heute: [{ id: "i1", planId: "plan1", pointId: "p1", punktTitel: "Quadratische Funktionen", date: "2026-09-04", position: 0, phase: "lernen", minuten: 20, doneAt: null, result: null }],
+        ueberfaellig: [],
+      },
+    ]);
+
+    const e = (await runTool("lernplan_lesen", { fach: "Mathe" })) as {
+      plaene: { fach: string; pruefung: string; fortschritt: string; seite: string; heute: unknown[] }[];
+    };
+
+    expect(lernplanUebersicht).toHaveBeenCalledWith("Mathe");
+    expect(e.plaene).toHaveLength(1);
+    expect(e.plaene[0].fach).toBe("Mathe");
+    expect(e.plaene[0].pruefung).toBe("Klassenarbeit Funktionen");
+    expect(e.plaene[0].fortschritt).toBe("3 von 10");
+    expect(e.plaene[0].seite).toBe("/lernen/s1/plan/a1");
+    expect(e.plaene[0].heute).toHaveLength(1);
+  });
+
+  it("meldet einen Hinweis statt eines Fehlers, wenn es keinen Plan gibt", async () => {
+    lernplanUebersicht.mockResolvedValue([]);
+    const e = (await runTool("lernplan_lesen", {})) as { plaene: unknown[]; hinweis?: string; error?: string };
+    expect(e.plaene).toHaveLength(0);
+    expect(e.hinweis).toBeTruthy();
+    expect(e.error).toBeUndefined();
+  });
+});
+
+describe("der Bot bietet lernplan_lesen an", () => {
+  it("botTools enthaelt lernplan_lesen mit einer Beschreibung, die 'Lernplan' nennt", () => {
+    const tool = botTools.find((t) => t.function.name === "lernplan_lesen");
+    expect(tool).toBeDefined();
+    expect(tool?.function.description).toContain("Lernplan");
   });
 });
 

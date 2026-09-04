@@ -262,6 +262,19 @@ export async function reviewCard(id: string, correct: boolean): Promise<StudyCar
 
   await db.insert(studyReviews).values({ cardId: id, subjectId: card.subjectId, correct });
 
+  // Sicherheit schreibt sich zurueck (SPEC.md): dynamischer Import statt
+  // statischem, weil lib/lernplan-store.ts umgekehrt aus dieser Datei
+  // importiert (createTopic/updateTopic/deleteTopic) -- ein statischer Import
+  // hier waere ein Zirkel. Fehler dürfen das Review nicht kaputt machen.
+  if (card.topicId) {
+    try {
+      const { aktualisiereAusKarten } = await import("@/lib/lernplan-store");
+      await aktualisiereAusKarten(card.topicId);
+    } catch (err) {
+      console.warn("[lernplan] Sicherheit aus Karten:", err);
+    }
+  }
+
   return updated ? toDTO(updated) : null;
 }
 

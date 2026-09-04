@@ -1,7 +1,7 @@
 ---
 project: Atlas
 slug: Atlas
-last_updated: 2026-09-04T20:45:00Z
+last_updated: 2026-09-05T01:30:00Z
 current_milestone: M003
 active_slice: null
 active_task: null
@@ -161,3 +161,45 @@ mitschreiben, nicht nachtraeglich rekonstruieren.
 M001 (Stundenplan) fertig. M002 (To-Dos) gebaut und in der Scope-Reduktion vom
 2026-09-01 wieder entfernt -- der Code liegt in der History bei `b34dab2`.
 M003 (Schul-Module) fertig, siehe `M003-null-null-SUMMARY.md`.
+
+## Nachtrag 2026-09-04 spaet: Spec Lernplan (noch nicht gebaut)
+
+`.ytstack/SPEC.md` v3: Lernplan zur Pruefung aus Checkliste (Foto/PDF),
+Arbeitsblaettern (PDF) und Diagnosetest, Phasen lernen/ueben/probe/simulation,
+Sicherheit je Punkt mit Rueckschreiben aus Karten und Tutor. CEO-Review
+gelaufen (Ansatz C, SELECTIVE EXPANSION, vier Erweiterungen angenommen),
+Entscheidung in DECISIONS.md. Naechster Schritt: frische Session,
+"Setze .ytstack/SPEC.md um", 24 Akzeptanzkriterien abhaken.
+
+## Nachtrag 2026-09-05: Lernplan gebaut (Branch feature/lernplan, PR offen)
+
+`SPEC.md` (Lernplan zur Pruefung, 24 Kriterien) umgesetzt in fuenf Wellen
+per Sonnet-Subagenten, Review per Diff und `/code-review` (8 Befunde, 7
+behoben, 1 laut SPEC gewollt: Abwaehlen einer Probe laesst die Sicherheit
+stehen).
+
+- Migration `drizzle/0019_lernplan.sql`: `study_plans`, `study_plan_points`,
+  `study_plan_checks`, `study_plan_items`; dazu `tutor_conversations.topic_id`
+  nullable plus `item_id`, `assignment_id` (Simulation ohne Thema).
+- Lib: `lib/lernplan.ts` (rein: `einheitenFuer`, `verteilen`, `neuVerteilen`),
+  `lib/lernplan-sicherheit.ts`, `lib/lernplan-generieren.ts` (`lesen`,
+  `bewerten` mit Index-Zuordnung), `lib/lernplan-store.ts` (Drizzle, ohne
+  Transaktion: neon-http kann keine, alter Plan wird vor dem Insert
+  geloescht), `lib/lernplan-karten-queue.ts` (Client-Queue, Parallelitaet 2,
+  legt fehlendes Thema neu an), `lib/bild-verkleinern.ts`, `lib/datei-upload.ts`
+  (Blob-Upload aus subject-files.tsx extrahiert).
+- Routen `/api/lernen/plan{,/lesen,/bewerten,/[id],/[id]/verteilen,/items/[id],/points/[id]}`.
+- Seiten `/lernen/[s]/plan/[a]` und `.../neu` (`components/lernplan-erstellen.tsx`,
+  `lernplan-seite.tsx`, `lernplan-karten-queue.tsx`, `lernplan-ui.tsx`).
+- Hooks: `reviewCard` schreibt Sicherheit (Quelle karten), Tutor-Fazit schreibt
+  Sicherheit und hakt die Einheit ab (Quelle fazit), Tutor bekommt die Blaetter
+  des Punkts; Simulation ueber `pruefung=` ohne Thema.
+- Bloecke: `GET /api/assignments` (`lernplan`), `GET /api/morgen` und
+  `GET /api/stunde` (`lernen`), NextExamCard, MorgenPanel, Cockpit; Bot-Tool
+  `lernplan_lesen`.
+
+Verifikation lokal: tsc fehlerfrei, 640 Tests gruen (40 skipped ohne
+DATABASE_URL), `next build` 0 Errors mit allen neun Routen, A8 (Text) und A9
+gegen das echte Modell per tsx-Skript belegt. Offen bis nach dem Deploy:
+A7, A8 (PNG+PDF), A10 bis A14, A17, A18, A23 per `scripts/lernplan-live-check.mjs`
+und `scripts/lernplan-live-e2e.mjs` (Sid fuehrt sie mit `!` aus), A24 per Auge.

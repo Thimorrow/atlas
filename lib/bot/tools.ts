@@ -31,6 +31,7 @@ import { gradeOverview, listGrades, summarize } from "@/lib/grade-store";
 import { pointsToGradeLabel } from "@/lib/grades";
 import { ladeStundeKontext } from "@/lib/stunde-kontext";
 import { overview, subjectDetail, createCards, createTopic, listTopics } from "@/lib/study-store";
+import { lernplanUebersicht } from "@/lib/lernplan-store";
 import { generateCards, type GenerateInput } from "@/lib/lernen-generieren";
 import type { ChatTool } from "@/lib/bot/model";
 import type { NewAssignment, NewSubjectNote } from "@/lib/db/schema";
@@ -354,6 +355,20 @@ export const botTools: ChatTool[] = [
   {
     type: "function",
     function: {
+      name: "lernplan_lesen",
+      description:
+        "Liest den Lernplan zu einer Pruefung: Datum, Tage bis dahin, Fortschritt, Sicherheit je Punkt mit Quelle, Einheiten von heute und ueberfaellige. Nutze es fuer Fragen wie 'Wie steht mein Lernplan?' oder 'Was muss ich heute fuer die Arbeit lernen?'. Lesend, kein Schreibzugriff.",
+      parameters: {
+        type: "object",
+        properties: {
+          fach: { type: "string", description: "Name des Fachs. Ohne Angabe: alle Lernplaene." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "lernkarten_erzeugen",
       description:
         "Erzeugt per KI neue Karteikarten aus Notizen, Dateien oder Lehrplan eines Fachs und legt sie direkt an. NUR auf ausdruecklichen Wunsch des Schuelers nutzen oder nachdem du nachgefragt und er zugestimmt hat -- nie ungefragt Karten erzeugen.",
@@ -430,6 +445,8 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
       return "liest die aktuelle Stunde";
     case "lernstand_lesen":
       return fach ? `liest den Lernstand in ${fach}` : "liest den Lernstand";
+    case "lernplan_lesen":
+      return fach ? `liest den Lernplan in ${fach}` : "liest die Lernplaene";
     case "lernkarten_erzeugen":
       return fach ? `erzeugt Lernkarten in ${fach}` : "erzeugt Lernkarten";
     case "lernkarte_anlegen":
@@ -473,6 +490,8 @@ export async function runTool(name: string, args: Record<string, unknown>): Prom
       return jetztLesen();
     case "lernstand_lesen":
       return lernstandLesen(args);
+    case "lernplan_lesen":
+      return lernplanLesen(args);
     case "lernkarten_erzeugen":
       return lernkartenErzeugen(args);
     case "lernkarte_anlegen":
@@ -927,6 +946,40 @@ async function lernstandLesen(args: Record<string, unknown>) {
   }
 
   return result;
+}
+
+// Lesend: liefert je Lernplan Pruefung, Datum, Fortschritt, Punkte mit
+// Sicherheit/Quelle, Einheiten heute und ueberfaellige, plus Link zur
+// Planseite. Kein Fach-Treffer bei gesetztem `fach` heisst leere Liste mit
+// Hinweis, kein Fehler -- siehe lehrplanLesen/lernstandLesen als Vorbild.
+async function lernplanLesen(args: Record<string, unknown>) {
+  const fach = typeof args.fach === "string" ? args.fach.trim() : "";
+  const plaene = await lernplanUebersicht(fach || undefined);
+
+  if (plaene.length === 0) {
+    return {
+      plaene: [],
+      hinweis: fach ? `Kein Lernplan zu "${fach}" gefunden.` : "Keine Lernplaene vorhanden.",
+    };
+  }
+
+  return {
+    plaene: plaene.map((p) => ({
+      fach: p.subjectName,
+      pruefung: p.examTitle,
+      datum: p.examDate,
+      tageBis: p.tageBis,
+      fortschritt: `${p.done} von ${p.total}`,
+      punkte: p.punkte.map((pkt) => ({ titel: pkt.titel, sicherheit: pkt.sicherheit, quelle: pkt.quelle })),
+      heute: p.heute.map((i) => ({ titel: i.punktTitel ?? "Simulation", phase: i.phase, minuten: i.minuten })),
+      ueberfaellig: p.ueberfaellig.map((i) => ({
+        titel: i.punktTitel ?? "Simulation",
+        phase: i.phase,
+        datum: i.date,
+      })),
+      seite: `/lernen/${p.subjectId}/plan/${p.assignmentId}`,
+    })),
+  };
 }
 
 // Nur auf ausdruecklichen Wunsch bzw. nach Rueckfrage gerufen (siehe

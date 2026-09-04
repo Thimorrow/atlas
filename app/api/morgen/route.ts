@@ -6,6 +6,7 @@ import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
 import { addDays } from "@/lib/assignments-view";
 import { lokalesDatum as heuteLokal, lokaleUhrzeit as jetztLokal, minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
+import { lernenFuerTag, type LernenFuerTagEintrag } from "@/lib/lernplan-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -151,6 +152,8 @@ export async function GET(req: Request) {
     return { ...hit, endTime: hit.endTime, minutesLeft: minutesLeft(hit.endTime, nowHM) };
   })();
 
+  const lernen: LernenFuerTagEintrag[] = await lernenFuerTag(target.date);
+
   return NextResponse.json({
     today,
     target: { date: target.date, isTomorrow: target.isTomorrow, label: targetDayLabel(target, today) },
@@ -159,6 +162,7 @@ export async function GET(req: Request) {
     due,
     exams,
     materials,
+    lernen,
   });
 }
 

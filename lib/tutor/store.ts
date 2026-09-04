@@ -25,6 +25,8 @@ function toConversationDTO(row: typeof tutorConversations.$inferSelect): TutorCo
     subjectId: row.subjectId,
     modus: row.modus,
     cardId: row.cardId,
+    itemId: row.itemId,
+    assignmentId: row.assignmentId,
     checkliste: (row.checkliste as Checkliste | null) ?? null,
     ergebnis: (row.ergebnis as TutorErgebnis | null) ?? null,
     kartenAngelegt: row.kartenAngelegt,
@@ -48,10 +50,12 @@ function toMessageDTO(row: typeof tutorMessages.$inferSelect): TutorMessageDTO {
 }
 
 export async function createTutorConversation(data: {
-  topicId: string;
+  topicId: string | null;
   subjectId: string;
   modus: TutorModus;
   cardId?: string | null;
+  itemId?: string | null;
+  assignmentId?: string | null;
 }): Promise<TutorConversationDTO> {
   const [row] = await db
     .insert(tutorConversations)
@@ -60,6 +64,8 @@ export async function createTutorConversation(data: {
       subjectId: data.subjectId,
       modus: data.modus,
       cardId: data.cardId ?? null,
+      itemId: data.itemId ?? null,
+      assignmentId: data.assignmentId ?? null,
     })
     .returning();
   return toConversationDTO(row);

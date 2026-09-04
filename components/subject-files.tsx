@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Download, FileText, RotateCw, Trash2, Upload, X } from "lucide-react";
-import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { ladeDateiInFachHoch } from "@/lib/datei-upload";
 import type { FileDTO } from "@/lib/subject-file-store";
 import { ACCEPT_ATTR, ACCEPTED_TYPES, MAX_FILES_PER_UPLOAD, MAX_FILE_SIZE } from "@/lib/file-limits";
 
@@ -108,39 +108,16 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
     async (key: string, file: File) => {
       setQueue((q) => q.map((it) => (it.key === key ? { ...it, status: "laedt", error: undefined } : it)));
       try {
-        const blob = await upload(file.name, file, {
-          access: "private",
-          handleUploadUrl: `/api/subjects/${subjectId}/files/upload`,
-          contentType: file.type,
-        });
-
-        const res = await fetch(`/api/subjects/${subjectId}/files`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ pathname: blob.pathname, name: file.name }),
-        });
-        const data = (await res.json().catch(() => null)) as
-          | { file?: FileDTO; error?: string }
-          | null;
-        if (!res.ok || !data?.file) {
-          // Die Serverantwort nennt den Grund konkreter, als eine pauschale
-          // Meldung es könnte.
-          const message = data?.error ?? "Die Datei konnte nicht hochgeladen werden.";
-          setQueue((q) => q.map((it) => (it.key === key ? { ...it, status: "fehler", error: message } : it)));
-          return;
-        }
+        const datei = await ladeDateiInFachHoch(subjectId, file);
         // Die Datei erscheint sofort in der Liste, der Warteschlangen-Eintrag
         // verschwindet im selben Zug -- kein sichtbarer "fertig"-Zwischenstand.
-        setFiles((prev) => [data.file!, ...prev]);
+        setFiles((prev) => [datei, ...prev]);
         setBatchDone((d) => d + 1);
         pendingFilesRef.current.delete(key);
         setQueue((q) => q.filter((it) => it.key !== key));
-      } catch {
-        setQueue((q) =>
-          q.map((it) =>
-            it.key === key ? { ...it, status: "fehler", error: "Die Datei konnte nicht hochgeladen werden." } : it,
-          ),
-        );
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Die Datei konnte nicht hochgeladen werden.";
+        setQueue((q) => q.map((it) => (it.key === key ? { ...it, status: "fehler", error: message } : it)));
       }
     },
     [subjectId],

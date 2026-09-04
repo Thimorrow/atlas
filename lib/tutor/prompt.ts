@@ -32,6 +32,14 @@ export const PROBE_PROMPT_BLOCK = `
 
 Diese Session ist eine Probe. Kein Erklären vorab. Schritt 1: Widget mit 5 bis 8 Kompetenzen des Themas, Mehrfachauswahl "Kann ich sicher". Schritt 2: Checkliste mit 5 bis 8 Aufgaben wie in einer Klassenarbeit, leicht bis schwer, ohne Hints, bei "skip" gilt die Aufgabe als falsch. Schritt 3: Fazit mit Punkten je Aufgabe (Schwierigkeit 1 bis 3 = maximale Punkte) und Gesamtpunkten.`;
 
+// Ersetzt PROBE_PROMPT_BLOCK, wenn die Session eine Simulation ueber mehrere
+// Lernplan-Punkte ist (siehe SPEC.md "Tutor kennt die Blätter des Punkts").
+// Die Punkt-ids stehen im Kontextblock, damit das Modell sie im fazit-Tool
+// als punktePlan zurueckgeben kann.
+export const SIMULATION_PROMPT_BLOCK = `
+
+Diese Session ist eine Simulation ueber mehrere Punkte einer Pruefung (siehe Punkte-Liste unten). Kein Erklären vorab. Stelle zu jedem Punkt der Liste mindestens eine Aufgabe, in der Reihenfolge der Liste, wie in einer Klassenarbeit, ohne Hints. Am Ende IMMER fazit mit punktePlan: fuer jeden gelisteten Punkt ein Eintrag { pointId, prozent } je nach Leistung in diesem Punkt.`;
+
 const MAX_SUMMARY_CHARS = 6000;
 const MAX_CARDS = 40;
 // Ab dieser Box gilt eine Karte im Kontext noch als schwach (siehe
@@ -40,14 +48,31 @@ const SCHWACH_BOX = 1;
 
 export type TutorContextCard = { question: string; answer: string; box: number; kind: CardKind };
 
+// Arbeitsblätter des Lernplan-Punkts dieser Session, siehe lib/tutor/session.ts.
+export type TutorBlaetterContext = {
+  text: string;
+  seiten: string | null;
+  gekuerzt: boolean;
+  fehlend: string[];
+};
+
+// Simulation ueber mehrere Lernplan-Punkte (kein Thema), siehe
+// lib/tutor/session.ts und SPEC.md "Tutor kennt die Blätter des Punkts".
+export type TutorSimulationContext = {
+  punkte: { pointId: string; titel: string; sicherheit: number }[];
+};
+
 export type TutorContextInput = {
   subjectName: string;
   lernart: string;
-  topicTitle: string;
+  // null nur bei Simulation (topicId der Konversation ist dann null).
+  topicTitle: string | null;
   summary: string | null;
   cards: TutorContextCard[];
   pruefung: { title: string; tageBis: number } | null;
   card: { question: string; answer: string } | null;
+  blaetter: TutorBlaetterContext | null;
+  simulation: TutorSimulationContext | null;
 };
 
 // Baut den Kontextblock fuer den Systemprompt, rein ohne DB: Lernzettel bei
@@ -59,7 +84,12 @@ export function buildTutorContext(input: TutorContextInput): string {
 
   parts.push(`Fach: ${input.subjectName}`);
   parts.push(`Lernart: ${input.lernart}`);
-  parts.push(`Thema: ${input.topicTitle}`);
+  if (input.topicTitle !== null) parts.push(`Thema: ${input.topicTitle}`);
+
+  if (input.simulation) {
+    const zeilen = input.simulation.punkte.map((p) => `- ${p.titel} (Sicherheit ${p.sicherheit} %, pointId: ${p.pointId})`);
+    parts.push(`Punkte der Simulation:\n${zeilen.join("\n")}`);
+  }
 
   const summary = (input.summary ?? "").trim();
   const hasSummary = summary.length > 0;
@@ -83,8 +113,16 @@ export function buildTutorContext(input: TutorContextInput): string {
     parts.push(`Karten:\n${zeilen.join("\n")}`);
   }
 
-  if (!hasSummary && cappedCards.length === 0) {
+  if (!hasSummary && cappedCards.length === 0 && !input.simulation) {
     parts.push("Es gibt noch kein Material, frag Timo, worum es geht.");
+  }
+
+  if (input.blaetter) {
+    const seiten = input.blaetter.seiten ?? "-";
+    let block = `Arbeitsblätter zu diesem Punkt (Seiten: ${seiten})\n${input.blaetter.text}`;
+    if (input.blaetter.gekuerzt) block += "\n[gekürzt]";
+    for (const name of input.blaetter.fehlend) block += `\nBlatt ${name} konnte nicht gelesen werden.`;
+    parts.push(block);
   }
 
   if (input.pruefung) {
@@ -99,7 +137,9 @@ export function buildTutorContext(input: TutorContextInput): string {
 }
 
 // system = TUTOR_PROMPT + (probe ? PROBE_PROMPT_BLOCK : "") + Kontextblock.
+// Simulation (context.simulation gesetzt) ersetzt PROBE_PROMPT_BLOCK durch
+// SIMULATION_PROMPT_BLOCK -- die API erzwingt modus=probe fuer Simulationen.
 export function buildSystemPrompt(modus: "lernen" | "probe", context: TutorContextInput): string {
-  const probeBlock = modus === "probe" ? PROBE_PROMPT_BLOCK : "";
+  const probeBlock = context.simulation ? SIMULATION_PROMPT_BLOCK : modus === "probe" ? PROBE_PROMPT_BLOCK : "";
   return `${TUTOR_PROMPT}${probeBlock}\n\n---\n\n${buildTutorContext(context)}`;
 }

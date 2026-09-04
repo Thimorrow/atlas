@@ -451,7 +451,7 @@ export function parseGeneratedVariant(text: string): { question: string; answer:
 }
 
 const URTEILE = ["richtig", "teilweise", "falsch"] as const;
-type Urteil = (typeof URTEILE)[number];
+export type Urteil = (typeof URTEILE)[number];
 
 // Wie parseGeneratedVariant: Code-Fences weg, erstes JSON-Objekt raussuchen.
 // Unbekanntes oder fehlendes urteil-Feld -> null, fehlendes feedback -> "".
@@ -476,4 +476,41 @@ export function parseUrteil(text: string): { urteil: Urteil; feedback: string } 
   const feedback = typeof feedbackRaw === "string" ? feedbackRaw.trim() : "";
 
   return { urteil: urteilRaw as Urteil, feedback };
+}
+
+// Wie parseUrteil, aber fuer ein JSON-Array mehrerer Urteile (Antwort von
+// bewerten() in lib/lernplan-generieren.ts, Diagnosetest-Auswertung). Kein
+// JSON-Array oder kaputtes JSON -> null. Eintraege ohne gueltiges
+// urteil-Feld werden verworfen statt die ganze Antwort zu verwerfen -- der
+// Aufrufer erkennt eine falsche Anzahl am Laengenvergleich mit den
+// gesendeten Antworten.
+export function parseUrteile(text: string): { index?: number; urteil: Urteil; feedback: string }[] | null {
+  const cleaned = stripCodeFences(text);
+  const jsonText = findFirstJsonArray(cleaned);
+  if (!jsonText) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+
+  const out: { index?: number; urteil: Urteil; feedback: string }[] = [];
+  for (const entry of parsed) {
+    if (!isObj(entry)) continue;
+    const urteilRaw = entry.urteil;
+    if (typeof urteilRaw !== "string" || !(URTEILE as readonly string[]).includes(urteilRaw)) continue;
+
+    const feedbackRaw = entry.feedback;
+    const feedback = typeof feedbackRaw === "string" ? feedbackRaw.trim() : "";
+
+    const indexRaw = entry.index;
+    const index = typeof indexRaw === "number" ? indexRaw : undefined;
+
+    out.push({ ...(index !== undefined ? { index } : {}), urteil: urteilRaw as Urteil, feedback });
+  }
+
+  return out;
 }

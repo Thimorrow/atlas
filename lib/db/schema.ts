@@ -488,15 +488,20 @@ export const tutorConversations = pgTable(
   "tutor_conversations",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    topicId: uuid("topic_id")
-      .notNull()
-      .references(() => studyTopics.id, { onDelete: "cascade" }),
+    // null = Simulation (siehe study_plan_points/-items unten): die Session
+    // haengt dann nicht an einem Thema, sondern an einer Pruefung.
+    topicId: uuid("topic_id").references(() => studyTopics.id, { onDelete: "cascade" }),
     subjectId: uuid("subject_id")
       .notNull()
       .references(() => subjects.id, { onDelete: "cascade" }),
     modus: tutorModus("modus").notNull().default("lernen"),
     // Einstiegskarte, falls die Session aus der Kartensession gestartet wurde.
     cardId: uuid("card_id").references(() => studyCards.id, { onDelete: "set null" }),
+    // Lernplan-Einheit (probe oder simulation), die diese Session bedient --
+    // fuer den Fazit-Rueckschreib-Hook (lib/lernplan-store.ts aktualisiereAusFazit).
+    itemId: uuid("item_id").references(() => studyPlanItems.id, { onDelete: "set null" }),
+    // Nur bei Simulation gesetzt: die Pruefung, deren gesamter Plan geuebt wird.
+    assignmentId: uuid("assignment_id").references(() => assignments.id, { onDelete: "cascade" }),
     checkliste: jsonb("checkliste"),
     ergebnis: jsonb("ergebnis"),
     kartenAngelegt: boolean("karten_angelegt").notNull().default(false),
@@ -530,3 +535,124 @@ export type TutorMessage = typeof tutorMessages.$inferSelect;
 export type NewTutorMessage = typeof tutorMessages.$inferInsert;
 export type TutorMessageRole = TutorMessage["role"];
 export type TutorModus = TutorConversation["modus"];
+
+// ---------------------------------------------------------------------------
+// Lernplan (/lernen/.../plan) -- Pfad zur Pruefung aus Checkliste, Blaettern
+// und Diagnosetest. Ein Plan pro Pruefung (assignment_id unique).
+//
+// confidence_source, cards_state, phase und verdict bleiben bewusst text
+// statt Postgres-Enum -- die SQL-Migration traegt die CHECK-Constraints,
+// Drizzle nur den TS-Union-Typ ueber $type<...>(). Siehe SPEC.md
+// "Datenmodell".
+// ---------------------------------------------------------------------------
+
+export const studyPlans = pgTable(
+  "study_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    assignmentId: uuid("assignment_id")
+      .notNull()
+      .references(() => assignments.id, { onDelete: "cascade" }),
+    subjectId: uuid("subject_id")
+      .notNull()
+      .references(() => subjects.id, { onDelete: "cascade" }),
+    checklistFileId: uuid("checklist_file_id").references(() => subjectFiles.id, {
+      onDelete: "set null",
+    }),
+    checklistText: text("checklist_text").notNull().default(""),
+    minutesWeekday: integer("minutes_weekday").notNull().default(30),
+    minutesWeekend: integer("minutes_weekend").notNull().default(60),
+    // dueDate beim Erstellen -- Grundlage fuer das Banner "verschoben",
+    // wenn die Pruefung inzwischen ein anderes dueDate hat.
+    examDate: date("exam_date").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("study_plans_assignment_id_unique").on(t.assignmentId)],
+);
+
+export type StudyPlan = typeof studyPlans.$inferSelect;
+export type NewStudyPlan = typeof studyPlans.$inferInsert;
+
+export const studyPlanPoints = pgTable(
+  "study_plan_points",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => studyPlans.id, { onDelete: "cascade" }),
+    // null = Thema geloescht oder noch nicht angelegt.
+    topicId: uuid("topic_id").references(() => studyTopics.id, { onDelete: "set null" }),
+    position: integer("position").notNull(),
+    title: text("title").notNull(),
+    detail: text("detail").notNull().default(""),
+    pages: text("pages"),
+    // subject_files.id[], beim Speichern gegen das Fach geprueft.
+    fileIds: jsonb("file_ids").notNull().default([]),
+    minutesEstimate: integer("minutes_estimate").notNull(),
+    confidence: integer("confidence").notNull().default(50),
+    confidenceSource: text("confidence_source")
+      .notNull()
+      .default("ohne_test")
+      .$type<"diagnose" | "karten" | "fazit" | "selbst" | "ohne_test">(),
+    confidenceAt: timestamp("confidence_at", { withTimezone: true }).notNull().defaultNow(),
+    // Stand der Karten-Queue: 'offen'|'fertig'|'fehler'.
+    cardsState: text("cards_state").notNull().default("offen").$type<"offen" | "fertig" | "fehler">(),
+  },
+  (t) => [
+    index("study_plan_points_plan_idx").on(t.planId),
+    index("study_plan_points_topic_idx").on(t.topicId),
+  ],
+);
+
+export type StudyPlanPoint = typeof studyPlanPoints.$inferSelect;
+export type NewStudyPlanPoint = typeof studyPlanPoints.$inferInsert;
+export type StudyPlanConfidenceSource = StudyPlanPoint["confidenceSource"];
+export type StudyPlanCardsState = StudyPlanPoint["cardsState"];
+
+export const studyPlanChecks = pgTable(
+  "study_plan_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pointId: uuid("point_id")
+      .notNull()
+      .references(() => studyPlanPoints.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    expected: text("expected").notNull(),
+    answer: text("answer"),
+    verdict: text("verdict").$type<"richtig" | "teilweise" | "falsch" | null>(),
+    feedback: text("feedback").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("study_plan_checks_point_idx").on(t.pointId)],
+);
+
+export type StudyPlanCheck = typeof studyPlanChecks.$inferSelect;
+export type NewStudyPlanCheck = typeof studyPlanChecks.$inferInsert;
+export type StudyPlanVerdict = NonNullable<StudyPlanCheck["verdict"]>;
+
+export const studyPlanItems = pgTable(
+  "study_plan_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => studyPlans.id, { onDelete: "cascade" }),
+    // set null? nein -- point_id gehoert zur Einheit, cascade wie in der SPEC.
+    pointId: uuid("point_id").references(() => studyPlanPoints.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    position: integer("position").notNull().default(0),
+    phase: text("phase").notNull().$type<"lernen" | "ueben" | "probe" | "simulation">(),
+    minutes: integer("minutes").notNull(),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    result: integer("result"),
+  },
+  (t) => [
+    index("study_plan_items_plan_date_idx").on(t.planId, t.date),
+    index("study_plan_items_point_idx").on(t.pointId),
+  ],
+);
+
+export type StudyPlanItem = typeof studyPlanItems.$inferSelect;
+export type NewStudyPlanItem = typeof studyPlanItems.$inferInsert;
+export type StudyPlanPhase = StudyPlanItem["phase"];

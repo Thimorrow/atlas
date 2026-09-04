@@ -24,6 +24,7 @@ import {
   pickLiveLesson,
 } from "@/lib/jetzt-stunde";
 import { isExamPageType, type AssignmentDTO } from "@/lib/assignments-view";
+import { lernenFuerTag, type LernenFuerTagEintrag } from "@/lib/lernplan-store";
 
 // Fach zur Schulstunde: identische Regel wie in app/api/morgen/route.ts.
 function subjectFor(subjects: SubjectDTO[], title: string): SubjectDTO | null {
@@ -60,6 +61,7 @@ export type StundeResponse = {
   naechstePruefung: { id: string; title: string; type: string; dueDate: string; tageBis: number } | null;
   letzteNotiz: { date: string; startTime: string; body: string } | null;
   naechsterTermin: string | null;
+  lernen: LernenFuerTagEintrag[];
 };
 
 // blockId: optional, muss vom Aufrufer schon als gueltige uuid geprueft sein
@@ -68,9 +70,10 @@ export async function ladeStundeKontext(blockId?: string | null): Promise<Stunde
   const today = lokalesDatum();
   const nowHM = lokaleUhrzeit();
 
-  const [day, subjects] = await Promise.all([
+  const [day, subjects, lernen] = await Promise.all([
     expandDay(today).then((r) => r.days[0]),
     listSubjects("active"),
+    lernenFuerTag(today),
   ]);
 
   const tag: StundeLessonDTO[] = (day?.events ?? []).map((ev) => {
@@ -183,5 +186,6 @@ export async function ladeStundeKontext(blockId?: string | null): Promise<Stunde
     naechstePruefung,
     letzteNotiz,
     naechsterTermin,
+    lernen,
   };
 }
