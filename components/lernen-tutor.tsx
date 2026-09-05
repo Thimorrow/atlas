@@ -358,7 +358,7 @@ export function LernenTutor({
           `modus=${modus}`,
           cardId ? `karte=${cardId}` : null,
           einheitId ? `einheit=${einheitId}` : null,
-          pruefung ? `prüfung=${pruefung}` : null,
+          pruefung ? `pruefung=${pruefung}` : null,
           `session=${data.conversation.id}`,
         ]
           .filter(Boolean)
@@ -463,16 +463,26 @@ export function LernenTutor({
 
   // --- Zustaende ohne Chat --------------------------------------------------
 
+  // S4: mit gesetztem pruefung (Simulation oder Probe aus dem Plan heraus)
+  // fuehrt "zurueck" auf die Planseite statt auf Thema/Fach -- sonst landet
+  // man beim Zurueckgehen zwei Ebenen vom Plan entfernt.
+  const backHref = pruefung
+    ? `/lernen/${subjectId}/plan/${pruefung}`
+    : topicId
+      ? `/lernen/${subjectId}/themen/${topicId}`
+      : `/lernen/${subjectId}`;
+  const backLabel = pruefung ? "Zurück zum Plan" : topicId ? "Zurück zum Thema" : "Zum Fach";
+
   if (phase === "no-bot") {
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 px-6 py-16 text-center">
         <AlertTriangle className="size-6 text-muted-foreground" />
         <p className="max-w-sm text-[13px] text-muted-foreground">Der Tutor ist nicht eingerichtet: ZAI_API_KEY fehlt.</p>
         <Link
-          href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
+          href={backHref}
           className="text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          {topicId ? "Zurück zum Thema" : "Zum Fach"}
+          {backLabel}
         </Link>
       </div>
     );
@@ -483,10 +493,10 @@ export function LernenTutor({
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 px-6 py-16 text-center">
         <p className="text-[15px] font-medium">Thema nicht gefunden</p>
         <Link
-          href={`/lernen/${subjectId}`}
+          href={backHref}
           className="text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
         >
-          Zum Fach
+          {backLabel}
         </Link>
       </div>
     );
@@ -496,7 +506,7 @@ export function LernenTutor({
     <div className="mx-auto flex h-full max-w-5xl min-w-0 flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
       <header className="flex min-w-0 items-center gap-2">
         <Link
-          href={topicId ? `/lernen/${subjectId}/themen/${topicId}` : `/lernen/${subjectId}`}
+          href={backHref}
           className="relative flex shrink-0 items-center gap-1 rounded-md py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft aria-hidden className="size-3.5" />

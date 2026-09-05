@@ -3,6 +3,7 @@ import {
   LernplanFehler,
   addTageISO,
   einheitenFuer,
+  ersterPlantag,
   neuVerteilen,
   runde5,
   verteilen,
@@ -19,6 +20,24 @@ describe("runde5 und addTageISO", () => {
   it("rechnet Tage in UTC, auch über Monatsgrenzen", () => {
     expect(addTageISO("2026-01-31", 1)).toBe("2026-02-01");
     expect(addTageISO("2026-03-01", -1)).toBe("2026-02-28");
+  });
+});
+
+describe("ersterPlantag", () => {
+  // BLOCKIEREND-Fix: dieselbe Regel entscheidet in verteilen(), ob der
+  // heutige Abend noch als Lerntag zaehlt, und im Gate (lernplan-erstellen.tsx),
+  // ob das Formular ueberhaupt aufgemacht wird -- Pruefung morgen ist der
+  // Grenzfall, an dem beide bisher auseinanderliefen.
+  it("Prüfung morgen, vor 18 Uhr: heute zählt noch als Plantag", () => {
+    const heute = "2026-01-05";
+    const pruefungMorgen = addTageISO(heute, 1);
+    expect(ersterPlantag(heute, "17:59") < pruefungMorgen).toBe(true);
+  });
+
+  it("Prüfung morgen, ab 18 Uhr: kein Plantag mehr übrig", () => {
+    const heute = "2026-01-05";
+    const pruefungMorgen = addTageISO(heute, 1);
+    expect(ersterPlantag(heute, "18:00") >= pruefungMorgen).toBe(true);
   });
 });
 
@@ -204,6 +223,38 @@ describe("verteilen", () => {
     expect(items.some((i) => i.pointIndex === 1 && i.phase === "ueben")).toBe(false);
   });
 
+  it("vorbelegte Einheiten verkleinern die tatsächlich freie Kapazität (Reviewer-Beispiel)", () => {
+    // 5 Lerntage à 30 Min = 150 Min volle Kapazität. Vorbelegt: 4 Tage voll
+    // (4*30=120 Min), frei bleiben nur die 30 Min des letzten Lerntags. Neu zu
+    // legen: 10 x 10 Min "ueben" (100 Min) auf Punkten mit Sicherheit 50 --
+    // die werden nie gestrichen (Streichen trifft nur probe bzw. ueben >=80).
+    // Ohne Fix rechnet kapazitaet() mit den vollen 150 Min: 100 <= 150, also
+    // weder Streichen noch budgetErhoeht/hinweis -- ein stiller Überlauf.
+    const vorbelegt = ["2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08"].map((date) => ({
+      pointIndex: 999,
+      phase: "lernen" as const,
+      date,
+      minuten: 30,
+    }));
+    const einheiten = Array.from({ length: 10 }, (_, i) => ({
+      pointIndex: i,
+      phase: "ueben" as const,
+      minuten: 10,
+    }));
+    const ergebnis = verteilen(einheiten, {
+      heuteISO: "2026-01-05",
+      jetztHM: "10:00",
+      pruefungISO: "2026-01-11",
+      schultag: alleWerktage,
+      minutesWeekday: 30,
+      minutesWeekend: 30,
+      sicherheiten: new Array(10).fill(50),
+      vorbelegt,
+    });
+    expect(ergebnis.gestrichen).toBe(0);
+    expect(ergebnis.budgetErhoeht || ergebnis.hinweis === "knapp").toBe(true);
+  });
+
   it("wirft LernplanFehler('keine_tage') ohne Plantage", () => {
     expect(() =>
       verteilen([{ pointIndex: 0, phase: "ueben", minuten: 10 }], {
@@ -330,6 +381,22 @@ describe("neuVerteilen", () => {
     const ueben = ergebnis.neu.find((i) => i.pointIndex === 0 && i.phase === "ueben");
     expect(ueben).toBeDefined();
     expect(ueben!.date > "2026-09-14").toBe(true);
+  });
+
+  it("Punkt < 40 mit nur erledigter üben (keine offene) bekommt trotzdem eine zusätzliche", () => {
+    // Die üben-Einheit wurde vor Wochen abgehakt, als die Sicherheit noch
+    // hoch war. Die Sicherheit ist seitdem unter 40 gefallen -- die Garantie
+    // "schwacher Punkt bekommt eine Uebung" darf sich nicht auf die laengst
+    // erledigte Einheit verlassen, sondern muss eine neue, offene anlegen.
+    const plan: NeuVerteilenInput = {
+      items: [
+        { id: "a", pointIndex: 0, phase: "ueben", minuten: 10, date: "2026-01-01", doneAt: "2026-01-01T09:00:00Z" },
+      ],
+      punkte: [{ sicherheit: 20 }],
+    };
+    const ergebnis = neuVerteilen(plan, { ...basisOpts, umfang: "ueberfaellig", sicherheiten: [20] });
+    expect(ergebnis.zusaetzlich).toBe(1);
+    expect(ergebnis.neu.some((i) => i.pointIndex === 0 && i.phase === "ueben")).toBe(true);
   });
 
   it("erledigte Einheiten bleiben unverändert", () => {

@@ -30,6 +30,9 @@ type PruefenErgebnis = { urteil: Urteil; feedback: string };
 // im Normalfall zuerst antwortet.
 const PRUEFEN_TIMEOUT_MS = 35_000;
 
+// = --ease-atlas in app/globals.css:10. framer-motion braucht hier wirklich
+// ein Array (kann keine CSS-Variable referenzieren), darum die Zahlen separat
+// gepflegt statt einer echten zweiten Quelle.
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const MODUS_LABEL: Record<Exclude<SessionModus, "lernen">, string> = {
@@ -37,16 +40,43 @@ const MODUS_LABEL: Record<Exclude<SessionModus, "lernen">, string> = {
   probe: "Probe",
 };
 
+// BLOCKIEREND 2: .focus() allein bringt ein Ziel unterhalb/oberhalb des
+// Sichtbereichs nicht zuverlaessig ins Bild -- explizit hereinscrollen statt
+// sich auf das Standardverhalten des Browsers zu verlassen. "auto" statt
+// "smooth" bei prefers-reduced-motion, block: "nearest" bewegt die Seite nur,
+// wenn das Ziel tatsaechlich ausserhalb liegt. Gleiches Muster wie
+// components/lernplan-erstellen.tsx (fokussiereSichtbar).
+function fokussiereSichtbar(el: HTMLElement | null | undefined) {
+  if (!el) return;
+  el.focus();
+  const reduziert = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduziert ? "auto" : "smooth", block: "nearest" });
+}
+
+// S5: Abfragerichtung einer Vokabelkarte haengt an der Karte selbst (Hash der
+// Karten-ID), nicht an ihrer Position in der Warteschlange -- sonst dreht
+// "Falsche nochmal" (setzt index auf 0, verschiebt die Paritaeten) die
+// Richtung jeder wiederholten Karte. Ueber viele IDs streut ein einfacher
+// Zeichen-Hash weiterhin ~50/50, kippt aber nicht alle Karten in dieselbe
+// Richtung wie ein reiner id.length % 2 es taete.
+function vokabelRichtung(id: string): boolean {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return (h & 1) === 0;
+}
+
 export function LernenSession({
   subjectId,
   modus,
   thema,
   pruefung,
+  einheit,
 }: {
   subjectId: string;
   modus: SessionModus;
   thema: string | null;
   pruefung: string | null;
+  einheit: string | null;
 }) {
   const toast = useToast();
   const reduce = useReducedMotion();
@@ -93,6 +123,53 @@ export function LernenSession({
   }, [load]);
 
   const current = queue && index < queue.length ? queue[index] : null;
+
+  // S1: kommt die Sitzung aus dem Plan (Query-Parameter einheit, siehe
+  // stunden-cockpit.tsx toggle/lernplan-seite.tsx), hakt sie die Einheit ab,
+  // sobald die Warteschlange wirklich durch ist (SessionEnde-Zustand: Queue
+  // nicht leer, aber kein current mehr -- jede Karte wurde beantwortet).
+  // "Nichts zu lernen" (Queue leer) zaehlt bewusst NICHT, weil dort niemand
+  // etwas geuebt hat. Ein Ref haelt fest, ob schon abgehakt wurde, damit
+  // "Falsche nochmal" (das erneut in den SessionEnde-Zustand laeuft) keinen
+  // zweiten PATCH ausloest -- der Endpunkt waere zwar idempotent (setzt nur
+  // erneut doneAt), aber unnoetig.
+  //
+  // BLOCKIEREND 2: ein fehlgeschlagenes Abhaken darf nicht mehr lautlos
+  // verschwinden -- die Karten sind zwar gemacht, aber der Plan zeigt die
+  // Einheit dann faelschlich weiter offen, ohne dass der Schueler das je
+  // erfaehrt. `abhakenFehler` macht das auf dem Ende-Screen sichtbar, ohne
+  // zu blockieren: die Sitzung ist beendet, egal was der Server sagt. Ein
+  // Netzwerkfehler (fetch wirft) bekommt genau einen automatischen zweiten
+  // Versuch -- oft nur ein kurzer Aussetzer (Tab kam aus dem Hintergrund,
+  // Verbindung kurz weg), der beim zweiten Mal durchgeht. Eine Antwort mit
+  // 400/404 wuerde beim gleichen Body deterministisch wieder scheitern,
+  // dafuer lohnt sich kein Retry.
+  const abgehaktRef = useRef(false);
+  const [abhakenFehler, setAbhakenFehler] = useState(false);
+  useEffect(() => {
+    if (!pruefung || !einheit) return;
+    if (!queue || queue.length === 0 || current) return;
+    if (abgehaktRef.current) return;
+    abgehaktRef.current = true;
+
+    async function abhaken(zweiterVersuch: boolean): Promise<void> {
+      try {
+        const res = await fetch(`/api/lernen/plan/items/${einheit}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ done: true }),
+        });
+        if (!res.ok) setAbhakenFehler(true);
+      } catch {
+        if (!zweiterVersuch) {
+          await abhaken(true);
+          return;
+        }
+        setAbhakenFehler(true);
+      }
+    }
+    void abhaken(false);
+  }, [pruefung, einheit, queue, current]);
 
   const registerAnswer = useCallback(
     (card: StudyCardDTO, correct: boolean) => {
@@ -147,7 +224,40 @@ export function LernenSession({
     setIndex(0);
   }
 
-  const backHref = thema ? `/lernen/${subjectId}/themen/${thema}` : `/lernen/${subjectId}`;
+  // S7: "Karten üben" fuehrt in eine leere Sitzung, wenn die Karten des
+  // Punkts heute schon einmal durchgezogen wurden (queueFor liefert fuer
+  // modus=lernen nur die heute faelligen Karten). Legitim ist das genau
+  // dann, wenn es fuer heute wirklich nichts mehr zu ueben gibt -- die
+  // Einheit bleibt sonst unerreichbar offen, denn von Hand geht das sonst
+  // nur ueber die Planseite. Kein Auto-Abhaken (anders als beim echten
+  // Sitzungsende oben): der Schueler entscheidet aktiv, weil "leer" auch
+  // ein Laden-Fehler sein koennte.
+  const [leerAbhaken, setLeerAbhaken] = useState<"idle" | "laeuft" | "fertig" | "fehler">("idle");
+  async function leereEinheitAbhaken() {
+    if (!einheit || leerAbhaken === "laeuft" || leerAbhaken === "fertig") return;
+    setLeerAbhaken("laeuft");
+    try {
+      const res = await fetch(`/api/lernen/plan/items/${einheit}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ done: true }),
+      });
+      if (!res.ok) throw new Error("abhaken failed");
+      setLeerAbhaken("fertig");
+    } catch {
+      setLeerAbhaken("fehler");
+      toast("Die Einheit konnte nicht abgehakt werden.");
+    }
+  }
+
+  // S4: wer aus dem Plan heraus uebt (Query-Parameter pruefung, siehe
+  // lernplan-seite.tsx), soll dorthin zurueckkommen -- sonst landet man auf
+  // der Themenseite und muss den Plan ueber zwei Ebenen wiederfinden.
+  const backHref = pruefung
+    ? `/lernen/${subjectId}/plan/${pruefung}`
+    : thema
+      ? `/lernen/${subjectId}/themen/${thema}`
+      : `/lernen/${subjectId}`;
 
   if (failed && data === null) {
     return (
@@ -156,7 +266,7 @@ export function LernenSession({
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -168,7 +278,10 @@ export function LernenSession({
 
   if (data === null || queue === null) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6" aria-label="Wird geladen" aria-busy="true">
+      // NIT-Fix: aria-label auf einem <div> ohne Rolle wird von den meisten
+      // Screenreadern ignoriert, aria-busy allein wird dort nicht vorgelesen --
+      // role="status" macht daraus eine echte Live-Region.
+      <div className="mx-auto max-w-2xl space-y-6" role="status" aria-label="Wird geladen" aria-busy="true">
         <Skeleton className="h-5 w-32" />
         <Skeleton className="h-60 w-full rounded-2xl" />
       </div>
@@ -180,9 +293,57 @@ export function LernenSession({
       <div className="mx-auto max-w-2xl">
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
           <p className="text-[15px] font-medium">Nichts zu lernen.</p>
+          {einheit && (
+            // NIT: "wurden heute schon geuebt" behauptet einen Grund, den der
+            // Code nicht kennt -- die Queue ist auch leer, wenn Karten nach
+            // Leitner erst spaeter faellig sind, oder wenn topicId null war
+            // und die Tagesansicht auf thema=allgemein auswich, das keine
+            // Karten dieses Punkts trifft. Nur behaupten, was feststeht:
+            // aktuell ist nichts faellig.
+            <p className="max-w-xs text-[13px] text-muted-foreground">
+              Für diesen Punkt sind aktuell keine Karten fällig.
+            </p>
+          )}
+          {einheit && (
+            <button
+              type="button"
+              // S6: echtes disabled entfernt den Knopf aus dem Fokus, sobald
+              // der eigene Klick ihn deaktiviert -- der Browser wirft den
+              // Fokus dann auf body (gleiches Muster wie in
+              // lernplan-seite.tsx, KopfMenu/Loeschen-Dialog). aria-disabled
+              // plus Fruehausstieg im Handler haelt ihn fokussierbar, auch
+              // nach "fertig", statt ihn ganz zu entfernen.
+              onClick={() => void leereEinheitAbhaken()}
+              aria-disabled={leerAbhaken === "laeuft" || leerAbhaken === "fertig"}
+              aria-busy={leerAbhaken === "laeuft"}
+              className={cn(
+                "inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent",
+                (leerAbhaken === "laeuft" || leerAbhaken === "fertig") && "opacity-60",
+              )}
+            >
+              {leerAbhaken === "laeuft"
+                ? "Markiert …"
+                : leerAbhaken === "fertig"
+                  ? "Als erledigt markiert"
+                  : leerAbhaken === "fehler"
+                    ? "Erneut versuchen"
+                    : "Einheit als erledigt markieren"}
+            </button>
+          )}
+          {/* Ansage von Erfolg und Fehler statt nur sichtbarer Text --
+              gleiches Muster wie die Fortschritts-Live-Region weiter unten.
+              Noetig, weil der Toast nach 4s verschwindet und "fehler" sonst
+              nur dort lebt. */}
+          <p aria-live="polite" className="sr-only">
+            {leerAbhaken === "fertig"
+              ? "Einheit als erledigt markiert."
+              : leerAbhaken === "fehler"
+                ? "Die Einheit konnte nicht abgehakt werden."
+                : ""}
+          </p>
           <Link
             href={backHref}
-            className="rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex min-h-11 items-center justify-center rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Zurück
           </Link>
@@ -200,6 +361,7 @@ export function LernenSession({
         falsche={falsch}
         modus={modus}
         onNochmal={nochmalFalsche}
+        abhakenFehler={abhakenFehler}
       />
     );
   }
@@ -212,22 +374,40 @@ export function LernenSession({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
+        {/* S6: sichtbar bleibt der schlanke Link -- die Trefferflaeche zieht
+            das before-Pseudo-Element nur vertikal auf, darunter steht (dank
+            space-y-4 am Container) genug Platz bis zum Fortschrittsbalken,
+            der selbst nicht antippbar ist. */}
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1 rounded-md py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="relative inline-flex items-center gap-1 rounded-md py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-y-2.5 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ArrowLeft aria-hidden className="size-3.5" />
           {kopfLabel}
         </Link>
-        <span className="tabular-nums text-[13px] text-muted-foreground">
+        <span aria-hidden className="tabular-nums text-[13px] text-muted-foreground">
           {index + 1} von {queue.length}
         </span>
       </div>
 
-      <div className="h-1 overflow-hidden rounded-full bg-muted">
+      {/* BLOCKIEREND 2: eigene Live-Region wie Fortschritt() in
+          lernplan-erstellen.tsx -- Aenderungen an aria-valuenow/-text allein
+          loesen keine Ansage aus, ein echter Textwechsel schon. */}
+      <p aria-live="polite" className="sr-only">
+        Karte {index + 1} von {queue.length}
+      </p>
+      <div
+        className="h-1 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label="Fortschritt der Sitzung"
+        aria-valuenow={index + 1}
+        aria-valuemin={1}
+        aria-valuemax={queue.length}
+        aria-valuetext={`${index + 1} von ${queue.length}`}
+      >
         <div
           className="h-full w-full origin-left rounded-full bg-primary transition-transform duration-200"
-          style={{ transform: `scaleX(${index / queue.length})` }}
+          style={{ transform: `scaleX(${(index + 1) / queue.length})` }}
         />
       </div>
 
@@ -241,7 +421,6 @@ export function LernenSession({
         >
           <SessionKarte
             card={current}
-            index={index}
             subjectId={subjectId}
             botEnabled={botEnabled}
             toast={toast}
@@ -262,7 +441,6 @@ export function LernenSession({
 
 function SessionKarte({
   card,
-  index,
   subjectId,
   botEnabled,
   toast,
@@ -274,7 +452,6 @@ function SessionKarte({
   onVariante,
 }: {
   card: StudyCardDTO;
-  index: number;
   subjectId: string;
   botEnabled: boolean;
   toast: (message: string, variant?: "error" | "success") => void;
@@ -293,6 +470,7 @@ function SessionKarte({
   const [question, setQuestion] = useState(card.question);
   const [answer, setAnswer] = useState(card.answer);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [speichernVersucht, setSpeichernVersucht] = useState(false);
   const [erklaerung, setErklaerung] = useState("");
   const [erklaerLoading, setErklaerLoading] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -304,6 +482,10 @@ function SessionKarte({
   const [pruefenLoading, setPruefenLoading] = useState(false);
   const [pruefenErgebnis, setPruefenErgebnis] = useState<PruefenErgebnis | null>(null);
   const vokabelRef = useRef<HTMLInputElement | null>(null);
+  const kartenRef = useRef<HTMLDivElement | null>(null);
+  const editContainerRef = useRef<HTMLDivElement | null>(null);
+  const bearbeitenRef = useRef<HTMLButtonElement | null>(null);
+  const wasEditingRef = useRef(false);
 
   const geklaert = card.kind === "vokabel" ? vokabelPhase !== "eingabe" : showAnswer;
   // Vorbelegung "Gewusst"/"Nicht gewusst" aus dem Urteil; ohne Urteil (noch
@@ -317,9 +499,35 @@ function SessionKarte({
       ? "Ohne Thema kein Tutor."
       : undefined;
 
+  // BLOCKIEREND 2: SessionKarte wird je Karte ueber den motion.div-key
+  // (key={current.id} in LernenSession) komplett neu gemountet -- dieser
+  // Effekt laeuft also bei jedem Kartenwechsel, nicht nur beim Erstmount.
+  // Vokabelkarten bekommen das Eingabefeld fokussiert (dort tippt man direkt
+  // weiter), alle anderen Kartenarten den Kartenrahmen selbst -- sonst faellt
+  // der Fokus auf body, sobald der zuletzt geklickte Knopf mit der alten
+  // Karte verschwindet, und Tab muesste sich ab der Seitenleiste neu
+  // durcharbeiten. fokussiereSichtbar scrollt das Ziel zusaetzlich ins Bild.
   useEffect(() => {
-    if (card.kind === "vokabel") vokabelRef.current?.focus();
+    if (card.kind === "vokabel") fokussiereSichtbar(vokabelRef.current);
+    else fokussiereSichtbar(kartenRef.current);
   }, [card.kind]);
+
+  // BLOCKIEREND 2: der Bearbeiten-Modus (editing) ersetzt die ganze Karte
+  // durch einen eigenen Baum -- der ausloesende Knopf verschwindet dabei
+  // spurlos, ohne dieses Ziel faellt der Fokus auf body. Beim Oeffnen wird
+  // der neue Container fokussiert (gleiches Muster wie oben), beim
+  // Schliessen (Speichern oder Escape) kommt der Fokus zurueck auf den
+  // Bearbeiten-Knopf -- wasEditingRef haelt fest, dass es sich um ein
+  // echtes Schliessen handelt, nicht um den Erstmount mit editing=false.
+  useEffect(() => {
+    if (editing) {
+      fokussiereSichtbar(editContainerRef.current);
+      wasEditingRef.current = true;
+    } else if (wasEditingRef.current) {
+      wasEditingRef.current = false;
+      fokussiereSichtbar(bearbeitenRef.current ?? kartenRef.current);
+    }
+  }, [editing]);
 
   async function speichereEdit() {
     const q = question.trim();
@@ -450,13 +658,15 @@ function SessionKarte({
     }
   }
 
+  const richtung = vokabelRichtung(card.id);
+
   function pruefeVokabel() {
     const eingabe = vokabelValue.trim();
     if (!eingabe) {
       setVokabelPhase("manuell");
       return;
     }
-    const loesung = index % 2 === 0 ? card.answer : card.question;
+    const loesung = richtung ? card.answer : card.question;
     if (vokabelStimmt(eingabe, loesung)) {
       onGraded(true);
       setVokabelPhase("richtig");
@@ -471,7 +681,23 @@ function SessionKarte({
         if (e.key === "Escape") setEditing(false);
         return;
       }
-      if (e.target instanceof HTMLElement && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+      if (
+        e.target instanceof HTMLElement &&
+        (["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable)
+      )
+        return;
+      // BLOCKIEREND 1: ein fokussierter Knopf (z.B. per Tab auf "Gewusst")
+      // aktiviert sich bei Enter/Leertaste bereits selbst ueber sein eigenes
+      // onClick -- ohne diese Sperre feuert HIER zusaetzlich derselbe
+      // onAntworten()/setShowAnswer() ein zweites Mal, springt der Index um
+      // zwei und eine Karte wird uebersprungen. Andere Tasten (1/2/e/t) lesen
+      // Knoepfe nicht nativ, die duerfen weiterhin durch.
+      if (
+        e.target instanceof HTMLElement &&
+        e.target.tagName === "BUTTON" &&
+        (e.key === "Enter" || e.key === " ")
+      )
+        return;
       if (card.kind === "vokabel") {
         // Nach dem Pruefen ist das Eingabefeld weg: 1/2 bewerten wie bei den
         // anderen Karten, Enter uebernimmt der automatisch fokussierte Knopf.
@@ -485,6 +711,7 @@ function SessionKarte({
           return;
         }
         if (showAnswer && vorbelegung !== null && e.key === "Enter") {
+          e.preventDefault();
           onAntworten(vorbelegung);
           return;
         }
@@ -497,6 +724,7 @@ function SessionKarte({
           return;
         }
         if (showAnswer && vorbelegung !== null && e.key === "Enter") {
+          e.preventDefault();
           onAntworten(vorbelegung);
           return;
         }
@@ -513,27 +741,69 @@ function SessionKarte({
 
   if (editing) {
     return (
-      <div className="min-h-[240px] rounded-2xl border bg-card p-6 shadow-card">
+      // BLOCKIEREND 2: tabIndex={-1} macht den Container zum Fokus-Ziel beim
+      // Oeffnen (siehe Effekt oben), ohne ihn in die normale Tab-Reihenfolge
+      // aufzunehmen.
+      <div
+        ref={editContainerRef}
+        tabIndex={-1}
+        className="min-h-[240px] rounded-2xl border bg-card p-6 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <div className="space-y-3">
           <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             rows={3}
             aria-label="Frage"
-            className="w-full resize-none rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full resize-none rounded-md border border-border-control bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             rows={4}
             aria-label="Antwort"
-            className="w-full resize-none rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full resize-none rounded-md border border-border-control bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
+          {/* S5: ein leeres Frage-Feld darf den Speichern-Knopf nicht wortlos
+              sperren -- aria-disabled plus Fruehausstieg im Handler statt
+              disabled, dazu ein sichtbarer Grund nach dem ersten Versuch
+              (gleiches Muster wie lernplan-erstellen.tsx lesenVersucht). */}
+          {!question.trim() && speichernVersucht && (
+            <p id="speichern-hinweis" className="text-[12.5px] text-destructive">
+              Die Frage darf nicht leer sein.
+            </p>
+          )}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={savingEdit}>
+            {/* B1: echtes disabled reisst den Fokus auf body, sobald der
+                eigene Klick den Knopf deaktiviert -- aria-disabled plus
+                Fruehausstieg im Handler haelt ihn fokussierbar. */}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                if (savingEdit) return;
+                setEditing(false);
+              }}
+              aria-disabled={savingEdit}
+              className={cn(savingEdit && "opacity-60")}
+            >
               Abbrechen
             </Button>
-            <Button type="button" onClick={() => void speichereEdit()} disabled={savingEdit || !question.trim()}>
+            <Button
+              type="button"
+              onClick={() => {
+                if (savingEdit) return;
+                if (!question.trim()) {
+                  setSpeichernVersucht(true);
+                  return;
+                }
+                void speichereEdit();
+              }}
+              aria-disabled={savingEdit || !question.trim()}
+              aria-busy={savingEdit}
+              aria-describedby={!question.trim() && speichernVersucht ? "speichern-hinweis" : undefined}
+              className={cn((savingEdit || !question.trim()) && "opacity-60")}
+            >
               {savingEdit ? "Speichert …" : "Speichern"}
             </Button>
           </div>
@@ -543,11 +813,15 @@ function SessionKarte({
   }
 
   return (
-    <div className="min-h-[240px] rounded-2xl border bg-card p-6 shadow-card">
+    <div
+      ref={kartenRef}
+      tabIndex={-1}
+      className="min-h-[240px] rounded-2xl border bg-card p-6 shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
       {card.kind === "vokabel" ? (
         <VokabelKarte
           card={card}
-          index={index}
+          richtung={richtung}
           phase={vokabelPhase}
           value={vokabelValue}
           onValueChange={setVokabelValue}
@@ -593,19 +867,40 @@ function SessionKarte({
           {erklaerung && (
             <p className="mb-2 whitespace-pre-wrap text-[13.5px] text-muted-foreground">{erklaerung}</p>
           )}
-          <div className="flex flex-wrap gap-3 text-[12.5px]">
+          {/* S6: sichtbar bleiben die schlanken Knoepfe (px-1 py-2) -- die
+              reale Trefferflaeche zieht das before-Pseudo-Element (wie
+              subject-notes.tsx Ansicht-Umschalter) per -inset-y auf >=44px
+              Hoehe hoch, ohne die Breite anzufassen (die reicht bei jedem
+              Label hier schon von selbst). gap-y-5 (20px) haelt zwei
+              wrappende Zeilen auseinander, damit sich die um je 8px nach oben
+              und unten aufgeblaehten Flaechen (16px zusammen) nicht
+              ueberlappen -- 20px Abstand lassen 4px Luft. Horizontal bleibt
+              es bei gap-x-3, ohne zusaetzlichen Seiten-Inset gibt es dort
+              nichts, das kollidieren koennte.
+              "Archivieren" nimmt als einzige der vier Aktionen etwas weg
+              (die Karte verschwindet aus der Warteschlange) -- ml-auto
+              schiebt sie sichtbar von den drei neutralen Aktionen weg, statt
+              gleichrangig direkt daneben zu stehen. */}
+          <div className="flex flex-wrap gap-x-3 gap-y-5 text-[12.5px]">
+            {/* B1: erklaeren() sperrt sich intern selbst bereits gegen
+                Doppelklicks -- aria-disabled statt disabled haelt den Knopf
+                trotz Ladezustand fokussierbar. */}
             <button
               type="button"
               onClick={() => void erklaeren()}
-              disabled={erklaerLoading}
-              className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              aria-disabled={erklaerLoading}
+              aria-busy={erklaerLoading}
+              className={cn(
+                "relative rounded-md px-1 py-2 font-medium leading-[1.2] text-muted-foreground underline-offset-2 before:absolute before:-inset-y-2 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                erklaerLoading && "opacity-50",
+              )}
             >
               {erklaerLoading ? "Erklärt …" : "Erklären"}
             </button>
             {tutorEnabled ? (
               <Link
                 href={tutorHref}
-                className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="relative rounded-md px-1 py-2 font-medium leading-[1.2] text-muted-foreground underline-offset-2 before:absolute before:-inset-y-2 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Tutor fragen
               </Link>
@@ -614,23 +909,31 @@ function SessionKarte({
                 type="button"
                 disabled
                 title={tutorTitle}
-                className="cursor-not-allowed rounded-md px-1 py-1 font-medium text-muted-foreground/50"
+                className="relative cursor-not-allowed rounded-md px-1 py-2 font-medium leading-[1.2] text-muted-foreground/50 before:absolute before:-inset-y-2 before:content-['']"
               >
                 Tutor fragen
               </button>
             )}
             <button
+              ref={bearbeitenRef}
               type="button"
               onClick={() => setEditing(true)}
-              className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="relative rounded-md px-1 py-2 font-medium leading-[1.2] text-muted-foreground underline-offset-2 before:absolute before:-inset-y-2 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Bearbeiten
             </button>
+            {/* B1: archivieren() sperrt sich intern selbst bereits gegen
+                Doppelklicks -- aria-disabled statt disabled haelt den Knopf
+                trotz Ladezustand fokussierbar. */}
             <button
               type="button"
               onClick={() => void archivieren()}
-              disabled={archiving}
-              className="rounded-md px-1 py-1 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              aria-disabled={archiving}
+              aria-busy={archiving}
+              className={cn(
+                "relative ml-auto rounded-md px-1 py-2 font-medium leading-[1.2] text-muted-foreground underline-offset-2 before:absolute before:-inset-y-2 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                archiving && "opacity-50",
+              )}
             >
               {archiving ? "Archiviert …" : "Archivieren"}
             </button>
@@ -715,7 +1018,7 @@ function WissenKarte({
             </Button>
             <Button
               type="button"
-              variant={vorbelegung === false ? "outline" : "default"}
+              variant={vorbelegung === true ? "default" : "outline"}
               className="h-11"
               onClick={() => onAntworten(true)}
             >
@@ -725,7 +1028,7 @@ function WissenKarte({
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Antwort · 1 nicht gewusst · 2 gewusst · e erklärt · t Tutor fragen
+        Leertaste zeigt die Antwort · danach 1 nicht gewusst · 2 gewusst · e erklärt · t Tutor fragen
       </p>
     </>
   );
@@ -807,21 +1110,31 @@ function AufgabeKarte({
               </Button>
               <Button
                 type="button"
-                variant={vorbelegung === false ? "outline" : "default"}
+                variant={vorbelegung === true ? "default" : "outline"}
                 className="h-11"
                 onClick={() => onAntworten(true)}
               >
                 Gelöst
               </Button>
             </div>
-            <Button type="button" variant="ghost" className="h-11 w-full" onClick={onAehnliche} disabled={varianteLoading}>
+            {/* B1: aehnlicheAufgabe() sperrt sich intern selbst bereits gegen
+                Doppelklicks -- aria-disabled statt disabled haelt den Knopf
+                trotz Ladezustand fokussierbar. */}
+            <Button
+              type="button"
+              variant="ghost"
+              className={cn("h-11 w-full", varianteLoading && "opacity-60")}
+              onClick={onAehnliche}
+              aria-disabled={varianteLoading}
+              aria-busy={varianteLoading}
+            >
               {varianteLoading ? "Erzeugt …" : "Ähnliche Aufgabe"}
             </Button>
           </>
         )}
       </div>
       <p className="mt-3 hidden text-center text-[12px] text-muted-foreground sm:block">
-        Leertaste zeigt die Lösung · 1 nicht gelöst · 2 gelöst · e erklärt · t Tutor fragen
+        Leertaste zeigt die Lösung · danach 1 nicht gelöst · 2 gelöst · e erklärt · t Tutor fragen
       </p>
     </>
   );
@@ -862,14 +1175,41 @@ function PruefenFeld({
         }}
         rows={3}
         placeholder="Deine Antwort"
-        disabled={loading}
-        className="w-full resize-none rounded-md border bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        // B1: das Feld bleibt waehrend des Pruefens tippbar -- ein echtes
+        // disabled wuerde es aus dem Fokus reissen, sobald der eigene
+        // Cmd/Ctrl+Enter-Absenden es sperrt.
+        className="w-full resize-none rounded-md border border-border-control bg-background px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
       <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="outline" className="h-11" onClick={onZeigen} disabled={loading}>
+        {/* B1: onZeigen kennt keinen eigenen Ladeschutz -- Fruehausstieg hier
+            statt disabled, damit der Knopf waehrend des Pruefens fokussierbar
+            bleibt. */}
+        <Button
+          type="button"
+          variant="outline"
+          className={cn("h-11", loading && "opacity-60")}
+          onClick={() => {
+            if (loading) return;
+            onZeigen();
+          }}
+          aria-disabled={loading}
+        >
           {zeigenLabel}
         </Button>
-        <Button type="button" className="h-11" onClick={onPruefen} disabled={loading}>
+        {/* S9: im Ladezustand war der einzige Inhalt ein aria-hidden Spinner
+            -- ein Screenreader liest dann nur "Schaltflaeche" ohne Namen.
+            aria-label haelt den Namen waehrend des Ladens fest.
+            B1: onPruefen (pruefen()) sperrt sich intern selbst bereits gegen
+            Doppelklicks -- aria-disabled statt disabled haelt den Knopf
+            fokussierbar. */}
+        <Button
+          type="button"
+          className={cn("h-11", loading && "opacity-60")}
+          onClick={onPruefen}
+          aria-disabled={loading}
+          aria-busy={loading}
+          aria-label={loading ? "Prüft …" : undefined}
+        >
           {loading ? <Loader2 aria-hidden className="size-4 animate-spin" /> : "Prüfen"}
         </Button>
       </div>
@@ -904,7 +1244,7 @@ function UrteilBadge({ urteil }: { urteil: Urteil }) {
 
 function VokabelKarte({
   card,
-  index,
+  richtung,
   phase,
   value,
   onValueChange,
@@ -914,7 +1254,7 @@ function VokabelKarte({
   onManuell,
 }: {
   card: StudyCardDTO;
-  index: number;
+  richtung: boolean;
   phase: "eingabe" | "richtig" | "manuell";
   value: string;
   onValueChange: (v: string) => void;
@@ -923,7 +1263,6 @@ function VokabelKarte({
   onWeiter: () => void;
   onManuell: (correct: boolean) => void;
 }) {
-  const richtung = index % 2 === 0;
   const frage = richtung ? card.question : card.answer;
   const loesung = richtung ? card.answer : card.question;
 
@@ -950,7 +1289,7 @@ function VokabelKarte({
             onChange={(e) => onValueChange(e.target.value)}
             spellCheck={false}
             autoComplete="off"
-            className="w-full rounded-md border bg-background px-3 py-2.5 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full rounded-md border border-border-control bg-background px-3 py-2.5 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder="Antwort eintippen"
           />
           <Button type="submit" className="mt-3 h-11 w-full">
@@ -1001,6 +1340,7 @@ function SessionEnde({
   falsche,
   modus,
   onNochmal,
+  abhakenFehler,
 }: {
   backHref: string;
   richtig: number;
@@ -1008,12 +1348,21 @@ function SessionEnde({
   falsche: StudyCardDTO[];
   modus: SessionModus;
   onNochmal: () => void;
+  abhakenFehler: boolean;
 }) {
   const bereit = gesamt > 0 ? Math.round((richtig / gesamt) * 100) : 0;
 
   return (
     <div className="mx-auto max-w-2xl">
       <div className="flex flex-col items-center gap-4 rounded-2xl border bg-card px-6 py-12 text-center shadow-card">
+        {/* BLOCKIEREND 2: die Karten sind in jedem Fall gemacht (die
+            Sitzung blockiert dafuer nicht), aber ohne diesen Hinweis
+            erfaehrt niemand, dass der Plan die Einheit weiter offen zeigt. */}
+        {abhakenFehler && (
+          <p className="max-w-sm text-[13px] text-muted-foreground">
+            Die Einheit konnte nicht abgehakt werden. Bitte im Plan von Hand abhaken.
+          </p>
+        )}
         {modus === "probe" ? (
           <div>
             <p className="text-3xl font-semibold tabular-nums tracking-tight">{bereit} % bereit</p>
@@ -1022,7 +1371,7 @@ function SessionEnde({
             </p>
           </div>
         ) : (
-          <p className="text-lg font-medium">
+          <p className="text-lg font-medium tabular-nums">
             {richtig} von {gesamt} gewusst
           </p>
         )}
