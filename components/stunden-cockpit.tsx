@@ -12,7 +12,7 @@
 // vorbelegtem Fach und Faelligkeitsdatum, und die Dateien sind der
 // Datei-Bereich des Fachs.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, MapPin, User } from "lucide-react";
@@ -22,7 +22,7 @@ import { LessonNoteField } from "@/components/lesson-note";
 import { ParticipationCounter } from "@/components/lesson-participation";
 import { SubjectFiles } from "@/components/subject-files";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PhaseChip, balkenTextFarbe } from "@/components/lernplan-ui";
+import { LernenEinheitZeile, balkenTextFarbe, useOverflowTitle } from "@/components/lernplan-ui";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { lessonProgress, minutesLeft, minutesUntil } from "@/lib/jetzt-stunde";
@@ -94,7 +94,10 @@ export function StundenCockpit({ block }: { block: string | null }) {
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
+            // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
+            // (Outline-Button), siehe app/globals.css --border-control.
+            className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -121,7 +124,7 @@ export function StundenCockpit({ block }: { block: string | null }) {
           <p className="text-[15px] font-medium">Heute keine Schule.</p>
           <Link
             href="/"
-            className="rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative rounded-md px-2 py-1.5 text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Zum Fokus
           </Link>
@@ -259,13 +262,18 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
             </>
           )}
         </p>
-        {/* Die naechste Arbeit als eine Zeile im Kopf statt als eigener Block:
-            im Unterricht reicht der Hinweis, das Lernen selbst passiert auf
-            /lernen. */}
+        {/* Die naechste Pruefung als eine Zeile im Kopf statt als eigener
+            Block: hier reicht ein Hinweis, wer tiefer rein will, geht ueber
+            den Link auf /lernen. Der eigentliche Lernstoff fuer HEUTE steht
+            weiter unten im Block "Heute lernen" und ist bewusst
+            handlungsfaehig (Karten ueben, Tutor, Abhaken) -- eine laufende
+            Stunde hat Leerlauf (Wartezeit, Einzelarbeit, Pause), in dem genau
+            das realistisch passiert, anders als das vertiefte Lernen fuer
+            eine andere Pruefung, fuer das /lernen der richtige Ort bleibt. */}
         {data.naechstePruefung && sel.subjectId && (
           <Link
             href={`/lernen/${sel.subjectId}`}
-            className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="relative mt-2 inline-flex min-h-9 items-center gap-1 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {data.naechstePruefung.title}{" "}
             {data.naechstePruefung.tageBis <= 0
@@ -325,8 +333,8 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
             Kein eigener Abschnitt, weil sie nur Zulieferung fuer die Notiz ist. */}
         {data.letzteNotiz && (
           <details className="group mb-1.5 rounded-lg px-2.5 py-1">
-            <summary className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-muted-foreground [touch-action:manipulation] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
-              <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
+            <summary className="relative flex min-h-9 cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-muted-foreground [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+              <ChevronRight className="size-3.5 motion-safe:transition-transform group-open:rotate-90" aria-hidden />
               Letzte Stunde, {weekdayDateLabel(data.letzteNotiz.date)}
             </summary>
             <p className="mt-1 line-clamp-6 whitespace-pre-wrap pl-5 text-[13px] leading-relaxed text-muted-foreground">
@@ -379,7 +387,10 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
             </p>
             <Link
               href="/faecher"
-              className="mt-2 inline-flex rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+              // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
+              // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
+              // (Outline-Button), siehe app/globals.css --border-control.
+              className="relative mt-2 inline-flex rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
             >
               Fächer abgleichen
             </Link>
@@ -427,9 +438,30 @@ function FaelligRow({ a, today, onDone }: { a: AssignmentDTO; today: string; onD
 function CockpitLernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
   const toast = useToast();
   const [items, setItems] = useState(plan.items);
+  // Nachzieh-Effekt wie in pruefungen-view.tsx (NextExamLernplanDetails), aber
+  // NICHT an der Referenz `plan`: der Cockpit-Poll oben (setInterval alle 60s
+  // auf `load`, siehe Zeile ~74) ersetzt `data` per JSON.parse komplett, damit
+  // bekommt `plan` -- ueber den bereits vorhandenen Nachzieh-Effekt auf
+  // `data.lernen` (Zeile ~219) -- bei JEDEM Poll eine neue Objektreferenz,
+  // auch wenn sich kein Erledigt-Status geaendert hat. Ein Effekt auf [plan]
+  // wuerde dann einen gerade optimistisch gesetzten Haken (PATCH noch nicht
+  // serverseitig bestaetigt) mit jedem Poll wieder zuruecksetzen. Deshalb
+  // haengt der Effekt an einer aus den Erledigt-Zeitstempeln abgeleiteten
+  // Signatur, die sich nur aendert, wenn sich der Stand tatsaechlich aendert
+  // (z.B. auf einem anderen Geraet abgehakt) -- reines Neuladen mit
+  // gleichem Inhalt loest ihn nicht aus.
+  const itemsSignatur = plan.items.map((i) => `${i.id}:${i.doneAt ?? ""}`).join(",");
+  useEffect(() => setItems(plan.items), [itemsSignatur]);
+  // Reihenfolge-Schutz gegen ueberholende PATCH-Antworten: pro Item zaehlt
+  // toggleVersion hoch. Antwort/Fehler wirken nur, wenn zwischenzeitlich kein
+  // neuerer Aufruf fuer dasselbe Item gestartet wurde -- sonst wuerde eine
+  // langsame erste Antwort einen inzwischen neueren Stand ueberschreiben.
+  const toggleVersion = useRef(new Map<string, number>());
 
   async function toggle(item: ItemDTO) {
     const neuErledigt = item.doneAt === null;
+    const version = (toggleVersion.current.get(item.id) ?? 0) + 1;
+    toggleVersion.current.set(item.id, version);
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: neuErledigt ? new Date().toISOString() : null } : i)));
     try {
       const res = await fetch(`/api/lernen/plan/items/${item.id}`, {
@@ -439,28 +471,56 @@ function CockpitLernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
       });
       if (!res.ok) throw new Error();
     } catch {
+      if (toggleVersion.current.get(item.id) !== version) return;
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: item.doneAt } : i)));
       toast("Einheit konnte nicht aktualisiert werden.");
     }
   }
 
+  const examTitelOverflow = useOverflowTitle<HTMLParagraphElement>(plan.examTitle);
+
   return (
     <div className="rounded-xl border bg-card px-3.5 py-3 shadow-card">
       <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 flex-1 truncate text-[14px] font-medium leading-snug">{plan.examTitle}</p>
+        <p
+          ref={examTitelOverflow.ref}
+          title={examTitelOverflow.title}
+          className="min-w-0 flex-1 truncate text-[14px] font-medium leading-snug"
+        >
+          {plan.examTitle}
+        </p>
         <Link
           href={`/lernen/${plan.subjectId}/plan/${plan.assignmentId}`}
+          // S4-Fix: der zugaengliche Name muss den sichtbaren Text enthalten
+          // (WCAG 2.5.3) -- "45 Prozent" tat das nicht, weil das sichtbare
+          // "45%" ein Prozentzeichen traegt statt des ausgeschriebenen Worts.
+          // "%" statt "Prozent" hier behebt das, ein Screenreader liest das
+          // Zeichen ohnehin als "Prozent" vor.
+          aria-label={
+            plan.sicherheitQuelle === "ohne_test"
+              ? `Lernplan ${plan.examTitle}, Sicherheit noch nicht eingeschätzt`
+              : `Lernplan ${plan.examTitle}, Sicherheit ${plan.sicherheit}%`
+          }
           className={cn(
-            "relative shrink-0 rounded px-1 py-1 text-[12.5px] font-medium tabular-nums before:absolute before:-inset-2 before:content-[''] hover:underline",
-            balkenTextFarbe(plan.sicherheit),
+            "flex min-h-11 shrink-0 items-center gap-0.5 rounded px-2 text-[12.5px] font-medium [touch-action:manipulation] hover:underline",
+            // S9: "ohne_test" ist kein Messwert (siehe lib/lernplan-store.ts) --
+            // eine gefaerbte Prozentzahl wuerde eine Praezision behaupten, die
+            // es nicht gibt. Gleicher Vertrag wie SicherheitsBalken in
+            // lernplan-ui.tsx.
+            plan.sicherheitQuelle === "ohne_test" ? "text-muted-foreground" : cn("tabular-nums", balkenTextFarbe(plan.sicherheit)),
           )}
         >
-          {plan.sicherheit}%
+          {plan.sicherheitQuelle === "ohne_test" ? "Noch nicht eingeschätzt" : `${plan.sicherheit}%`}
+          {/* S4-Fix: eine gefaerbte Zahl ohne weiteres Zeichen liest sich als
+              Kennzahl, nicht als Bedienelement -- der Chevron macht sichtbar,
+              dass hier ein Ziel dahinter liegt (gleiche Sprache wie
+              naechstePruefung-Link oben in dieser Datei). */}
+          <ChevronRight className="size-3 shrink-0" aria-hidden />
         </Link>
       </div>
       <ul className="mt-2 flex flex-col gap-1">
         {items.map((item) => (
-          <CockpitLernenEinheitZeile
+          <LernenEinheitZeile
             key={item.id}
             subjectId={plan.subjectId}
             assignmentId={plan.assignmentId}
@@ -471,67 +531,6 @@ function CockpitLernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
       </ul>
     </div>
   );
-}
-
-function CockpitLernenEinheitZeile({
-  subjectId,
-  assignmentId,
-  item,
-  onToggle,
-}: {
-  subjectId: string;
-  assignmentId: string;
-  item: ItemDTO;
-  onToggle: (item: ItemDTO) => void;
-}) {
-  const erledigt = item.doneAt !== null;
-  const titel = item.punktTitel ?? (item.phase === "simulation" ? "Simulation" : "Thema fehlt");
-  const manuell = item.phase === "probe" || item.phase === "simulation";
-
-  const inhalt = (
-    <>
-      {!manuell && (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={erledigt}
-          aria-label={erledigt ? `${titel} als offen markieren` : `${titel} als erledigt markieren`}
-          onClick={() => onToggle(item)}
-          className={cn(
-            "relative grid size-5 shrink-0 place-items-center rounded border transition-colors before:absolute before:-inset-3 before:content-[''] [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            erledigt ? "border-primary bg-primary text-primary-foreground" : "border-border",
-          )}
-        >
-          {erledigt && (
-            <span aria-hidden className="text-[11px] leading-none">
-              ✓
-            </span>
-          )}
-        </button>
-      )}
-      <PhaseChip phase={item.phase} />
-      <span className={cn("min-w-0 flex-1 truncate text-[13px]", erledigt && !manuell && "text-muted-foreground line-through")}>
-        {titel}
-      </span>
-      <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">{item.minuten} Min</span>
-      {manuell && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-    </>
-  );
-
-  if (manuell) {
-    return (
-      <li>
-        <Link
-          href={`/lernen/${subjectId}/plan/${assignmentId}`}
-          className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          {inhalt}
-        </Link>
-      </li>
-    );
-  }
-
-  return <li className="flex items-center gap-2 px-1 py-1.5">{inhalt}</li>;
 }
 
 // --- Kleinteile --------------------------------------------------------------
@@ -547,7 +546,10 @@ function Abschnitt({ titel, children }: { titel: string; children: React.ReactNo
 
 function CockpitSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-label="Wird geladen" aria-busy="true">
+    // NIT-Fix: aria-label auf einem <div> ohne Rolle wird von den meisten
+    // Screenreadern ignoriert, aria-busy allein wird dort nicht vorgelesen --
+    // role="status" macht daraus eine echte Live-Region.
+    <div className="flex flex-col gap-6" role="status" aria-label="Wird geladen" aria-busy="true">
       <div className="flex gap-1.5">
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-7 w-24 shrink-0 rounded-full" />

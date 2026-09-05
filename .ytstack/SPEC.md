@@ -550,29 +550,29 @@ Fach- und Prüfungsseiten. Kein neues Design-System, keine neuen Pakete.
 
 ## Akzeptanzkriterien
 
-- [ ] A1 `npx tsc --noEmit` fehlerfrei.
-- [ ] A2 `npx vitest run` grün, keine bisher grünen Tests rot.
-- [ ] A3 `lib/lernplan.test.ts` deckt alle unter Tests genannten Fälle für `einheitenFuer`, `verteilen`, `neuVerteilen`.
-- [ ] A4 `lib/lernplan-sicherheit.test.ts` und `lib/bild-verkleinern.test.ts` vorhanden und grün.
-- [ ] A5 `lib/lernplan-generieren.test.ts` mit `streamChat`-Stub deckt die genannten Fälle inklusive Injection-Text.
-- [ ] A6 `npx next build` 0 Errors; Routen `/lernen/[subjectId]/plan/[assignmentId]`, `.../neu`, `/api/lernen/plan`, `/api/lernen/plan/lesen`, `/api/lernen/plan/bewerten`, `/api/lernen/plan/[id]`, `/api/lernen/plan/[id]/verteilen`, `/api/lernen/plan/items/[id]`, `/api/lernen/plan/points/[id]` gelistet.
-- [ ] A7 `drizzle/0019_lernplan.sql` im Journal, `node scripts/migrate.mjs` zweimal ohne Fehler.
-- [ ] A8 Lokal mit `DATABASE_URL` und `ZAI_API_KEY`: `POST /api/lernen/plan/lesen` mit PNG-Checkliste und zwei PDF-Blättern liefert 200, ≥ 3 Punkte, jeder mit `frage`, mindestens einer mit `fileIds`.
-- [ ] A9 `POST .../bewerten` mit richtig, Unsinn, null liefert 3 Urteile, null ist `falsch` mit "Übersprungen".
-- [ ] A10 `POST /api/lernen/plan` liefert 200; Punkte `richtig` ohne `lernen`, Punkte `falsch` mit lernen/ueben/probe; alle Items zwischen heute und Vortag; letzter Tag `simulation`. Zweiter POST ohne `ersetzen` innerhalb 30 s liefert 409.
-- [ ] A11 Gleicher Aufruf mit Text-Checkliste und `checks: null` liefert 200, alle Punkte 50 `ohne_test`.
-- [ ] A12 Scan-PDF ohne Text als Checkliste liefert 422 `pdf_ohne_text`; fremde `fileId` liefert 400 `dateien_fremd`.
-- [ ] A13 `PATCH .../items/[id]` `{ done: true, result: 0 }` auf `probe` setzt Punkt auf 0 mit Quelle `selbst`; `GET /api/assignments` zeigt `lernplan.done` um 1 höher.
-- [ ] A14 `POST /api/lernen/karten/[id]/bewerten` bzw. `reviewCard` auf einer Karte des Themas setzt Punkt-Sicherheit mit Quelle `karten`.
-- [ ] A15 Tutor-Turn mit `einheit=<probe-item>` und Fazit `prozent: 70` hakt die Einheit ab und setzt Punkt auf 70 mit Quelle `fazit` (Test mit `streamChat`-Stub in `lib/tutor/session.test.ts`).
-- [ ] A16 Tutor-Turn mit `einheit` enthält im System-Prompt den Abschnitt "Arbeitsblätter zu diesem Punkt" mit Text des PDF (Test mit Stub).
-- [ ] A17 `POST .../verteilen` `{ umfang: 'ueberfaellig' }` legt überfällige neu, erledigte bleiben, Punkt aus A13 bekommt zusätzliche `ueben`.
-- [ ] A18 `DELETE /api/lernen/plan/[id]` löscht Plan, Punkte, Checks, Items; Themen bleiben; mit `{ topicIds }` nur diese Themen mitgelöscht; fremde `topicIds` 400.
-- [ ] A19 `GET /api/morgen` und `GET /api/stunde` tragen `lernen`; leer als `[]`. `GET /api/assignments` trägt `lernplan`.
-- [ ] A20 Bot-Frage "Wie steht mein Lernplan?" ruft `lernplan_lesen` (Test in `lib/bot/tools.test.ts`).
-- [ ] A21 Ohne Login antworten alle neuen Routen 307 auf `/login`.
-- [ ] A22 Karten-Queue: Planseite mit 3 Punkten ohne Karten löst 3 Aufrufe von `/api/lernen/generieren` mit Parallelität ≤ 2 aus und setzt `cards_state` (Komponententest mit gemocktem fetch).
-- [ ] A23 Live auf Production nach Deploy: Migration 0019 im Build-Log, `GET /api/assignments` mit `lernplan`, `GET /api/morgen` mit `lernen`, Planseite ohne Plan 200. Per API-Skript, das Sid mit `!` ausführt. Einen echten Plan live erstellt Sid selbst.
+- [x] A1 `npx tsc --noEmit` fehlerfrei.
+- [x] A2 `npx vitest run` grün, keine bisher grünen Tests rot.
+- [x] A3 `lib/lernplan.test.ts` deckt alle unter Tests genannten Fälle für `einheitenFuer`, `verteilen`, `neuVerteilen`.
+- [x] A4 `lib/lernplan-sicherheit.test.ts` und `lib/bild-verkleinern.test.ts` vorhanden und grün.
+- [x] A5 `lib/lernplan-generieren.test.ts` mit `streamChat`-Stub deckt die genannten Fälle inklusive Injection-Text.
+- [x] A6 `npx next build` 0 Errors; Routen `/lernen/[subjectId]/plan/[assignmentId]`, `.../neu`, `/api/lernen/plan`, `/api/lernen/plan/lesen`, `/api/lernen/plan/bewerten`, `/api/lernen/plan/[id]`, `/api/lernen/plan/[id]/verteilen`, `/api/lernen/plan/items/[id]`, `/api/lernen/plan/points/[id]` gelistet.
+- [x] A7 `drizzle/0019_lernplan.sql` im Journal, `node scripts/migrate.mjs` zweimal ohne Fehler.
+- [x] A8 Lokal mit `DATABASE_URL` und `ZAI_API_KEY`: `POST /api/lernen/plan/lesen` mit PNG-Checkliste und zwei PDF-Blättern liefert 200, ≥ 3 Punkte, jeder mit `frage`, mindestens einer mit `fileIds`.
+- [x] A9 `POST .../bewerten` mit richtig, Unsinn, null liefert 3 Urteile, null ist `falsch` mit "Übersprungen".
+- [x] A10 `POST /api/lernen/plan` liefert 200; Punkte `richtig` ohne `lernen`, Punkte `falsch` mit lernen/ueben/probe; alle Items zwischen heute und Vortag; letzter Tag `simulation`. Zweiter POST ohne `ersetzen` innerhalb 30 s liefert 409.
+- [x] A11 Gleicher Aufruf mit Text-Checkliste und `checks: null` liefert 200, alle Punkte 50 `ohne_test`.
+- [x] A12 Scan-PDF ohne Text als Checkliste liefert 422 `pdf_ohne_text`; fremde `fileId` liefert 400 `dateien_fremd`.
+- [x] A13 `PATCH .../items/[id]` `{ done: true, result: 0 }` auf `probe` setzt Punkt auf 0 mit Quelle `selbst`; `GET /api/assignments` zeigt `lernplan.done` um 1 höher.
+- [x] A14 `POST /api/lernen/karten/[id]/bewerten` bzw. `reviewCard` auf einer Karte des Themas setzt Punkt-Sicherheit mit Quelle `karten`.
+- [x] A15 Tutor-Turn mit `einheit=<probe-item>` und Fazit `prozent: 70` hakt die Einheit ab und setzt Punkt auf 70 mit Quelle `fazit` (Test mit `streamChat`-Stub in `lib/tutor/session.test.ts`).
+- [x] A16 Tutor-Turn mit `einheit` enthält im System-Prompt den Abschnitt "Arbeitsblätter zu diesem Punkt" mit Text des PDF (Test mit Stub).
+- [x] A17 `POST .../verteilen` `{ umfang: 'ueberfaellig' }` legt überfällige neu, erledigte bleiben, Punkt aus A13 bekommt zusätzliche `ueben`.
+- [x] A18 `DELETE /api/lernen/plan/[id]` löscht Plan, Punkte, Checks, Items; Themen bleiben; mit `{ topicIds }` nur diese Themen mitgelöscht; fremde `topicIds` 400.
+- [x] A19 `GET /api/morgen` und `GET /api/stunde` tragen `lernen`; leer als `[]`. `GET /api/assignments` trägt `lernplan`.
+- [x] A20 Bot-Frage "Wie steht mein Lernplan?" ruft `lernplan_lesen` (Test in `lib/bot/tools.test.ts`).
+- [x] A21 Ohne Login antworten alle neuen Routen 307 auf `/login`.
+- [x] A22 Karten-Queue: Planseite mit 3 Punkten ohne Karten löst 3 Aufrufe von `/api/lernen/generieren` mit Parallelität ≤ 2 aus und setzt `cards_state` (Komponententest mit gemocktem fetch).
+- [x] A23 Live auf Production nach Deploy: Migration 0019 im Build-Log, `GET /api/assignments` mit `lernplan`, `GET /api/morgen` mit `lernen`, Planseite ohne Plan 200. Per API-Skript, das Sid mit `!` ausführt. Einen echten Plan live erstellt Sid selbst.
 - [ ] A24a Für jeden Screen aus der Tabelle UI-Arbeitsweise ist die Skill-Reihenfolge gelaufen und der `/ui-review`-Befund im Task-Summary vermerkt, offene Befunde begründet.
 - [ ] A24 Per Auge (Sid): vier Schritte, Punkte editieren und zusammenlegen, Test mit "Weiß ich nicht", Ergebnis-Chips, Planseite mit Balken, Queue-Leiste, Blatt-Chips, Probe im Tutor mit automatischem Abhaken, Simulation, Rückgängig-Toast, Blöcke in Prüfung, Fokus, Cockpit, mobil 375 px.
 

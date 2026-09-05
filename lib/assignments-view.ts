@@ -14,6 +14,14 @@ export type AssignmentLernplan = {
   total: number;
   done: number;
   sicherheit: number;
+  // "ohne_test", wenn ALLE Punkte des Plans confidenceSource "ohne_test"
+  // haben (keine echte Messung) -- die Anzeige zeigt dann "Noch nicht
+  // eingeschaetzt" statt einer Prozentzahl. Traegt mindestens ein Punkt eine
+  // echte Messung, ist das Feld undefined: der Mittelwert stuetzt sich auf
+  // mindestens eine echte Messung und beansprucht keine einzelne Herkunft.
+  // Siehe lib/lernplan-store.ts LernplanBlock.sicherheitQuelle, aus dem
+  // dieser Typ 1:1 befuellt wird (app/api/assignments/route.ts).
+  sicherheitQuelle?: "ohne_test";
   heute: ItemDTO[];
   heuteLeer: boolean;
 };

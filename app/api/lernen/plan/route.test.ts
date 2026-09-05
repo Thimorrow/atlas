@@ -87,10 +87,13 @@ describe("POST /api/lernen/plan -- Validierung", () => {
     expect((await res.json()).error).toBe("minutesWeekend");
   });
 
-  it("punkte leer -> 400", async () => {
+  it("punkte leer -> 400 mit eigenem Code", async () => {
     const res = await POST(req(gueltigerBody({ punkte: [] })));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("punkte");
+    // Nicht "punkte" (das ist der kaputte Punkt) und nicht "keine_punkte"
+    // (das ist der Lese-Schritt in lernplan-generieren.ts) -- drei Faelle,
+    // drei Codes, drei Texte in FEHLER_TEXT.
+    expect((await res.json()).error).toBe("plan_ohne_punkte");
   });
 
   it("mehr als 20 punkte -> 400", async () => {

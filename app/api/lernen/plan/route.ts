@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { isUuid } from "@/lib/subject-store";
 import { heuteISO, jetztHM } from "@/lib/zeit";
 import { LernplanStoreFehler, planAnlegen } from "@/lib/lernplan-store";
-import type { CheckDraft, PunktDraft } from "@/lib/lernplan-types";
+import { MAX_PUNKTE_PRO_PLAN, ZEITBUDGET_MAX, ZEITBUDGET_MIN, type CheckDraft, type PunktDraft } from "@/lib/lernplan-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_PUNKTE = 20;
 const MAX_FILE_IDS = 20;
 const URTEILE = ["richtig", "teilweise", "falsch"] as const;
 
@@ -52,12 +51,14 @@ function parseCheck(raw: unknown): CheckDraft | null {
 // "Schritt 4: POST /api/lernen/plan".
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  if (!isObj(body)) return NextResponse.json({ error: "body" }, { status: 400 });
+  if (!isObj(body)) {
+    return NextResponse.json({ error: "body", hinweis: "Die Anfrage ist ungültig." }, { status: 400 });
+  }
 
   const { assignmentId, checklist, fileIds, minutesWeekday, minutesWeekend, punkte, checks, ersetzen } = body;
 
   if (typeof assignmentId !== "string" || !isUuid(assignmentId)) {
-    return NextResponse.json({ error: "assignmentId" }, { status: 400 });
+    return NextResponse.json({ error: "assignmentId", hinweis: "Diese Prüfung ist ungültig." }, { status: 400 });
   }
 
   if (!isObj(checklist)) return NextResponse.json({ error: "checklist" }, { status: 400 });
@@ -74,33 +75,60 @@ export async function POST(req: Request) {
     fileIdsArr.length > MAX_FILE_IDS ||
     !fileIdsArr.every((f) => typeof f === "string" && isUuid(f))
   ) {
-    return NextResponse.json({ error: "fileIds" }, { status: 400 });
+    return NextResponse.json({ error: "fileIds", hinweis: "Eine der Dateien ist ungültig." }, { status: 400 });
   }
 
-  if (typeof minutesWeekday !== "number" || !Number.isInteger(minutesWeekday) || minutesWeekday < 10 || minutesWeekday > 240) {
+  if (typeof minutesWeekday !== "number" || !Number.isInteger(minutesWeekday) || minutesWeekday < ZEITBUDGET_MIN || minutesWeekday > ZEITBUDGET_MAX) {
     return NextResponse.json({ error: "minutesWeekday" }, { status: 400 });
   }
-  if (typeof minutesWeekend !== "number" || !Number.isInteger(minutesWeekend) || minutesWeekend < 10 || minutesWeekend > 240) {
+  if (typeof minutesWeekend !== "number" || !Number.isInteger(minutesWeekend) || minutesWeekend < ZEITBUDGET_MIN || minutesWeekend > ZEITBUDGET_MAX) {
     return NextResponse.json({ error: "minutesWeekend" }, { status: 400 });
   }
 
-  if (!Array.isArray(punkte) || punkte.length === 0 || punkte.length > MAX_PUNKTE) {
-    return NextResponse.json({ error: "punkte" }, { status: 400 });
+  if (!Array.isArray(punkte) || punkte.length === 0) {
+    // Eigener Code statt "punkte": derselbe Code trug bisher zwei fachlich
+    // verschiedene Faelle (leere Liste vs. kaputter Punkt) und nur einer von
+    // beiden konnte in FEHLER_TEXT stehen. Muster wie bei zu_viele_punkte.
+    return NextResponse.json({ error: "plan_ohne_punkte", hinweis: "Mindestens ein Punkt wird gebraucht." }, { status: 400 });
+  }
+  // BLOCKIEREND-Fix: ein eigener Code fuer zu viele Punkte statt desselben
+  // "punkte" wie bei einem ungueltigen Titel/einer ungueltigen Minutenzahl --
+  // sonst landet der Nutzer nach einem 21. Punkt in "Zurueck zur Liste" mit
+  // einer Meldung, die einen Titel- oder Minutenfehler behauptet, den es gar
+  // nicht gibt. MAX_PUNKTE_PRO_PLAN ist die einzige Quelle der Wahrheit fuer
+  // die Grenze, siehe lib/lernplan-types.ts.
+  if (punkte.length > MAX_PUNKTE_PRO_PLAN) {
+    return NextResponse.json(
+      {
+        error: "zu_viele_punkte",
+        hinweis: `Höchstens ${MAX_PUNKTE_PRO_PLAN} Punkte. Zwei zusammenlegen oder einen löschen.`,
+      },
+      { status: 400 },
+    );
   }
   const parsedPunkte: PunktDraft[] = [];
   for (const p of punkte) {
     const parsed = parsePunkt(p);
-    if (!parsed) return NextResponse.json({ error: "punkte" }, { status: 400 });
+    if (!parsed) {
+      return NextResponse.json(
+        { error: "punkte", hinweis: "Ein Punkt hat noch keinen Titel oder eine ungültige Minutenzahl." },
+        { status: 400 },
+      );
+    }
     parsedPunkte.push(parsed);
   }
 
   let parsedChecks: CheckDraft[] | null = null;
   if (checks !== null && checks !== undefined) {
-    if (!Array.isArray(checks)) return NextResponse.json({ error: "checks" }, { status: 400 });
+    if (!Array.isArray(checks)) {
+      return NextResponse.json({ error: "checks", hinweis: "Die Testantworten sind ungültig." }, { status: 400 });
+    }
     parsedChecks = [];
     for (const c of checks) {
       const parsed = parseCheck(c);
-      if (!parsed) return NextResponse.json({ error: "checks" }, { status: 400 });
+      if (!parsed) {
+        return NextResponse.json({ error: "checks", hinweis: "Die Testantworten sind ungültig." }, { status: 400 });
+      }
       parsedChecks.push(parsed);
     }
   }

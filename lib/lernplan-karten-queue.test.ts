@@ -257,4 +257,77 @@ describe("runKartenQueue", () => {
     expect(calls.filter((c) => c.url === "/api/lernen/generieren").length).toBe(1);
     expect(ergebnis.fertig).toEqual(["p1"]);
   });
+
+  it("bezieht cardsState fertig ohne Karten nur ein, wenn sie explizit in erneut stehen (S3)", async () => {
+    const { fetchStub, calls } = makeFetchStub();
+    const punkte = [
+      makePunkt({ id: "p1", cardsState: "fertig", kartenAnzahl: 0 }),
+      makePunkt({ id: "p2", cardsState: "fertig", kartenAnzahl: 0 }),
+    ];
+
+    // Ohne erneut: kein automatischer Zugriff, sonst wuerde ein Punkt, der
+    // wiederholt nichts liefert, bei jedem Aufruf erneut angestossen.
+    const ohneErneut = await runKartenQueue(punkte, {
+      fetch: fetchStub as unknown as typeof fetch,
+      subjectId: SUBJECT_ID,
+      assignmentId: ASSIGNMENT_ID,
+    });
+    expect(calls.filter((c) => c.url === "/api/lernen/generieren").length).toBe(0);
+    expect(ohneErneut.fertig).toEqual([]);
+    expect(ohneErneut.fehler).toEqual([]);
+
+    const ergebnis = await runKartenQueue(punkte, {
+      fetch: fetchStub as unknown as typeof fetch,
+      subjectId: SUBJECT_ID,
+      assignmentId: ASSIGNMENT_ID,
+      erneut: ["p1"],
+    });
+
+    expect(calls.filter((c) => c.url === "/api/lernen/generieren").length).toBe(1);
+    expect(ergebnis.fertig).toEqual(["p1"]);
+  });
+
+  it("S1: ein erneut()-Aufruf nimmt keine offenen Punkte ausserhalb von erneut mit, auch wenn sie kartenAnzahl 0 haben", async () => {
+    const { fetchStub, calls } = makeFetchStub();
+    const punkte = [
+      makePunkt({ id: "p1", cardsState: "fehler" }),
+      // p2/p3 stehen fuer Punkte, die der parallel laufende Hauptlauf gerade
+      // vorbereitet (cardsState "offen", kartenAnzahl 0) -- ein erneut()-Ruf
+      // fuer p1 darf sie nicht nebenbei mitnehmen, sonst laufen fuer
+      // dasselbe Thema zwei generieren-Aufrufe gleichzeitig (S1).
+      makePunkt({ id: "p2", cardsState: "offen", kartenAnzahl: 0 }),
+      makePunkt({ id: "p3", cardsState: "offen", kartenAnzahl: 0 }),
+    ];
+
+    const ergebnis = await runKartenQueue(punkte, {
+      fetch: fetchStub as unknown as typeof fetch,
+      subjectId: SUBJECT_ID,
+      assignmentId: ASSIGNMENT_ID,
+      erneut: ["p1"],
+    });
+
+    const generierenCalls = calls.filter((c) => c.url === "/api/lernen/generieren");
+    expect(generierenCalls.length).toBe(1);
+    expect(ergebnis.fertig).toEqual(["p1"]);
+    expect(ergebnis.fehler).toEqual([]);
+  });
+
+  it("S1: ein offener Punkt darf trotzdem ueber erneut() laufen, wenn er dort explizit genannt ist", async () => {
+    const { fetchStub, calls } = makeFetchStub();
+    const punkte = [
+      makePunkt({ id: "p1", cardsState: "offen", kartenAnzahl: 0 }),
+      makePunkt({ id: "p2", cardsState: "offen", kartenAnzahl: 0 }),
+    ];
+
+    const ergebnis = await runKartenQueue(punkte, {
+      fetch: fetchStub as unknown as typeof fetch,
+      subjectId: SUBJECT_ID,
+      assignmentId: ASSIGNMENT_ID,
+      erneut: ["p1"],
+    });
+
+    const generierenCalls = calls.filter((c) => c.url === "/api/lernen/generieren");
+    expect(generierenCalls.length).toBe(1);
+    expect(ergebnis.fertig).toEqual(["p1"]);
+  });
 });

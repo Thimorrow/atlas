@@ -7,7 +7,7 @@
 // ansteht, sonst morgen bzw. der naechste Schultag) -- die UI hat bewusst
 // keinen Heute/Morgen-Schalter mehr.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -22,7 +22,7 @@ import {
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AssignmentList } from "@/components/assignment-list";
-import { PhaseChip, balkenTextFarbe } from "@/components/lernplan-ui";
+import { LernenEinheitZeile, balkenTextFarbe, useOverflowTitle } from "@/components/lernplan-ui";
 import { useToast } from "@/components/toast";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { TYPE_LABEL, weekdayDateLabel, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
@@ -89,7 +89,7 @@ export function MorgenPanel() {
           {data && data.target.date !== data.today && (
             <Link
               href="/stunde"
-              className="mt-1 inline-flex min-h-9 items-center gap-0.5 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="relative mt-1 inline-flex min-h-9 items-center gap-0.5 rounded-md text-[13px] text-muted-foreground underline-offset-2 [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Heute nachtragen
               <ChevronRight className="size-3.5" aria-hidden />
@@ -104,7 +104,10 @@ export function MorgenPanel() {
             <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
             <button
               type="button"
-              className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+              // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
+              // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
+              // (Outline-Button), siehe app/globals.css --border-control.
+              className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
               onClick={() => void load()}
             >
               Erneut versuchen
@@ -257,8 +260,8 @@ function ExamCard({ exam }: { exam: AssignmentDTO }) {
   if (!exam.subjectId) return body;
   return (
     <Link
-      href={`/fächer/${exam.subjectId}`}
-      className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      href={`/faecher/${exam.subjectId}`}
+      className="group block rounded-2xl [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {body}
     </Link>
@@ -270,9 +273,24 @@ function ExamCard({ exam }: { exam: AssignmentDTO }) {
 function LernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
   const toast = useToast();
   const [items, setItems] = useState(plan.items);
+  // Nachzieh-Effekt wie in pruefungen-view.tsx (NextExamLernplanDetails):
+  // `plan` bekommt hier nur bei einem echten Neuladen von /api/morgen eine
+  // neue Referenz (einmaliger Mount-Fetch oder manuelles "Erneut versuchen",
+  // beides mountet den Baum bei einem Fehlversuch/Modus-Wechsel ohnehin neu
+  // -- kein Poll-Intervall wie im Cockpit). Deshalb ist die Referenz selbst
+  // hier ein sicherer Trigger, ohne einen frischen optimistischen Haken
+  // zurueckzusetzen.
+  useEffect(() => setItems(plan.items), [plan]);
+  // Reihenfolge-Schutz gegen ueberholende PATCH-Antworten: pro Item zaehlt
+  // toggleVersion hoch. Antwort/Fehler wirken nur, wenn zwischenzeitlich kein
+  // neuerer Aufruf fuer dasselbe Item gestartet wurde -- sonst wuerde eine
+  // langsame erste Antwort einen inzwischen neueren Stand ueberschreiben.
+  const toggleVersion = useRef(new Map<string, number>());
 
   async function toggle(item: ItemDTO) {
     const neuErledigt = item.doneAt === null;
+    const version = (toggleVersion.current.get(item.id) ?? 0) + 1;
+    toggleVersion.current.set(item.id, version);
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: neuErledigt ? new Date().toISOString() : null } : i)));
     try {
       const res = await fetch(`/api/lernen/plan/items/${item.id}`, {
@@ -282,25 +300,53 @@ function LernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
       });
       if (!res.ok) throw new Error();
     } catch {
+      if (toggleVersion.current.get(item.id) !== version) return;
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: item.doneAt } : i)));
       toast("Einheit konnte nicht aktualisiert werden.");
     }
   }
 
+  const examTitelOverflow = useOverflowTitle<HTMLParagraphElement>(plan.examTitle);
+
   return (
     <div className="rounded-xl border bg-card px-3.5 py-3 shadow-card">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-[14px] font-medium leading-snug">{plan.examTitle}</p>
+          <p
+            ref={examTitelOverflow.ref}
+            title={examTitelOverflow.title}
+            className="truncate text-[14px] font-medium leading-snug"
+          >
+            {plan.examTitle}
+          </p>
         </div>
         <Link
           href={`/lernen/${plan.subjectId}/plan/${plan.assignmentId}`}
+          // S4-Fix: der zugaengliche Name muss den sichtbaren Text enthalten
+          // (WCAG 2.5.3) -- "45 Prozent" tat das nicht, weil das sichtbare
+          // "45%" ein Prozentzeichen traegt statt des ausgeschriebenen Worts.
+          // "%" statt "Prozent" hier behebt das, ein Screenreader liest das
+          // Zeichen ohnehin als "Prozent" vor.
+          aria-label={
+            plan.sicherheitQuelle === "ohne_test"
+              ? `Lernplan ${plan.examTitle}, Sicherheit noch nicht eingeschätzt`
+              : `Lernplan ${plan.examTitle}, Sicherheit ${plan.sicherheit}%`
+          }
           className={cn(
-            "relative shrink-0 rounded px-1 py-1 text-[12.5px] font-medium tabular-nums before:absolute before:-inset-2 before:content-[''] hover:underline",
-            balkenTextFarbe(plan.sicherheit),
+            "flex min-h-11 shrink-0 items-center gap-0.5 rounded px-2 text-[12.5px] font-medium [touch-action:manipulation] hover:underline",
+            // S9: "ohne_test" ist kein Messwert (siehe lib/lernplan-store.ts) --
+            // eine gefaerbte Prozentzahl wuerde eine Praezision behaupten, die
+            // es nicht gibt. Gleicher Vertrag wie SicherheitsBalken in
+            // lernplan-ui.tsx.
+            plan.sicherheitQuelle === "ohne_test" ? "text-muted-foreground" : cn("tabular-nums", balkenTextFarbe(plan.sicherheit)),
           )}
         >
-          {plan.sicherheit}%
+          {plan.sicherheitQuelle === "ohne_test" ? "Noch nicht eingeschätzt" : `${plan.sicherheit}%`}
+          {/* S4-Fix: eine gefaerbte Zahl ohne weiteres Zeichen liest sich als
+              Kennzahl, nicht als Bedienelement -- der Chevron macht sichtbar,
+              dass hier ein Ziel dahinter liegt (gleiche Sprache wie ExamCard
+              und LessonRow oben in dieser Datei). */}
+          <ChevronRight className="size-3 shrink-0" aria-hidden />
         </Link>
       </div>
       <ul className="mt-2 flex flex-col gap-1">
@@ -310,67 +356,6 @@ function LernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
       </ul>
     </div>
   );
-}
-
-function LernenEinheitZeile({
-  subjectId,
-  assignmentId,
-  item,
-  onToggle,
-}: {
-  subjectId: string;
-  assignmentId: string;
-  item: ItemDTO;
-  onToggle: (item: ItemDTO) => void;
-}) {
-  const erledigt = item.doneAt !== null;
-  const titel = item.punktTitel ?? (item.phase === "simulation" ? "Simulation" : "Thema fehlt");
-  const manuell = item.phase === "probe" || item.phase === "simulation";
-
-  const inhalt = (
-    <>
-      {!manuell && (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={erledigt}
-          aria-label={erledigt ? `${titel} als offen markieren` : `${titel} als erledigt markieren`}
-          onClick={() => onToggle(item)}
-          className={cn(
-            "relative grid size-5 shrink-0 place-items-center rounded border transition-colors before:absolute before:-inset-3 before:content-[''] [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            erledigt ? "border-primary bg-primary text-primary-foreground" : "border-border",
-          )}
-        >
-          {erledigt && (
-            <span aria-hidden className="text-[11px] leading-none">
-              ✓
-            </span>
-          )}
-        </button>
-      )}
-      <PhaseChip phase={item.phase} />
-      <span className={cn("min-w-0 flex-1 truncate text-[13px]", erledigt && !manuell && "text-muted-foreground line-through")}>
-        {titel}
-      </span>
-      <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">{item.minuten} Min</span>
-      {manuell && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-    </>
-  );
-
-  if (manuell) {
-    return (
-      <li>
-        <Link
-          href={`/lernen/${subjectId}/plan/${assignmentId}`}
-          className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          {inhalt}
-        </Link>
-      </li>
-    );
-  }
-
-  return <li className="flex items-center gap-2 px-1 py-1.5">{inhalt}</li>;
 }
 
 // --- Laeuft gerade ---------------------------------------------------------------
@@ -384,7 +369,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
   return (
     <Link
       href="/stunde"
-      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card transition-colors [touch-action:manipulation] hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
       <div className="min-w-0 flex-1">
@@ -489,7 +474,7 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
           {inner}
         </Link>
       ) : ev.subjectId ? (
-        <Link href={`/fächer/${ev.subjectId}`} className={className}>
+        <Link href={`/faecher/${ev.subjectId}`} className={className}>
           {inner}
         </Link>
       ) : (
@@ -507,8 +492,8 @@ function MaterialCard({ material }: { material: MaterialDTO }) {
 
   return (
     <Link
-      href={`/fächer/${material.subjectId}`}
-      className="group block rounded-xl border bg-card px-3.5 py-3 shadow-card transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      href={`/faecher/${material.subjectId}`}
+      className="group block rounded-xl border bg-card px-3.5 py-3 shadow-card transition-colors [touch-action:manipulation] hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <div className="flex items-center gap-2">
         <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
@@ -559,7 +544,10 @@ function EmptyState() {
 
 function PageSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-label="Wird geladen" aria-busy="true">
+    // NIT-Fix: aria-label auf einem <div> ohne Rolle wird von den meisten
+    // Screenreadern ignoriert, aria-busy allein wird dort nicht vorgelesen --
+    // role="status" macht daraus eine echte Live-Region.
+    <div className="flex flex-col gap-6" role="status" aria-label="Wird geladen" aria-busy="true">
       <div className="flex flex-col gap-1.5">
         <Skeleton className="mx-1 h-3 w-20" />
         <ul className="flex flex-col gap-1.5">

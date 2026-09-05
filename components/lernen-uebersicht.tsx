@@ -202,13 +202,13 @@ function PruefungCard({ pruefung }: { pruefung: PruefungOverview }) {
         ) : (
           <div className="flex shrink-0 gap-1.5">
             <Link
-              href={`/lernen/${pruefung.subjectId}/session?prüfung=${pruefung.id}`}
+              href={`/lernen/${pruefung.subjectId}/session?pruefung=${pruefung.id}`}
               className={cn(buttonVariants({ size: "sm" }))}
             >
               Lernen
             </Link>
             <Link
-              href={`/lernen/${pruefung.subjectId}/session?prüfung=${pruefung.id}&modus=probe`}
+              href={`/lernen/${pruefung.subjectId}/session?pruefung=${pruefung.id}&modus=probe`}
               className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
             >
               Probe

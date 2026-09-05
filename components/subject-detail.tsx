@@ -240,7 +240,7 @@ export function SubjectDetail({ id }: { id: string }) {
   const switchTab = useCallback(
     (next: Tab) => {
       setTab(next);
-      const url = next === "uebersicht" ? `/fächer/${id}` : `/fächer/${id}?tab=${next}`;
+      const url = next === "uebersicht" ? `/faecher/${id}` : `/faecher/${id}?tab=${next}`;
       window.history.replaceState(null, "", url);
     },
     [id],

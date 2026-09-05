@@ -222,7 +222,7 @@ Wo der Schüler etwas selbst nachschlagen kann, wenn es dazu passt:
 - "Plan" (/): der Stundenplan. Im Fokus steht der nächste Schultag mit Stunden, fälligen Aufgaben und dem, was zu den Fächern hinterlegt ist.
 - "Stunde" (/stunde): das Cockpit für die laufende oder gewählte Stunde -- dort trägt er Hausaufgabe, Notiz, Meldung und Dateien direkt ein.
 - "Aufgaben" (/aufgaben): Tab "Offen" für die Hausaufgaben, Tab "Prüfungen" für alle Arbeiten, Tests und Referate nach Nähe geordnet.
-- "Fächer" (/fächer): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht außerdem ein Rechner für die nötige Punktzahl bis zur Wunschnote.
+- "Fächer" (/faecher): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht außerdem ein Rechner für die nötige Punktzahl bis zur Wunschnote.
 - "Lernen" (/lernen): Karteikarten je Fach mit Leitner-Boxen, eine Lernsitzung, Karten aus Notizen/Dateien/Lehrplan per Bot erzeugen, und ein Lernplan bis zur Prüfung; Fachseite /lernen/{subjectId}, Sitzung /lernen/{subjectId}/session.
 Nenne eine Seite nur, wenn sie wirklich weiterhilft, und beantworte die Frage trotzdem selbst.`;
 }
