@@ -11,7 +11,9 @@
 import { expandDay } from "@/lib/calendar-expand";
 import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, type SubjectDTO } from "@/lib/subject-store";
-import { listSubjectLessonNotes } from "@/lib/lesson-notes";
+import { lessonNoteBlockIds, listSubjectLessonNotes } from "@/lib/lesson-notes";
+import { participationCounts } from "@/lib/participation-store";
+import { fasseDoppelstundenZusammen } from "@/lib/doppelstunde";
 import { findNextLessonDate } from "@/lib/next-lesson";
 import {
   cockpitMode,
@@ -33,6 +35,11 @@ function subjectFor(subjects: SubjectDTO[], title: string): SubjectDTO | null {
 
 export type StundeLessonDTO = {
   refId: string;
+  // Alle enthaltenen Bloecke: bei einer Doppelstunde (Untis liefert sie als
+  // zwei Einzelbloecke) beide IDs, sonst genau die eigene. refId ist immer
+  // die erste -- stabile Auswahl, Notiz- und Meldungs-APIs brauchen genau
+  // eine ID.
+  refIds: string[];
   date: string;
   startTime: string;
   endTime: string | null;
@@ -53,7 +60,17 @@ export type StundeResponse = {
   modus: "live" | "pause" | "vor" | "nach" | "frei";
   tag: StundeLessonDTO[];
   liveRefId: string | null;
-  selected: (StundeLessonDTO & { minutesLeft: number; minutesUntil: number; progress: number }) | null;
+  selected: (StundeLessonDTO & {
+    minutesLeft: number;
+    minutesUntil: number;
+    progress: number;
+    // Die Block-ID, an der Notiz und Meldung haengen: bei einer
+    // zusammengefassten Doppelstunde der Teil, an dem schon etwas steht,
+    // sonst der erste. So geht kein Eintrag verloren, der vor dem
+    // Zusammenfassen an der zweiten Haelfte hing.
+    notizBlockId: string;
+    meldungBlockId: string;
+  }) | null;
   faellig: AssignmentDTO[];
   // Offene Aufgaben des Fachs ohne Faelligkeit (nie Pruefungen).
   ohneTermin: AssignmentDTO[];
@@ -76,30 +93,49 @@ export async function ladeStundeKontext(blockId?: string | null): Promise<Stunde
     lernenFuerTag(today),
   ]);
 
-  const tag: StundeLessonDTO[] = (day?.events ?? []).map((ev) => {
-    const s = subjectFor(subjects, ev.title);
-    return {
-      refId: ev.refId,
-      date: today,
-      startTime: ev.startTime,
-      endTime: ev.endTime,
-      title: ev.title,
-      status: ev.status,
-      room: ev.room,
-      teacher: ev.teacher,
-      subjectId: s?.id ?? null,
-      subjectColor: s?.color ?? null,
-      subjectName: s?.name ?? null,
-      hasNote: ev.hasNote,
-      hasAssignment: ev.hasAssignment,
-    };
-  });
+  // Untis liefert eine Doppelstunde als zwei Einzelbloecke: fuer Anzeige
+  // und Live-Erkennung gehoeren sie zusammen (ein Chip, eine Zeitspanne,
+  // ein Live-Zustand ohne Sprung zur Naht).
+  const tag: StundeLessonDTO[] = fasseDoppelstundenZusammen(
+    (day?.events ?? []).map((ev) => {
+      const s = subjectFor(subjects, ev.title);
+      return {
+        refId: ev.refId,
+        refIds: [ev.refId],
+        date: today,
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        title: ev.title,
+        status: ev.status,
+        room: ev.room,
+        teacher: ev.teacher,
+        subjectId: s?.id ?? null,
+        subjectColor: s?.color ?? null,
+        subjectName: s?.name ?? null,
+        hasNote: ev.hasNote,
+        hasAssignment: ev.hasAssignment,
+      };
+    }),
+  );
 
   const modus = cockpitMode(tag, nowHM);
   const liveRefId = pickLiveLesson(tag, nowHM)?.refId ?? null;
 
-  const fromBlock = blockId ? tag.find((ev) => ev.refId === blockId) : undefined;
+  const fromBlock = blockId ? tag.find((ev) => ev.refIds.includes(blockId)) : undefined;
   const selectedBase = fromBlock ?? defaultLesson(tag, nowHM);
+
+  // Bei einer zusammengefassten Einheit: vorhandene Eintraege gewinnen, sonst
+  // der erste Teil. Einzelstunden brauchen keine Zusatzabfrage.
+  let notizBlockId = selectedBase?.refId ?? null;
+  let meldungBlockId = selectedBase?.refId ?? null;
+  if (selectedBase && selectedBase.refIds.length > 1) {
+    const [notiert, gezaehlt] = await Promise.all([
+      lessonNoteBlockIds(selectedBase.refIds),
+      participationCounts(selectedBase.refIds),
+    ]);
+    notizBlockId = selectedBase.refIds.find((id) => notiert.has(id)) ?? selectedBase.refId;
+    meldungBlockId = selectedBase.refIds.find((id) => gezaehlt.has(id)) ?? selectedBase.refId;
+  }
 
   const selected: StundeResponse["selected"] = selectedBase
     ? {
@@ -107,6 +143,8 @@ export async function ladeStundeKontext(blockId?: string | null): Promise<Stunde
         minutesLeft: selectedBase.endTime ? minutesLeft(selectedBase.endTime, nowHM) : 0,
         minutesUntil: minutesUntil(selectedBase.startTime, nowHM),
         progress: selectedBase.endTime ? lessonProgress(selectedBase.startTime, selectedBase.endTime, nowHM) : 0,
+        notizBlockId: notizBlockId ?? selectedBase.refId,
+        meldungBlockId: meldungBlockId ?? selectedBase.refId,
       }
     : null;
 

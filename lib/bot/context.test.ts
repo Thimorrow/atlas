@@ -74,6 +74,7 @@ describe("buildGreeting", () => {
       liveRefId: "ref-1",
       selected: {
         refId: "ref-1",
+        refIds: ["ref-1"],
         date: heuteLokal(0),
         startTime: "09:00",
         endTime: "09:45",
@@ -89,6 +90,8 @@ describe("buildGreeting", () => {
         minutesLeft: 30,
         minutesUntil: 0,
         progress: 0.33,
+        notizBlockId: "ref-1",
+        meldungBlockId: "ref-1",
       },
       faellig: [],
       ohneTermin: [],
