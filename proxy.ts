@@ -6,6 +6,8 @@ import { asciiPfad } from "@/lib/pfad-ascii";
 // ist in dieser Version deprecated (siehe node_modules/next/dist/docs ->
 // 01-app/03-api-reference/03-file-conventions/middleware.md).
 
+let secretFallbackWarned = false;
+
 export async function proxy(request: NextRequest) {
   // Zuerst die Schreibweise des Pfades: /faecher ist die Route, /fächer nur
   // die deutsche Form davon. Sie hier abzufangen ist billiger als eine 404 --
@@ -23,6 +25,13 @@ export async function proxy(request: NextRequest) {
   // Kein Passwort gesetzt -> offen. Trifft die lokale Entwicklung.
   if (!gateEnabled(password)) return NextResponse.next();
 
+  // Einmal pro Prozess warnen statt bei jedem Request das Log zu fluten.
+  if (!process.env.ATLAS_SESSION_SECRET && !secretFallbackWarned) {
+    secretFallbackWarned = true;
+    console.warn(
+      "[atlas] ATLAS_SESSION_SECRET fehlt, das Sitzungs-Cookie nutzt ATLAS_PASSWORD als Fallback. Bitte ein separates Secret setzen.",
+    );
+  }
   const secret = process.env.ATLAS_SESSION_SECRET || password;
   const ok = await verifyToken(request.cookies.get(COOKIE_NAME)?.value, secret);
   if (ok) return NextResponse.next();

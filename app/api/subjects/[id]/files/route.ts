@@ -18,13 +18,18 @@ const NOT_FOUND = () => NextResponse.json({ error: "Fach nicht gefunden." }, { s
 // GET /api/subjects/[id]/files
 // Faellt der Token weg, ist das kein Fehler: enabled=false, und die Liste
 // bleibt leer. Die DB wird trotzdem gelesen, falls schon Metadaten da sind.
-export async function GET(_req: Request, { params }: Ctx) {
+export async function GET(req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return NOT_FOUND();
   if (!(await subjectExists(id))) return NOT_FOUND();
 
   const enabled = blobEnabled();
-  const files = await listFiles(id);
+  // Optional ?limit=: ohne den Parameter bleibt es bei der vollen Liste.
+  const raw = new URL(req.url).searchParams.get("limit");
+  const parsed = raw !== null ? Math.floor(Number(raw)) : undefined;
+  const limit =
+    parsed !== undefined && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  const files = await listFiles(id, limit);
   return NextResponse.json({ enabled, files: enabled ? files : [] });
 }
 

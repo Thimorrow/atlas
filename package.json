@@ -13,7 +13,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "db:seed:clear": "node --env-file=.env.local scripts/seed.mjs --clear",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",

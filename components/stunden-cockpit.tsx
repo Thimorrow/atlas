@@ -224,7 +224,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
   return (
     <div className="space-y-6">
       <div>
-        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-wide" style={{ color: tint }}>
+        <p className="flex items-center gap-2 text-[11px] font-semibold tracking-wide tabular-nums" style={{ color: tint }}>
           {data.modus === "live" && (
             <span aria-hidden className="size-2 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
           )}

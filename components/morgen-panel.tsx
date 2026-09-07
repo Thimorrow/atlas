@@ -375,7 +375,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
     >
       <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: tint }}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide tabular-nums" style={{ color: tint }}>
           Läuft gerade · noch {live.minutesLeft} min
         </p>
         <p className="mt-0.5 truncate text-[15px] font-medium leading-snug">{live.title}</p>

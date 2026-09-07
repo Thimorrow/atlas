@@ -46,10 +46,12 @@ const MODUS_LABEL: Record<Exclude<SessionModus, "lernen">, string> = {
 // "smooth" bei prefers-reduced-motion, block: "nearest" bewegt die Seite nur,
 // wenn das Ziel tatsaechlich ausserhalb liegt. Gleiches Muster wie
 // components/lernplan-erstellen.tsx (fokussiereSichtbar).
-function fokussiereSichtbar(el: HTMLElement | null | undefined) {
+// Einheitlicher Reduced-Motion-Pfad: der Aufrufer liefert den Wert aus
+// useReducedMotion, diese Funktion fragt matchMedia nicht mehr selbst ab.
+// (Hook kann hier nicht direkt stehen, sie ist eine reine Helper-Funktion.)
+function fokussiereSichtbar(el: HTMLElement | null | undefined, reduziert = false) {
   if (!el) return;
   el.focus();
-  const reduziert = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   el.scrollIntoView({ behavior: reduziert ? "auto" : "smooth", block: "nearest" });
 }
 
@@ -486,6 +488,7 @@ function SessionKarte({
   const editContainerRef = useRef<HTMLDivElement | null>(null);
   const bearbeitenRef = useRef<HTMLButtonElement | null>(null);
   const wasEditingRef = useRef(false);
+  const reduce = useReducedMotion();
 
   const geklaert = card.kind === "vokabel" ? vokabelPhase !== "eingabe" : showAnswer;
   // Vorbelegung "Gewusst"/"Nicht gewusst" aus dem Urteil; ohne Urteil (noch
@@ -508,9 +511,9 @@ function SessionKarte({
   // Karte verschwindet, und Tab muesste sich ab der Seitenleiste neu
   // durcharbeiten. fokussiereSichtbar scrollt das Ziel zusaetzlich ins Bild.
   useEffect(() => {
-    if (card.kind === "vokabel") fokussiereSichtbar(vokabelRef.current);
-    else fokussiereSichtbar(kartenRef.current);
-  }, [card.kind]);
+    if (card.kind === "vokabel") fokussiereSichtbar(vokabelRef.current, reduce ?? false);
+    else fokussiereSichtbar(kartenRef.current, reduce ?? false);
+  }, [card.kind, reduce]);
 
   // BLOCKIEREND 2: der Bearbeiten-Modus (editing) ersetzt die ganze Karte
   // durch einen eigenen Baum -- der ausloesende Knopf verschwindet dabei
@@ -521,13 +524,13 @@ function SessionKarte({
   // echtes Schliessen handelt, nicht um den Erstmount mit editing=false.
   useEffect(() => {
     if (editing) {
-      fokussiereSichtbar(editContainerRef.current);
+      fokussiereSichtbar(editContainerRef.current, reduce ?? false);
       wasEditingRef.current = true;
     } else if (wasEditingRef.current) {
       wasEditingRef.current = false;
-      fokussiereSichtbar(bearbeitenRef.current ?? kartenRef.current);
+      fokussiereSichtbar(bearbeitenRef.current ?? kartenRef.current, reduce ?? false);
     }
-  }, [editing]);
+  }, [editing, reduce]);
 
   async function speichereEdit() {
     const q = question.trim();
