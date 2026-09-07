@@ -191,7 +191,7 @@ function LernenFachBody({
         <h2 className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Themen</h2>
         {themen.length === 0 && ohneThema.total === 0 ? (
           <p className="rounded-xl border border-dashed px-4 py-8 text-center text-[13px] text-muted-foreground">
-            Noch keine Themen. Lege eins an, dann kommen Lernzettel und Karten dorthin.
+            Deine ersten Lernkarten in zwei Schritten: Benenne unten dein Thema. Danach wählst du die Notizen, Dateien oder den Lehrplan als Quelle.
           </p>
         ) : (
           <ul className="divide-y rounded-xl border">
@@ -242,6 +242,7 @@ function LernenFachBody({
         )}
 
         <NeuesThema
+          ersterEinstieg={themen.length === 0 && ohneThema.total === 0}
           subjectId={subjectId}
           pruefungen={pruefungen}
           toast={toast}
@@ -286,26 +287,28 @@ function FortschrittBalken({
 // --- Neues Thema --------------------------------------------------------------
 
 function NeuesThema({
+  ersterEinstieg,
   subjectId,
   pruefungen,
   toast,
   onCreated,
 }: {
+  ersterEinstieg: boolean;
   subjectId: string;
   pruefungen: SubjectDetail["pruefungen"];
   toast: (message: string, variant?: "error" | "success") => void;
   onCreated: (thema: TopicDTO) => void;
 }) {
   const uid = useId();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(ersterEinstieg);
   const [title, setTitle] = useState("");
   const [assignmentId, setAssignmentId] = useState("");
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (open) titleRef.current?.focus();
-  }, [open]);
+    if (open && !ersterEinstieg) titleRef.current?.focus();
+  }, [open, ersterEinstieg]);
 
   async function submit() {
     const t = title.trim();
@@ -384,12 +387,12 @@ function NeuesThema({
           </select>
         </div>
       )}
-      <div className="flex justify-end gap-2 pt-1">
+      <div className="flex flex-wrap justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={saving}>
           Abbrechen
         </Button>
         <Button type="submit" size="sm" disabled={saving || !title.trim()}>
-          {saving ? "Legt an …" : "Anlegen"}
+          {saving ? "Legt an …" : ersterEinstieg ? "Weiter zu den Lernmaterialien" : "Anlegen"}
         </Button>
       </div>
     </form>

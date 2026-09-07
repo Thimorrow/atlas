@@ -39,7 +39,6 @@ const MODULES: Mod[] = [
   { label: "Stunde", icon: Radio, href: "/stunde" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
   { label: "Fächer", icon: Library, href: "/faecher" },
-  { label: "Namensschild", icon: IdCard, href: "/namensschild" },
   { label: "Lernen", icon: Brain, href: "/lernen" },
 ];
 
@@ -274,12 +273,13 @@ export function AppSidebar({
           <div className={cn("mx-2 pl-10 pr-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
             Module
           </div>
-          {MODULES.filter((m) => m.href !== "/namensschild" || namensschildAn).map((m) => {
+          {MODULES.map((m) => {
             const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
             return (
               <Link
                 key={m.label}
                 href={m.href}
+                aria-current={active ? "page" : undefined}
                 title={collapsed ? m.label : undefined}
                 className={cn(
                   row,
@@ -297,6 +297,17 @@ export function AppSidebar({
             );
           })}
         </nav>
+
+        {namensschildAn && (
+          <div className="mx-2 border-t py-2">
+            <Link href="/namensschild" title={collapsed ? "Namensschild" : undefined}
+              aria-current={pathname === "/namensschild" ? "page" : undefined}
+              className={cn(row, "mx-0 text-muted-foreground hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", pathname === "/namensschild" && "bg-accent text-foreground")}>
+              <span className={iconBox}><IdCard aria-hidden className="size-[18px]" /></span>
+              <span className={labelCls()}>Namensschild</span>
+            </Link>
+          </div>
+        )}
 
         {/* Zweiter Weg zum Bot neben dem schwebenden Knopf unten rechts --
             fuer alle, die die Tastenkombination suchen. Beide stossen

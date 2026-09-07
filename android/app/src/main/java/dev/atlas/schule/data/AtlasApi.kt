@@ -391,7 +391,7 @@ class AtlasApi(
 
     /** PUT /api/lessons/{id}/participation. */
     suspend fun meldungSpeichern(id: String, punkte: Int): AtlasErgebnis<Int?> {
-        val rumpf = "{\"points\":$punkte}".toRequestBody(JSON_TYP)
+        val rumpf = "{\"count\":$punkte}".toRequestBody(JSON_TYP)
         return anfrage(Request.Builder().url("$basisUrl/api/lessons/$id/participation").put(rumpf).build()) { text ->
             json.decodeFromString<ParticipationAntwort>(text).points
         }

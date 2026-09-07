@@ -468,6 +468,17 @@ describe("parseGeneratedCards", () => {
 });
 
 describe("parseGeneratedVariant", () => {
+  it.each(["42", "H", "ja"])("behält die kurze Antwort %s", (antwort) => {
+    const text = JSON.stringify({ frage: "Wie lautet die Antwort?", antwort });
+    expect(parseGeneratedVariant(text)?.answer).toBe(antwort);
+    expect(parseGeneratedCards(`[${text}]`)[0]?.answer).toBe(antwort);
+  });
+
+  it("verwirft leere Antworten nach dem Trimmen", () => {
+    const text = JSON.stringify({ frage: "Wie lautet die Antwort?", antwort: "  " });
+    expect(parseGeneratedVariant(text)).toBeNull();
+    expect(parseGeneratedCards(`[${text}]`)).toEqual([]);
+  });
   it("parst ein einzelnes JSON-Objekt", () => {
     const text = '{"frage":"Löse 3x+2=8","antwort":"x=2"}';
     expect(parseGeneratedVariant(text)).toEqual({ question: "Löse 3x+2=8", answer: "x=2" });

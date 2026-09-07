@@ -5,7 +5,8 @@
 // Aufgabe darauf zeigt. Abgewaehlte Faecher werden archiviert, nie geloescht,
 // sonst legt der naechste Sync sie wieder an.
 
-import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, or, inArray, isNull, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import { heuteISO, jetztHM } from "@/lib/zeit";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "@/lib/db";
 import {
@@ -145,11 +146,6 @@ export async function getSubject(id: string): Promise<SubjectDTO | undefined> {
 
 const hm = (t: string | null): string | null => (t ? t.slice(0, 5) : null);
 
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 // Die naechsten Termine des Fachs aus dem Stundenplan. Ohne untisSubject wird
 // der Fachname als Untis-Wert probiert -- manuelle Faecher heissen meist gleich.
 export async function upcomingLessons(
@@ -157,10 +153,15 @@ export async function upcomingLessons(
   limit = 5,
 ): Promise<LessonDTO[]> {
   const key = subject.untisSubject ?? subject.name;
+  const now = new Date();
+  const today = heuteISO(now);
   const rows = await db
     .select()
     .from(schoolBlocks)
-    .where(and(eq(schoolBlocks.subject, key), gte(schoolBlocks.date, todayISO())))
+    .where(and(eq(schoolBlocks.subject, key), or(
+      gt(schoolBlocks.date, today),
+      and(eq(schoolBlocks.date, today), gte(schoolBlocks.startTime, `${jetztHM(now)}:00`)),
+    )))
     .orderBy(asc(schoolBlocks.date), asc(schoolBlocks.startTime))
     .limit(limit);
 

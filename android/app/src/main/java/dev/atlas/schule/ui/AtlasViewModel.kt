@@ -72,6 +72,7 @@ data class DateienZustand(
 /** Morgen/Fokus-Panel. */
 data class MorgenZustand(
     val ladung: Ladung<MorgenAntwort>? = null,
+    val fehler: String? = null,
 )
 
 /** Bot-Start + Verlauf (Chat selbst läuft vorerst als Web-Weiterleitung, Verlauf nativ). */
@@ -134,6 +135,7 @@ data class Vorbelegung(
 
 /** Das Blatt fuer eine neue Aufgabe, solange es offen ist. */
 data class BlattZustand(
+    val typ: String = "homework",
     val laeuft: Boolean = false,
     val fehler: String? = null,
     val vorbelegung: Vorbelegung? = null,
@@ -308,6 +310,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
             when (val ergebnis = api.anmelden(passwort)) {
                 is AtlasErgebnis.Erfolg -> {
                     _zustand.value = frischeApp()
+                    launch { ladeErledigte() }
                     ladeStart()
                 }
                 // Der 401-Abfangjaeger hat hier schon einen Wechsel in die
@@ -364,6 +367,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         aendere { it.copy(aktualisiert = true) }
         viewModelScope.launch { ladeStart() }
         viewModelScope.launch { ladeErledigte() }
+        ladeMorgen()
         // /api/home bringt nur die laufende Woche mit. Wer zwei Wochen weiter
         // steht und von oben zieht, saehe sonst zu, wie sich nichts aendert.
         if (jetzt.gezeigteWoche != montagVon(jetzt.heute)) ladeWoche(jetzt.gezeigteWoche)
@@ -561,7 +565,7 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
         )
     }
 
-    fun oeffneBlatt() = aendere { it.copy(blatt = BlattZustand()) }
+    fun oeffneBlatt(typ: String = "homework") = aendere { it.copy(blatt = BlattZustand(typ = typ)) }
 
     /**
      * Dasselbe Blatt, aber aus einer Schulstunde heraus. Der Stundenplan rechnet
@@ -1040,9 +1044,13 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     fun ladeDateien(fachId: String) {
         _dateienZustand.value = DateienZustand(fachId, Ladung.Laedt)
         viewModelScope.launch {
-            _dateienZustand.value = when (val ergebnis = api.dateien(fachId)) {
-                is AtlasErgebnis.Erfolg -> DateienZustand(fachId, Ladung.Da(ergebnis.wert))
-                is AtlasErgebnis.Fehler -> DateienZustand(fachId, Ladung.Fehler(ergebnis.meldung))
+            val ergebnis = api.dateien(fachId)
+            _dateienZustand.update {
+                if (it.fachId != fachId) return@update it
+                when (ergebnis) {
+                    is AtlasErgebnis.Erfolg -> DateienZustand(fachId, Ladung.Da(ergebnis.wert))
+                    is AtlasErgebnis.Fehler -> DateienZustand(fachId, Ladung.Fehler(ergebnis.meldung))
+                }
             }
         }
     }
@@ -1061,9 +1069,12 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     fun oeffneStunde(lessonId: String, titel: String? = null, datum: LocalDate? = null, uhrzeit: String? = null) {
         _stundeDetail.value = StundeDetailZustand(lessonId = lessonId, titel = titel, datum = datum, uhrzeit = uhrzeit, laeuft = true)
         viewModelScope.launch {
-            val notiz = api.stundenNotiz(lessonId)
-            val meldung = api.meldung(lessonId)
-            val nextDue = api.naechsteFaelligkeit(lessonId)
+            val notizAnfrage = async { api.stundenNotiz(lessonId) }
+            val meldungAnfrage = async { api.meldung(lessonId) }
+            val faelligkeitAnfrage = async { api.naechsteFaelligkeit(lessonId) }
+            val notiz = notizAnfrage.await()
+            val meldung = meldungAnfrage.await()
+            val nextDue = faelligkeitAnfrage.await()
             _stundeDetail.update {
                 if (it.lessonId != lessonId) return@update it
                 val notizFehler = (notiz as? AtlasErgebnis.Fehler)?.meldung
@@ -1088,38 +1099,46 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
 
     fun stundenNotizSpeichern(body: String) {
         val id = _stundeDetail.value.lessonId ?: return
+        if (_stundeDetail.value.laeuft) return
         _stundeDetail.update { it.copy(laeuft = true, fehler = null) }
         viewModelScope.launch {
-            when (val ergebnis = api.stundenNotizSpeichern(id, body)) {
-                is AtlasErgebnis.Erfolg -> _stundeDetail.update { it.copy(laeuft = false, notiz = ergebnis.wert?.body) }
-                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+            val ergebnis = api.stundenNotizSpeichern(id, body)
+            _stundeDetail.update {
+                if (it.lessonId != id) return@update it
+                when (ergebnis) {
+                    is AtlasErgebnis.Erfolg -> it.copy(laeuft = false, notiz = ergebnis.wert?.body)
+                    is AtlasErgebnis.Fehler -> it.copy(laeuft = false, fehler = ergebnis.meldung)
+                }
             }
         }
     }
 
     fun meldungSpeichern(punkte: Int) {
         val id = _stundeDetail.value.lessonId ?: return
+        if (_stundeDetail.value.laeuft) return
         _stundeDetail.update { it.copy(laeuft = true, fehler = null) }
         viewModelScope.launch {
             when (val ergebnis = api.meldungSpeichern(id, punkte)) {
                 is AtlasErgebnis.Erfolg -> {
-                    _stundeDetail.update { it.copy(laeuft = false, meldung = ergebnis.wert) }
+                    _stundeDetail.update { if (it.lessonId == id) it.copy(laeuft = false, meldung = ergebnis.wert) else it }
                     ladeDetailNeuFallsOffen()
                 }
-                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(laeuft = false, fehler = ergebnis.meldung) }
+                is AtlasErgebnis.Fehler -> _stundeDetail.update { if (it.lessonId == id) it.copy(laeuft = false, fehler = ergebnis.meldung) else it }
             }
         }
     }
 
     fun meldungLoeschen() {
         val id = _stundeDetail.value.lessonId ?: return
+        if (_stundeDetail.value.laeuft) return
+        _stundeDetail.update { it.copy(laeuft = true, fehler = null) }
         viewModelScope.launch {
             when (val ergebnis = api.meldungLoeschen(id)) {
                 is AtlasErgebnis.Erfolg -> {
-                    _stundeDetail.update { it.copy(meldung = null) }
+                    _stundeDetail.update { if (it.lessonId == id) it.copy(laeuft = false, meldung = null) else it }
                     ladeDetailNeuFallsOffen()
                 }
-                is AtlasErgebnis.Fehler -> _stundeDetail.update { it.copy(fehler = ergebnis.meldung) }
+                is AtlasErgebnis.Fehler -> _stundeDetail.update { if (it.lessonId == id) it.copy(laeuft = false, fehler = ergebnis.meldung) else it }
             }
         }
     }
@@ -1127,11 +1146,15 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     // --- Morgen / Fokus (Web-Parität) -----------------------------------------------------
 
     fun ladeMorgen() {
-        _morgenZustand.value = MorgenZustand(Ladung.Laedt)
+        _morgenZustand.update { if (it.ladung is Ladung.Da) it else MorgenZustand(Ladung.Laedt) }
         viewModelScope.launch {
-            _morgenZustand.value = when (val ergebnis = api.morgen()) {
-                is AtlasErgebnis.Erfolg -> MorgenZustand(Ladung.Da(ergebnis.wert))
-                is AtlasErgebnis.Fehler -> MorgenZustand(Ladung.Fehler(ergebnis.meldung))
+            val ergebnis = api.morgen()
+            _morgenZustand.update {
+                when (ergebnis) {
+                    is AtlasErgebnis.Erfolg -> MorgenZustand(Ladung.Da(ergebnis.wert))
+                    is AtlasErgebnis.Fehler -> if (it.ladung is Ladung.Da) it.copy(fehler = ergebnis.meldung)
+                        else MorgenZustand(Ladung.Fehler(ergebnis.meldung))
+                }
             }
         }
     }
@@ -1167,10 +1190,11 @@ class AtlasViewModel(anwendung: Application) : AndroidViewModel(anwendung) {
     fun oeffneBotVerlauf(id: String) {
         _botZustand.update { it.copy(detail = Ladung.Laedt, detailId = id) }
         viewModelScope.launch {
+            val ergebnis = api.botVerlaufDetail(id)
             _botZustand.update { zustand ->
                 if (zustand.detailId != id) return@update zustand
                 zustand.copy(
-                    detail = when (val ergebnis = api.botVerlaufDetail(id)) {
+                    detail = when (ergebnis) {
                         is AtlasErgebnis.Erfolg -> Ladung.Da(ergebnis.wert)
                         is AtlasErgebnis.Fehler -> Ladung.Fehler(ergebnis.meldung)
                     },

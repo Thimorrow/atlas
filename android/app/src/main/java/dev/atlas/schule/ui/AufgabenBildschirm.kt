@@ -1,11 +1,13 @@
 package dev.atlas.schule.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,12 +27,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,9 +58,11 @@ fun AufgabenBildschirm(
     beimHaken: (AssignmentDTO, Boolean) -> Unit,
     beimErneutLaden: () -> Unit,
     beimErledigtAusklappen: () -> Unit,
+    beimAnlegen: (Boolean) -> Unit,
     beimBearbeiten: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var pruefungen by rememberSaveable { mutableStateOf(false) }
     when (val start = zustand.start) {
         is Ladung.Laedt -> Column(modifier.fillMaxSize().padding(Abstand.weit)) {
             Kopf("Aufgaben", "Wird geladen …")
@@ -72,18 +74,18 @@ fun AufgabenBildschirm(
         }
 
         is Ladung.Da -> {
-            val bloecke = gruppiereAufgaben(start.wert.aufgaben, zustand.heute)
-            val offen = start.wert.aufgaben.count { it.completedAt == null }
-            val erledigt = (zustand.erledigt as? Ladung.Da)?.wert.orEmpty()
+            val bloecke = gruppiereAufgaben(start.wert.aufgaben.filter { istPruefung(it.type) == pruefungen }, zustand.heute)
+            val offen = start.wert.aufgaben.count { it.completedAt == null && istPruefung(it.type) == pruefungen }
+            val erledigt = (zustand.erledigt as? Ladung.Da)?.wert.orEmpty().filter { istPruefung(it.type) == pruefungen }
 
             LazyColumn(
                 modifier = modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = Abstand.weit,
-                    end = Abstand.weit,
-                    top = Abstand.weit,
+                    start = Abstand.gross,
+                    end = Abstand.gross,
+                    top = Abstand.gross,
                     // Platz fuer den Knopf, der ueber der Liste schwebt.
-                    bottom = 88.dp,
+                    bottom = 24.dp,
                 ),
             ) {
                 item("kopf") {
@@ -92,13 +94,21 @@ fun AufgabenBildschirm(
                         if (offen == 0) "Nichts offen." else "$offen offen über alle Fächer.",
                     )
                     Spacer(Modifier.height(Abstand.gross))
+                    AtlasTabs(listOf("Hausaufgaben", "Prüfungen"), if (pruefungen) 1 else 0, { pruefungen = it == 1 })
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(onClick = { beimAnlegen(pruefungen) })
+                        .padding(horizontal = 10.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(IkonePlus, null, Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (pruefungen) "Prüfung hinzufügen" else "Hausaufgabe hinzufügen", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
 
                 if (bloecke.isEmpty()) {
                     item("leer") {
                         LeerZustand(
-                            titel = "Keine offene Aufgabe",
-                            text = "Alles abgehakt. Eine neue legst du unten rechts an.",
+                            titel = if (pruefungen) "Keine Prüfung geplant" else "Keine offene Aufgabe",
+                            text = "Alles abgehakt. Eine neue Aufgabe kannst du oben hinzufügen.",
                         )
                     }
                 }
@@ -125,7 +135,7 @@ fun AufgabenBildschirm(
                         )
                     }
                     item("${block.gruppe.schluessel}-luft") {
-                        Spacer(Modifier.height(Abstand.gross))
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
 
@@ -213,15 +223,15 @@ private fun ErledigtKopf(anzahl: Int, ausgeklappt: Boolean, beimTippen: () -> Un
 
 @Composable
 fun Kopf(titel: String, unterzeile: String, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(Abstand.winzig)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = titel,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
             text = unterzeile,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -238,8 +248,8 @@ private fun Gruppentitel(bezeichnung: String, anzahl: Int, hervorgehoben: Boolea
     ) {
         Text(
             text = bezeichnung,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
             color = if (hervorgehoben) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -284,13 +294,17 @@ fun Aufgabenzeile(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = Abstand.normal)
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             .clickable(
                 role = Role.Button,
                 onClickLabel = "Bearbeiten",
                 onClick = { beimBearbeiten?.invoke() },
                 enabled = beimBearbeiten != null,
-            ),
+            )
+            .padding(start = 2.dp, end = 14.dp, top = 10.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -316,7 +330,7 @@ fun Aufgabenzeile(
         ) {
             Text(
                 text = aufgabe.title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -377,7 +391,7 @@ private fun Hakenfeld(
     ) {
         Box(
             Modifier
-                .size(22.dp)
+                .size(19.dp)
                 .clip(CircleShape)
                 // Erledigt wird gefuellt gezeigt, offen nur als Ring -- so wie
                 // in components/assignment-checkbox.tsx. Vorher war es
@@ -388,10 +402,10 @@ private fun Hakenfeld(
                 // gefuellte Kreis las sich als Farbpunkt statt als Kaestchen.
                 .background(if (erledigt) MaterialTheme.colorScheme.primary else Color.Transparent)
                 .border(
-                    width = if (erledigt) 0.dp else 2.dp,
+                    width = if (erledigt) 0.dp else 1.5.dp,
                     // Eine Pruefung traegt ihren Ring kraeftiger: sie ist die
                     // Aufgabe, die man nicht uebersehen darf.
-                    color = if (erledigt) Color.Transparent else farbe.copy(alpha = if (ring) 0.9f else 0.55f),
+                    color = if (erledigt) Color.Transparent else farbe.copy(alpha = if (ring) 0.9f else 0.85f),
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,
@@ -404,44 +418,6 @@ private fun Hakenfeld(
                     modifier = Modifier.size(14.dp),
                 )
             }
-        }
-    }
-}
-
-/**
- * Der schwebende Knopf fuer die einzige primaere Handlung dieses Bildschirms.
- * Er verschwindet nicht beim Scrollen: die Liste kann lang werden, und ein
- * Knopf am Listenende faende niemand.
- */
-@Composable
-fun NeueAufgabeKnopf(sichtbar: Boolean, beimTippen: () -> Unit, modifier: Modifier = Modifier) {
-    AnimatedVisibility(
-        visible = sichtbar,
-        modifier = modifier,
-        enter = fadeIn(atlasTween(Dauer.NORMAL)) + scaleIn(atlasTween(Dauer.NORMAL), initialScale = 0.85f),
-        exit = fadeOut(atlasTween(Dauer.SCHNELL)) + scaleOut(atlasTween(Dauer.SCHNELL), targetScale = 0.85f),
-    ) {
-        androidx.compose.material3.FloatingActionButton(
-            onClick = beimTippen,
-            // Rund statt der Material-Vorgabe: AtlasFormen.large sind 14dp, und
-            // auf einem 56dp-Knopf liest sich das als Quadrat mit gebrochenen
-            // Ecken. Der aktive Reiter unten ist bereits eine volle Pille, der
-            // Knopf gehoert in dieselbe Sprache.
-            shape = CircleShape,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            // Material stellt den Knopf auf 6dp. Der Rest der App kommt ohne
-            // Schatten aus und trennt mit Haarlinien; 6dp warfen deshalb den
-            // einzigen harten Schatten im ganzen Bild. 3dp heben ihn noch
-            // sichtbar von der Liste ab, ohne aus dem Rahmen zu fallen.
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 3.dp,
-                pressedElevation = 1.dp,
-                focusedElevation = 3.dp,
-                hoveredElevation = 3.dp,
-            ),
-        ) {
-            Icon(IkonePlus, contentDescription = "Neue Aufgabe anlegen")
         }
     }
 }

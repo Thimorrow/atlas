@@ -6,6 +6,7 @@
 // Je Tab holt die Seite ihren Stand vom Server -- der Tabwechsel ist nur noch
 // ein Fetch statt einer vollen Seitennavigation.
 
+import { RefreshNotice } from "@/components/refresh-notice";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, RefreshCw } from "lucide-react";
@@ -72,7 +73,7 @@ export default function AssignmentsPage() {
   } = useCachedJSON<{ assignments?: AssignmentDTO[] }>(`/api/assignments${query}`, CACHE_TTLS.assignments, {
     refreshKey: reloadKey,
   });
-  const { data: subjectsData, loading: subjectsLoading } = useCachedJSON<{ subjects?: SubjectOption[] }>(
+  const { data: subjectsData, loading: subjectsLoading, error: subjectsError } = useCachedJSON<{ subjects?: SubjectOption[] }>(
     "/api/subjects",
     CACHE_TTLS.subjects,
     { refreshKey: reloadKey },
@@ -127,6 +128,7 @@ export default function AssignmentsPage() {
     // wird innerhalb der Seite, nicht das Dokument.
     <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
       <Stagger className="mx-auto max-w-2xl space-y-6">
+        {((assignmentsError && assignmentsData) || subjectsError) && <RefreshNotice onRetry={() => setReloadKey((k) => k + 1)} />}
         <StaggerItem>
           {/* Back-Link nur auf Mobile -- dort fehlt die Sidebar. */}
           <Link

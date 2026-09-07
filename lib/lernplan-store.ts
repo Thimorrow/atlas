@@ -5,22 +5,12 @@
 // Sicherheits-Umrechnung in lib/lernplan-sicherheit.ts. Siehe SPEC.md
 // "Datenmodell" und "Verhalten" Schritt 4 ff.
 //
-// KEINE ECHTE TRANSAKTION: neon-http (drizzle-orm/neon-http) kennt kein
-// db.transaction(). "In einer Transaktion" aus der SPEC wird deshalb so
-// angenaehert: der ALTE Plan wird ZUERST geloescht (wegen
-// UNIQUE(assignment_id) -- ein zweiter Plan derselben Pruefung liesse sich
-// sonst gar nicht erst einfuegen), danach der neue Plan angelegt, danach
-// Punkte/Checks/Items geschrieben. Scheitert einer der Schreibschritte nach
-// dem Anlegen des neuen Plans, wird nur dieser halb angelegte neue Plan
-// wieder geloescht (cascade raeumt seine Punkte/Checks/Items mit auf) und ein
-// 500 "speichern" geworfen -- der alte Plan ist zu diesem Zeitpunkt bereits
-// weg, das ist der einzige Fall, in dem die Reihenfolge alt-loeschen-dann-
-// neu-anlegen zwingend ist (sonst waere "neu anlegen, dann alt loeschen" die
-// sicherere Reihenfolge).
+// Ersetzung, Themen, Punkte und Einheiten werden gemeinsam gespeichert.
+// Jeder Fehler rollt auch die Löschung des alten Plans zurück.
 
 import { and, asc, eq, gte, inArray, isNull, lte, ne, notInArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, withTransaction } from "@/lib/db";
 import {
   assignments,
   schoolBlocks,
@@ -40,7 +30,7 @@ import {
   type StudyPlanPoint,
 } from "@/lib/db/schema";
 import { getAssignment } from "@/lib/assignment-store";
-import { createTopic, deleteTopic, updateTopic } from "@/lib/study-store";
+import { deleteTopic } from "@/lib/study-store";
 import { listFiles } from "@/lib/subject-file-store";
 import { daysBetween } from "@/lib/lernen";
 import { heuteISO, jetztHM } from "@/lib/zeit";
@@ -302,16 +292,6 @@ export async function planAnlegen(
     if (!gueltig.has(id)) throw new LernplanStoreFehler(400, "dateien_fremd", "Eine Datei gehört nicht zu diesem Fach.");
   }
 
-  // Doppel-Submit: ein Plan derselben Pruefung, juenger als 30s, ohne
-  // ersetzen -> 409.
-  const [bestehend] = await db.select().from(studyPlans).where(eq(studyPlans.assignmentId, input.assignmentId));
-  if (bestehend && !input.ersetzen) {
-    const alterMs = Date.now() - bestehend.createdAt.getTime();
-    if (alterMs < 30_000) {
-      throw new LernplanStoreFehler(409, "plan_gerade_erstellt", "Plan wurde gerade erstellt.");
-    }
-  }
-
   // Sicherheit je Punkt aus checks (pointIndex, sonst Position im Array).
   const rechnung: { sicherheit: number; quelle: SicherheitQuelle; urteil: string | null }[] = input.punkte.map(() => ({
     sicherheit: 50,
@@ -359,122 +339,116 @@ export async function planAnlegen(
     throw err;
   }
 
-  // Alten Plan zuerst loeschen -- UNIQUE(assignment_id) erzwingt diese
-  // Reihenfolge, siehe Kommentar am Dateikopf. Themen bleiben unberuehrt
-  // (topic_id an den alten Punkten ist eine eigene FK, kein Teil von
-  // study_plans) -- genau das macht die Wiederverwendung gleich moeglich.
-  if (bestehend) {
-    await db.delete(studyPlans).where(eq(studyPlans.id, bestehend.id));
-  }
-
-  // Themen je Punkt: nicht archiviertes Thema gleichen Titels an dieser
-  // Pruefung wiederverwenden, sonst neu anlegen.
-  const createdTopicIds: string[] = [];
-  const topicIds: string[] = [];
-  const verfuegbareThemen = await db
-    .select()
-    .from(studyTopics)
-    .where(and(eq(studyTopics.assignmentId, input.assignmentId), isNull(studyTopics.archivedAt)));
-
-  for (let i = 0; i < input.punkte.length; i++) {
-    const p = input.punkte[i];
-    const idx = verfuegbareThemen.findIndex((t) => t.title === p.titel);
-    const blattNamen = p.fileIds.flatMap((id) => {
-      const name = nameById.get(id);
-      return name ? [name] : [];
-    });
-    const summary = summaryFuer(p, rechnung[i].urteil, blattNamen, rechnung[i].quelle);
-
-    if (idx !== -1) {
-      const treffer = verfuegbareThemen.splice(idx, 1)[0];
-      await updateTopic(treffer.id, { summary });
-      topicIds.push(treffer.id);
-    } else {
-      const topic = await createTopic({ subjectId, title: p.titel, assignmentId: input.assignmentId });
-      await updateTopic(topic.id, { summary });
-      topicIds.push(topic.id);
-      createdTopicIds.push(topic.id);
-    }
-  }
-
-  // Der obige Check (bestehend + 30s) ist keine echte Sperre -- zwei
-  // gleichzeitige Anfragen fuer dieselbe Pruefung koennen beide daran
-  // vorbeikommen, dann verletzt der zweite insert() hier
-  // study_plans_assignment_id_unique. Das faengt genau denselben Fall ab
-  // (409 plan_gerade_erstellt statt eines generischen 500), nur eben aus der
-  // Datenbank statt aus der Anwendung heraus erkannt.
-  let planRow: StudyPlan;
+  let saved: { planRow: StudyPlan; createdTopicIds: string[] };
   try {
-    [planRow] = await db
-      .insert(studyPlans)
-      .values({
-        assignmentId: input.assignmentId,
-        subjectId,
-        checklistFileId: "fileId" in input.checklist ? input.checklist.fileId : null,
-        checklistText: "text" in input.checklist ? input.checklist.text : "",
-        minutesWeekday: input.minutesWeekday,
-        minutesWeekend: input.minutesWeekend,
-        examDate: pruefungISO,
-      })
-      .returning();
-  } catch (err) {
-    if (err instanceof Error && (err as { code?: string }).code === "23505") {
-      throw new LernplanStoreFehler(409, "plan_gerade_erstellt", "Plan wurde gerade erstellt.");
-    }
-    throw err;
-  }
+    saved = await withTransaction(async (db) => {
+      // Die Prüfung existiert auch ohne Plan: diese Sperre serialisiert sowohl
+      // erstmaliges Anlegen als auch paralleles Ersetzen derselben Prüfung.
+      const [current] = await db.select().from(assignments).where(eq(assignments.id, input.assignmentId)).for("update");
+      if (!current) throw new LernplanStoreFehler(404, "pruefung", "Prüfung gibt es nicht mehr.");
+      if (current.subjectId !== subjectId || current.dueDate !== pruefungISO) {
+        throw new LernplanStoreFehler(409, "pruefung", "Die Prüfung wurde geändert. Bitte lade sie neu.");
+      }
+      const [bestehend] = await db.select().from(studyPlans).where(eq(studyPlans.assignmentId, input.assignmentId));
+      if (bestehend && !input.ersetzen) {
+        throw new LernplanStoreFehler(409, "plan_gerade_erstellt", "Es gibt bereits einen Plan. Bitte bestätige das Ersetzen.");
+      }
+      if (bestehend) {
+        await db.delete(studyPlans).where(eq(studyPlans.id, bestehend.id));
+      }
 
-  try {
-    const pointValues: NewStudyPlanPoint[] = input.punkte.map((p, i) => ({
-      planId: planRow.id,
-      topicId: topicIds[i],
-      position: i,
-      title: p.titel,
-      detail: p.detail,
-      pages: p.seiten,
-      fileIds: p.fileIds,
-      minutesEstimate: p.minuten,
-      confidence: rechnung[i].sicherheit,
-      confidenceSource: rechnung[i].quelle,
-      cardsState: "offen",
-    }));
-    const pointRows = await db.insert(studyPlanPoints).values(pointValues).returning();
+      // Themen je Punkt: nicht archiviertes Thema gleichen Titels an dieser
+      // Pruefung wiederverwenden, sonst neu anlegen.
+      const createdTopicIds: string[] = [];
+      const topicIds: string[] = [];
+      const verfuegbareThemen = await db
+        .select()
+        .from(studyTopics)
+        .where(and(eq(studyTopics.assignmentId, input.assignmentId), isNull(studyTopics.archivedAt)));
 
-    if (input.checks) {
-      const checkValues: NewStudyPlanCheck[] = [];
-      input.checks.forEach((check, i) => {
-        const idx = check.pointIndex ?? i;
-        const point = pointRows[idx];
-        if (!point) return;
-        checkValues.push({
-          pointId: point.id,
-          question: check.frage,
-          expected: check.musterantwort,
-          answer: check.antwort,
-          verdict: check.urteil,
-          feedback: check.feedback,
+      for (let i = 0; i < input.punkte.length; i++) {
+        const p = input.punkte[i];
+        const idx = verfuegbareThemen.findIndex((t) => t.title === p.titel);
+        const blattNamen = p.fileIds.flatMap((id) => {
+          const name = nameById.get(id);
+          return name ? [name] : [];
         });
-      });
-      if (checkValues.length > 0) await db.insert(studyPlanChecks).values(checkValues);
-    }
+        const summary = summaryFuer(p, rechnung[i].urteil, blattNamen, rechnung[i].quelle);
 
-    const itemValues: NewStudyPlanItem[] = verteiltErgebnis.items.map((it) => ({
-      planId: planRow.id,
-      pointId: it.pointIndex === null ? null : pointRows[it.pointIndex].id,
-      date: it.date,
-      position: it.position,
-      phase: it.phase,
-      minutes: it.minuten,
-    }));
-    if (itemValues.length > 0) await db.insert(studyPlanItems).values(itemValues);
+        if (idx !== -1) {
+          const treffer = verfuegbareThemen.splice(idx, 1)[0];
+          await db.update(studyTopics).set({ summary, updatedAt: new Date() }).where(eq(studyTopics.id, treffer.id));
+          topicIds.push(treffer.id);
+        } else {
+          const [topic] = await db.insert(studyTopics).values({ subjectId, title: p.titel, assignmentId: input.assignmentId, summary }).returning();
+          topicIds.push(topic.id);
+          createdTopicIds.push(topic.id);
+        }
+      }
+
+      const [planRow] = await db
+        .insert(studyPlans)
+        .values({
+          assignmentId: input.assignmentId,
+          subjectId,
+          checklistFileId: "fileId" in input.checklist ? input.checklist.fileId : null,
+          checklistText: "text" in input.checklist ? input.checklist.text : "",
+          minutesWeekday: input.minutesWeekday,
+          minutesWeekend: input.minutesWeekend,
+          examDate: pruefungISO,
+        })
+        .returning();
+      const pointValues: NewStudyPlanPoint[] = input.punkte.map((p, i) => ({
+        planId: planRow.id,
+        topicId: topicIds[i],
+        position: i,
+        title: p.titel,
+        detail: p.detail,
+        pages: p.seiten,
+        fileIds: p.fileIds,
+        minutesEstimate: p.minuten,
+        confidence: rechnung[i].sicherheit,
+        confidenceSource: rechnung[i].quelle,
+        cardsState: "offen",
+      }));
+      const pointRows = await db.insert(studyPlanPoints).values(pointValues).returning();
+
+      if (input.checks) {
+        const checkValues: NewStudyPlanCheck[] = [];
+        input.checks.forEach((check, i) => {
+          const idx = check.pointIndex ?? i;
+          const point = pointRows[idx];
+          if (!point) return;
+          checkValues.push({
+            pointId: point.id,
+            question: check.frage,
+            expected: check.musterantwort,
+            answer: check.antwort,
+            verdict: check.urteil,
+            feedback: check.feedback,
+          });
+        });
+        if (checkValues.length > 0) await db.insert(studyPlanChecks).values(checkValues);
+      }
+
+      const itemValues: NewStudyPlanItem[] = verteiltErgebnis.items.map((it) => ({
+        planId: planRow.id,
+        pointId: it.pointIndex === null ? null : pointRows[it.pointIndex].id,
+        date: it.date,
+        position: it.position,
+        phase: it.phase,
+        minutes: it.minuten,
+      }));
+      if (itemValues.length > 0) await db.insert(studyPlanItems).values(itemValues);
+
+      return { planRow, createdTopicIds };
+    });
   } catch (err) {
-    await db
-      .delete(studyPlans)
-      .where(eq(studyPlans.id, planRow.id))
-      .catch(() => {});
-    console.error("[lernplan] planAnlegen: Speichern fehlgeschlagen, Plan zurückgerollt:", err);
-    throw new LernplanStoreFehler(500, "speichern", "Plan konnte nicht gespeichert werden.");
+    if (err instanceof LernplanStoreFehler) throw err;
+    console.error("[lernplan] Speichern fehlgeschlagen, Transaktion zurückgerollt:", err);
+    throw new LernplanStoreFehler(500, "speichern", "Plan konnte nicht gespeichert werden. Ein bestehender Plan bleibt erhalten.");
   }
+  const { planRow, createdTopicIds } = saved;
 
   const plan = await ladePlanDTO(planRow);
   const hinweis: string[] = [];
@@ -805,18 +779,18 @@ export async function budgetAendernImStore(
 
 // Wird von lib/study-store.ts (reviewCard) try/catch-isoliert aufgerufen --
 // Kein Punkt oder keine Karte mit Review: nichts passiert.
-export async function aktualisiereAusKarten(topicId: string): Promise<void> {
+export async function aktualisiereAusKarten(topicId: string, nurKartenQuelle = false): Promise<void> {
   const rows = await db
-    .select({ box: studyCards.box })
+    .select({ box: studyCards.box, reviews: studyCards.reviews })
     .from(studyCards)
-    .where(and(eq(studyCards.topicId, topicId), isNull(studyCards.archivedAt), gte(studyCards.reviews, 1)));
-  if (rows.length === 0) return;
+    .where(and(eq(studyCards.topicId, topicId), isNull(studyCards.archivedAt)));
+  if (!nurKartenQuelle && !rows.some((r) => r.reviews > 0)) return;
 
   const sicherheit = sicherheitAusKarten(rows.map((r) => r.box));
   await db
     .update(studyPlanPoints)
     .set({ confidence: sicherheit, confidenceSource: "karten", confidenceAt: new Date() })
-    .where(eq(studyPlanPoints.topicId, topicId));
+    .where(and(eq(studyPlanPoints.topicId, topicId), nurKartenQuelle ? eq(studyPlanPoints.confidenceSource, "karten") : undefined));
 }
 
 // Wird von lib/tutor/session.ts try/catch-isoliert beim Fazit-Widget

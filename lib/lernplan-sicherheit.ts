@@ -3,12 +3,11 @@
 // Werte tatsaechlich zurueckschreiben, liegen in lib/lernplan-store.ts.
 // Siehe SPEC.md "Sicherheit schreibt sich zurueck".
 
-// Boxen 0..5 (Leitner-System, siehe lib/lernen.ts). Schnitt der Boxen relativ
-// zur maximalen Box 5, auf Prozent skaliert.
+import { readiness } from "@/lib/lernen";
+
+// Derselbe Maßstab wie im Lernbereich: ab Box 3 gilt eine Karte als sicher.
 export function sicherheitAusKarten(boxen: number[]): number {
-  if (boxen.length === 0) return 0;
-  const schnitt = boxen.reduce((sum, box) => sum + box, 0) / boxen.length;
-  return Math.round((schnitt / 5) * 100);
+  return readiness(boxen.map((box) => ({ box, due: "", reviews: 0 })));
 }
 
 export function sicherheitAusFazit(prozent: number): number {

@@ -2,10 +2,11 @@
 // siehe lib/tutor/store.test.ts fuer dasselbe Muster). Legt ein Sentinel-Fach
 // und eine Sentinel-Pruefung an, raeumt in afterAll wieder auf.
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq, sql } from "drizzle-orm";
+import { readFile } from "node:fs/promises";
 import { db } from "@/lib/db";
-import { assignments, studyCards, subjects } from "@/lib/db/schema";
+import { assignments, studyCards, subjects, studyTopics, studyPlanPoints } from "@/lib/db/schema";
 import {
   aktualisiereAusFazit,
   aktualisiereAusKarten,
@@ -18,7 +19,7 @@ import {
   planLoeschen,
 } from "@/lib/lernplan-store";
 import type { CheckDraft, PunktDraft } from "@/lib/lernplan-types";
-import { reviewCard } from "@/lib/study-store";
+import { createCards, deleteCard, reviewCard, updateCard } from "@/lib/study-store";
 
 const mitDb = Boolean(process.env.DATABASE_URL);
 
@@ -133,6 +134,36 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
         heute,
       ),
     ).rejects.toMatchObject({ status: 400, code: "dateien_fremd" });
+  });
+
+  it("behält den alten Plan und seine Themen bei einem Schreibfehler vollständig", async () => {
+    const input = { assignmentId, checklist: { text: "Original" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false };
+    const erster = await planAnlegen(input, heute);
+    const vorher = await db.select().from(studyTopics).where(eq(studyTopics.subjectId, subjectId));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(planAnlegen({
+        ...input,
+        ersetzen: true,
+        punkte: [punkt({ detail: "Geändert" }), punkt({ titel: "Neues Thema" })],
+        // Erzwingt einen echten NOT-NULL-Fehler nach Themen- und Punktanlage.
+        checks: [{ frage: "Frage", musterantwort: null as unknown as string, antwort: "Antwort", urteil: "richtig", feedback: "" }],
+      }, heute)).rejects.toMatchObject({ code: "speichern", status: 500 });
+      expect(await planLaden(assignmentId)).toEqual(erster.plan);
+      expect(await db.select().from(studyTopics).where(eq(studyTopics.subjectId, subjectId))).toEqual(vorher);
+    } finally {
+      log.mockRestore();
+      await planLoeschen(erster.plan.id, erster.createdTopicIds);
+    }
+  });
+
+  it("serialisiert gleichzeitiges Anlegen ohne verwaiste Themen", async () => {
+    const input = { assignmentId, checklist: { text: "Parallel" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false };
+    const results = await Promise.allSettled([planAnlegen(input, heute), planAnlegen(input, heute)]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: { status: 409 } });
+    const success = results.find((r) => r.status === "fulfilled");
+    if (success?.status === "fulfilled") await planLoeschen(success.value.plan.id, success.value.createdTopicIds);
   });
 
   it("409 plan_gerade_erstellt innerhalb 30s ohne ersetzen", async () => {
@@ -317,8 +348,8 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
 
     const geladen = await planLaden(assignmentId);
     const p = geladen!.punkte.find((x) => x.topicId === topicId);
-    // Nur die Karte mit >=1 Review zaehlt: Box 5 -> sicherheitAusKarten([5]) = 100.
-    expect(p?.sicherheit).toBe(100);
+    // Neue Karten zählen wie in der Themenübersicht zum gesamten Lernstoff.
+    expect(p?.sicherheit).toBe(50);
     expect(p?.sicherheitQuelle).toBe("karten");
 
     await planLoeschen(plan.id, createdTopicIds);
@@ -342,6 +373,38 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     const p = geladen!.punkte.find((x) => x.topicId === topicId);
     expect(p?.sicherheitQuelle).toBe("karten");
 
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("hält Sicherheit beim Hinzufügen, Archivieren und Löschen von Karten konsistent", async () => {
+    const { plan, createdTopicIds } = await planAnlegen(
+      { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: null, ersetzen: false }, heute,
+    );
+    const topicId = plan.punkte[0].topicId!;
+    const [gelernt] = await db.insert(studyCards).values({ subjectId, topicId, question: "Q", answer: "A", box: 3, due: "2026-01-01", reviews: 3 }).returning();
+    await aktualisiereAusKarten(topicId);
+    expect((await planLaden(assignmentId))?.punkte[0].sicherheit).toBe(100);
+    const [neu] = await createCards(subjectId, [{ question: "Neue Frage?", answer: "42" }], "manuell", null, topicId);
+    expect((await planLaden(assignmentId))?.punkte[0].sicherheit).toBe(50);
+    await updateCard(neu.id, { archivedAt: new Date().toISOString() });
+    expect((await planLaden(assignmentId))?.punkte[0].sicherheit).toBe(100);
+    await deleteCard(gelernt.id);
+    expect((await planLaden(assignmentId))?.punkte[0].sicherheit).toBe(0);
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("Migration korrigiert vorhandene Kartenwerte und bewahrt andere Diagnosequellen", async () => {
+    const { plan, createdTopicIds } = await planAnlegen(
+      { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt(), punkt({ titel: "Diagnose" })], checks: null, ersetzen: false }, heute,
+    );
+    await db.insert(studyCards).values({ subjectId, topicId: plan.punkte[0].topicId, question: "Q", answer: "A", box: 3, due: "2026-01-01", reviews: 3 });
+    await db.update(studyPlanPoints).set({ confidence: 60, confidenceSource: "karten" }).where(eq(studyPlanPoints.id, plan.punkte[0].id));
+    const migration = await readFile(new URL("../drizzle/0020_karten_sicherheit.sql", import.meta.url), "utf8");
+    await db.execute(sql.raw(migration));
+    const aktualisiert = await planLaden(assignmentId);
+    expect(aktualisiert?.punkte[0].sicherheit).toBe(100);
+    expect(aktualisiert?.punkte[1].sicherheit).toBe(50);
+    expect(aktualisiert?.punkte[1].sicherheitQuelle).toBe("ohne_test");
     await planLoeschen(plan.id, createdTopicIds);
   });
 

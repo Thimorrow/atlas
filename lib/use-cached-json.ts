@@ -69,7 +69,7 @@ export function useCachedJSON<T>(
       }
     }
     let alive = true;
-    const cached = readGetCache<T>(url, ttlMs);
+    const cached = readGetCache<T>(url, ttlMs) ?? readGetCache<T>(url, Number.POSITIVE_INFINITY);
     if (cached !== null) {
       setBoth(cached);
       setLoading(false);
@@ -93,10 +93,9 @@ export function useCachedJSON<T>(
       .catch(() => {
         if (!alive) return;
         setLoading(false);
-        // Alter Stand bleibt stehen; Fehler nur, wenn gar nichts da ist.
-        if (dataRef.current === null && readGetCache<T>(url, Number.POSITIVE_INFINITY) === null) {
-          setError(true);
-        }
+        // Vorhandene Daten bleiben sichtbar, der Fehler muss trotzdem
+        // erkennbar sein. Auch ein abgelaufener Cache ist ein alter Stand.
+        setError(true);
       });
     return () => {
       alive = false;

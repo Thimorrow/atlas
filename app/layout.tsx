@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { LapsePanel } from "@/components/lapse-panel";
 import { cookies } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
@@ -46,6 +47,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="select-none font-sans">
+        {process.env.NODE_ENV === "development" && <LapsePanel />}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <MotionProvider>
             <ToastProvider>
@@ -58,13 +60,11 @@ export default async function RootLayout({
                 Inhalt unter der Notch klemmen. */}
             <div className="flex h-dvh overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
               <AppSidebar defaultCollapsed={collapsed} defaultWidth={sidebarWidth} />
-              {/* Unteres Inset an der Inhaltsspalte: die Seiten scrollen jeweils
-                  in sich (main mit overflow-y-auto), ihr letztes Element endete
-                  sonst hinter dem Home-Balken -- genau dort sitzen "Jetzt
-                  synchronisieren", "Archivieren" und "Löschen". */}
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
-                <MobileHeader />
+              {/* Mobil bleibt die Navigation unter dem separat scrollenden
+                  Inhalt stehen. Sie übernimmt das Inset für den Home-Balken. */}
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0 md:pb-[env(safe-area-inset-bottom)]">
                 <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+                <MobileHeader />
               </div>
             </div>
             <BotLauncher />

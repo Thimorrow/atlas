@@ -285,7 +285,8 @@ private fun Inhalt(
                 Abschnitt("Meldungen") {
                     val schnitt = p.average?.let { String.format(Locale.ROOT, "%.1f", it).replace(".", ",") } ?: "–"
                     Angabe("Schnitt", schnitt)
-                    Angabe("Erfasst", "${p.ratedCount} von ${p.totalCount} Stunden")
+                    Angabe("Erfasste Stunden", "${p.ratedCount}")
+                    Angabe("Meldungen gesamt", "${p.totalCount}")
                     p.best?.let { Angabe("Bestwert", "$it") }
                 }
             }

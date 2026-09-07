@@ -94,7 +94,7 @@ fun EinstellungenBildschirm(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(Abstand.weit),
+        contentPadding = PaddingValues(Abstand.gross),
         verticalArrangement = Arrangement.spacedBy(Abstand.gross),
     ) {
         item("kopf") {
@@ -146,7 +146,7 @@ private fun Abschnitt(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+
                 .padding(horizontal = Abstand.weit, vertical = Abstand.mittel),
             horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
             verticalAlignment = Alignment.Top,
@@ -169,7 +169,7 @@ private fun Abschnitt(
             Column {
                 Text(
                     text = titel,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                     // Als Ueberschrift ausgezeichnet: Talkback springt damit
                     // von Abschnitt zu Abschnitt, statt sich durch alle drei

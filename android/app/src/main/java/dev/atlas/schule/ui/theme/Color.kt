@@ -30,7 +30,7 @@ val HellPrimaerVordergrund = Color(0xFFFAFAFA)
 val HellGedaempft = Color(0xFFF5F5F5)
 
 /** --muted-foreground: oklch(0.556 0 0) */
-val HellGedaempfterText = Color(0xFF737373)
+val HellGedaempfterText = Color(0xFF6D6D6D)
 
 /** --destructive: oklch(0.577 0.245 27.325). Ausserhalb sRGB, pro Kanal geklemmt. */
 val HellZerstoerend = Color(0xFFE7000B)
@@ -42,7 +42,7 @@ val HellRand = Color(0xFFE4E4E4)
 val HellFeldrand = Color(0xFFE5E5E5)
 
 /** --ring: oklch(0.708 0 0) */
-val HellFokusring = Color(0xFFA1A1A1)
+val HellFokusring = Color(0xFF808080)
 
 // ---- Dunkelmodus (.dark) ----
 

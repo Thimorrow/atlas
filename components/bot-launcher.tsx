@@ -82,7 +82,7 @@ export function BotLauncher() {
   return (
     // Der Rahmen deckt die Ecke ab, faengt aber keine Klicks -- nur Panel und
     // Knopf selbst sind anfassbar, alles dahinter bleibt die App.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-end gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-3 px-4 pb-4 pr-[max(1rem,env(safe-area-inset-right))] md:bottom-0 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
       <AnimatePresence>
         {open && (
           <motion.div
@@ -100,7 +100,7 @@ export function BotLauncher() {
               "pointer-events-auto flex w-[min(26rem,100%)] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-foreground/10",
               // Waechst mit dem Fenster, bleibt aber immer ueber dem Knopf
               // und innerhalb des sichtbaren Bereichs.
-              "h-[min(36rem,calc(100svh-9rem))]",
+              "h-[min(36rem,calc(100dvh-13rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] md:h-[min(36rem,calc(100svh-9rem))]",
             )}
           >
             <PanelHeader onClose={close} />

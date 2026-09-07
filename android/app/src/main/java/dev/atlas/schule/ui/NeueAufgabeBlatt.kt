@@ -1,6 +1,8 @@
 package dev.atlas.schule.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -80,20 +82,21 @@ fun NeueAufgabeBlatt(
     // stehen, obwohl das Formular ganz auf den Schirm passt. Wer eine Aufgabe
     // anlegt, soll den Knopf sehen, ohne erst ziehen zu muessen.
     val blattZustand = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var titel by remember { mutableStateOf("") }
-    var typ by remember { mutableStateOf("homework") }
+    var titel by rememberSaveable { mutableStateOf("") }
+    var typ by rememberSaveable { mutableStateOf(blatt.typ) }
     // Ohne Stunde ist morgen der beste Rat. Mit Stunde gilt deren naechster
     // Termin, und wenn es keinen mehr gibt, bleibt das Datum bewusst leer.
-    var faellig by remember {
-        mutableStateOf(if (vorgabe != null) vorgabe.faellig else heute.plusDays(1))
+    var faelligTag by rememberSaveable {
+        mutableStateOf((if (vorgabe != null) vorgabe.faellig else heute.plusDays(1))?.toEpochDay())
     }
-    var fachId by remember { mutableStateOf(vorgabe?.fachId) }
+    val faellig = faelligTag?.let(LocalDate::ofEpochDay)
+    var fachId by rememberSaveable { mutableStateOf(vorgabe?.fachId) }
     // Gehoert die Stunde zu einem Fach, das die Fachliste nicht kennt, faehrt
     // der Untis-Name mit: der Server legt daraus beim Speichern still ein Fach
     // an. Das Plaettchen dazu steht sichtbar in der Reihe, denn "Allgemein"
     // waere an dieser Stelle schlicht falsch.
     val untisNeu = vorgabe?.untisFach?.takeIf { vorgabe.fachId == null }
-    var untisFach by remember { mutableStateOf(untisNeu) }
+    var untisFach by rememberSaveable { mutableStateOf(untisNeu) }
 
     // Die Faecherliste ist zwoelf Eintraege lang und alphabetisch. Ein aus der
     // Schulstunde vorbelegtes Englisch steht damit weit rechts, ausserhalb des
@@ -140,12 +143,13 @@ fun NeueAufgabeBlatt(
                 // Bildschirmrand scrollen sollen.
                 .padding(bottom = Abstand.gross)
                 .navigationBarsPadding()
-                .imePadding(),
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Abstand.weit),
         ) {
             Text(
                 text = "Neue Aufgabe",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(horizontal = Abstand.gross),
             )
@@ -174,12 +178,12 @@ fun NeueAufgabeBlatt(
             Chipreihe("Fällig") {
                 AtlasChip(
                     ausgewaehlt = faellig == heute,
-                    beimKlick = { faellig = heute },
+                    beimKlick = { faelligTag = heute.toEpochDay() },
                     beschriftung = "Heute",
                 )
                 AtlasChip(
                     ausgewaehlt = faellig == heute.plusDays(1),
-                    beimKlick = { faellig = heute.plusDays(1) },
+                    beimKlick = { faelligTag = heute.plusDays(1).toEpochDay() },
                     beschriftung = "Morgen",
                 )
                 val eigenes = faellig != null && faellig != heute && faellig != heute.plusDays(1)
@@ -190,7 +194,7 @@ fun NeueAufgabeBlatt(
                 )
                 AtlasChip(
                     ausgewaehlt = faellig == null,
-                    beimKlick = { faellig = null },
+                    beimKlick = { faelligTag = null },
                     beschriftung = "Ohne Datum",
                 )
             }
@@ -250,6 +254,7 @@ fun NeueAufgabeBlatt(
             }
 
             Button(
+                shape = MaterialTheme.shapes.small,
                 onClick = { absenden() },
                 enabled = gueltig,
                 modifier = Modifier
@@ -286,7 +291,7 @@ fun NeueAufgabeBlatt(
                         // Der Kalender arbeitet in UTC-Millisekunden, das Datum
                         // selbst ist zeitzonenlos. Ueber UTC zurueckzurechnen
                         // ist der einzige Weg ohne Tagesversatz.
-                        faellig = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+                        faelligTag = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()
                     }
                     kalenderOffen = false
                 }) { Text("Übernehmen") }

@@ -28,6 +28,21 @@ function isNeonUrl(url: string): boolean {
 // abgebrochenen Build.
 
 type Db = ReturnType<typeof drizzle<typeof schema>>;
+type PgDb = ReturnType<typeof drizzlePg<typeof schema>>;
+type Transaction = Parameters<Parameters<PgDb["transaction"]>[0]>[0];
+
+let transactionalDb: PgDb | null = null;
+
+// Mehrteilige Schreibvorgänge brauchen eine echte Transaktion. Neon bietet
+// auch reguläre Postgres-Verbindungen; einfache Abfragen bleiben bei HTTP.
+export async function withTransaction<T>(run: (tx: Transaction) => Promise<T>): Promise<T> {
+  if (!transactionalDb) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) throw new Error("DATABASE_URL ist nicht gesetzt.");
+    transactionalDb = drizzlePg(new Pool({ connectionString, max: 3, connectionTimeoutMillis: 10_000, allowExitOnIdle: true }), { schema });
+  }
+  return transactionalDb.transaction(run);
+}
 
 let instance: Db | null = null;
 

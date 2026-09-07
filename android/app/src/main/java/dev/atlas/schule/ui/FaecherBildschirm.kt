@@ -1,5 +1,10 @@
 package dev.atlas.schule.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,6 +23,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -76,13 +84,13 @@ fun FaecherBildschirm(
             var fachNeu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             LazyColumn(
                 modifier = modifier.fillMaxSize(),
-                contentPadding = PaddingValues(Abstand.weit),
+                contentPadding = PaddingValues(Abstand.gross),
             ) {
                 item("kopf") {
                     Kopf(
                         "Fächer",
                         if (faecher.isEmpty()) "Noch keins eingerichtet."
-                        else "${faecher.size} aktiv, mit Notizen und Aufgaben.",
+                        else "${faecher.size} Fächer. Alles an seinem Platz.",
                     )
                     Spacer(Modifier.height(Abstand.gross))
                 }
@@ -105,8 +113,8 @@ fun FaecherBildschirm(
                 if (ansichtsmodell != null) {
                     item("aktionen") {
                         Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
-                            androidx.compose.material3.OutlinedButton(onClick = { fachNeu = true }) { Text("Fach anlegen") }
-                            androidx.compose.material3.OutlinedButton(onClick = { ansichtsmodell.faecherReconcile() }) { Text("Abgleichen") }
+                            Button(onClick = { fachNeu = true }, shape = MaterialTheme.shapes.small) { Icon(IkonePlus, null, Modifier.size(16.dp)); Spacer(Modifier.size(8.dp)); Text("Fach anlegen") }
+                            TextButton(onClick = { ansichtsmodell.faecherReconcile() }, shape = MaterialTheme.shapes.small) { Text("Abgleichen") }
                         }
                         Spacer(Modifier.height(Abstand.normal))
                     }
@@ -116,7 +124,7 @@ fun FaecherBildschirm(
                     item("leer") {
                         LeerZustand(
                             titel = "Noch kein Fach eingerichtet",
-                            text = "Lege unten ein Fach an oder gleiche mit Untis ab (Einstellungen).",
+                            text = "Lege ein Fach an oder übernimm deine Fächer aus Untis.",
                         )
                     }
                 }
@@ -149,11 +157,15 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .padding(bottom = 10.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+            .drawBehind { drawRect(farbe, size = Size(3.dp.toPx(), size.height)) }
             .druckSkalierung(beruehrung)
             .clickable(interactionSource = beruehrung, indication = ripple(), onClick = beimTippen)
             .heightIn(min = Hoehe.bedienelement)
-            .padding(horizontal = Abstand.normal, vertical = Abstand.mittel)
+            .padding(horizontal = 18.dp, vertical = 16.dp)
             .semantics {
                 contentDescription = buildString {
                     append(fach.name)
@@ -170,7 +182,6 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(Abstand.mittel),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(Modifier.size(10.dp).clip(CircleShape).background(farbe))
 
         Column(
             // Die Zeile sagt oben schon alles am Stueck. Ohne das Leeren
@@ -181,7 +192,7 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
         ) {
             Text(
                 text = fach.name,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -195,24 +206,17 @@ private fun Fachzeile(fach: SubjectDTO, beimTippen: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+
         }
 
-        // Eine Null gaebe es an jeder zweiten Zeile zu lesen, ohne etwas zu
-        // sagen. Nur was offen ist, verdient Aufmerksamkeit.
-        if (offen > 0) {
-            Box(
-                Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(horizontal = Abstand.normal, vertical = Abstand.winzig)
-                    .clearAndSetSemantics { },
-            ) {
-                Text(
-                    text = "$offen",
-                    style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(IkoneWeiter, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = if (offen > 0) "$offen offen" else "${fach.noteCount} ${if (fach.noteCount == 1) "Notiz" else "Notizen"}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
         }
     }
 }

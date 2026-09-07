@@ -170,7 +170,7 @@ data class FachDetailAntwort(
 
 @Serializable
 data class LessonNoteDTO(
-    val lessonId: String,
+    @SerialName("schoolBlockId") val lessonId: String,
     @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
     val startTime: String,
     val body: String,
@@ -178,18 +178,28 @@ data class LessonNoteDTO(
 
 @Serializable
 data class ParticipationDTO(
-    val average: Double? = null,
-    val ratedCount: Int = 0,
-    val totalCount: Int = 0,
-    val best: Int? = null,
+    val summary: ParticipationSummaryDTO = ParticipationSummaryDTO(),
     val recent: List<ParticipationEntryDTO> = emptyList(),
+) {
+    val average get() = summary.average
+    val ratedCount get() = summary.lessons
+    val totalCount get() = summary.total
+    val best get() = summary.best
+}
+
+@Serializable
+data class ParticipationSummaryDTO(
+    val average: Double? = null,
+    val lessons: Int = 0,
+    val total: Int = 0,
+    val best: Int? = null,
 )
 
 @Serializable
 data class ParticipationEntryDTO(
-    val lessonId: String,
+    @SerialName("schoolBlockId") val lessonId: String,
     @Serializable(with = LocalDateSerialisierer::class) val date: LocalDate,
-    val points: Int? = null,
+    @SerialName("count") val points: Int? = null,
 )
 
 @Serializable
@@ -203,7 +213,12 @@ data class LessonNoteBodyDTO(
 )
 
 @Serializable
-data class ParticipationAntwort(val points: Int? = null)
+data class ParticipationAntwort(val participation: ParticipationCountDTO? = null) {
+    val points get() = participation?.count
+}
+
+@Serializable
+data class ParticipationCountDTO(val count: Int)
 
 @Serializable
 data class NextDueAntwort(

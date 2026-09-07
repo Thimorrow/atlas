@@ -240,7 +240,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           den Regionen selbst haelt das Layout (Reihenfolge/Abstand) beim
           gemeinsamen Elternflex, ohne dass die Regionen selbst eine Box
           bilden. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex flex-col items-center gap-2 px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4 md:bottom-20">
         <div role="status" aria-live="polite" className="contents">
           <AnimatePresence initial={false}>
             {toasts

@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -24,7 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import dev.atlas.schule.ui.theme.Abstand
 import dev.atlas.schule.ui.theme.Hoehe
 
@@ -41,20 +49,25 @@ fun StundeDetailBlatt(
     beimMeldungSpeichern: (Int) -> Unit,
     beimMeldungLoeschen: () -> Unit,
 ) {
-    var notizText by remember(zustand.lessonId, zustand.notiz) { mutableStateOf(zustand.notiz ?: "") }
-    var meldungAuswahl by remember(zustand.lessonId, zustand.meldung) { mutableStateOf(zustand.meldung) }
+    var notizText by rememberSaveable(zustand.lessonId, zustand.notiz) { mutableStateOf(zustand.notiz ?: "") }
+    var meldungAuswahl by rememberSaveable(zustand.lessonId, zustand.meldung) { mutableStateOf(zustand.meldung) }
+    var schliessenBestaetigen by remember { mutableStateOf(false) }
+    fun schliessen() {
+        if (notizText != zustand.notiz.orEmpty() || meldungAuswahl != zustand.meldung) schliessenBestaetigen = true
+        else beimSchliessen()
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
-        onDismissRequest = beimSchliessen,
+        onDismissRequest = ::schliessen,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(Abstand.gross),
-            verticalArrangement = Arrangement.spacedBy(Abstand.normal),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().imePadding().padding(Abstand.gross),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(zustand.titel ?: "Stunde", style = MaterialTheme.typography.headlineSmall)
+            Text(zustand.titel ?: "Stunde", style = MaterialTheme.typography.headlineMedium)
             listOfNotNull(
                 zustand.datum?.let {
                     runCatching {
@@ -76,38 +89,61 @@ fun StundeDetailBlatt(
             if (zustand.laeuft && zustand.notiz == null && zustand.meldung == null) {
                 CircularProgressIndicator()
             } else {
-                Text("Notiz", style = MaterialTheme.typography.labelLarge)
+                Text("Notiz", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(
                     value = notizText,
                     onValueChange = { notizText = it },
                     placeholder = { Text("Was kam dran?") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
+                    maxLines = 6,
+                    enabled = !zustand.laeuft,
                 )
                 Button(
+                    shape = MaterialTheme.shapes.small,
                     onClick = { beimNotizSpeichern(notizText) },
                     enabled = !zustand.laeuft,
                     modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement),
                 ) { Text("Notiz speichern") }
 
-                Text("Meldung", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
-                    (0..3).forEach { p ->
-                        FilterChip(selected = meldungAuswahl == p, onClick = { meldungAuswahl = p }, label = { Text("$p") })
-                    }
-                    FilterChip(selected = meldungAuswahl == null, onClick = { meldungAuswahl = null }, label = { Text("–") })
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Text("Meldungen", style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        shape = MaterialTheme.shapes.small,
+                        onClick = { meldungAuswahl = ((meldungAuswahl ?: 0) - 1).coerceAtLeast(0) },
+                        enabled = !zustand.laeuft && (meldungAuswahl ?: 0) > 0,
+                        modifier = Modifier.heightIn(min = Hoehe.bedienelement).semantics { contentDescription = "Eine Meldung weniger" },
+                    ) { Text("−") }
+                    Text(meldungAuswahl?.toString() ?: "Nicht erfasst", style = MaterialTheme.typography.titleMedium)
+                    OutlinedButton(
+                        shape = MaterialTheme.shapes.small,
+                        onClick = { meldungAuswahl = ((meldungAuswahl ?: 0) + 1).coerceAtMost(99) },
+                        enabled = !zustand.laeuft && (meldungAuswahl ?: 0) < 99,
+                        modifier = Modifier.heightIn(min = Hoehe.bedienelement).semantics { contentDescription = "Eine Meldung mehr" },
+                    ) { Text("+") }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(Abstand.klein)) {
-                    Button(
-                        onClick = { meldungAuswahl?.let(beimMeldungSpeichern) },
-                        enabled = meldungAuswahl != null && !zustand.laeuft,
-                        modifier = Modifier.weight(1f),
-                    ) { Text("Meldung speichern") }
-                    OutlinedButton(onClick = beimMeldungLoeschen, modifier = Modifier.weight(1f)) { Text("Löschen") }
+                OutlinedButton(
+                    shape = MaterialTheme.shapes.small,
+                    onClick = { beimMeldungSpeichern(meldungAuswahl ?: 0) },
+                    enabled = !zustand.laeuft,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = Hoehe.bedienelement),
+                ) { Text(if (meldungAuswahl == null) "0 Meldungen erfassen" else "Meldung speichern") }
+                if (zustand.meldung != null) {
+                    TextButton(onClick = beimMeldungLoeschen, enabled = !zustand.laeuft) { Text("Erfassung löschen") }
                 }
             }
             zustand.fehler?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            TextButton(onClick = beimSchliessen) { Text("Schließen") }
+            TextButton(onClick = ::schliessen) { Text("Schließen") }
         }
+    }
+    if (schliessenBestaetigen) {
+        AlertDialog(
+            onDismissRequest = { schliessenBestaetigen = false },
+            title = { Text("Änderungen verwerfen?") },
+            text = { Text("Deine Änderungen sind noch nicht gespeichert.") },
+            confirmButton = { TextButton(onClick = beimSchliessen) { Text("Verwerfen") } },
+            dismissButton = { TextButton(onClick = { schliessenBestaetigen = false }) { Text("Weiter bearbeiten") } },
+        )
     }
 }

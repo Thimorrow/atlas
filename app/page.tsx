@@ -1,5 +1,6 @@
 "use client";
 
+import { RefreshNotice } from "@/components/refresh-notice";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarCheck, ChevronLeft, ChevronRight, GraduationCap, Hand, NotebookPen, PenLine } from "lucide-react";
@@ -548,12 +549,11 @@ export default function Home() {
     keepPreviousData: true,
   });
 
-  // Aufgaben + Fächer. Bewusst OHNE loading/error-Zustand: die Spur ist
-  // Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
-  const { data: assignmentsData, patch: patchAssignments } = useCachedJSON<{
+  // Aufgaben + Fächer: Fehler zeigen einen Hinweis, das Raster bleibt stehen.
+  const { data: assignmentsData, error: assignmentsError, reload: reloadAssignments, patch: patchAssignments } = useCachedJSON<{
     assignments?: AssignmentDTO[];
   }>("/api/assignments", CACHE_TTLS.assignments, { refreshKey: reloadKey });
-  const { data: subjectsData } = useCachedJSON<{ subjects?: SubjectOption[] }>(
+  const { data: subjectsData, error: subjectsError, reload: reloadSubjects } = useCachedJSON<{ subjects?: SubjectOption[] }>(
     "/api/subjects",
     CACHE_TTLS.subjects,
     { refreshKey: reloadKey },
@@ -949,6 +949,9 @@ export default function Home() {
         transition={{ duration: 0.22, ease: EASE }}
         className={mode === "fokus" ? "h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8" : "flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-card"}
       >
+        {mode !== "fokus" && ((error && data) || assignmentsError || subjectsError) && (
+          <RefreshNotice onRetry={() => { reloadCalendar(); reloadAssignments(); reloadSubjects(); }} />
+        )}
         {mode === "fokus" ? (
           <MorgenPanel />
         ) : error && !data ? (
@@ -1193,7 +1196,7 @@ export default function Home() {
                               <span
                                 aria-hidden="true"
                                 title={`${p.ev.participation} Meldungen`}
-                                className="absolute bottom-1 right-1 text-[10px] font-medium tabular-nums text-foreground/50"
+                                className="absolute bottom-1 right-1 text-[12px] font-medium tabular-nums text-foreground/70"
                               >
                                 {p.ev.participation}
                               </span>
@@ -1204,14 +1207,14 @@ export default function Home() {
                             {vertretung && !badgePasst && (
                               <span className="size-1.5 shrink-0 rounded-full bg-amber-700 dark:bg-amber-400" />
                             )}
-                            <span className="truncate text-[12px] font-medium leading-tight">
+                            <span className="truncate text-[14px] font-medium leading-tight">
                               {p.ev.title}
                             </span>
                           </span>
                           {height > 30 && meta && (
                             // A2 (Kontrast): volle muted-foreground liegt auf der
                             // Block-Fuellung nur bei ~4:1 -- foreground/70 traegt sicher.
-                            <span aria-hidden="true" className="truncate font-mono text-[10px] tabular-nums text-foreground/70">{meta}</span>
+                            <span aria-hidden="true" className="truncate font-mono text-[12px] tabular-nums text-foreground/70">{meta}</span>
                           )}
                           {vertretung && badgePasst && (
                             <span

@@ -199,7 +199,21 @@ export async function createCards(
     due: today,
   }));
   const rows = await db.insert(studyCards).values(values).returning();
+  await aktualisiereKartenUmfang([topicId]);
   return rows.map(toDTO);
+}
+
+// Neue, verschobene oder entfernte Karten ändern den Nenner des Fortschritts.
+async function aktualisiereKartenUmfang(topicIds: (string | null)[]) {
+  for (const topicId of new Set(topicIds)) {
+    if (!topicId) continue;
+    try {
+      const { aktualisiereAusKarten } = await import("@/lib/lernplan-store");
+      await aktualisiereAusKarten(topicId, true);
+    } catch (err) {
+      console.warn("[lernplan] Sicherheit aus Karten:", err);
+    }
+  }
 }
 
 export async function updateCard(
@@ -225,16 +239,19 @@ export async function updateCard(
     return existing ?? null;
   }
 
+  const vorher = patch.topicId !== undefined || patch.archivedAt !== undefined ? await getCard(id) : undefined;
   const [row] = await db
     .update(studyCards)
     .set({ ...set, updatedAt: new Date() })
     .where(eq(studyCards.id, id))
     .returning();
+  if (vorher) await aktualisiereKartenUmfang([vorher.topicId, row?.topicId ?? null]);
   return row ? toDTO(row) : null;
 }
 
 export async function deleteCard(id: string): Promise<boolean> {
-  const rows = await db.delete(studyCards).where(eq(studyCards.id, id)).returning({ id: studyCards.id });
+  const rows = await db.delete(studyCards).where(eq(studyCards.id, id)).returning({ id: studyCards.id, topicId: studyCards.topicId });
+  await aktualisiereKartenUmfang(rows.map((r) => r.topicId));
   return rows.length > 0;
 }
 

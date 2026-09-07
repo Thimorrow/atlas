@@ -1,5 +1,6 @@
 "use client";
 
+import { RefreshNotice } from "@/components/refresh-notice";
 import { useState } from "react";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
@@ -34,7 +35,7 @@ export default function SubjectsPage() {
   // archivierte) -- nicht an einem Client-Flag. Deshalb laedt die Seite immer
   // mit ?all=1 vor und filtert erst danach. Ein Reload nach dem Bestaetigen
   // zeigt so nie wieder die Auswahl.
-  const { data: allData } = useCachedJSON<{ subjects: SubjectDTO[] }>(
+  const { data: allData, error: allError } = useCachedJSON<{ subjects: SubjectDTO[] }>(
     "/api/subjects?all=1",
     CACHE_TTLS.subjects,
     { refreshKey: reloadKey },
@@ -44,13 +45,13 @@ export default function SubjectsPage() {
   // am Handy nach seinem Schnitt sieht, soll dafuer nicht erst navigieren.
   // Die Noten duerfen die Faecherliste nicht mitreissen: faellt nur diese
   // Runde aus, fehlen die Schnitte, die Seite steht trotzdem.
-  const { data: gradeOverview } = useCachedJSON<GradeOverviewDTO>("/api/grades", CACHE_TTLS.grades, {
+  const { data: gradeOverview, error: gradesError } = useCachedJSON<GradeOverviewDTO>("/api/grades", CACHE_TTLS.grades, {
     refreshKey: reloadKey,
   });
 
   const subjects = listData?.subjects ?? null;
   const hasAny = allData ? allData.subjects.length > 0 : null;
-  const failed = listError && subjects === null;
+  const failed = (listError && subjects === null) || (allError && allData === null);
   const refresh = () => setReloadKey((k) => k + 1);
 
   // Derselbe Abgleich laeuft nach jedem Untis-Sync automatisch mit. Der Knopf
@@ -148,6 +149,7 @@ export default function SubjectsPage() {
     // gescrollt wird innerhalb der Seite.
     <main className="h-full overflow-y-auto px-6 pt-6 pb-8 lg:px-8">
       <Stagger className="mx-auto max-w-4xl space-y-6">
+        {((listError && listData) || (allError && allData) || gradesError) && <RefreshNotice onRetry={refresh} />}
         <StaggerItem>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>

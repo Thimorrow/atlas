@@ -14,35 +14,38 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.border
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.atlas.schule.ui.AtlasNavigation
+import dev.atlas.schule.ui.AtlasTabs
 import dev.atlas.schule.ui.AnmeldeBildschirm
 import dev.atlas.schule.ui.AtlasViewModel
 import dev.atlas.schule.ui.AtlasZustand
@@ -60,7 +63,6 @@ import dev.atlas.schule.ui.IkoneStundenplan
 import dev.atlas.schule.ui.Ladung
 import dev.atlas.schule.ui.MorgenPanel
 import dev.atlas.schule.ui.NeueAufgabeBlatt
-import dev.atlas.schule.ui.NeueAufgabeKnopf
 import dev.atlas.schule.ui.Reiter
 import dev.atlas.schule.ui.StandZeile
 import dev.atlas.schule.ui.StundeDetailBlatt
@@ -150,77 +152,29 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
     // beenden. Ohne das waere das Detail eine Sackgasse mit nur einem Ausgang.
     BackHandler(enabled = zustand.detail != null) { ansichtsmodell.schliesseFach() }
 
-    val kante = MaterialTheme.colorScheme.outlineVariant
+    BackHandler(enabled = zustand.detail == null && zustand.reiter == Reiter.BOT && bot.detail != null) {
+        ansichtsmodell.schliesseBotVerlauf()
+    }
+    BackHandler(enabled = zustand.detail == null && bot.detail == null && zustand.reiter != Reiter.STUNDENPLAN) {
+        ansichtsmodell.waehleReiter(Reiter.STUNDENPLAN)
+    }
+    var fokus by rememberSaveable { mutableStateOf(false) }
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(schnipsel) },
-        floatingActionButton = {
-            NeueAufgabeKnopf(
-                // Die eine primaere Handlung gehoert auf den Bildschirm, zu dem
-                // sie passt. Im Stundenplan und in der Fachliste waere sie ein
-                // zweites, konkurrierendes Angebot.
-                sichtbar = zustand.reiter == Reiter.AUFGABEN && zustand.detail == null,
-                beimTippen = ansichtsmodell::oeffneBlatt,
-            )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                // Die Leiste traegt dieselbe Farbe wie der Inhalt darueber.
-                // Ohne Kante verschwand eine wegscrollende Zeile an einem
-                // unsichtbaren Rand. Die Web-App zieht dafuer border-b unter
-                // ihren mobilen Kopf, siehe components/mobile-header.tsx.
-                // drawWithContent, nicht drawBehind: NavigationBar legt seine
-                // containerColor als Flaeche ueber alles, was der uebergebene
-                // Modifier vorher zeichnet. Die Linie war damit unsichtbar,
-                // im Pixelabzug messbar unveraendert bei (14, 14, 14).
-                modifier = Modifier.drawWithContent {
-                    drawContent()
-                    val staerke = 1.dp.toPx()
-                    drawLine(
-                        color = kante,
-                        start = Offset(0f, staerke / 2),
-                        end = Offset(size.width, staerke / 2),
-                        strokeWidth = staerke,
-                    )
-                },
-            ) {
-                Reiter.entries.forEach { reiter ->
-                    NavigationBarItem(
-                        selected = zustand.reiter == reiter,
-                        onClick = { ansichtsmodell.waehleReiter(reiter) },
-                        icon = {
-                            Icon(
-                                imageVector = ikoneVon(reiter),
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                            )
-                        },
-                        label = {
-                            Text(
-                                // Die Leiste ist 80dp hoch, egal wie gross die
-                                // Systemschrift steht. Ohne die eine Zeile
-                                // brach "Stundenplan" bei doppelter Schrift um
-                                // und das zweite Stueck stand unter dem Rand.
-                                // Talkback liest den ungekuerzten Text, das
-                                // Ellipsis kostet also nur Optik, keinen Namen.
-                                text = reiter.bezeichnung,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                            selectedTextColor = MaterialTheme.colorScheme.onBackground,
-                            indicatorColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        ),
-                    )
-                }
+        snackbarHost = {
+            SnackbarHost(schnipsel) { nachricht ->
+                Snackbar(
+                    snackbarData = nachricht,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium),
+                )
             }
         },
+        bottomBar = { AtlasNavigation(zustand.reiter, ansichtsmodell::waehleReiter, ::ikoneVon) },
     ) { polster ->
         // atlasTween liest den Bewegung-reduziert-Schalter und ist damit
         // @Composable; transitionSpec ist es nicht. Deshalb hier, nicht dort.
@@ -248,22 +202,35 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
                         label = "reiter",
                     ) { reiter ->
                         when (reiter) {
-                            Reiter.STUNDENPLAN -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
-                                MorgenPanel(
-                                    zustand = morgen,
-                                    beimLaden = ansichtsmodell::ladeMorgen,
-                                    beimHaken = ansichtsmodell::setzeHaken,
-                                    beimFachOeffnen = ansichtsmodell::oeffneFach,
-                                )
-                                StundenplanBildschirm(
-                                    zustand = zustand,
-                                    beimWochenwechsel = ansichtsmodell::zeigeWoche,
-                                    beimWocheLaden = ansichtsmodell::ladeWoche,
-                                    beimStundeTippen = ansichtsmodell::oeffneBlattFuerStunde,
-                                )
+                            Reiter.STUNDENPLAN -> Column(Modifier.fillMaxSize()) {
+                                Text("Deine Woche", style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 12.dp))
+                                AtlasTabs(listOf("Woche", "Fokus"), if (fokus) 1 else 0, { fokus = it == 1 }, Modifier.padding(horizontal = 24.dp))
+                                Box(Modifier.weight(1f)) {
+                                    if (fokus) {
+                                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                                            MorgenPanel(
+                                                zustand = morgen,
+                                                beimLaden = ansichtsmodell::ladeMorgen,
+                                                beimHaken = ansichtsmodell::setzeHaken,
+                                                beimFachOeffnen = ansichtsmodell::oeffneFach,
+                                            )
+                                        }
+                                    } else {
+                                        StundenplanBildschirm(
+                                            modifier = Modifier.padding(bottom = 16.dp),
+                                            zustand = zustand,
+                                            beimWochenwechsel = ansichtsmodell::zeigeWoche,
+                                            beimWocheLaden = ansichtsmodell::ladeWoche,
+                                            beimStundeTippen = ansichtsmodell::oeffneBlattFuerStunde,
+                                        )
+                                    }
+                                }
                             }
 
                             Reiter.AUFGABEN -> AufgabenBildschirm(
+                                beimAnlegen = { pruefung -> ansichtsmodell.oeffneBlatt(if (pruefung) "exam" else "homework") },
                                 zustand = zustand,
                                 beimHaken = ansichtsmodell::setzeHaken,
                                 beimErneutLaden = ansichtsmodell::ladeNeu,
@@ -331,6 +298,15 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
     }
 
     zustand.blatt?.let { blatt ->
+        if (blatt.vorbelegung == null) {
+            NeueAufgabeBlatt(
+                blatt = blatt,
+                heute = zustand.heute,
+                faecher = (zustand.start as? Ladung.Da)?.wert?.faecher.orEmpty(),
+                beimSchliessen = ansichtsmodell::schliesseBlatt,
+                beimAnlegen = ansichtsmodell::legeAufgabeAn,
+            )
+        } else {
         StundenplanEingabeBlatt(
             blatt = blatt,
             heute = zustand.heute,
@@ -338,6 +314,7 @@ private fun AppGeruest(zustand: AtlasZustand.App, ansichtsmodell: AtlasViewModel
             beimSchliessen = ansichtsmodell::schliesseBlatt,
             beimAnlegen = ansichtsmodell::legeAufgabeAn,
         )
+        }
     }
 
     // Aufgabe bearbeiten / löschen.

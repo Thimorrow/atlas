@@ -4,6 +4,7 @@
 // Pruefungen bevorstehen (mit Bereitschaft je Thema), und alle Faecher.
 // Reine Anzeige -- alles kommt aus GET /api/lernen.
 
+import { RefreshNotice } from "@/components/refresh-notice";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
@@ -88,6 +89,7 @@ export function LernenUebersicht() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
+      {failed && <RefreshNotice onRetry={load} />}
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Lernen</h1>
         <p className="text-sm text-muted-foreground">
@@ -126,7 +128,7 @@ export function LernenUebersicht() {
       {leer && (
         <div className="rounded-xl border border-dashed px-4 py-8 text-center">
           <p className="text-[14px] text-muted-foreground">
-            Noch keine Lernkarten. Öffne ein Fach und lass Karten aus deinen Notizen erzeugen.
+            Starte mit einem Fach unten. Benenne dein erstes Thema und wähle anschließend Notizen, Dateien oder den Lehrplan für deine Lernkarten.
           </p>
         </div>
       )}

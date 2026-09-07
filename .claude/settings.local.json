@@ -1,6 +1,11 @@
 {
-  "outputStyle": "Proactive",
   "disabledMcpjsonServers": [
     "neon"
-  ]
+  ],
+  "outputStyle": "Proactive",
+  "permissions": {
+    "allow": [
+      "Bash(cd *)"
+    ]
+  }
 }

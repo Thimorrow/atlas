@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -47,7 +46,6 @@ import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.atlas.schule.data.CalendarEvent
@@ -68,20 +66,10 @@ private const val WOCHEN_SPANNE = 60
 private const val WOCHEN_MITTE = WOCHEN_SPANNE
 
 private val WOCHENTAGE_KURZ = listOf("Mo", "Di", "Mi", "Do", "Fr")
-// 38dp reichten fuer die alte Beschriftung mit vollen Stunden ("08"). Seit die
-// Achse die echten Stundengrenzen zeigt, ist "11:10" der laengste Fall, und der
-// brauchte mehr. Eine feste Breite reicht dafuer aber nicht: bei doppelter
-// Systemschrift schnitt die Spalte "11:10" zu "11:1" ab. Sie waechst deshalb
-// mit, so wie die Datumsspalte im Fachdetail.
-private val ZEITSPALTE_BASIS = 48.dp
 private val MINDEST_STUNDENHOEHE = 46.dp
 
 // In normalen Abschnitten ist eine Einheit eine Minute, siehe Rasterachse.
 private val MINDEST_EINHEITHOEHE = MINDEST_STUNDENHOEHE / 60
-
-@Composable
-@ReadOnlyComposable
-private fun zeitspalte(): Dp = ZEITSPALTE_BASIS * LocalDensity.current.fontScale
 
 /** "2.–8. September 2025", ein Monatsname wenn die Woche nicht umbricht. */
 private fun wochenLabel(start: LocalDate, ende: LocalDate): String =
@@ -167,9 +155,9 @@ private fun Woche(
     Column(Modifier.fillMaxSize()) {
         Text(
             text = wochenLabel(montag, montag.plusDays(4)),
-            style = MaterialTheme.typography.headlineSmall.merge(Tabellenziffern),
+            style = MaterialTheme.typography.titleLarge.merge(Tabellenziffern),
             color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = Abstand.weit, vertical = Abstand.mittel),
+            modifier = Modifier.padding(horizontal = Abstand.gross, vertical = Abstand.mittel),
         )
 
         when (ladung) {
@@ -210,7 +198,6 @@ private fun Woche(
 @Composable
 private fun Kopfzeile(tage: List<LocalDate>, heute: LocalDate) {
     Row(Modifier.fillMaxWidth().padding(bottom = Abstand.normal)) {
-        Spacer(Modifier.width(zeitspalte()))
         tage.forEachIndexed { index, datum ->
             val istHeute = datum == heute
             Column(
@@ -291,7 +278,6 @@ private fun Raster(
                 .height(gesamt),
         ) {
             Row(Modifier.fillMaxWidth().height(gesamt)) {
-                Zeitachse(grenzen, achse, einheitHoehe)
                 tage.forEach { (datum, ereignisse) ->
                     Tagesspalte(
                         datum = datum,
@@ -311,7 +297,7 @@ private fun Raster(
             }
 
             // Jedes Leerband liegt als eigene, ruhige Zone ueber der vollen
-            // Zeilenbreite inklusive Zeitspalte -- so ist auf einen Blick
+            // Zeilenbreite -- so ist auf einen Blick
             // klar, dass hier keine einzelne Spalte leer ist, sondern die
             // ganze Woche an dieser Stelle keinen Unterricht hat.
             achse.leerbaender.forEach { band ->
@@ -330,42 +316,6 @@ private fun Raster(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun Zeitachse(grenzen: List<Rastergrenze>, achse: Rasterachse, einheitHoehe: androidx.compose.ui.unit.Dp) {
-    Box(
-        Modifier
-            .width(zeitspalte())
-            .fillMaxHeight()
-            // Die Achse ist eine reine Skala. Jeder Block traegt seine Zeit
-            // schon im eigenen Namen, sonst laese ein Screenreader hier zehn
-            // freistehende Zahlen vor.
-            .clearAndSetSemantics { },
-    ) {
-        grenzen.filter { it.beschriftet }.forEach { grenze ->
-            Text(
-                text = formatiereUhrzeit(grenze.minute),
-                // Kein Monospace: Tabellenziffern halten die Zahlen schon in
-                // einer Flucht, Monospace macht sie nur breiter und gab auch
-                // dem Doppelpunkt eine volle Ziffernbreite. Zusammen mit der
-                // schmalen Spalte brach "11:10" dadurch auf zwei Zeilen um.
-                style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
-                fontSize = 11.sp,
-                // Eine Uhrzeit hat keine zweite Zeile. Lieber ueber den Rand
-                // als umgebrochen: die Spalte ist auf den laengsten Fall
-                // ausgelegt, aber eine grosse Systemschrift kann sie sprengen.
-                maxLines = 1,
-                softWrap = false,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .offset(y = einheitHoehe * achse.position(grenze.minute))
-                    .padding(end = Abstand.eng)
-                    .fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            )
         }
     }
 }
@@ -407,7 +357,7 @@ private fun Tagesspalte(
                     .offset(y = einheitHoehe * achse.position(grenze.minute))
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outline),
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = MaterialTheme.colorScheme.outlineVariant.alpha * 0.55f)),
             )
         }
 
@@ -459,7 +409,7 @@ private fun Stundenblock(
     // Der Badge braucht eine eigene Zeile unter Fach und Raum. Passt sie nicht,
     // tritt ein Punkt am Fachnamen an seine Stelle; ohne diesen Wechsel schob
     // sich der Badge ausgerechnet auf niedrigen Bloecken ueber den Fachnamen.
-    val badgePasst = hoehe >= 58.dp * skala
+    val badgePasst = hoehe >= 74.dp * skala
     val echteHoehe = maxOf(hoehe, 18.dp * skala)
 
     val ansage = buildString {
@@ -527,7 +477,7 @@ private fun Stundenblock(
                 .border(
                     width = 1.dp,
                     color = if (entfaellt) MaterialTheme.colorScheme.outlineVariant
-                    else farbe.copy(alpha = 0.45f),
+                    else farbe.copy(alpha = 0.20f),
                     shape = RoundedCornerShape(6.dp),
                 )
                 // Die Welle beim Druecken ist das einzige Zeichen, dass hier
@@ -571,7 +521,18 @@ private fun Stundenblock(
                 )
             }
 
-            if (echteHoehe > 30.dp * skala) {
+            Text(
+                text = listOfNotNull(ereignis.startTime, ereignis.endTime).joinToString("–"),
+                style = MaterialTheme.typography.bodySmall.merge(Tabellenziffern),
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.clearAndSetSemantics { },
+            )
+
+            if (echteHoehe > 46.dp * skala) {
                 val zusatz = if (entfaellt) "entfällt" else ereignis.room.orEmpty()
                 if (zusatz.isNotEmpty()) {
                     Text(

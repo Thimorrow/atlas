@@ -7,6 +7,7 @@
 // ansteht, sonst morgen bzw. der naechste Schultag) -- die UI hat bewusst
 // keinen Heute/Morgen-Schalter mehr.
 
+import { RefreshNotice } from "@/components/refresh-notice";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -72,6 +73,7 @@ export function MorgenPanel() {
 
   return (
     <Stagger className="mx-auto max-w-2xl space-y-6">
+      {failed && data && <RefreshNotice onRetry={load} />}
       <StaggerItem>
         <div>
           <h1 className="text-xl font-semibold leading-tight tracking-tight">
@@ -96,8 +98,7 @@ export function MorgenPanel() {
         </div>
       </StaggerItem>
 
-      {/* Hintergrund-Aktualisierung darf einen gezeigten Stand nie
-          wegnehmen: Fehler gibt es nur, solange noch gar nichts da ist. */}
+      {/* Bei Aktualisierungsfehlern bleibt der letzte Stand mit Hinweis sichtbar. */}
       {data === null ? (
         <StaggerItem>
           {failed ? (

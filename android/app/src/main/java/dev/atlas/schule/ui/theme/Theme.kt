@@ -47,8 +47,8 @@ private val HellesSchema = lightColorScheme(
     onSurfaceVariant = HellGedaempfterText,
     error = HellZerstoerend,
     onError = HellPrimaerVordergrund,
-    outline = HellRand,
-    outlineVariant = HellFeldrand,
+    outline = Color(0xFF888888),
+    outlineVariant = HellRand,
     // Die Container-Slots blieben frueher offen und trugen damit Materials
     // Vorgabe, ein Flieder, den Atlas nirgends verwendet. Sichtbar wurde das an
     // den Auswahlplaettchen im Blatt. Jeder Slot ist jetzt belegt, damit keine
@@ -93,8 +93,8 @@ private val DunklesSchema = darkColorScheme(
     onSurfaceVariant = DunkelGedaempfterText,
     error = DunkelZerstoerend,
     onError = DunkelKarte,
-    outline = DunkelRand,
-    outlineVariant = DunkelFeldrand,
+    outline = Color(0xFF737373),
+    outlineVariant = DunkelRand,
     // Dieselbe Luecke wie oben, siehe Kommentar im hellen Schema.
     secondaryContainer = DunkelGedaempft,
     onSecondaryContainer = DunkelVordergrund,
@@ -162,7 +162,10 @@ fun AtlasTheme(
             val fenster = (context as Activity).window
             // Ohne das bleiben die Symbole in der Statusleiste hell und
             // verschwinden im Hellmodus auf dem weissen Hintergrund.
-            WindowCompat.getInsetsController(fenster, view).isAppearanceLightStatusBars = !dunkel
+            WindowCompat.getInsetsController(fenster, view).apply {
+                isAppearanceLightStatusBars = !dunkel
+                isAppearanceLightNavigationBars = !dunkel
+            }
         }
     }
 

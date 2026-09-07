@@ -374,7 +374,7 @@ export function parseGeneratedCards(
 
     const question = q.trim();
     const answer = a.trim();
-    if (question.length < MIN_FIELD_LEN || answer.length < MIN_FIELD_LEN) continue;
+    if (question.length < MIN_FIELD_LEN || answer.length === 0) continue;
 
     const key = question.toLowerCase();
     if (seen.has(key)) continue;
@@ -445,7 +445,7 @@ export function parseGeneratedVariant(text: string): { question: string; answer:
 
   const question = q.trim();
   const answer = a.trim();
-  if (question.length < MIN_FIELD_LEN || answer.length < MIN_FIELD_LEN) return null;
+  if (question.length < MIN_FIELD_LEN || answer.length === 0) return null;
 
   return { question, answer };
 }
