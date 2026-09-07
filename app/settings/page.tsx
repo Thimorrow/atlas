@@ -45,7 +45,30 @@ const PREVIEW: Record<string, { box: string; bar: string; barDim: string }> = {
 };
 
 type SyncState =
-  | { ok: true; fetched: number; upserted: number; window: { start: string; end: string } }
+  | { ok: true; fetched: number; upserted: number; window: { start: string; end: string }; hinweis: string | null }
+  | { ok: false; error: string; kind: "network" | "server" };
+
+// Eine Stunde im Tag-Vergleich (Form der /api/sync/untis/check-Antwort).
+type CheckStunde = {
+  startTime: string;
+  endTime: string;
+  subject: string;
+  room: string | null;
+  teacher: string | null;
+  status: string;
+};
+
+type CheckState =
+  | {
+      ok: true;
+      date: string;
+      untis: CheckStunde[];
+      atlas: CheckStunde[];
+      fehltInAtlas: CheckStunde[];
+      nurInAtlas: CheckStunde[];
+      statusWeichtAb: { untis: CheckStunde; atlas: CheckStunde }[];
+      hinweis: string | null;
+    }
   | { ok: false; error: string; kind: "network" | "server" };
 
 const fmtDay = (iso: string) => {
@@ -148,7 +171,7 @@ export default function SettingsPage() {
       const data = await res.json();
       setSync(
         data.ok
-          ? { ok: true, fetched: data.fetched, upserted: data.upserted, window: data.window }
+          ? { ok: true, fetched: data.fetched, upserted: data.upserted, window: data.window, hinweis: data.hinweis ?? null }
           : { ok: false, error: data.error ?? "Unbekannter Fehler", kind: "server" },
       );
     } catch (e) {
@@ -159,6 +182,93 @@ export default function SettingsPage() {
     } finally {
       setSyncing(false);
     }
+  }
+
+  // Tag-Diagnose: "Atlas zeigt Luecke, Untis Unterricht". Vergleicht Untis-live
+  // mit der Atlas-DB fuer genau einen Tag, ohne etwas zu schreiben.
+  const [pruefDatum, setPruefDatum] = useState("2026-09-09");
+  const [pruefend, setPruefend] = useState(false);
+  const [check, setCheck] = useState<CheckState | null>(null);
+  const [wocheLadend, setWocheLadend] = useState(false);
+
+  // Montag derselben Woche aus einem lokalen Datumsstring -- fuer das gezielte
+  // Nachladen der betroffenen Woche per POST /api/sync/untis { start, end }.
+  function montagVon(iso: string): string {
+    const d = new Date(`${iso}T00:00:00`);
+    const abstand = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - abstand);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function sonntagVonMontag(montag: string): string {
+    const d = new Date(`${montag}T00:00:00`);
+    d.setDate(d.getDate() + 6);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  async function runCheck(datum: string) {
+    setPruefend(true);
+    setCheck(null);
+    try {
+      const res = await fetch(`/api/sync/untis/check?date=${datum}`);
+      const data = await res.json();
+      setCheck(
+        data.ok
+          ? {
+              ok: true,
+              date: data.date,
+              untis: data.untis,
+              atlas: data.atlas,
+              fehltInAtlas: data.fehltInAtlas,
+              nurInAtlas: data.nurInAtlas,
+              statusWeichtAb: data.statusWeichtAb,
+              hinweis: data.hinweis ?? null,
+            }
+          : { ok: false, error: data.error ?? "Unbekannter Fehler", kind: "server" },
+      );
+    } catch (e) {
+      setCheck({ ok: false, error: (e as Error).message, kind: "network" });
+    } finally {
+      setPruefend(false);
+    }
+  }
+
+  // Laedt genau die Woche des Pruefdatums neu und prueft danach erneut -- der
+  // kurze Weg, wenn der Vergleich "fehlt in Atlas" meldet: Meist stand die
+  // Woche beim letzten Sync in Untis noch nicht fest.
+  async function runWeekReload() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pruefDatum)) return;
+    const montag = montagVon(pruefDatum);
+    setWocheLadend(true);
+    try {
+      const res = await fetch("/api/sync/untis", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ start: montag, end: sonntagVonMontag(montag) }),
+      });
+      const data = await res.json();
+      setSync(
+        data.ok
+          ? { ok: true, fetched: data.fetched, upserted: data.upserted, window: data.window, hinweis: data.hinweis ?? null }
+          : { ok: false, error: data.error ?? "Unbekannter Fehler", kind: "server" },
+      );
+      if (data.ok) await runCheck(pruefDatum);
+    } catch (e) {
+      setSync({ ok: false, error: (e as Error).message, kind: "network" });
+    } finally {
+      setWocheLadend(false);
+    }
+  }
+
+  function statusWort(status: string): string {
+    if (status === "cancelled") return "Entfall";
+    if (status === "substituted") return "Vertretung";
+    return "Unterricht";
+  }
+
+  function stundenZeile(s: CheckStunde): string {
+    const meta = [s.room, s.teacher].filter(Boolean).join(" · ");
+    return `${s.startTime}–${s.endTime} ${s.subject}${meta ? ` (${meta})` : ""} · ${statusWort(s.status)}`;
   }
 
   return (
@@ -385,6 +495,13 @@ export default function SettingsPage() {
                       <span className="block text-muted-foreground">
                         Zeitraum {fmtDay(sync.window.start)} – {fmtDay(sync.window.end)}
                       </span>
+                      {/* Der Hinweis (z.B. Schuljahr-Beschnitt oder "Untis gibt
+                          den Zeitraum noch nicht frei") erklaert leere Wochen --
+                          vorher wurde er still verworfen und die Luecke sah nach
+                          "frei" aus. */}
+                      {sync.hinweis && (
+                        <span className="mt-1 block text-muted-foreground">Hinweis: {sync.hinweis}</span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -397,6 +514,104 @@ export default function SettingsPage() {
                 </span>
               </motion.div>
             )}
+            {/* Tag-Diagnose: stimmt ein einzelner Tag nicht (z.B. "Mittwoch 5./6.
+                leer, obwohl Untis Unterricht hat"), vergleicht sie Untis-live
+                mit der Atlas-DB fuer genau diesen Tag -- mit Befund statt Raten. */}
+            <div className="mt-5 border-t pt-4">
+              <p className="text-[13px] font-medium">Stimmt ein einzelner Tag nicht?</p>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">
+                Vergleicht Untis mit Atlas für genau diesen Tag, ohne etwas zu ändern.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={pruefDatum}
+                  onChange={(e) => setPruefDatum(e.target.value)}
+                  aria-label="Zu prüfender Tag"
+                  className="h-9 rounded-md border bg-background px-2.5 text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <Button onClick={() => runCheck(pruefDatum)} disabled={pruefend || !/^\d{4}-\d{2}-\d{2}$/.test(pruefDatum)} size="sm" variant="outline">
+                  <CalendarClock className={cn("size-4", pruefend && "animate-spin")} />
+                  Tag prüfen
+                </Button>
+                <Button onClick={runWeekReload} disabled={wocheLadend || pruefend || !/^\d{4}-\d{2}-\d{2}$/.test(pruefDatum)} size="sm" variant="outline">
+                  <RefreshCw className={cn("size-4", wocheLadend && "animate-spin")} />
+                  Diese Woche nachladen
+                </Button>
+              </div>
+
+              {check && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    "mt-3 rounded-lg border px-3.5 py-3 text-[13px] leading-snug tabular-nums",
+                    check.ok
+                      ? "border-border/60 bg-muted/30"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                  )}
+                >
+                  {check.ok ? (
+                    <>
+                      <p>
+                        <span className="font-medium">
+                          Untis: {check.untis.length} Stunden, Atlas: {check.atlas.length} Stunden.
+                        </span>{" "}
+                        {check.fehltInAtlas.length === 0 &&
+                        check.nurInAtlas.length === 0 &&
+                        check.statusWeichtAb.length === 0
+                          ? "Beide stimmen überein."
+                          : "Unterschiede gefunden:"}
+                      </p>
+                      {check.hinweis && <p className="mt-1 text-muted-foreground">Hinweis: {check.hinweis}</p>}
+                      {check.fehltInAtlas.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-medium">Fehlt in Atlas (Lücke im Stundenplan):</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                            {check.fehltInAtlas.map((s, i) => (
+                              <li key={i}>{stundenZeile(s)}</li>
+                            ))}
+                          </ul>
+                          <p className="mt-1 text-muted-foreground">
+                            Meist war die Woche beim letzten Sync in Untis noch nicht freigegeben — „Diese Woche
+                            nachladen“ holt sie jetzt.
+                          </p>
+                        </div>
+                      )}
+                      {check.nurInAtlas.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-medium">Nur in Atlas (veraltet):</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                            {check.nurInAtlas.map((s, i) => (
+                              <li key={i}>{stundenZeile(s)}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {check.statusWeichtAb.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-medium">Gleiche Zeit, anderer Inhalt:</p>
+                          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                            {check.statusWeichtAb.map((p, i) => (
+                              <li key={i}>
+                                Untis: {stundenZeile(p.untis)} — Atlas: {stundenZeile(p.atlas)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">{friendlySyncMessage(check.error, check.kind)}</span>
+                      <span className="mt-1 block break-words font-mono text-xs opacity-70">
+                        Technisches Detail: {check.error}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </Section>
         </StaggerItem>
 

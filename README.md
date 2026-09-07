@@ -130,7 +130,7 @@ app/
   namensschild/page.tsx Namensschild
   settings/page.tsx     Einstellungen, Untis-Sync, Theme, OneNote
   login/page.tsx        Passwort-Anmeldung (siehe Status)
-  api/                  61 Routen (Stand 2026-09-07):
+   api/                  62 Routen (Stand 2026-09-07):
                         login, session, home, colors,
                         calendar, morgen, stunde,
                         assignments (+ [id], [id]/complete),
@@ -152,7 +152,7 @@ app/
                           plan, plan/lesen, plan/bewerten, plan/[id],
                           plan/[id]/verteilen, plan/items/[id],
                           plan/points/[id]),
-                        sync/untis,
+                         sync/untis (+ check: Untis-live gegen DB fuer einen Tag),
                         microsoft (+ login, callback, status, sections),
                         admin/migrate
 components/             UI-Bausteine, alle im selben Stil
