@@ -79,4 +79,32 @@ describe("lagebildAlsText", () => {
     expect(text).toContain("Prüfungen (nächste 30 Tage):\n- keine");
     expect(text).toContain("Zuletzt geänderte Notizen:\n- keine");
   });
+
+  it("markiert Vertretung und Entfall in der Stundenzeile", () => {
+    const lagebild: Lagebild = {
+      heute: heuteLokal(),
+      faecher: [],
+      stundenHeute: [
+        { startTime: "08:00", endTime: "08:45", fach: "Mathematik", raum: "R12", status: "regular" },
+        {
+          startTime: "08:50",
+          endTime: "09:35",
+          fach: "Deutsch",
+          raum: "R3",
+          status: "substituted",
+          lehrer: "Frau Meier",
+          vertretung: "Vertretung durch Frau Meier",
+        },
+        { startTime: "09:50", endTime: "10:35", fach: "Sport", raum: null, status: "cancelled" },
+      ],
+      naechsterSchultag: null,
+      aufgaben: [],
+      pruefungen: [],
+      notizen: [],
+    };
+
+    const text = lagebildAlsText(lagebild);
+    expect(text).toContain("08:50-09:35 Deutsch R3 (Vertretung: Vertretung durch Frau Meier)");
+    expect(text).toContain("09:50-10:35 Sport (entfällt)");
+  });
 });

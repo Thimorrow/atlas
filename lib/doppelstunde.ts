@@ -19,6 +19,7 @@ export type DoppelKandidat = {
   status: string;
   room: string | null;
   teacher: string | null;
+  substitutionText?: string | null;
   hasNote: boolean;
   hasAssignment: boolean;
 };
@@ -57,6 +58,7 @@ function gehoertDazu<T extends DoppelKandidat>(prev: DoppelEinheit<T>, cur: T): 
     cur.title === prev.title &&
     cur.status === prev.status &&
     cur.room === prev.room &&
-    cur.teacher === prev.teacher
+    cur.teacher === prev.teacher &&
+    (cur.substitutionText ?? null) === (prev.substitutionText ?? null)
   );
 }
