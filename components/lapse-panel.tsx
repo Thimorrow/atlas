@@ -3,7 +3,8 @@
 import dynamic from "next/dynamic";
 
 const Lapse = process.env.NODE_ENV === "development"
-  ? dynamic(() => import("@aiforui/lapse").then((mod) => mod.Lapse), { ssr: false })
+  // Optional local tool: production must also typecheck without the package.
+  ? dynamic(() => Promise.resolve(require("@aiforui/lapse").Lapse), { ssr: false })
   : () => null;
 
 export function LapsePanel() {
