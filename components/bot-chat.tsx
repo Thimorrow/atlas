@@ -18,7 +18,7 @@ import {
   saveStoredDraft,
   setChatSnapshot,
 } from "@/lib/bot/chat-session";
-import { cachedGetJSON, invalidateGetCache } from "@/lib/fetch-cache";
+import { cachedGetJSON, invalidateAssignmentsCaches, invalidateGetCache, invalidateMorgenCaches } from "@/lib/fetch-cache";
 import type { MessageDTO } from "@/lib/bot/store";
 import {
   ActionCard,
@@ -513,6 +513,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       try {
         const res = await fetch(url, { method: "DELETE" });
         if (!res.ok) throw new Error("undo failed");
+        if (isAssignment) invalidateAssignmentsCaches();
+        else invalidateMorgenCaches();
         updateTurn(turnId, (t) => ({
           ...t,
           items: t.items.map((i) =>

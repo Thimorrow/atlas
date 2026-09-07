@@ -7,7 +7,7 @@
 // ansteht, sonst morgen bzw. der naechste Schultag) -- die UI hat bewusst
 // keinen Heute/Morgen-Schalter mehr.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -24,6 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AssignmentList } from "@/components/assignment-list";
 import { LernenEinheitZeile, balkenTextFarbe, useOverflowTitle } from "@/components/lernplan-ui";
 import { useToast } from "@/components/toast";
+import { CACHE_TTLS, invalidateLernenCaches } from "@/lib/fetch-cache";
+import { useCachedJSON } from "@/lib/use-cached-json";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { TYPE_LABEL, weekdayDateLabel, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
 import type { ItemDTO } from "@/lib/lernplan-types";
@@ -52,25 +54,21 @@ const TYPE_ICON: Record<AssignmentType, typeof GraduationCap> = {
 
 export function MorgenPanel() {
   const toast = useToast();
-  const [data, setData] = useState<MorgenResponse | null>(null);
-  const [failed, setFailed] = useState(false);
+  // Speicher zuerst: beim Umschalten Woche <-> Fokus steht der letzte Stand
+  // sofort, die frische Runde laeuft leise nach.
+  const { data, error: failed, reload: load } = useCachedJSON<MorgenResponse>(
+    "/api/morgen",
+    CACHE_TTLS.morgen,
+  );
 
-  const load = useCallback(async () => {
-    setFailed(false);
-    try {
-      const res = await fetch("/api/morgen");
-      if (!res.ok) throw new Error("Laden fehlgeschlagen");
-      setData((await res.json()) as MorgenResponse);
-    } catch {
-      setFailed(true);
+  const toasted = useRef(false);
+  useEffect(() => {
+    if (failed && !toasted.current) {
+      toasted.current = true;
       toast("Die Fokus-Ansicht konnte nicht geladen werden.");
     }
-  }, [toast]);
-
-  useEffect(() => {
-    setData(null);
-    void load();
-  }, [load]);
+    if (!failed) toasted.current = false;
+  }, [failed, toast]);
 
   return (
     <Stagger className="mx-auto max-w-2xl space-y-6">
@@ -98,25 +96,27 @@ export function MorgenPanel() {
         </div>
       </StaggerItem>
 
-      {failed ? (
+      {/* Hintergrund-Aktualisierung darf einen gezeigten Stand nie
+          wegnehmen: Fehler gibt es nur, solange noch gar nichts da ist. */}
+      {data === null ? (
         <StaggerItem>
-          <div className="rounded-xl border bg-card px-4 py-6 text-center shadow-card">
-            <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
-            <button
-              type="button"
-              // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
-              // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
-              // (Outline-Button), siehe app/globals.css --border-control.
-              className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
-              onClick={() => void load()}
-            >
-              Erneut versuchen
-            </button>
-          </div>
-        </StaggerItem>
-      ) : data === null ? (
-        <StaggerItem>
-          <PageSkeleton />
+          {failed ? (
+            <div className="rounded-xl border bg-card px-4 py-6 text-center shadow-card">
+              <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
+              <button
+                type="button"
+                // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
+                // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
+                // (Outline-Button), siehe app/globals.css --border-control.
+                className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
+                onClick={() => load()}
+              >
+                Erneut versuchen
+              </button>
+            </div>
+          ) : (
+            <PageSkeleton />
+          )}
         </StaggerItem>
       ) : (
         <Body data={data} />
@@ -299,6 +299,8 @@ function LernenCard({ plan }: { plan: LernenFuerTagEintrag }) {
         body: JSON.stringify({ done: neuErledigt }),
       });
       if (!res.ok) throw new Error();
+      // Lern-Uebersicht zaehlt faellige/bereite Karten aus demselben Stand.
+      invalidateLernenCaches();
     } catch {
       if (toggleVersion.current.get(item.id) !== version) return;
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: item.doneAt } : i)));

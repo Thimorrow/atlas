@@ -6,6 +6,7 @@ import { AlertCircle, Check, Loader2, NotebookPen, Pencil, Plus, Search, Send, T
 import { Button } from "@/components/ui/button";
 import { TOAST_DURATION, useToast } from "@/components/toast";
 import { markdownPreview, renderMarkdown } from "@/lib/markdown";
+import { invalidateMorgenCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 
 // Atlas-Signaturkurve, wie in components/stagger.tsx.
@@ -668,6 +669,8 @@ export function SubjectNotes({
         return;
       }
       upsert(data.note);
+      // Fokus-Ansicht listet Notiztitel unter "Mitzunehmen".
+      invalidateMorgenCaches();
       setEditor(null);
       setSaveError(null);
       setOpenId(data.note.id);
@@ -702,6 +705,7 @@ export function SubjectNotes({
       void (async () => {
         try {
           const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
+          if (res.ok) invalidateMorgenCaches();
           if (!res.ok) {
             const data = (await res.json().catch(() => null)) as { error?: string } | null;
             // Server hat abgelehnt (z. B. schon geloescht) -- die Notiz war

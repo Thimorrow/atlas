@@ -6,7 +6,7 @@
 // Je Tab holt die Seite ihren Stand vom Server -- der Tabwechsel ist nur noch
 // ein Fetch statt einer vollen Seitennavigation.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, Plus, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
@@ -24,6 +24,8 @@ import {
 } from "@/lib/assignments-view";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CACHE_TTLS } from "@/lib/fetch-cache";
+import { useCachedJSON } from "@/lib/use-cached-json";
 
 type Tab = "offen" | "pruefungen";
 type SubjectOption = { id: string; name: string; color: string | null };
@@ -39,12 +41,10 @@ export default function AssignmentsPage() {
   const toast = useToast();
   const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
-  const [loading, setLoading] = useState(true);
   // Getrennt vom Toast: der Toast verschwindet nach ein paar Sekunden von
   // selbst, aber solange gar keine Daten da sind, braucht die Seite einen
   // Zustand, der bleibt -- sonst sieht ein Fehlschlag genauso aus wie "keine
   // offenen Aufgaben" und die Erklaerung dazu ist laengst weg.
-  const [loadError, setLoadError] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -62,32 +62,40 @@ export default function AssignmentsPage() {
   // Offen ohne, Erledigte und Pruefungen mit ?completed=1 -- wie frueher je
   // Ansicht vom Server, damit Loeschen und Abhaken keine Geister in der
   // jeweils anderen Sicht hinterlassen. Der Tabwechsel ist nur noch ein
-  // Fetch statt einer vollen Seitennavigation.
+  // Fetch statt einer vollen Seitennavigation; beim Zurueckwechseln steht
+  // der gespeicherte Stand sofort, die frische Runde laeuft nach.
+  const query = tab === "pruefungen" || showCompleted ? "?completed=1" : "";
+  const {
+    data: assignmentsData,
+    loading: assignmentsLoading,
+    error: assignmentsError,
+  } = useCachedJSON<{ assignments?: AssignmentDTO[] }>(`/api/assignments${query}`, CACHE_TTLS.assignments, {
+    refreshKey: reloadKey,
+  });
+  const { data: subjectsData, loading: subjectsLoading } = useCachedJSON<{ subjects?: SubjectOption[] }>(
+    "/api/subjects",
+    CACHE_TTLS.subjects,
+    { refreshKey: reloadKey },
+  );
+
   useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setLoadError(false);
-    const query = tab === "pruefungen" || showCompleted ? "?completed=1" : "";
-    Promise.all([
-      fetch(`/api/assignments${query}`).then((r) => r.json()),
-      fetch("/api/subjects").then((r) => r.json()),
-    ])
-      .then(([a, s]) => {
-        if (!alive) return;
-        setAssignments((a.assignments ?? []) as AssignmentDTO[]);
-        setSubjects((s.subjects ?? []) as SubjectOption[]);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setLoading(false);
-        setLoadError(true);
-        toast("Die Aufgaben konnten nicht geladen werden.");
-      });
-    return () => {
-      alive = false;
-    };
-  }, [toast, reloadKey, tab, showCompleted]);
+    if (assignmentsData) setAssignments((assignmentsData.assignments ?? []) as AssignmentDTO[]);
+  }, [assignmentsData]);
+  useEffect(() => {
+    if (subjectsData) setSubjects((subjectsData.subjects ?? []) as SubjectOption[]);
+  }, [subjectsData]);
+
+  const loading = (assignmentsLoading && assignments.length === 0) || (subjectsLoading && subjects.length === 0);
+  const loadError = assignmentsError && assignments.length === 0;
+
+  const toasted = useRef(false);
+  useEffect(() => {
+    if (loadError && !toasted.current) {
+      toasted.current = true;
+      toast("Die Aufgaben konnten nicht geladen werden.");
+    }
+    if (!loadError) toasted.current = false;
+  }, [loadError, toast]);
 
   const onCreated = useCallback((a: AssignmentDTO) => {
     setAssignments((prev) => [...prev, a]);

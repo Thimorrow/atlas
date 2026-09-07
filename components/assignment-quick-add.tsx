@@ -7,6 +7,7 @@ import { AssignmentComposer } from "@/components/assignment-composer";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
 import { addDays, endOfWeek, localISO, type AssignmentDTO } from "@/lib/assignments-view";
+import { invalidateAssignmentsCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 
 type SubjectOption = { id: string; name: string; color: string | null };
@@ -118,6 +119,7 @@ export function AssignmentQuickAdd({
       });
       if (!res.ok) throw new Error("create failed");
       const data = (await res.json()) as { assignment: AssignmentDTO };
+      invalidateAssignmentsCaches();
       onCreated(data.assignment);
       setTitle("");
       setDueDate(defaultDueDate ?? "");

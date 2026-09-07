@@ -4,12 +4,14 @@
 // Pruefungen bevorstehen (mit Bereitschaft je Thema), und alle Faecher.
 // Reine Anzeige -- alles kommt aus GET /api/lernen.
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/toast";
+import { CACHE_TTLS } from "@/lib/fetch-cache";
+import { useCachedJSON } from "@/lib/use-cached-json";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 import type { HeuteItem, OverviewResponse, PlanDTO, PruefungOverview, SubjectOverview } from "@/lib/lernen-types";
@@ -38,24 +40,19 @@ function grundText(item: HeuteItem): string {
 
 export function LernenUebersicht() {
   const toast = useToast();
-  const [data, setData] = useState<OverviewResponse | null>(null);
-  const [failed, setFailed] = useState(false);
+  const { data, error: failed, reload: load } = useCachedJSON<OverviewResponse>(
+    "/api/lernen",
+    CACHE_TTLS.lernen,
+  );
 
-  const load = useCallback(async () => {
-    setFailed(false);
-    try {
-      const res = await fetch("/api/lernen");
-      if (!res.ok) throw new Error("Laden fehlgeschlagen");
-      setData((await res.json()) as OverviewResponse);
-    } catch {
-      setFailed(true);
+  const toasted = useRef(false);
+  useEffect(() => {
+    if (failed && !toasted.current) {
+      toasted.current = true;
       toast("Der Lernbereich konnte nicht geladen werden.");
     }
-  }, [toast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    if (!failed) toasted.current = false;
+  }, [failed, toast]);
 
   if (failed && data === null) {
     return (
@@ -65,7 +62,7 @@ export function LernenUebersicht() {
           <button
             type="button"
             className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
-            onClick={() => void load()}
+            onClick={() => load()}
           >
             Erneut versuchen
           </button>

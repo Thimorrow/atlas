@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cachedJson } from "@/lib/http-cache";
 import {
   createAssignment,
   listAssignments,
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
     isExam(a.type) ? { ...a, lernplan: lernplaene.get(a.id) ?? null } : a,
   );
 
-  return NextResponse.json({ assignments: mitLernplan });
+  return cachedJson({ assignments: mitLernplan }, 60);
 }
 
 // POST /api/assignments -- { title, type?, subjectId?, untisSubject?, dueDate?, notes? }

@@ -1,11 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_NAME, gateEnabled, verifyToken } from "@/lib/gate";
+import { asciiPfad } from "@/lib/pfad-ascii";
 
 // Next 16: die Datei heisst proxy.ts und exportiert `proxy`. `middleware.ts`
 // ist in dieser Version deprecated (siehe node_modules/next/dist/docs ->
 // 01-app/03-api-reference/03-file-conventions/middleware.md).
 
 export async function proxy(request: NextRequest) {
+  // Zuerst die Schreibweise des Pfades: /faecher ist die Route, /fächer nur
+  // die deutsche Form davon. Sie hier abzufangen ist billiger als eine 404 --
+  // und muss vor der Sperre stehen, damit die Weiterleitung nach dem Anmelden
+  // schon auf den richtigen Pfad zeigt.
+  const ascii = asciiPfad(request.nextUrl.pathname);
+  if (ascii) {
+    const ziel = request.nextUrl.clone();
+    ziel.pathname = ascii;
+    return NextResponse.redirect(ziel, 308);
+  }
+
   const password = process.env.ATLAS_PASSWORD;
 
   // Kein Passwort gesetzt -> offen. Trifft die lokale Entwicklung.

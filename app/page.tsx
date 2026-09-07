@@ -30,6 +30,8 @@ import {
 import { colorValue } from "@/lib/subject-colors";
 import { cn } from "@/lib/utils";
 import { readLocal, writeLocal } from "@/lib/safe-storage";
+import { CACHE_TTLS } from "@/lib/fetch-cache";
+import { useCachedJSON } from "@/lib/use-cached-json";
 
 // --- Typen (Form der /api/calendar-Antwort) ---------------------------------
 
@@ -385,9 +387,6 @@ export default function Home() {
   const reduce = useReducedMotion();
   const [anchor, setAnchor] = useState(() => localISO(new Date()));
   const [mode, setMode] = useState<"week" | "fokus">("week");
-  const [data, setData] = useState<RangeData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [now, setNow] = useState<{ date: string; min: number } | null>(null);
   // Beim allerersten Load warten die Termine auf den Section-Auftritt der Card
   // (groessere Basis-Verzoegerung). Danach (Wochenwechsel) cascaden sie sofort.
@@ -420,8 +419,6 @@ export default function Home() {
   // Beides ist rein additiv -- schlaegt der Request fehl, bleiben die Listen
   // leer und der Stundenplan laeuft unveraendert weiter.
   const toast = useToast();
-  const [assignments, setAssignments] = useState<AssignmentDTO[]>([]);
-  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
   const [seed, setSeed] = useState<ComposerSeed | null>(null);
   const [examSeed, setExamSeed] = useState<ExamSeed | null>(null);
   const [noteTarget, setNoteTarget] = useState<LessonNoteTarget | null>(null);
@@ -536,38 +533,33 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setError(false);
-    fetch(`/api/calendar?view=week&date=${anchor}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((d: RangeData) => alive && (setData(d), setLoading(false)))
-      .catch(() => alive && (setError(true), setLoading(false)));
-    return () => {
-      alive = false;
-    };
-  }, [anchor, reloadKey]);
+  // Kalender, Aufgaben-Spur und Faechersliste ueber den Speicher-Cache:
+  // beim Wiederbetreten steht der letzte Stand sofort, die frische Runde
+  // laeuft leise nach. reloadKey (nach Untis-Sync) zieht still nach, ohne
+  // Spinner -- data bleibt bis zur Antwort stehen (keepPreviousData).
+  const {
+    data,
+    loading,
+    error,
+    reload: reloadCalendar,
+    patch: patchData,
+  } = useCachedJSON<RangeData>(`/api/calendar?view=week&date=${anchor}`, CACHE_TTLS.calendar, {
+    refreshKey: reloadKey,
+    keepPreviousData: true,
+  });
 
-  // Aufgaben + Fächer nachladen. Bewusst OHNE loading/error-Zustand: die Spur
-  // ist Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/assignments")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { assignments?: AssignmentDTO[] }) => alive && setAssignments(d.assignments ?? []))
-      .catch(() => {});
-    fetch("/api/subjects")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d: { subjects?: SubjectOption[] }) => alive && setSubjects(d.subjects ?? []))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [reloadKey]);
+  // Aufgaben + Fächer. Bewusst OHNE loading/error-Zustand: die Spur ist
+  // Beiwerk, ein Fehler darf den Stundenplan nicht anfassen.
+  const { data: assignmentsData, patch: patchAssignments } = useCachedJSON<{
+    assignments?: AssignmentDTO[];
+  }>("/api/assignments", CACHE_TTLS.assignments, { refreshKey: reloadKey });
+  const { data: subjectsData } = useCachedJSON<{ subjects?: SubjectOption[] }>(
+    "/api/subjects",
+    CACHE_TTLS.subjects,
+    { refreshKey: reloadKey },
+  );
+  const assignments = assignmentsData?.assignments ?? [];
+  const subjects = subjectsData?.subjects ?? [];
 
   // Nach dem ersten Datensatz die Basis-Verzoegerung der Termine abschalten.
   useEffect(() => {
@@ -664,7 +656,7 @@ export default function Home() {
   // Marker im Raster ohne Reload aktualisieren -- refId ist die school_block-id
   // und kommt an jedem Tag hoechstens einmal vor.
   const onNoteSaved = (schoolBlockId: string, hasNote: boolean) => {
-    setData((prev) =>
+    patchData((prev) =>
       prev
         ? {
             ...prev,
@@ -692,7 +684,7 @@ export default function Home() {
   // Marker im Raster ohne Reload aktualisieren, wie onNoteSaved -- count null
   // bedeutet "nicht erfasst" (nach DELETE).
   const onCountSaved = (schoolBlockId: string, count: number | null) => {
-    setData((prev) =>
+    patchData((prev) =>
       prev
         ? {
             ...prev,
@@ -960,7 +952,7 @@ export default function Home() {
         {mode === "fokus" ? (
           <MorgenPanel />
         ) : error && !data ? (
-          <ErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+          <ErrorState onRetry={() => reloadCalendar()} />
         ) : loading && !data ? (
           <WeekSkeleton />
         ) : !data ? (
@@ -1290,7 +1282,9 @@ export default function Home() {
             : `Die nächste ${seed.subjectName}-Stunde ist nicht bekannt.`)
         }
         onSaved={(a) => {
-          setAssignments((prev) => [...prev, a]);
+          patchAssignments((prev) => ({
+            assignments: [...(prev?.assignments ?? []), a],
+          }));
           if (seed) {
             // Sichtbares Ergebnis: sagen, WOFUER die Aufgabe faellig ist --
             // und den Stundenplan leise nachziehen, damit die Stunde ab jetzt
@@ -1320,7 +1314,9 @@ export default function Home() {
         initialDueDate={examSeed?.dueDate}
         initialUntisSubject={examSeed?.untisSubject}
         onSaved={(a) => {
-          setAssignments((prev) => [...prev, a]);
+          patchAssignments((prev) => ({
+            assignments: [...(prev?.assignments ?? []), a],
+          }));
           if (examSeed) {
             const subjectName = a.subjectName ?? examSeed.subjectName;
             const meldung = a.dueDate

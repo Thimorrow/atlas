@@ -28,6 +28,7 @@ import {
   type AssignmentDTO,
   type AssignmentType,
 } from "@/lib/assignments-view";
+import { invalidateAssignmentsCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -231,6 +232,8 @@ export function ExamComposer({
       });
       if (!res.ok) throw new Error("save failed");
       const data = (await res.json()) as { assignment: AssignmentDTO };
+      // Wie im AssignmentComposer: gecachte Ansichten vergessen.
+      invalidateAssignmentsCaches();
       onSaved(data.assignment);
       close();
     } catch {

@@ -19,8 +19,11 @@ const ENDUNGEN = [".ts", ".tsx"];
 
 function dateien(pfad: string): string[] {
   if (pfad.includes("node_modules")) return [];
-  // Die eigene Datei nennt die verbotenen Muster im Kommentar.
+  // Die eigene Datei nennt die verbotenen Muster im Kommentar. pfad-ascii
+  // nennt sie ebenfalls, dort ist der Umlaut-Pfad die Eingabe, die auf die
+  // ASCII-Route umgeleitet wird -- kein Link, der irgendwo hinzeigt.
   if (pfad.endsWith("query-parameter-ascii.test.ts")) return [];
+  if (pfad.endsWith("pfad-ascii.test.ts")) return [];
   const eintrag = statSync(pfad);
   if (!eintrag.isDirectory()) return ENDUNGEN.some((e) => pfad.endsWith(e)) ? [pfad] : [];
   return readdirSync(pfad).flatMap((name) => dateien(join(pfad, name)));

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { ladeDateiInFachHoch } from "@/lib/datei-upload";
+import { invalidateMorgenCaches } from "@/lib/fetch-cache";
 import type { FileDTO } from "@/lib/subject-file-store";
 import { ACCEPT_ATTR, ACCEPTED_TYPES, MAX_FILES_PER_UPLOAD, MAX_FILE_SIZE } from "@/lib/file-limits";
 
@@ -111,6 +112,8 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
         const datei = await ladeDateiInFachHoch(subjectId, file);
         // Die Datei erscheint sofort in der Liste, der Warteschlangen-Eintrag
         // verschwindet im selben Zug -- kein sichtbarer "fertig"-Zwischenstand.
+        // Fokus-Ansicht listet Dateien unter "Mitzunehmen".
+        invalidateMorgenCaches();
         setFiles((prev) => [datei, ...prev]);
         setBatchDone((d) => d + 1);
         pendingFilesRef.current.delete(key);
@@ -207,6 +210,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
     try {
       const res = await fetch(`/api/files/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("delete failed");
+      invalidateMorgenCaches();
       setFiles((prev) => prev.filter((f) => f.id !== id));
       setPending(null);
     } catch {

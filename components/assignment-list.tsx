@@ -24,6 +24,7 @@ import {
   overdueLabel,
   recentlyCompleted,
 } from "@/lib/assignments-view";
+import { invalidateAssignmentsCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -101,6 +102,9 @@ export function AssignmentList({
         if (data?.assignment) {
           onChange(optimistic.map((x) => (x.id === a.id ? data.assignment! : x)));
         }
+        // Erledigt-Status kippt zwischen den ?completed=1-Sichten und dem
+        // Fokus: gecachte Listen anderswo duerfen das nicht behalten.
+        invalidateAssignmentsCaches();
       } catch {
         onChange(before);
         toast(
@@ -159,6 +163,7 @@ export function AssignmentList({
         try {
           const res = await fetch(`/api/assignments/${a.id}`, { method: "DELETE" });
           if (!res.ok) throw new Error("delete failed");
+          invalidateAssignmentsCaches();
         } catch {
           // Die Zeile ist schon lange aus der Liste raus -- best-effort
           // zurueckhaengen, ohne zwischenzeitliche Aenderungen zu verwerfen.

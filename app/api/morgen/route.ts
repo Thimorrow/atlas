@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cachedJson } from "@/lib/http-cache";
 import { expandDay, expandRange, isRealDate } from "@/lib/calendar-expand";
 import { listAssignments } from "@/lib/assignment-store";
 import { listSubjects, listNotes, type SubjectDTO } from "@/lib/subject-store";
@@ -163,16 +164,21 @@ export async function GET(req: Request) {
 
   const lernen: LernenFuerTagEintrag[] = await lernenFuerTag(target.date);
 
-  return NextResponse.json({
-    today,
-    target: { date: target.date, isTomorrow: target.isTomorrow, label: targetDayLabel(target, today) },
-    live,
-    day: day ? { date: day.date, weekday: day.weekday, events } : null,
-    due,
-    exams,
-    materials,
-    lernen,
-  });
+  // Kurz halten: die Live-Stunde ("laeuft gerade") altert im Minutentakt.
+  // 30 Sekunden frisch reicht, der Client-Cache zeigt den Stand ohnehin sofort.
+  return cachedJson(
+    {
+      today,
+      target: { date: target.date, isTomorrow: target.isTomorrow, label: targetDayLabel(target, today) },
+      live,
+      day: day ? { date: day.date, weekday: day.weekday, events } : null,
+      due,
+      exams,
+      materials,
+      lernen,
+    },
+    30,
+  );
 }
 
 function addDaysISO(iso: string, n: number): string {
