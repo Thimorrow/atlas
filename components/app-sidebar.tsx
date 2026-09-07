@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   Brain,
   CalendarDays,
+  IdCard,
   ListChecks,
   Radio,
   Library,
@@ -27,7 +28,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { writeCookie } from "@/lib/safe-storage";
+import { readLocal, writeCookie, writeLocal } from "@/lib/safe-storage";
 
 type Mod = { label: string; icon: typeof CalendarDays; href: string };
 
@@ -38,6 +39,7 @@ const MODULES: Mod[] = [
   { label: "Stunde", icon: Radio, href: "/stunde" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
   { label: "Fächer", icon: Library, href: "/faecher" },
+  { label: "Namensschild", icon: IdCard, href: "/namensschild" },
   { label: "Lernen", icon: Brain, href: "/lernen" },
 ];
 
@@ -45,6 +47,22 @@ const EXPANDED = 248;
 const COLLAPSED = 56;
 const MIN_W = 180;
 const MAX_W = 420;
+
+// Schalter aus den Einstellungen: "atlas:namensschild-an" ist "0", wenn das
+// Namensschild ausgeblendet sein soll, sonst (auch ohne Eintrag) sichtbar.
+// "atlas:modules" meldet einen Wechsel in der gleichen Seite, "storage" aus
+// einem anderen Tab.
+const NAMENSSCHILD_KEY = "atlas:namensschild-an";
+const MODULES_EVENT = "atlas:modules";
+
+export function namensschildSichtbar() {
+  return readLocal(NAMENSSCHILD_KEY) !== "0";
+}
+
+export function setNamensschildSichtbar(an: boolean) {
+  writeLocal(NAMENSSCHILD_KEY, an ? "1" : "0");
+  window.dispatchEvent(new CustomEvent(MODULES_EVENT));
+}
 
 const clampW = (w: number) => Math.min(MAX_W, Math.max(MIN_W, Math.round(w)));
 
@@ -61,6 +79,19 @@ export function AppSidebar({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [width, setWidth] = useState(clampW(defaultWidth));
   const [resizing, setResizing] = useState(false);
+  // Namensschild-Schalter aus den Einstellungen. Default an, der Effekt liest
+  // den gemerkten Wert nach dem Mount (SSR kennt kein localStorage).
+  const [namensschildAn, setNamensschildAn] = useState(true);
+  useEffect(() => {
+    const sync = () => setNamensschildAn(namensschildSichtbar());
+    sync();
+    window.addEventListener(MODULES_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(MODULES_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
   const pathname = usePathname();
   const logoSpin = useAnimationControls();
 
@@ -243,7 +274,7 @@ export function AppSidebar({
           <div className={cn("mx-2 pl-10 pr-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
             Module
           </div>
-          {MODULES.map((m) => {
+          {MODULES.filter((m) => m.href !== "/namensschild" || namensschildAn).map((m) => {
             const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
             return (
               <Link
