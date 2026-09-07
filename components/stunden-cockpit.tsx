@@ -343,13 +343,13 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           </details>
         )}
         <div className="rounded-xl border bg-card px-4 pt-1 pb-2 shadow-card">
-          <LessonNoteField schoolBlockId={sel.refId} onSaved={() => {}} placeholder="Was kam dran?" />
+          <LessonNoteField schoolBlockId={sel.notizBlockId} onSaved={() => {}} placeholder="Was kam dran?" />
         </div>
       </Abschnitt>
 
       <Abschnitt titel="Meldung">
         <div className="rounded-xl border bg-card px-4 pb-2 shadow-card">
-          <ParticipationCounter schoolBlockId={sel.refId} onSaved={() => {}} />
+          <ParticipationCounter schoolBlockId={sel.meldungBlockId} onSaved={() => {}} />
         </div>
       </Abschnitt>
 

@@ -6,6 +6,7 @@ import { listFiles, type FileDTO } from "@/lib/subject-file-store";
 import { dueUntilTarget, examsOnTarget, pickFocusDay, targetDayLabel } from "@/lib/morgen-view";
 import { addDays } from "@/lib/assignments-view";
 import { lokalesDatum as heuteLokal, lokaleUhrzeit as jetztLokal, minutesLeft, pickLiveLesson } from "@/lib/jetzt-stunde";
+import { fasseDoppelstundenZusammen } from "@/lib/doppelstunde";
 import { lernenFuerTag, type LernenFuerTagEintrag } from "@/lib/lernplan-store";
 
 export const runtime = "nodejs";
@@ -38,6 +39,9 @@ export type MaterialDTO = {
 // die Seite braucht subjectId, um von der Stunde ins Fach zu verlinken.
 export type MorgenLessonDTO = {
   refId: string;
+  // Wie im Cockpit (lib/stunde-kontext.ts): refId ist der erste Block,
+  // refIds alle enthaltenen -- eine Doppelstunde zaehlt als eine Stunde.
+  refIds: string[];
   startTime: string;
   endTime: string | null;
   title: string;
@@ -100,22 +104,27 @@ export async function GET(req: Request) {
   const exams = examsOnTarget(assignments, target.date);
 
   // Stunden mit aufgeloestem Fach, fuer den Link von der Stunde ins Fach.
-  const events: MorgenLessonDTO[] = (day?.events ?? []).map((ev) => {
-    const s = subjectFor(subjects, ev.title);
-    return {
-      refId: ev.refId,
-      startTime: ev.startTime,
-      endTime: ev.endTime,
-      title: ev.title,
-      status: ev.status,
-      room: ev.room,
-      teacher: ev.teacher,
-      hasNote: ev.hasNote,
-      hasAssignment: ev.hasAssignment,
-      subjectId: s?.id ?? null,
-      subjectColor: s?.color ?? null,
-    };
-  });
+  // Doppelstunden (zwei lueckenlose Bloecke desselben Fachs) zaehlen als
+  // eine -- sonst meldet die Live-Karte zur Naht eine neue Stunde.
+  const events: MorgenLessonDTO[] = fasseDoppelstundenZusammen(
+    (day?.events ?? []).map((ev) => {
+      const s = subjectFor(subjects, ev.title);
+      return {
+        refId: ev.refId,
+        refIds: [ev.refId],
+        startTime: ev.startTime,
+        endTime: ev.endTime,
+        title: ev.title,
+        status: ev.status,
+        room: ev.room,
+        teacher: ev.teacher,
+        hasNote: ev.hasNote,
+        hasAssignment: ev.hasAssignment,
+        subjectId: s?.id ?? null,
+        subjectColor: s?.color ?? null,
+      };
+    }),
+  );
 
   // Faecher des Tages, ohne Duplikate (Doppelstunden desselben Fachs zaehlen
   // einmal). Nur Faecher mit Treffer -- Atlas kennt keine Untis-Kuerzel ohne
