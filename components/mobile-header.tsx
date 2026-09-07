@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brain, ListChecks, Library, Radio, Settings } from "lucide-react";
+import { Brain, IdCard, ListChecks, Library, Radio, Settings } from "lucide-react";
 import { AtlasLogo } from "@/components/atlas-logo";
+import { namensschildSichtbar } from "@/components/app-sidebar";
 import { cn } from "@/lib/utils";
 
 // Schlanke Kopfleiste fuer Mobile (< md) -- die Sidebar ist dort ausgeblendet,
@@ -11,6 +13,18 @@ import { cn } from "@/lib/utils";
 export function MobileHeader() {
   const pathname = usePathname();
   const onSettings = pathname.startsWith("/settings");
+  // Gleicher Schalter wie in der Sidebar: ohne Namensschild kein Icon dafuer.
+  const [namensschildAn, setNamensschildAn] = useState(true);
+  useEffect(() => {
+    const sync = () => setNamensschildAn(namensschildSichtbar());
+    sync();
+    window.addEventListener("atlas:modules", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("atlas:modules", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   const tap =
     "flex size-11 items-center justify-center rounded-md transition-colors [touch-action:manipulation] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -36,6 +50,7 @@ export function MobileHeader() {
         { href: "/stunde", label: "Stunde", icon: Radio },
         { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
         { href: "/faecher", label: "Fächer", icon: Library },
+        ...(namensschildAn ? [{ href: "/namensschild", label: "Namensschild", icon: IdCard }] : []),
         { href: "/lernen", label: "Lernen", icon: Brain },
       ].map((m) => {
         const active = pathname.startsWith(m.href);

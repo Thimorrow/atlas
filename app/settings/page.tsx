@@ -12,6 +12,8 @@ import {
   LogOut,
   User,
   Palette,
+  PanelLeft,
+  IdCard,
   CalendarClock,
   NotebookPen,
   RefreshCw,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { MicrosoftConnection } from "@/components/microsoft-connection";
+import { namensschildSichtbar, setNamensschildSichtbar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +105,10 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sync, setSync] = useState<SyncState | null>(null);
+  // Namensschild-Schalter: Default an, der gemerkte Wert kommt nach dem Mount
+  // (SSR kennt kein localStorage). Der Wechsel landet per Custom-Event sofort
+  // in Sidebar und Mobile-Header.
+  const [namensschildAn, setNamensschildAn] = useState(true);
   // A3 (Reduced-Motion): globale <MotionConfig reducedMotion="user"> kappt nur
   // transform -- die opacity+y-Animation der Sync-Meldung braucht ein eigenes Gate.
   const reduce = useReducedMotion();
@@ -111,6 +118,15 @@ export default function SettingsPage() {
   const themeRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setNamensschildAn(namensschildSichtbar());
+  }, []);
+
+  function toggleNamensschild() {
+    const next = !namensschildAn;
+    setNamensschildAn(next);
+    setNamensschildSichtbar(next);
+  }
 
   function onThemeKeyDown(e: React.KeyboardEvent, idx: number) {
     let next = idx;
@@ -263,6 +279,47 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+          </Section>
+        </StaggerItem>
+
+        {/* Module -- welche Seiten in der Navigation auftauchen */}
+        <StaggerItem>
+          <Section
+            icon={PanelLeft}
+            title="Module"
+            desc="Welche Seiten links in der Navigation stehen."
+          >
+            <button
+              type="button"
+              role="switch"
+              aria-checked={namensschildAn}
+              onClick={toggleNamensschild}
+              className="relative flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors [touch-action:manipulation] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground">
+                <IdCard className="size-[18px]" />
+              </span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block text-[14px] font-medium">Namensschild</span>
+                <span className="block truncate text-[13px] text-muted-foreground">
+                  Dein Name groß für die Klasse.
+                </span>
+              </span>
+              <span
+                aria-hidden
+                className={cn(
+                  "flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-150 ease-[var(--ease-atlas)]",
+                  namensschildAn ? "bg-primary" : "bg-border",
+                )}
+              >
+                <span
+                  className={cn(
+                    "size-3 rounded-full bg-background transition-transform duration-150 ease-[var(--ease-atlas)]",
+                    namensschildAn && "translate-x-3",
+                  )}
+                />
+              </span>
+            </button>
           </Section>
         </StaggerItem>
 
