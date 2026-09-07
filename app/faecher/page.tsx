@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { Button } from "@/components/ui/button";
@@ -12,52 +12,46 @@ import type { GradeOverviewDTO } from "@/lib/grade-store";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CACHE_TTLS, invalidateSubjectsCaches } from "@/lib/fetch-cache";
+import { useCachedJSON } from "@/lib/use-cached-json";
 
 export default function SubjectsPage() {
-  const [subjects, setSubjects] = useState<SubjectDTO[] | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const toast = useToast();
+
+  // Drei Runden parallel; beim Wiederbetreten steht der gespeicherte Stand
+  // sofort, die frische Runde laeuft nach.
+  const listUrl = showArchived ? "/api/subjects?archived=1" : "/api/subjects";
+  const { data: listData, error: listError } = useCachedJSON<{ subjects: SubjectDTO[] }>(
+    listUrl,
+    CACHE_TTLS.subjects,
+    { refreshKey: reloadKey },
+  );
   // "Entschieden" haengt allein daran, ob subjects Zeilen hat (aktive ODER
   // archivierte) -- nicht an einem Client-Flag. Deshalb laedt die Seite immer
   // mit ?all=1 vor und filtert erst danach. Ein Reload nach dem Bestaetigen
   // zeigt so nie wieder die Auswahl.
-  const [hasAny, setHasAny] = useState<boolean | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
-  const toast = useToast();
+  const { data: allData } = useCachedJSON<{ subjects: SubjectDTO[] }>(
+    "/api/subjects?all=1",
+    CACHE_TTLS.subjects,
+    { refreshKey: reloadKey },
+  );
   // Die Noten-Uebersicht liegt bewusst auf DIESER Seite statt auf einer eigenen:
   // "Fach" und "Schnitt des Fachs" sind dieselbe Liste, und ein Schueler, der
   // am Handy nach seinem Schnitt sieht, soll dafuer nicht erst navigieren.
-  const [gradeOverview, setGradeOverview] = useState<GradeOverviewDTO | null>(null);
+  // Die Noten duerfen die Faecherliste nicht mitreissen: faellt nur diese
+  // Runde aus, fehlen die Schnitte, die Seite steht trotzdem.
+  const { data: gradeOverview } = useCachedJSON<GradeOverviewDTO>("/api/grades", CACHE_TTLS.grades, {
+    refreshKey: reloadKey,
+  });
 
-  const load = useCallback(
-    async (archived: boolean) => {
-      setFailed(false);
-      try {
-        const [listRes, allRes, gradesRes] = await Promise.all([
-          fetch(archived ? "/api/subjects?archived=1" : "/api/subjects"),
-          fetch("/api/subjects?all=1"),
-          fetch("/api/grades"),
-        ]);
-        if (!listRes.ok || !allRes.ok) throw new Error("Laden fehlgeschlagen");
-        const list = (await listRes.json()) as { subjects: SubjectDTO[] };
-        const all = (await allRes.json()) as { subjects: SubjectDTO[] };
-        setHasAny(all.subjects.length > 0);
-        setSubjects(list.subjects);
-        // Die Noten duerfen die Faecherliste nicht mitreissen: faellt nur diese
-        // Runde aus, fehlen die Schnitte, die Seite steht trotzdem.
-        setGradeOverview(gradesRes.ok ? ((await gradesRes.json()) as GradeOverviewDTO) : null);
-      } catch {
-        setFailed(true);
-        setSubjects(null);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    void load(showArchived);
-  }, [load, showArchived]);
+  const subjects = listData?.subjects ?? null;
+  const hasAny = allData ? allData.subjects.length > 0 : null;
+  const failed = listError && subjects === null;
+  const refresh = () => setReloadKey((k) => k + 1);
 
   // Derselbe Abgleich laeuft nach jedem Untis-Sync automatisch mit. Der Knopf
   // ist fuer den Moment, in dem man ihn JETZT will -- neuer Kurs im Halbjahr,
@@ -75,7 +69,8 @@ export default function SubjectsPage() {
         deleted: number;
         skipped: boolean;
       };
-      await load(showArchived);
+      invalidateSubjectsCaches();
+      refresh();
       toast(reconcileMeldung(json));
     } catch {
       toast("Der Abgleich hat nicht geklappt. Versuch es später erneut.");
@@ -91,7 +86,7 @@ export default function SubjectsPage() {
           title="Die Fächer konnten nicht geladen werden"
           text="Prüf deine Verbindung und versuch es noch einmal."
         >
-          <Button variant="outline" onClick={() => void load(showArchived)}>
+          <Button variant="outline" onClick={() => refresh()}>
             Erneut versuchen
           </Button>
         </EmptyPanel>
@@ -108,7 +103,7 @@ export default function SubjectsPage() {
         <SubjectSetup
           onDone={() => {
             setShowArchived(false);
-            void load(false);
+            refresh();
           }}
         />
       );
@@ -202,7 +197,8 @@ export default function SubjectsPage() {
         onOpenChange={setCreating}
         onCreated={() => {
           setShowArchived(false);
-          void load(false);
+          invalidateSubjectsCaches();
+          refresh();
         }}
       />
     </main>

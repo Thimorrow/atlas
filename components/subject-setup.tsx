@@ -12,6 +12,7 @@ import { CalendarClock, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SubjectDTO } from "@/components/subject-card";
 import { SUBJECT_COLORS, colorValue } from "@/lib/subject-colors";
+import { invalidateSubjectsCaches } from "@/lib/fetch-cache";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 
@@ -223,6 +224,7 @@ export function NewSubjectDialog({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Anlegen fehlgeschlagen");
+      invalidateSubjectsCaches();
       onCreated(data.subject as SubjectDTO);
       onOpenChange(false);
     } catch (e) {
@@ -329,6 +331,7 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
+      invalidateSubjectsCaches();
       onDone(json.subjects as SubjectDTO[]);
     } catch (e) {
       toast((e as Error).message || "Die Auswahl konnte nicht gespeichert werden.");

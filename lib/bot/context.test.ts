@@ -82,6 +82,7 @@ describe("buildGreeting", () => {
         status: "regular",
         room: "R204",
         teacher: "Frau Muster",
+        substitutionText: null,
         subjectId: "s1",
         subjectColor: "blue",
         subjectName: "Mathe",
@@ -160,6 +161,45 @@ describe("buildGreeting", () => {
     const greeting = await buildGreeting();
     expect(greeting.text).toContain("Matheklausur");
     expect(greeting.suggestions[0]).toBe("Hilf mir, für Mathe zu lernen");
+  });
+
+  it("nennt Vertretung und Entfall am nächsten Schultag von sich aus", async () => {
+    const morgen = heuteLokal(1);
+    expandRange.mockResolvedValue({
+      days: [
+        { date: heuteLokal(0), events: [] },
+        {
+          date: morgen,
+          events: [
+            { title: "Biologie", startTime: "08:00", status: "regular" },
+            { title: "Informatik", startTime: "09:00", status: "substituted" },
+            { title: "Mathe", startTime: "10:00", status: "cancelled" },
+          ],
+        },
+        ...Array.from({ length: 6 }, (_, i) => ({ date: heuteLokal(i + 2), events: [] })),
+      ],
+    });
+    listAssignments.mockResolvedValue([]);
+
+    const greeting = await buildGreeting();
+    expect(greeting.text).toContain("Informatik");
+    expect(greeting.text).toContain("Vertretung");
+    expect(greeting.text).toContain("Mathe");
+    expect(greeting.text).toContain("entfällt");
+  });
+
+  it("live-Modus: nennt die Vertretung mit Untis-Text", async () => {
+    listAssignments.mockResolvedValue([]);
+    const jetzt = fixtureJetzt({
+      selected: {
+        ...fixtureJetzt().selected!,
+        status: "substituted",
+        substitutionText: "Vertretung durch Herrn Lehmann",
+      },
+    });
+
+    const greeting = await buildGreeting(jetzt);
+    expect(greeting.text).toContain("Vertretung durch Herrn Lehmann");
   });
 });
 

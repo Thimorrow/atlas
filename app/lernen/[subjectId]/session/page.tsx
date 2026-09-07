@@ -8,10 +8,18 @@ export default async function LernenSessionPage({
   searchParams,
 }: {
   params: Promise<{ subjectId: string }>;
-  searchParams: Promise<{ modus?: string; thema?: string; pruefung?: string }>;
+  searchParams: Promise<{ modus?: string; thema?: string; pruefung?: string; einheit?: string }>;
 }) {
   const { subjectId } = await params;
   const sp = await searchParams;
   const modus: SessionModus = sp.modus === "schwach" || sp.modus === "probe" ? sp.modus : "lernen";
-  return <LernenSession subjectId={subjectId} modus={modus} thema={sp.thema ?? null} pruefung={sp.pruefung ?? null} />;
+  return (
+    <LernenSession
+      subjectId={subjectId}
+      modus={modus}
+      thema={sp.thema ?? null}
+      pruefung={sp.pruefung ?? null}
+      einheit={sp.einheit ?? null}
+    />
+  );
 }

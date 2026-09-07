@@ -5,6 +5,25 @@
 export type Phase = "lernen" | "ueben" | "probe" | "simulation";
 export type SicherheitQuelle = "diagnose" | "karten" | "fazit" | "selbst" | "ohne_test";
 
+// Obergrenze der Punkte pro Plan -- eine Quelle der Wahrheit fuer Server
+// (app/api/lernen/plan/route.ts, lehnt Ueberschreitung ab) und Client
+// (components/lernplan-erstellen.tsx, zeigt die Grenze an und sperrt
+// "Punkt hinzufuegen" vorher, statt den Fehler erst nach dem Diagnosetest
+// zu zeigen).
+export const MAX_PUNKTE_PRO_PLAN = 20;
+
+// Grenzen des taeglichen Zeitbudgets (Schultag und Wochenende) -- eine
+// Quelle der Wahrheit fuer Client (components/lernplan-erstellen.tsx, kappt
+// die Eingabe schon beim Tippen) und Server (lib/lernplan-store.ts,
+// budgetAendernImStore lehnt Werte ausserhalb ab). Schultag und Wochenende
+// teilen sich dieselbe Grenze: lib/lernplan-store.ts hat schon vor diesem
+// Fix beide Felder mit derselben gueltig()-Pruefung (BUDGET_MIN/BUDGET_MAX)
+// behandelt, es gibt also keinen fachlichen Grund fuer zwei verschiedene
+// Obergrenzen -- der Client hatte hier nur (vermutlich versehentlich) einen
+// eigenen, niedrigeren Wert fuer den Schultag.
+export const ZEITBUDGET_MIN = 10;
+export const ZEITBUDGET_MAX = 240;
+
 // Ein vom Modell erkannter (oder von Hand ergaenzter) Checklisten-Punkt vor
 // dem Speichern -- Zwischenstand in Schritt 2 und 3 der Erstell-Seite.
 export type PunktDraft = {
@@ -96,6 +115,12 @@ export type ItemDTO = {
   planId: string;
   pointId: string | null;
   punktTitel: string | null;
+  // Thema des zugehoerigen Punkts, direkt mitgeliefert -- ohne das muesste
+  // jeder Aufrufer (morgen-panel.tsx, stunden-cockpit.tsx) selbst nach dem
+  // Punkt suchen, um einen Ueben-Link mit `thema=` zu bauen (siehe
+  // lernplan-seite.tsx). null = kein Punkt (Simulation) oder Punkt ohne
+  // Thema ("Allgemein").
+  topicId: string | null;
   date: string;
   position: number;
   phase: Phase;

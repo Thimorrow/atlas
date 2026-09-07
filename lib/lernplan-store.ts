@@ -18,7 +18,7 @@
 // neu-anlegen zwingend ist (sonst waere "neu anlegen, dann alt loeschen" die
 // sicherere Reihenfolge).
 
-import { and, asc, eq, gte, inArray, isNull, lte, ne } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, ne, notInArray } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
@@ -55,6 +55,8 @@ import type {
   PunktDraft,
   SicherheitQuelle,
 } from "@/lib/lernplan-types";
+// Werte, kein Typ -- muessen darum aus dem import type oben heraus.
+import { ZEITBUDGET_MAX, ZEITBUDGET_MIN } from "@/lib/lernplan-types";
 
 // --- Fehler --------------------------------------------------------------
 
@@ -95,12 +97,15 @@ async function ladeSchultagSet(vonISO: string, bisISO: string): Promise<Set<stri
   return new Set(rows.map((r) => r.date));
 }
 
-function summaryFuer(p: PunktDraft, urteil: string | null, blattNamen: string[]): string {
+function summaryFuer(p: PunktDraft, urteil: string | null, blattNamen: string[], quelle: SicherheitQuelle): string {
   const teile: string[] = [];
   if (p.detail) teile.push(p.detail);
   if (p.seiten) teile.push(`Seiten: ${p.seiten}`);
   if (blattNamen.length > 0) teile.push(`Blätter: ${blattNamen.join(", ")}`);
-  if (urteil) teile.push(`Diagnose: ${urteil}`);
+  // Uebersprungene Frage: quelle ist "ohne_test" (keine Messung), urteil
+  // trotzdem "falsch" (technische Kodierung fuer "keine Antwort"). Die
+  // Zusammenfassung soll keine Diagnose behaupten, die nie stattfand.
+  if (urteil && quelle === "diagnose") teile.push(`Diagnose: ${urteil}`);
   return teile.join(" · ");
 }
 
@@ -196,12 +201,17 @@ async function ladePunktDTO(pointId: string): Promise<PunktDTO | null> {
   return dto ?? null;
 }
 
-function toItemDTOSync(row: StudyPlanItem, punktTitelById: Map<string, string>): ItemDTO {
+function toItemDTOSync(
+  row: StudyPlanItem,
+  punktInfoById: Map<string, { titel: string; topicId: string | null }>,
+): ItemDTO {
+  const info = row.pointId ? punktInfoById.get(row.pointId) : undefined;
   return {
     id: row.id,
     planId: row.planId,
     pointId: row.pointId,
-    punktTitel: row.pointId ? (punktTitelById.get(row.pointId) ?? null) : null,
+    punktTitel: info?.titel ?? null,
+    topicId: info?.topicId ?? null,
     date: row.date,
     position: row.position,
     phase: row.phase,
@@ -212,12 +222,15 @@ function toItemDTOSync(row: StudyPlanItem, punktTitelById: Map<string, string>):
 }
 
 async function toItemDTO(row: StudyPlanItem): Promise<ItemDTO> {
-  let titel: string | null = null;
+  let info: { titel: string; topicId: string | null } | undefined;
   if (row.pointId) {
-    const [p] = await db.select({ title: studyPlanPoints.title }).from(studyPlanPoints).where(eq(studyPlanPoints.id, row.pointId));
-    titel = p?.title ?? null;
+    const [p] = await db
+      .select({ title: studyPlanPoints.title, topicId: studyPlanPoints.topicId })
+      .from(studyPlanPoints)
+      .where(eq(studyPlanPoints.id, row.pointId));
+    if (p) info = { titel: p.title, topicId: p.topicId };
   }
-  return toItemDTOSync(row, row.pointId && titel ? new Map([[row.pointId, titel]]) : new Map());
+  return toItemDTOSync(row, row.pointId && info ? new Map([[row.pointId, info]]) : new Map());
 }
 
 async function ladePlanDTO(plan: StudyPlan): Promise<PlanDTO> {
@@ -227,13 +240,13 @@ async function ladePlanDTO(plan: StudyPlan): Promise<PlanDTO> {
     .where(eq(studyPlanPoints.planId, plan.id))
     .orderBy(asc(studyPlanPoints.position));
   const punkte = await ladePunkteDTO(points);
-  const punktTitelById = new Map(points.map((p) => [p.id, p.title]));
+  const punktInfoById = new Map(points.map((p) => [p.id, { titel: p.title, topicId: p.topicId }]));
 
   const itemRows = await db.select().from(studyPlanItems).where(eq(studyPlanItems.planId, plan.id));
   const items = itemRows
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date) || a.position - b.position)
-    .map((i) => toItemDTOSync(i, punktTitelById));
+    .map((i) => toItemDTOSync(i, punktInfoById));
 
   return {
     id: plan.id,
@@ -309,7 +322,16 @@ export async function planAnlegen(
     input.checks.forEach((check, i) => {
       const idx = check.pointIndex ?? i;
       if (idx < 0 || idx >= input.punkte.length) return;
-      rechnung[idx] = { sicherheit: sicherheitAusUrteil(check.urteil), quelle: "diagnose", urteil: check.urteil };
+      // Uebersprungene Frage (antwort === null, siehe lernplan-erstellen.tsx)
+      // ist keine Messung -- urteil "falsch" kommt nur zustande, weil eine
+      // fehlende Antwort technisch als "falsch" kodiert wird, nicht weil der
+      // Schueler nachweislich etwas falsch beantwortet hat. quelle bleibt
+      // deshalb "ohne_test" (= keine belastbare Messung), nicht "diagnose"
+      // (= tatsaechlich getestet). sicherheit bleibt bei sicherheitAusUrteil
+      // ("falsch") = 0, die Verteilung soll den Punkt weiterhin als unsicher
+      // einplanen -- nur die Herkunft der Zahl aendert sich.
+      const quelle: SicherheitQuelle = check.antwort === null ? "ohne_test" : "diagnose";
+      rechnung[idx] = { sicherheit: sicherheitAusUrteil(check.urteil), quelle, urteil: check.urteil };
     });
   }
 
@@ -361,7 +383,7 @@ export async function planAnlegen(
       const name = nameById.get(id);
       return name ? [name] : [];
     });
-    const summary = summaryFuer(p, rechnung[i].urteil, blattNamen);
+    const summary = summaryFuer(p, rechnung[i].urteil, blattNamen, rechnung[i].quelle);
 
     if (idx !== -1) {
       const treffer = verfuegbareThemen.splice(idx, 1)[0];
@@ -375,18 +397,32 @@ export async function planAnlegen(
     }
   }
 
-  const [planRow] = await db
-    .insert(studyPlans)
-    .values({
-      assignmentId: input.assignmentId,
-      subjectId,
-      checklistFileId: "fileId" in input.checklist ? input.checklist.fileId : null,
-      checklistText: "text" in input.checklist ? input.checklist.text : "",
-      minutesWeekday: input.minutesWeekday,
-      minutesWeekend: input.minutesWeekend,
-      examDate: pruefungISO,
-    })
-    .returning();
+  // Der obige Check (bestehend + 30s) ist keine echte Sperre -- zwei
+  // gleichzeitige Anfragen fuer dieselbe Pruefung koennen beide daran
+  // vorbeikommen, dann verletzt der zweite insert() hier
+  // study_plans_assignment_id_unique. Das faengt genau denselben Fall ab
+  // (409 plan_gerade_erstellt statt eines generischen 500), nur eben aus der
+  // Datenbank statt aus der Anwendung heraus erkannt.
+  let planRow: StudyPlan;
+  try {
+    [planRow] = await db
+      .insert(studyPlans)
+      .values({
+        assignmentId: input.assignmentId,
+        subjectId,
+        checklistFileId: "fileId" in input.checklist ? input.checklist.fileId : null,
+        checklistText: "text" in input.checklist ? input.checklist.text : "",
+        minutesWeekday: input.minutesWeekday,
+        minutesWeekend: input.minutesWeekend,
+        examDate: pruefungISO,
+      })
+      .returning();
+  } catch (err) {
+    if (err instanceof Error && (err as { code?: string }).code === "23505") {
+      throw new LernplanStoreFehler(409, "plan_gerade_erstellt", "Plan wurde gerade erstellt.");
+    }
+    throw err;
+  }
 
   try {
     const pointValues: NewStudyPlanPoint[] = input.punkte.map((p, i) => ({
@@ -443,7 +479,20 @@ export async function planAnlegen(
   const plan = await ladePlanDTO(planRow);
   const hinweis: string[] = [];
   if (verteiltErgebnis.hinweis === "knapp") {
-    hinweis.push(`Knapp: ${verteiltErgebnis.gestrichen} Einheiten gestrichen.`);
+    if (verteiltErgebnis.gestrichen > 0) {
+      hinweis.push(
+        `Knapp: ${verteiltErgebnis.gestrichen} Übungseinheiten mussten gestrichen werden, damit der Plan bis zur Prüfung passt. Du lernst den Stoff trotzdem, wiederholst ihn aber seltener. Plane dafür selbst zusätzliche Zeit ein.`,
+      );
+    }
+    // S7: reicht das Streichen allein nicht, werden die Tagesbudgets
+    // stillschweigend hochskaliert (siehe verteilen() Schritt 2) -- ohne
+    // diesen Satz erfaehrt niemand, dass einzelne Tage laenger geworden sind
+    // als die selbst angegebene Zeit pro Schultag/Wochenendtag.
+    if (verteiltErgebnis.budgetErhoeht) {
+      hinweis.push(
+        "Knapp: einzelne Tage sind länger geworden, als du angegeben hast, damit der Plan bis zur Prüfung passt.",
+      );
+    }
   }
 
   return { plan, createdTopicIds, ...(hinweis.length > 0 ? { hinweis } : {}) };
@@ -493,6 +542,30 @@ export async function itemAbhaken(itemId: string, input: ItemAbhakenInput): Prom
   if (!item) throw new LernplanStoreFehler(404, "item_fehlt", "Einheit nicht gefunden.");
 
   if (!input.done) {
+    const now = new Date();
+    // Ein zurueckgenommenes Haekchen hat frueher (siehe unten) moeglicherweise
+    // die Sicherheit auf "selbst" gesetzt -- das muss rueckgaengig gemacht
+    // werden, sonst bleibt eine Sicherheit stehen, die nicht mehr gilt (siehe
+    // Bug-Bericht). Zurueckgezogen wird nur, was noch auf "selbst" steht: ist
+    // die Sicherheit inzwischen durch Karten oder Diagnose ueberschrieben
+    // worden, ist die neuere, praezisere Quelle massgeblich und bleibt stehen
+    // (dasselbe Vorrang-Muster wie beim Setzen weiter unten). Die vorherige
+    // "selbst"-Sicherheit ist nicht rekonstruierbar (kein Verlauf gespeichert)
+    // -- ehrlicher als eine geratene Zahl ist der Rueckfall auf die
+    // Schema-Defaults (50 / "ohne_test"), die auch ein frisch angelegter
+    // Punkt ohne Test hat.
+    if (item.phase === "probe" && item.pointId) {
+      await db
+        .update(studyPlanPoints)
+        .set({ confidence: 50, confidenceSource: "ohne_test", confidenceAt: now })
+        .where(and(eq(studyPlanPoints.id, item.pointId), eq(studyPlanPoints.confidenceSource, "selbst")));
+    } else if (item.phase === "simulation") {
+      await db
+        .update(studyPlanPoints)
+        .set({ confidence: 50, confidenceSource: "ohne_test", confidenceAt: now })
+        .where(and(eq(studyPlanPoints.planId, item.planId), eq(studyPlanPoints.confidenceSource, "selbst")));
+    }
+
     const [updated] = await db
       .update(studyPlanItems)
       .set({ doneAt: null, result: null })
@@ -518,10 +591,22 @@ export async function itemAbhaken(itemId: string, input: ItemAbhakenInput): Prom
         .set({ confidence: sicherheit, confidenceSource: "selbst", confidenceAt: now })
         .where(eq(studyPlanPoints.id, item.pointId));
     } else if (item.phase === "simulation") {
+      // Die Simulation ist eine grobe Selbsteinschaetzung ueber den ganzen
+      // Plan (drei Knoepfe: Sitzt/Wackelt/Fehlt). Sie darf keine praezisere,
+      // mechanisch berechnete Sicherheit ueberschreiben -- Karten (aus echten
+      // Box-Werten, lib/lernplan-sicherheit.ts sicherheitAusKarten) und
+      // Diagnose (aus dem Checklisten-Test) wiegen schwerer als ein einziger
+      // Wert fuer den ganzen Plan. Siehe SPEC.md "Sicherheit schreibt sich
+      // zurueck".
       await db
         .update(studyPlanPoints)
         .set({ confidence: sicherheit, confidenceSource: "selbst", confidenceAt: now })
-        .where(eq(studyPlanPoints.planId, item.planId));
+        .where(
+          and(
+            eq(studyPlanPoints.planId, item.planId),
+            notInArray(studyPlanPoints.confidenceSource, ["karten", "diagnose"]),
+          ),
+        );
     }
   }
 
@@ -568,6 +653,18 @@ export type NeuVerteilenStoreErgebnis = {
   hinweis?: "knapp";
   neu: number;
   zusaetzlich: number;
+  // S1: wie bei planAnlegen (siehe VerteilenErgebnis.budgetErhoeht) --
+  // unterscheidet "es wurde gestrichen" von "die Tagesbudgets sind
+  // hochskaliert worden", statt beides unter "knapp" zu verstecken.
+  budgetErhoeht: boolean;
+  // S4: gestrichen > 0 und budgetErhoeht sind unabhaengig voneinander wahr
+  // (verteilen() Schritt 1/2 in lib/lernplan.ts) -- ohne die Zahl hier weiss
+  // der Aufrufer nur, dass IRGENDETWAS knapp war, nicht dass zusaetzlich
+  // Einheiten ersatzlos wegfielen. Kommt aus VerteilenErgebnis.gestrichen
+  // (verteilen()) durch NeuVerteilenErgebnis.gestrichen (lib/lernplan.ts,
+  // die Funktion neuVerteilen()) durchgereicht, siehe neuVerteilenImStore
+  // unten.
+  gestrichen: number;
 };
 
 export async function neuVerteilenImStore(
@@ -641,13 +738,67 @@ export async function neuVerteilenImStore(
   }));
   if (neueRows.length > 0) await db.insert(studyPlanItems).values(neueRows);
 
+  // S1: "ueberfaellig" fasst per Definition nur Items mit date < heute an
+  // (siehe neuVerteilen in lib/lernplan.ts) -- kuenftige Einheiten bleiben
+  // auf dem alten Kalender liegen. Wuerde examDate hier trotzdem auf das
+  // neue Pruefungsdatum gesetzt, verschwaende der Verschoben-Banner auf der
+  // Planseite (haengt an assignment.dueDate !== plan.examDate), obwohl noch
+  // gar nicht neu verteilt wurde. Nur "alle_offen" verteilt wirklich den
+  // ganzen Plan auf den neuen Termin und darf examDate deshalb mitschreiben.
   await db
     .update(studyPlans)
-    .set({ examDate: pruefungISO, updatedAt: new Date() })
+    .set({ ...(umfang === "alle_offen" ? { examDate: pruefungISO } : {}), updatedAt: new Date() })
     .where(eq(studyPlans.id, planId));
 
   const plan = await planLadenPerId(planId);
-  return { plan: plan!, hinweis: ergebnis.hinweis, neu: ergebnis.neu.length, zusaetzlich: ergebnis.zusaetzlich };
+  return {
+    plan: plan!,
+    hinweis: ergebnis.hinweis,
+    neu: ergebnis.neu.length,
+    zusaetzlich: ergebnis.zusaetzlich,
+    budgetErhoeht: ergebnis.budgetErhoeht,
+    gestrichen: ergebnis.gestrichen,
+  };
+}
+
+// Zeitbudget aendern. Das Budget allein zu speichern waere sinnlos: die
+// bestehenden Tage blieben auf der alten Verteilung liegen und der Schueler
+// saehe dieselbe "Knapp"-Meldung weiter. Darum setzt diese Funktion die
+// Zahlen und verteilt anschliessend die offenen Einheiten neu -- das ist
+// derselbe Vorgang wie "Ganzen Plan neu verteilen", nur mit dem neuen Budget
+// als Grundlage. Erledigte Einheiten fasst neuVerteilen per "alle_offen"
+// nicht an, der Fortschritt bleibt also stehen.
+// Rueckgabe ist bewusst NeuVerteilenStoreErgebnis, damit die Planseite
+// denselben Erfolgstext nutzen kann und "es wurde gestrichen" bzw. "Tage sind
+// laenger geworden" auch hier zur Sprache kommt.
+// Eine Quelle der Wahrheit fuer beide Enden der Kette: der Erstell-Flow, die
+// Planseite, die POST-Route und diese Funktion klemmen sonst verschieden.
+export const BUDGET_MIN = ZEITBUDGET_MIN;
+export const BUDGET_MAX = ZEITBUDGET_MAX;
+
+export async function budgetAendernImStore(
+  planId: string,
+  minutesWeekday: number,
+  minutesWeekend: number,
+): Promise<NeuVerteilenStoreErgebnis> {
+  const gueltig = (n: number) => Number.isInteger(n) && n >= BUDGET_MIN && n <= BUDGET_MAX;
+  if (!gueltig(minutesWeekday) || !gueltig(minutesWeekend)) {
+    throw new LernplanStoreFehler(
+      400,
+      "budget",
+      `Die Minuten müssen zwischen ${BUDGET_MIN} und ${BUDGET_MAX} liegen.`,
+    );
+  }
+
+  const [planRow] = await db.select().from(studyPlans).where(eq(studyPlans.id, planId));
+  if (!planRow) throw new LernplanStoreFehler(404, "kein_plan", "Plan gibt es nicht mehr.");
+
+  await db
+    .update(studyPlans)
+    .set({ minutesWeekday, minutesWeekend, updatedAt: new Date() })
+    .where(eq(studyPlans.id, planId));
+
+  return neuVerteilenImStore(planId, "alle_offen");
 }
 
 // --- Sicherheit schreibt sich zurueck ----------------------------------------
@@ -734,6 +885,14 @@ export type LernplanBlock = {
   total: number;
   done: number;
   sicherheit: number;
+  // "ohne_test", wenn ALLE Punkte des Plans confidenceSource "ohne_test"
+  // haben -- die Anzeige zeigt dann "Noch nicht eingeschaetzt" statt einer
+  // Prozentzahl. Traegt mindestens ein Punkt eine echte Messung (diagnose/
+  // karten/fazit/selbst), ist das Feld undefined: der Mittelwert stuetzt sich
+  // auf mindestens eine echte Messung und beansprucht keine einzelne
+  // Herkunft -- ihn zu verstecken waere die entgegengesetzte Luege. Siehe
+  // sicherheitQuelle auf PunktDTO fuer die Herkunft je Punkt.
+  sicherheitQuelle?: "ohne_test";
   heute: ItemDTO[];
   // true, wenn "heute" leer war und "heute" stattdessen die naechsten
   // offenen Einheiten traegt (Tag mit der kleinsten Faelligkeit unter den
@@ -758,6 +917,15 @@ export async function lernplanFuerAssignments(
     from study_plan_points
     where study_plan_points.plan_id = study_plans.id
   )`.mapWith(Number);
+  // Vacuous true fuer einen Plan ohne Punkte (kommt praktisch nicht vor, ein
+  // Plan hat immer 1-20 Punkte) -- bool_and() liefert dann NULL, coalesce
+  // faellt auf "alle (die es nicht gibt) sind ohne_test" zurueck, konsistent
+  // mit "es gibt keine Messung".
+  const alleOhneTestSql = sql<boolean>`(
+    select coalesce(bool_and(confidence_source = 'ohne_test'), true)
+    from study_plan_points
+    where study_plan_points.plan_id = study_plans.id
+  )`.mapWith(Boolean);
   const totalSql = sql<number>`(
     select count(*) from study_plan_items where study_plan_items.plan_id = study_plans.id
   )`.mapWith(Number);
@@ -771,6 +939,7 @@ export async function lernplanFuerAssignments(
       id: studyPlans.id,
       assignmentId: studyPlans.assignmentId,
       sicherheit: sicherheitSql,
+      alleOhneTest: alleOhneTestSql,
       total: totalSql,
       done: doneSql,
     })
@@ -781,7 +950,7 @@ export async function lernplanFuerAssignments(
   const planIds = plans.map((p) => p.id);
 
   const heuteItems = await db
-    .select({ item: studyPlanItems, punktTitel: studyPlanPoints.title })
+    .select({ item: studyPlanItems, punktTitel: studyPlanPoints.title, topicId: studyPlanPoints.topicId })
     .from(studyPlanItems)
     .leftJoin(studyPlanPoints, eq(studyPlanItems.pointId, studyPlanPoints.id))
     .where(and(inArray(studyPlanItems.planId, planIds), eq(studyPlanItems.date, heuteISOWert)));
@@ -793,6 +962,7 @@ export async function lernplanFuerAssignments(
       planId: row.item.planId,
       pointId: row.item.pointId,
       punktTitel: row.punktTitel ?? null,
+      topicId: row.topicId ?? null,
       date: row.item.date,
       position: row.item.position,
       phase: row.item.phase,
@@ -813,7 +983,7 @@ export async function lernplanFuerAssignments(
   const heuteLeerSet = new Set(leerePlanIds);
   if (leerePlanIds.length > 0) {
     const offeneRows = await db
-      .select({ item: studyPlanItems, punktTitel: studyPlanPoints.title })
+      .select({ item: studyPlanItems, punktTitel: studyPlanPoints.title, topicId: studyPlanPoints.topicId })
       .from(studyPlanItems)
       .leftJoin(studyPlanPoints, eq(studyPlanItems.pointId, studyPlanPoints.id))
       .where(and(inArray(studyPlanItems.planId, leerePlanIds), isNull(studyPlanItems.doneAt)));
@@ -830,6 +1000,7 @@ export async function lernplanFuerAssignments(
         planId: row.item.planId,
         pointId: row.item.pointId,
         punktTitel: row.punktTitel ?? null,
+        topicId: row.topicId ?? null,
         date: row.item.date,
         position: row.item.position,
         phase: row.item.phase,
@@ -852,6 +1023,7 @@ export async function lernplanFuerAssignments(
       total: p.total,
       done: p.done,
       sicherheit: p.sicherheit,
+      ...(p.alleOhneTest ? { sicherheitQuelle: "ohne_test" as const } : {}),
       heute: itemsByPlan.get(p.id) ?? [],
       heuteLeer: heuteLeerSet.has(p.id),
     });
@@ -873,6 +1045,10 @@ export type LernenFuerTagEintrag = {
   assignmentId: string;
   examTitle: string;
   sicherheit: number;
+  // Wie LernplanBlock.sicherheitQuelle: "ohne_test" nur, wenn ALLE Punkte des
+  // Plans ohne echte Messung sind, sonst undefined (Mittelwert stuetzt sich
+  // auf mindestens eine Messung, beansprucht aber keine einzelne Herkunft).
+  sicherheitQuelle?: "ohne_test";
   items: ItemDTO[];
 };
 
@@ -881,6 +1057,7 @@ export async function lernenFuerTag(iso: string): Promise<LernenFuerTagEintrag[]
     .select({
       item: studyPlanItems,
       punktTitel: studyPlanPoints.title,
+      topicId: studyPlanPoints.topicId,
       planId: studyPlans.id,
       subjectId: studyPlans.subjectId,
       assignmentId: studyPlans.assignmentId,
@@ -899,11 +1076,18 @@ export async function lernenFuerTag(iso: string): Promise<LernenFuerTagEintrag[]
     .select({
       planId: studyPlanPoints.planId,
       sicherheit: sql<number>`coalesce(round(avg(confidence))::int, 50)`.mapWith(Number),
+      // Vacuous true fuer eine leere Gruppe kommt hier nicht vor (groupBy
+      // liefert nur Plaene mit mindestens einem Punkt) -- rein zur Konsistenz
+      // mit lernplanFuerAssignments' alleOhneTestSql.
+      alleOhneTest: sql<boolean>`coalesce(bool_and(confidence_source = 'ohne_test'), true)`.mapWith(Boolean),
     })
     .from(studyPlanPoints)
     .where(inArray(studyPlanPoints.planId, planIds))
     .groupBy(studyPlanPoints.planId);
   const sicherheitByPlan = new Map(sicherheitRows.map((r) => [r.planId, r.sicherheit]));
+  const sicherheitQuelleByPlan = new Map<string, "ohne_test" | undefined>(
+    sicherheitRows.map((r) => [r.planId, r.alleOhneTest ? ("ohne_test" as const) : undefined]),
+  );
 
   const byPlan = new Map<string, { subjectId: string; assignmentId: string; examTitle: string; items: ItemDTO[] }>();
   for (const row of rows) {
@@ -912,6 +1096,7 @@ export async function lernenFuerTag(iso: string): Promise<LernenFuerTagEintrag[]
       planId: row.item.planId,
       pointId: row.item.pointId,
       punktTitel: row.punktTitel ?? null,
+      topicId: row.topicId ?? null,
       date: row.item.date,
       position: row.item.position,
       phase: row.item.phase,
@@ -935,6 +1120,7 @@ export async function lernenFuerTag(iso: string): Promise<LernenFuerTagEintrag[]
     assignmentId: v.assignmentId,
     examTitle: v.examTitle,
     sicherheit: sicherheitByPlan.get(planId) ?? 50,
+    ...(sicherheitQuelleByPlan.get(planId) === "ohne_test" ? { sicherheitQuelle: "ohne_test" as const } : {}),
     items: v.items.slice().sort((a, b) => a.position - b.position),
   }));
 }
@@ -988,12 +1174,14 @@ export async function lernplanUebersicht(fachName?: string): Promise<LernplanUeb
     itemsByPlan.set(i.planId, list);
   }
   const pointTitleById = new Map(points.map((p) => [p.id, p.title]));
+  const pointTopicById = new Map(points.map((p) => [p.id, p.topicId]));
 
   const toDto = (i: StudyPlanItem): ItemDTO => ({
     id: i.id,
     planId: i.planId,
     pointId: i.pointId,
     punktTitel: i.pointId ? (pointTitleById.get(i.pointId) ?? null) : null,
+    topicId: i.pointId ? (pointTopicById.get(i.pointId) ?? null) : null,
     date: i.date,
     position: i.position,
     phase: i.phase,

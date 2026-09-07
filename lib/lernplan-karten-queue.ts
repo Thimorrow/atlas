@@ -127,9 +127,34 @@ export async function runKartenQueue(punkte: PunktDTO[], deps: KartenQueueDeps):
   const anzahl = deps.anzahl ?? 8;
   const erneutSet = new Set(deps.erneut ?? []);
 
-  const kandidaten = punkte.filter(
-    (p) => (p.cardsState === "offen" && p.kartenAnzahl === 0) || (p.cardsState === "fehler" && erneutSet.has(p.id)),
-  );
+  // S3: "fertig" mit kartenAnzahl 0 heisst, die Erzeugung ist durchgelaufen,
+  // hat aber nichts geliefert -- wie "fehler" nimmt die Queue diesen Punkt nur
+  // ueber den expliziten erneut()-Aufruf wieder auf (erneutSet), nie
+  // automatisch beim naechsten Laden. Sonst wuerde ein Punkt, der wiederholt
+  // nichts liefert, bei jedem Neuladen automatisch erneut angestossen.
+  //
+  // S1: der unbedingte "offen"-Zweig gilt nur, wenn diese Punkte NICHT
+  // explizit in erneutSet stehen -- also nur fuer den automatischen
+  // Hauptlauf (deps.erneut ist dort nie gesetzt). Ein expliziter
+  // erneut()-Aufruf (deps.erneut gesetzt, z.B. ueber den Knopf "Karten
+  // fehlen, erneut erzeugen") darf nur die genannten Punkte anfassen --
+  // sonst nimmt er nebenbei offene Punkte mit, die der parallel laufende
+  // Hauptlauf gerade schon bearbeitet, und schickt fuer dasselbe Thema ein
+  // zweites POST /api/lernen/generieren (doppelte Karten im Stapel). Steht
+  // ein offener Punkt explizit in erneutSet, darf er trotzdem mit -- das
+  // deckt den Fall ab, dass der Hauptlauf gar nicht angelaufen ist (z.B.
+  // botEnabled=false) und ein expliziter erneut()-Aufruf der einzige Weg
+  // waere, ihn doch noch anzustossen.
+  const kandidaten = punkte.filter((p) => {
+    if (erneutSet.has(p.id)) {
+      return (
+        (p.cardsState === "offen" && p.kartenAnzahl === 0) ||
+        p.cardsState === "fehler" ||
+        (p.cardsState === "fertig" && p.kartenAnzahl === 0)
+      );
+    }
+    return deps.erneut === undefined && p.cardsState === "offen" && p.kartenAnzahl === 0;
+  });
 
   const fertig: string[] = [];
   const fehler: string[] = [];

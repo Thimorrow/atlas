@@ -31,6 +31,8 @@ export async function GET(_req: Request, { params }: Ctx) {
       "content-disposition": `attachment; filename="${asciiName(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
       // Privat heisst auch: kein Zwischenspeicher unterwegs.
       "cache-control": "private, no-store",
+      // Kein MIME-Sniffing: der Browser soll den Typ nicht umdeuten.
+      "x-content-type-options": "nosniff",
     },
   });
 }

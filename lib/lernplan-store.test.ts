@@ -5,11 +5,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { assignments, studyCards, studyTopics, subjects } from "@/lib/db/schema";
+import { assignments, studyCards, subjects } from "@/lib/db/schema";
 import {
   aktualisiereAusFazit,
   aktualisiereAusKarten,
   itemAbhaken,
+  lernenFuerTag,
+  lernplanFuerAssignments,
   LernplanStoreFehler,
   planAnlegen,
   planLaden,
@@ -197,6 +199,104 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     await planLoeschen(zweiter.plan.id, zweiter.createdTopicIds);
   });
 
+  it("PATCH item mit result auf simulation ueberschreibt Karten- und Diagnose-Sicherheit nicht", async () => {
+    const richtig: CheckDraft = { frage: "f", musterantwort: "m", antwort: "3/4", urteil: "richtig", feedback: "" };
+    const { plan, createdTopicIds } = await planAnlegen(
+      {
+        assignmentId,
+        checklist: { text: "x" },
+        fileIds: [],
+        minutesWeekday: 30,
+        minutesWeekend: 60,
+        punkte: [punkt(), punkt({ titel: "Prozentrechnung" }), punkt({ titel: "Geometrie" })],
+        checks: [{ ...richtig, pointIndex: 0 }],
+        ersetzen: false,
+      },
+      heute,
+    );
+
+    const diagnosePunkt = plan.punkte[0];
+    const kartenPunkt = plan.punkte[1];
+    const selbstPunkt = plan.punkte[2];
+    expect(diagnosePunkt.sicherheitQuelle).toBe("diagnose");
+
+    const topicId = kartenPunkt.topicId!;
+    await db.insert(studyCards).values({ subjectId, topicId, question: "Q", answer: "A", box: 5, due: "2026-01-01", reviews: 1 });
+    await aktualisiereAusKarten(topicId);
+
+    const simulationItem = plan.items.find((i) => i.phase === "simulation")!;
+    await itemAbhaken(simulationItem.id, { done: true, result: 50 });
+
+    const geladen = await planLaden(assignmentId);
+    const diagnoseGeladen = geladen!.punkte.find((p) => p.id === diagnosePunkt.id);
+    const kartenGeladen = geladen!.punkte.find((p) => p.id === kartenPunkt.id);
+    const selbstGeladen = geladen!.punkte.find((p) => p.id === selbstPunkt.id);
+
+    expect(diagnoseGeladen?.sicherheitQuelle).toBe("diagnose");
+    expect(diagnoseGeladen?.sicherheit).toBe(100);
+    expect(kartenGeladen?.sicherheitQuelle).toBe("karten");
+    expect(kartenGeladen?.sicherheit).toBe(100);
+    expect(selbstGeladen?.sicherheitQuelle).toBe("selbst");
+    expect(selbstGeladen?.sicherheit).toBe(50);
+
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("PATCH item done:false auf probe zieht die selbst gesetzte Sicherheit zurück", async () => {
+    const check: CheckDraft = { frage: punkt().frage!, musterantwort: punkt().musterantwort!, antwort: "falsch", urteil: "falsch", feedback: "" };
+    const { plan, createdTopicIds } = await planAnlegen(
+      { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: [check], ersetzen: false },
+      heute,
+    );
+    const probeItem = plan.items.find((i) => i.phase === "probe")!;
+
+    await itemAbhaken(probeItem.id, { done: true, result: 100 });
+    let geladen = await planLaden(assignmentId);
+    let p = geladen!.punkte.find((x) => x.id === probeItem.pointId);
+    expect(p?.sicherheit).toBe(100);
+    expect(p?.sicherheitQuelle).toBe("selbst");
+
+    // Haekchen zurueckgenommen: die von diesem Haekchen gesetzte Sicherheit
+    // muss zurueckfallen, nicht bei 100 stehen bleiben.
+    const zurueckgenommen = await itemAbhaken(probeItem.id, { done: false });
+    expect(zurueckgenommen.doneAt).toBeNull();
+    expect(zurueckgenommen.result).toBeNull();
+
+    geladen = await planLaden(assignmentId);
+    p = geladen!.punkte.find((x) => x.id === probeItem.pointId);
+    expect(p?.sicherheit).toBe(50);
+    expect(p?.sicherheitQuelle).toBe("ohne_test");
+
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("PATCH item done:false auf probe laesst eine neuere Karten-Sicherheit stehen", async () => {
+    const check: CheckDraft = { frage: punkt().frage!, musterantwort: punkt().musterantwort!, antwort: "falsch", urteil: "falsch", feedback: "" };
+    const { plan, createdTopicIds } = await planAnlegen(
+      { assignmentId, checklist: { text: "x" }, fileIds: [], minutesWeekday: 30, minutesWeekend: 60, punkte: [punkt()], checks: [check], ersetzen: false },
+      heute,
+    );
+    const probeItem = plan.items.find((i) => i.phase === "probe")!;
+    const topicId = plan.punkte[0].topicId!;
+
+    await itemAbhaken(probeItem.id, { done: true, result: 100 });
+
+    // Danach liefert die Karten-Queue eine praezisere, mechanisch berechnete
+    // Sicherheit -- die darf ein spaeteres Zuruecknehmen des Haekchens nicht
+    // wieder wegwerfen.
+    await db.insert(studyCards).values({ subjectId, topicId, question: "Q", answer: "A", box: 5, due: "2026-01-01", reviews: 1 });
+    await aktualisiereAusKarten(topicId);
+
+    await itemAbhaken(probeItem.id, { done: false });
+
+    const geladen = await planLaden(assignmentId);
+    const p = geladen!.punkte.find((x) => x.id === probeItem.pointId);
+    expect(p?.sicherheitQuelle).toBe("karten");
+    expect(p?.sicherheit).toBe(100);
+
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
   it("itemAbhaken mit unbekannter id wirft 404 item_fehlt", async () => {
     await expect(itemAbhaken("00000000-0000-0000-0000-000000000000", { done: true })).rejects.toBeInstanceOf(
       LernplanStoreFehler,
@@ -243,6 +343,100 @@ describe.skipIf(!mitDb)("lernplan-store (Integration, Neon)", () => {
     expect(p?.sicherheitQuelle).toBe("karten");
 
     await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("uebersprungene Diagnose-Frage bekommt Quelle ohne_test, eine wirklich falsch beantwortete Quelle diagnose", async () => {
+    const uebersprungen: CheckDraft = {
+      pointIndex: 0,
+      frage: punkt().frage!,
+      musterantwort: punkt().musterantwort!,
+      antwort: null,
+      urteil: "falsch",
+      feedback: "Übersprungen",
+    };
+    const wirklichFalsch: CheckDraft = {
+      pointIndex: 1,
+      frage: "f",
+      musterantwort: "m",
+      antwort: "falsche Antwort",
+      urteil: "falsch",
+      feedback: "",
+    };
+    const { plan, createdTopicIds } = await planAnlegen(
+      {
+        assignmentId,
+        checklist: { text: "x" },
+        fileIds: [],
+        minutesWeekday: 30,
+        minutesWeekend: 60,
+        punkte: [punkt(), punkt({ titel: "Prozentrechnung" })],
+        checks: [uebersprungen, wirklichFalsch],
+        ersetzen: false,
+      },
+      heute,
+    );
+
+    const uebersprungenerPunkt = plan.punkte[0];
+    const falscherPunkt = plan.punkte[1];
+
+    // Beide 0% unsicher (Verteilung bleibt gleich) -- aber nur die
+    // tatsaechlich beantwortete Frage zaehlt als Messung ("diagnose").
+    expect(uebersprungenerPunkt.sicherheit).toBe(0);
+    expect(uebersprungenerPunkt.sicherheitQuelle).toBe("ohne_test");
+    expect(falscherPunkt.sicherheit).toBe(0);
+    expect(falscherPunkt.sicherheitQuelle).toBe("diagnose");
+
+    await planLoeschen(plan.id, createdTopicIds);
+  });
+
+  it("lernplanFuerAssignments und lernenFuerTag: sicherheitQuelle ohne_test nur bei komplett ungemessenem Plan, sonst undefined", async () => {
+    // Plan A: kein einziger Check -> alle Punkte ohne_test.
+    const { plan: planA, createdTopicIds: topicsA } = await planAnlegen(
+      {
+        assignmentId,
+        checklist: { text: "x" },
+        fileIds: [],
+        minutesWeekday: 30,
+        minutesWeekend: 60,
+        punkte: [punkt(), punkt({ titel: "Prozentrechnung" })],
+        checks: null,
+        ersetzen: false,
+      },
+      heute,
+    );
+
+    const bloeckeA = await lernplanFuerAssignments([assignmentId], heute.heuteISO);
+    expect(bloeckeA.get(assignmentId)?.sicherheitQuelle).toBe("ohne_test");
+
+    const tagA = await lernenFuerTag(planA.items[0].date);
+    expect(tagA.find((e) => e.planId === planA.id)?.sicherheitQuelle).toBe("ohne_test");
+
+    await planLoeschen(planA.id, topicsA);
+
+    // Plan B: ein Punkt echt getestet (diagnose), der andere ohne_test ->
+    // der Mittelwert darf keine einzelne Quelle behaupten.
+    const gemischt: CheckDraft = { pointIndex: 0, frage: "f", musterantwort: "m", antwort: "3/4", urteil: "richtig", feedback: "" };
+    const { plan: planB, createdTopicIds: topicsB } = await planAnlegen(
+      {
+        assignmentId,
+        checklist: { text: "x" },
+        fileIds: [],
+        minutesWeekday: 30,
+        minutesWeekend: 60,
+        punkte: [punkt(), punkt({ titel: "Prozentrechnung" })],
+        checks: [gemischt],
+        ersetzen: false,
+      },
+      heute,
+    );
+
+    const bloeckeB = await lernplanFuerAssignments([assignmentId], heute.heuteISO);
+    expect(bloeckeB.get(assignmentId)?.sicherheitQuelle).toBeUndefined();
+
+    const tagB = await lernenFuerTag(planB.items[0].date);
+    expect(tagB.find((e) => e.planId === planB.id)?.sicherheitQuelle).toBeUndefined();
+
+    await planLoeschen(planB.id, topicsB);
   });
 
   it("aktualisiereAusFazit setzt Sicherheit einer Probe-Einheit mit Quelle fazit", async () => {

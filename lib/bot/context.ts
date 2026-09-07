@@ -54,6 +54,16 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
   const pruefungen = naechster.events.filter((e) => hasArbeit(e.title, offeneAufgaben, naechster.date));
 
   let satz = `${tagWort} hast du ${aufzaehlung(faecher)}.`;
+  const vertretungen = naechster.events.filter((e) => e.status === "substituted");
+  const entfaelle = naechster.events.filter((e) => e.status === "cancelled");
+  if (vertretungen.length > 0) {
+    const f = [...new Set(vertretungen.map((e) => e.title))];
+    satz += ` In ${aufzaehlung(f)} hast du Vertretung.`;
+  }
+  if (entfaelle.length > 0) {
+    const f = [...new Set(entfaelle.map((e) => e.title))];
+    satz += ` ${aufzaehlung(f)} entfällt.`;
+  }
   if (pruefungen.length > 0) {
     const pruefungFaecher = [...new Set(pruefungen.map((e) => e.title))];
     satz += ` In ${aufzaehlung(pruefungFaecher)} steht eine Arbeit an.`;
@@ -72,6 +82,14 @@ async function naechsterSchultagGreeting(): Promise<Greeting> {
 function liveGreeting(jetzt: StundeResponse & { selected: NonNullable<StundeResponse["selected"]> }): Greeting {
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
   let text = `Gerade läuft ${fach}, noch ${jetzt.selected.minutesLeft} Minuten.`;
+  if (jetzt.selected.status === "substituted") {
+    text += jetzt.selected.substitutionText
+      ? ` Vertretung: ${jetzt.selected.substitutionText}.`
+      : " Du hast Vertretung.";
+  }
+  if (jetzt.selected.status === "cancelled") {
+    text = `Gerade würde ${fach} laufen, die Stunde entfällt aber.`;
+  }
   if (jetzt.faellig.length > 0) {
     text += ` Dafür ist heute ${jetzt.faellig.length} Aufgabe(n) fällig.`;
   }
@@ -92,6 +110,14 @@ function pauseVorGreeting(jetzt: StundeResponse & { selected: NonNullable<Stunde
   const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
   let text = `Als Nächstes ${fach} um ${jetzt.selected.startTime}.`;
   if (jetzt.selected.room) text += ` Raum ${jetzt.selected.room}.`;
+  if (jetzt.selected.status === "substituted") {
+    text += jetzt.selected.substitutionText
+      ? ` Vertretung: ${jetzt.selected.substitutionText}.`
+      : " In der Stunde hast du Vertretung.";
+  }
+  if (jetzt.selected.status === "cancelled") {
+    text += ` Die Stunde entfällt.`;
+  }
 
   return {
     text,
@@ -161,17 +187,28 @@ export async function buildGreeting(jetzt?: StundeResponse | null): Promise<Gree
 }
 
 function geradeBlock(jetzt: StundeResponse): string {
+  // Vertretung und Entfall stehen im Lagebild und in den Werkzeugen als
+  // status + Vertretungstext. Der Satz hier muss sie nennen, sonst meldet der
+  // Bot eine vertretene Stunde als ganz normalen Unterricht.
+  const statusZusatz = (s: NonNullable<StundeResponse["selected"]>): string => {
+    if (s.status === "cancelled") return " (die Stunde entfällt)";
+    if (s.status === "substituted") {
+      const detail = s.substitutionText ? `: ${s.substitutionText}` : s.teacher ? ` bei ${s.teacher}` : "";
+      return ` (Vertretung${detail})`;
+    }
+    return "";
+  };
   let zeile: string;
   if (jetzt.modus === "live" && jetzt.selected) {
     const fach = jetzt.selected.subjectName ?? jetzt.selected.title;
     const raum = jetzt.selected.room ? ` in Raum ${jetzt.selected.room}` : "";
-    zeile = `läuft ${fach} von ${jetzt.selected.startTime} bis ${jetzt.selected.endTime ?? "?"}${raum}, noch ${jetzt.selected.minutesLeft} min`;
+    zeile = `läuft ${fach} von ${jetzt.selected.startTime} bis ${jetzt.selected.endTime ?? "?"}${raum}, noch ${jetzt.selected.minutesLeft} min${statusZusatz(jetzt.selected)}`;
   } else if (jetzt.modus === "pause") {
     zeile = jetzt.selected
-      ? `Pause, als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`
+      ? `Pause, als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}${statusZusatz(jetzt.selected)}`
       : "Pause";
   } else if (jetzt.modus === "vor" && jetzt.selected) {
-    zeile = `als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}`;
+    zeile = `als Nächstes ${jetzt.selected.subjectName ?? jetzt.selected.title} um ${jetzt.selected.startTime}${statusZusatz(jetzt.selected)}`;
   } else if (jetzt.modus === "nach") {
     zeile = "Schule ist heute vorbei";
   } else {
@@ -213,6 +250,7 @@ Regeln:
 - Ein leerer Text löscht eine Notiz, deshalb lehnen die Werkzeuge ihn ab. Willst du nur den Titel ändern, lass den Text weg. Beim Ändern eines Textes gibst du immer den vollständigen neuen Inhalt an.
 - Verstehst du eine Datumsangabe nicht ("nach den Ferien"), frag nach. Ein nicht erkanntes Datum ändert beim Bearbeiten nichts.
 - Fragt er, was als Nächstes drankommt oder worauf er sich vorbereiten muss, nutze lehrplan_lesen. Sag dabei dazu, dass der Lehrplan eine Orientierung ist und nicht die Planung seiner Lehrkraft.
+- Vertretung und Entfall: Jede Stunde hat einen status (regular, substituted, cancelled) und bei Vertretung oft einen Untis-Text. substituted heißt Vertretung oder Raumänderung, cancelled heißt die Stunde entfällt. Nenne das von dir aus, sobald er nach heute, morgen oder einer bestimmten Stunde fragt, und gib den Vertretungstext wieder. Eine entfallene Stunde ist kein Unterricht, auch wenn sie im Plan steht.
 - Fragt er nach Lernen oder der Vorbereitung auf eine Arbeit, nutze zuerst lernstand_lesen und schlage dann konkret etwas vor (Karten erzeugen, eine Lernsitzung starten mit Link), statt allgemeine Lerntipps zu geben.
 - lernkarten_erzeugen nutzt du NUR auf ausdrücklichen Wunsch des Schülers oder nachdem du nachgefragt hast und er zugestimmt hat -- nie ungefragt Karten erzeugen.
 - Verwende in Werkzeugen ausschließlich Fachnamen aus der Liste oben, exakt so geschrieben. Es gibt keine anderen Fächer, und du legst nie ein neues an.
@@ -222,7 +260,7 @@ Wo der Schüler etwas selbst nachschlagen kann, wenn es dazu passt:
 - "Plan" (/): der Stundenplan. Im Fokus steht der nächste Schultag mit Stunden, fälligen Aufgaben und dem, was zu den Fächern hinterlegt ist.
 - "Stunde" (/stunde): das Cockpit für die laufende oder gewählte Stunde -- dort trägt er Hausaufgabe, Notiz, Meldung und Dateien direkt ein.
 - "Aufgaben" (/aufgaben): Tab "Offen" für die Hausaufgaben, Tab "Prüfungen" für alle Arbeiten, Tests und Referate nach Nähe geordnet.
-- "Fächer" (/fächer): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht außerdem ein Rechner für die nötige Punktzahl bis zur Wunschnote.
+- "Fächer" (/faecher): jedes Fach mit Notizen, Dateien, seinen Aufgaben und den Noten; im Fach steht außerdem ein Rechner für die nötige Punktzahl bis zur Wunschnote.
 - "Lernen" (/lernen): Karteikarten je Fach mit Leitner-Boxen, eine Lernsitzung, Karten aus Notizen/Dateien/Lehrplan per Bot erzeugen, und ein Lernplan bis zur Prüfung; Fachseite /lernen/{subjectId}, Sitzung /lernen/{subjectId}/session.
 Nenne eine Seite nur, wenn sie wirklich weiterhilft, und beantworte die Frage trotzdem selbst.`;
 }

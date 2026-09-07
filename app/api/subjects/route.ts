@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cachedJson } from "@/lib/http-cache";
 import {
   createSubject,
   getSubject,
@@ -18,7 +19,8 @@ export async function GET(req: Request) {
     : url.searchParams.get("archived")
       ? "archived"
       : "active";
-  return NextResponse.json({ subjects: await listSubjects(scope) });
+  // Faechersliste aendert sich fast nie (Setup, Abgleich): 5 Minuten frisch.
+  return cachedJson({ subjects: await listSubjects(scope) }, 300);
 }
 
 // POST /api/subjects -- { name, teacher?, room?, color?, untisSubject? }

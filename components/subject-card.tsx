@@ -41,7 +41,7 @@ export function SubjectCard({
   const archived = Boolean(subject.archivedAt);
   return (
     <Link
-      href={`/fächer/${subject.id}`}
+      href={`/faecher/${subject.id}`}
       className={cn(
         // Die GANZE Karte ist der Link -- kein verschachtelter Titel-Link, der
         // nur ein paar Pixel breit waere. min-h haelt die Trefferflaeche auch

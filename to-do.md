@@ -1,5 +1,7 @@
 # To-do / Fehlerliste
 
+> Hinweis: Die operative Liste steht in `.ytstack/INBOX.md`. Diese Datei bleibt als Sprachrohr bestehen.
+
 Hier sammle ich alle Fehler, die du mir reinsprichst.
 
 ## Offen

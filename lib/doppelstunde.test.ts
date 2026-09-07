@@ -125,4 +125,20 @@ describe("fasseDoppelstundenZusammen", () => {
     ]);
     expect(out).toHaveLength(2);
   });
+
+  it("unterschiedlicher Vertretungstext zur Naht trennt", () => {
+    const out = fasseDoppelstundenZusammen([
+      stunde("a", "08:00", "08:45", "Mathe", { status: "substituted", substitutionText: "Raum 204" }),
+      stunde("b", "08:45", "09:30", "Mathe", { status: "substituted", substitutionText: "Raum 205" }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it("gleicher Vertretungstext zur Naht verschmilzt", () => {
+    const out = fasseDoppelstundenZusammen([
+      stunde("a", "08:00", "08:45", "Mathe", { status: "substituted", substitutionText: "Raum 204" }),
+      stunde("b", "08:45", "09:30", "Mathe", { status: "substituted", substitutionText: "Raum 204" }),
+    ]);
+    expect(out).toHaveLength(1);
+  });
 });

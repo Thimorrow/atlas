@@ -71,7 +71,17 @@ Verifikation lokal: tsc fehlerfrei, 424 Tests gruen (24 skipped ohne
 DATABASE_URL), `next build` 0 Errors. Live-Pruefung des Preview-Deploys siehe
 PR #8.
 
-## Was tatsaechlich steht
+## Was tatsaechlich steht (HISTORIE, Stand 2026-09-02)
+
+Der Abschnitt unten beschreibt den Stand vom 2026-09-02. Aktuell ist der
+Stand aus den Nachtraegen darueber: fuenf Module in der Navigation plus
+Bot-Seite und native Android-App, Migrationen bis `0019_lernplan`
+(20 Dateien von 0000 bis 0019), 24 Tabellen (inkl. `tutor_conversations`,
+`tutor_messages`, `study_cards`, `study_reviews`, `study_topics`,
+`study_plans`, `study_plan_points`, `study_plan_checks`,
+`study_plan_items`), 61 API-Routen, rund 700 Tests gruenen Durchlauf
+(698 bestanden am 2026-09-07). Die Detailzahlen und Belege unten bleiben als
+Historie stehen und werden nicht fortgeschrieben.
 
 **Datenbank** (Neon, Drizzle, 11 Migrationen, alle angewendet): sieben Tabellen
 `school_blocks`, `subjects`, `subject_notes`, `assignments`, `subject_files`,

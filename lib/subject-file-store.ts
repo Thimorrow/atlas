@@ -85,7 +85,19 @@ export async function subjectExists(subjectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function listFiles(subjectId: string): Promise<FileDTO[]> {
+export async function listFiles(subjectId: string, limit?: number): Promise<FileDTO[]> {
+  const clean =
+    typeof limit === "number" && Number.isFinite(limit) ? Math.floor(limit) : undefined;
+  const capped = clean !== undefined && clean > 0 ? Math.min(clean, 200) : undefined;
+  if (capped !== undefined) {
+    const rows = await db
+      .select()
+      .from(subjectFiles)
+      .where(eq(subjectFiles.subjectId, subjectId))
+      .orderBy(desc(subjectFiles.createdAt))
+      .limit(capped);
+    return rows.map(toFileDTO);
+  }
   const rows = await db
     .select()
     .from(subjectFiles)

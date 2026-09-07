@@ -19,13 +19,44 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* WCAG 1.4.11 (Fliesstext, Pflicht 4,5:1): --muted-foreground lag bei
+     L 0,556 (Y = 0,556 hoch 3 = 0,17188) gegen --muted (Y = 0,97 hoch 3 =
+     0,912673) bei nur (0,912673+0,05)/(0,17188+0,05) = 4,34:1 -- knapp unter
+     4,5:1. Gegen --background (Y = 0,995 hoch 3 = 0,985075) waren es 4,67:1,
+     gegen --card (Y = 1) 4,73:1, beide schon ausreichend; --muted ist als
+     dunkelster der drei Gruende der Massstab. Global auf L 0,54 gesetzt
+     (Y = 0,54 hoch 3 = 0,157464): gegen --muted (0,912673+0,05)/
+     (0,157464+0,05) = 4,64:1, gegen --background 4,99:1, gegen --card 5,06:1
+     -- ueberall ueber 4,5:1, mit Reserve statt an der Kante. Die Aenderung ist
+     minimal (0,556 -> 0,54), der Hellmodus bleibt unveraendert lebendig.
+     Dunkelmodus war bereits richtig (L 0,708 gegen --muted L 0,269:
+     (0,708 hoch 3+0,05)/(0,269 hoch 3+0,05) = 5,83:1) und bleibt unangetastet. */
+  --muted-foreground: oklch(0.54 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.6 0 0);
+  /* WCAG 1.4.11 (Non-text Contrast): --border liegt auf --card bei nur 1,27:1
+     und reicht damit nicht fuer die Begrenzung eines Bedienelements (Pflicht:
+     3:1). --border bleibt fuer reine Trennlinien/Kartenraender richtig, dafuer
+     gilt die 3:1-Regel nicht. Bedienelemente (Eingabefelder, Checkbox-Rahmen,
+     Outline-Buttons) nutzen stattdessen dieses eigene Token.
+     Rechenweg fuer die Werte: fuer Graustufen ist die Oklch-Helligkeit L die
+     Kubikwurzel der Relativluminanz, also Y = L hoch 3. Gegen --card (Y = 1)
+     braucht es Y <= 0,30, also L <= 0,669. 0,65 ergibt 3,24:1 mit etwas
+     Reserve. 0,72 waeren nur 2,48:1 und wuerden die Regel weiter verfehlen. */
+  --border-control: oklch(0.65 0 0);
+  /* WCAG 1.4.11: --ring war oklch(0.708 0 0), Y = 0,708^3 = 0,3548, gegen
+     --background (Y = 0,995^3 = 0,9851) nur 1,0351 / 0,4048 = 2,56:1, gegen
+     --card (Y = 1) nur 1,05 / 0,4048 = 2,59:1 -- unter der Pflicht-3:1-Grenze
+     fuer Fokusindikatoren. Fuer 3:1 gegen --background reicht L <= 0,665.
+     Gewaehlt: L = 0,6 (Y = 0,6^3 = 0,216, etwas Reserve unter 0,665).
+     Gegen --background: 1,0351 / (0,216 + 0,05) = 1,0351 / 0,266 = 3,89:1.
+     Gegen --card: 1,05 / (0,216 + 0,05) = 1,05 / 0,266 = 3,95:1.
+     Dunkelmodus unveraendert richtig (--ring L 0,556, Y 0,1719, gegen
+     --background Y 0,004492 = 4,07:1), der Fehler betraf nur den Hellmodus. */
   /* Brand-Akzent = neutrales Primary (schwarz/weiss). Theme bleibt monochrom;
      CTA + Time-Dial nutzen denselben Ton wie der Rest, kein Farbstich. */
   --brand: var(--primary);
@@ -76,6 +107,9 @@
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  /* Dunkel wird ueber Alpha komponiert, nicht ueber L: 40% Weiss auf --card
+     (L 0,205) ergibt 3,82:1. 30% waeren nur 2,71:1. */
+  --border-control: oklch(1 0 0 / 40%);
   --brand: var(--primary);
   --brand-foreground: var(--primary-foreground);
 
@@ -106,6 +140,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
+  --color-border-control: var(--border-control);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-brand: var(--brand);

@@ -19,7 +19,14 @@ export function writeLocal(key: string, value: string): void {
 
 export function writeCookie(name: string, value: string, maxAgeSeconds: number): void {
   try {
-    document.cookie = `${name}=${value}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+    // Secure nur bei HTTPS (oder Production): ueber HTTP wuerde der Browser
+    // ein Secure-Cookie sonst kommentarlos verwerfen.
+    const secure =
+      (typeof location !== "undefined" && location.protocol === "https:") ||
+      process.env.NODE_ENV === "production"
+        ? "; Secure"
+        : "";
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax${secure}`;
   } catch {
     // Ignorieren.
   }

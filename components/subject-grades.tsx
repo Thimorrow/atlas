@@ -24,6 +24,7 @@ import {
   type GradeKind,
 } from "@/lib/grades";
 import type { GradeDTO } from "@/lib/grade-store";
+import { invalidateGradesCaches, invalidateSubjectsCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 import { SubjectGoal } from "@/components/subject-goal";
 
@@ -94,6 +95,8 @@ export function SubjectGrades({
         body: JSON.stringify({ oralWeight: next }),
       });
       if (!res.ok) throw new Error();
+      // Gewichtung steckt im Notenschnitt der Faecher-Seite.
+      invalidateGradesCaches();
     } catch {
       setOralWeight(previous);
       toast("Die Gewichtung konnte nicht gespeichert werden.");
@@ -105,6 +108,7 @@ export function SubjectGrades({
     try {
       const res = await fetch(`/api/grades/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
+      invalidateGradesCaches();
       setGrades((prev) => prev.filter((g) => g.id !== id));
     } catch {
       toast("Die Note konnte nicht gelöscht werden.");
@@ -304,6 +308,9 @@ function GradeForm({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
+      // Faecher-Seite und Noten-Uebersicht lesen denselben Stand --
+      // invalidateSubjectsCaches vergisst beide (inkl. /api/grades).
+      invalidateSubjectsCaches();
       onSaved(json.grade as GradeDTO);
     } catch (e) {
       // Das Formular bleibt stehen, damit die Eingaben nicht verloren gehen.

@@ -6,13 +6,11 @@
 // Sortierung (partitionExams, groupExamsByWeek) laufen in der Seite, hier wird
 // nur gerendert. Anlegen bleibt beim ExamComposer der Seite.
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, GraduationCap, ListChecks, PartyPopper, Plus, Presentation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/toast";
-import { PhaseChip, SicherheitsBalken } from "@/components/lernplan-ui";
+import { SicherheitsBalken } from "@/components/lernplan-ui";
 import { colorValue, NEUTRAL_COLOR } from "@/lib/subject-colors";
 import {
   TYPE_LABEL,
@@ -21,11 +19,9 @@ import {
   sameDayCount,
   weekdayDateLabel,
   type AssignmentDTO,
-  type AssignmentLernplan,
   type AssignmentType,
   type ExamWeekGroup,
 } from "@/lib/assignments-view";
-import type { ItemDTO } from "@/lib/lernplan-types";
 import { cn } from "@/lib/utils";
 
 // Referat bekommt ein eigenes Icon, Klassenarbeit und Test teilen sich den
@@ -117,7 +113,7 @@ function NextExamCard({ exam, today }: { exam: AssignmentDTO; today: string }) {
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: tint }} />
       {exam.subjectId ? (
         <Link
-          href={`/fächer/${exam.subjectId}`}
+          href={`/faecher/${exam.subjectId}`}
           className="group -m-1 block rounded-lg p-1 transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {kopf}
@@ -130,7 +126,10 @@ function NextExamCard({ exam, today }: { exam: AssignmentDTO; today: string }) {
   );
 }
 
-// --- Lernplan-Block in der grossen Karte -----------------------------------
+// --- Lernplan-Einstieg in der grossen Karte ---------------------------------
+// Nur noch der Einstieg, kein abhakbarer Block mehr: Einheiten abhaken passiert
+// in den Tagesansichten (Morgen-Panel, Cockpit) und auf der Planseite selbst,
+// nicht mehr hier -- der Kontext dieser Seite ist "wann ist die Pruefung".
 
 function NextExamLernplan({ exam }: { exam: AssignmentDTO }) {
   if (!isExam(exam.type) || !exam.subjectId || exam.lernplan === undefined) return null;
@@ -141,7 +140,7 @@ function NextExamLernplan({ exam }: { exam: AssignmentDTO }) {
       <div className="mt-3 border-t pt-3 pl-2">
         <Link
           href={`/lernen/${subjectId}/plan/${exam.id}/neu`}
-          className="relative inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ListChecks className="size-3.5" strokeWidth={2.25} />
           Lernplan erstellen
@@ -151,135 +150,21 @@ function NextExamLernplan({ exam }: { exam: AssignmentDTO }) {
   }
 
   return (
-    <NextExamLernplanDetails subjectId={subjectId} assignmentId={exam.id} plan={exam.lernplan} />
-  );
-}
-
-function NextExamLernplanDetails({
-  subjectId,
-  assignmentId,
-  plan,
-}: {
-  subjectId: string;
-  assignmentId: string;
-  plan: AssignmentLernplan;
-}) {
-  const toast = useToast();
-  const [items, setItems] = useState(plan.heute);
-  const [done, setDone] = useState(plan.done);
-  useEffect(() => {
-    setItems(plan.heute);
-    setDone(plan.done);
-  }, [plan]);
-
-  async function toggle(item: ItemDTO) {
-    const neuErledigt = item.doneAt === null;
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: neuErledigt ? new Date().toISOString() : null } : i)));
-    setDone((d) => d + (neuErledigt ? 1 : -1));
-    try {
-      const res = await fetch(`/api/lernen/plan/items/${item.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ done: neuErledigt }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, doneAt: item.doneAt } : i)));
-      setDone((d) => d + (neuErledigt ? -1 : 1));
-      toast("Einheit konnte nicht aktualisiert werden.");
-    }
-  }
-
-  return (
-    <div className="mt-3 space-y-2.5 border-t pt-3 pl-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Lernplan{plan.heuteLeer ? " · nächste offene" : ""}
-        </p>
-        <Link
-          href={`/lernen/${subjectId}/plan/${assignmentId}`}
-          className="relative shrink-0 rounded px-1 py-1 text-[12.5px] font-medium text-primary before:absolute before:-inset-2 before:content-[''] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          Ganzer Plan
-        </Link>
-      </div>
-
-      <SicherheitsBalken wert={plan.sicherheit}>
-        <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">
-          {done} von {plan.total}
-        </span>
-      </SicherheitsBalken>
-
-      {items.length > 0 && (
-        <ul className="space-y-1">
-          {items.map((item) => (
-            <NextExamEinheitZeile key={item.id} subjectId={subjectId} assignmentId={assignmentId} item={item} onToggle={toggle} />
-          ))}
-        </ul>
-      )}
+    <div className="mt-3 flex items-center gap-2 border-t pt-3 pl-2">
+      <SicherheitsBalken
+        wert={exam.lernplan.sicherheit}
+        quelle={exam.lernplan.sicherheitQuelle}
+        label="im Lernplan"
+        className="flex-1"
+      />
+      <Link
+        href={`/lernen/${subjectId}/plan/${exam.id}`}
+        className="inline-flex min-h-11 shrink-0 items-center rounded px-1 text-[12.5px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        Ganzer Plan
+      </Link>
     </div>
   );
-}
-
-function NextExamEinheitZeile({
-  subjectId,
-  assignmentId,
-  item,
-  onToggle,
-}: {
-  subjectId: string;
-  assignmentId: string;
-  item: ItemDTO;
-  onToggle: (item: ItemDTO) => void;
-}) {
-  const erledigt = item.doneAt !== null;
-  const titel = item.punktTitel ?? (item.phase === "simulation" ? "Simulation" : "Thema fehlt");
-  const manuell = item.phase === "probe" || item.phase === "simulation";
-
-  const inhalt = (
-    <>
-      {!manuell && (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={erledigt}
-          aria-label={erledigt ? `${titel} als offen markieren` : `${titel} als erledigt markieren`}
-          onClick={() => onToggle(item)}
-          className={cn(
-            "relative grid size-5 shrink-0 place-items-center rounded border transition-colors before:absolute before:-inset-3 before:content-[''] [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            erledigt ? "border-primary bg-primary text-primary-foreground" : "border-border",
-          )}
-        >
-          {erledigt && (
-            <span aria-hidden className="text-[11px] leading-none">
-              ✓
-            </span>
-          )}
-        </button>
-      )}
-      <PhaseChip phase={item.phase} />
-      <span className={cn("min-w-0 flex-1 truncate text-[13px]", erledigt && !manuell && "text-muted-foreground line-through")}>
-        {titel}
-      </span>
-      <span className="shrink-0 tabular-nums text-[12px] text-muted-foreground">{item.minuten} Min</span>
-      {manuell && <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-    </>
-  );
-
-  if (manuell) {
-    return (
-      <li>
-        <Link
-          href={`/lernen/${subjectId}/plan/${assignmentId}`}
-          className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          {inhalt}
-        </Link>
-      </li>
-    );
-  }
-
-  return <li className="flex items-center gap-2 px-1 py-1.5">{inhalt}</li>;
 }
 
 // --- Die weiteren, gruppiert nach Woche ---------------------------------------
@@ -375,7 +260,7 @@ function ExamRow({
   return (
     <li>
       {exam.subjectId ? (
-        <Link href={`/fächer/${exam.subjectId}`} className={className}>
+        <Link href={`/faecher/${exam.subjectId}`} className={className}>
           {inner}
         </Link>
       ) : (
@@ -394,10 +279,19 @@ function ExamRowLernplanLink({ exam }: { exam: AssignmentDTO }) {
   const href = exam.lernplan
     ? `/lernen/${exam.subjectId}/plan/${exam.id}`
     : `/lernen/${exam.subjectId}/plan/${exam.id}/neu`;
+  // Trefflaeche 44 px hoch (WCAG-Minimum) ohne Ueberlappung mit der
+  // Pruefungszeile darueber/darunter: min-h-11 liefert die 44 px direkt als
+  // eigene Boxhoehe (nicht ueber ein ueberlappendes before-Inset wie bei den
+  // Checkbox-Zeilen, dafuer fehlt hier der Platz -- die Zeilen der Wochenliste
+  // stehen mit nur ~4 px Rasterabstand dicht aneinander). Das bisherige -mt-1
+  // ruecke die Zeile in den Rand der Pruefungszeile hinein und ueberlappte
+  // deren Trefflaeche um 4-8 px, deshalb entfaellt es. before:-inset-x-2
+  // erweitert die Trefflaeche nur seitlich, before:-inset-y-0 haelt sie exakt
+  // buendig mit der eigenen Boxhoehe.
   return (
     <Link
       href={href}
-      className="relative -mt-1 ml-[1.625rem] inline-flex min-h-8 items-center rounded px-1 py-1 text-[12px] font-medium text-primary before:absolute before:-inset-1 before:content-[''] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="relative ml-[1.625rem] inline-flex min-h-11 items-center rounded px-1 py-1 text-[12px] font-medium text-primary before:absolute before:-inset-x-2 before:-inset-y-0 before:content-[''] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {exam.lernplan ? "Plan" : "Lernplan erstellen"}
     </Link>
@@ -431,7 +325,7 @@ function PastExams({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="relative flex items-center gap-1.5 rounded px-1 py-1 text-[13px] text-muted-foreground transition-colors before:absolute before:-inset-1 before:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded px-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
         {open ? "Vergangene Prüfungen ausblenden" : "Vergangene Prüfungen anzeigen"}
@@ -481,7 +375,7 @@ function PastRow({ exam, today }: { exam: AssignmentDTO; today: string }) {
   return (
     <li>
       {exam.subjectId ? (
-        <Link href={`/fächer/${exam.subjectId}`} className={className}>
+        <Link href={`/faecher/${exam.subjectId}`} className={className}>
           {inner}
         </Link>
       ) : (
@@ -515,7 +409,10 @@ export function PruefungenEmpty({ onAdd }: { onAdd: () => void }) {
 
 export function PruefungenSkeleton() {
   return (
-    <div className="flex flex-col gap-5" aria-label="Prüfungen werden geladen" aria-busy="true">
+    // NIT-Fix: aria-label auf einem <div> ohne Rolle wird von den meisten
+    // Screenreadern ignoriert, aria-busy allein wird dort nicht vorgelesen --
+    // role="status" macht daraus eine echte Live-Region.
+    <div className="flex flex-col gap-5" role="status" aria-label="Prüfungen werden geladen" aria-busy="true">
       <div className="rounded-2xl border bg-card p-5 shadow-card">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="mt-2.5 h-5 w-48" />

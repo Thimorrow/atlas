@@ -59,8 +59,11 @@ function authority(tenantId: string): string {
 // Die Tokens landen in derselben Datenbank wie Stundenplan und Notizen. Ein
 // Blick in die Tabelle darf aber nicht reichen, um sich bei Microsoft als der
 // Nutzer auszugeben. Deshalb AES-256-GCM mit einem Schluessel, der nur in der
-// Umgebung steht: bevorzugt ATLAS_SESSION_SECRET, ersatzweise das
-// Client-Secret. Wechselt der Schluessel, sind die alten Tokens unlesbar --
+// Umgebung steht: ATLAS_SESSION_SECRET ist Pflicht. Fehlt es, faellt der
+// Schluessel derzeit auf MICROSOFT_CLIENT_SECRET zurueck (Single-User-
+// Kompromiss, damit kein separates Secret noetig ist). Sauberer waere: ohne
+// ATLAS_SESSION_SECRET die Anbindung deaktiviert lassen, statt unsicher zu
+// verschluesseln. Wechselt der Schluessel, sind die alten Tokens unlesbar --
 // dann meldet sich der Nutzer einmal neu an, mehr passiert nicht.
 
 function encryptionKey(): Buffer {

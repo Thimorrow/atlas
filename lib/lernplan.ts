@@ -53,7 +53,10 @@ function tageZwischen(vonISO: string, bisISO: string): string[] {
 
 // --- Schritt B: Einheiten je Punkt ------------------------------------------
 //
-// Faktor nach Sicherheit: >= 80 -> 0,5 (nur ueben), 40..79 -> 1, < 40 -> 1,5.
+// Faktor nach Sicherheit: 40..79 -> 1, < 40 -> 1,5. Ab 80 gibt es keine
+// lernen-Einheit mehr (siehe unten), der Faktor 0,5 wird also nie verwendet
+// -- der Zweig existiert nur, damit faktor fuer alle Sicherheiten definiert
+// ist, hat aber keinen Einfluss auf das Ergebnis.
 // lernen nur unter 80, probe nur unter 80, ueben immer 10 Minuten.
 export function einheitenFuer(
   punkt: { minuten: number; sicherheit: number },
@@ -70,6 +73,17 @@ export function einheitenFuer(
     einheiten.push({ pointIndex, phase: "probe", minuten: 10 });
   }
   return einheiten;
+}
+
+// BLOCKIEREND-Fix: welcher Tag der erste Plantag ist -- der heutige, solange
+// es noch vor 18 Uhr ist, sonst erst morgen (der heutige Abend zaehlt dann
+// nicht mehr als Lerntag). Einzige Stelle, die diese Grenze kennt: verteilen()
+// unten nutzt sie fuer die Verteilung, das Gate in lernplan-erstellen.tsx
+// nutzt dieselbe Funktion, um "keine Tage mehr" schon VOR dem Hochladen der
+// Checkliste zu erkennen (vorher rechnete das Gate nur mit heuteISO und liess
+// z.B. eine Pruefung morgen um 19 Uhr faelschlich durch).
+export function ersterPlantag(heuteISO: string, jetztHM: string): string {
+  return jetztHM < "18:00" ? heuteISO : addTageISO(heuteISO, 1);
 }
 
 // --- Schritt C: Verteilung auf Tage ------------------------------------------
@@ -94,13 +108,18 @@ export type VerteilenErgebnis = {
   items: GelegteEinheit[];
   hinweis?: "knapp";
   gestrichen: number;
+  // S7: Schritt 2 (Budgets gleichmaessig erhoehen) veraendert das
+  // Tagesbudget stillschweigend nach oben -- ohne dieses Flag wusste der
+  // Aufrufer nur vom Streichen, nicht davon, dass Tage laenger geworden sind
+  // als vom Nutzer angegeben.
+  budgetErhoeht: boolean;
   tage: string[];
 };
 
 const summeMinuten = (liste: Einheit[]) => liste.reduce((sum, e) => sum + e.minuten, 0);
 
 export function verteilen(einheiten: Einheit[], opts: VerteilenOpts): VerteilenErgebnis {
-  const ersterTag = opts.jetztHM < "18:00" ? opts.heuteISO : addTageISO(opts.heuteISO, 1);
+  const ersterTag = ersterPlantag(opts.heuteISO, opts.jetztHM);
   const letzterPlantag = addTageISO(opts.pruefungISO, -1);
   const alleTage = tageZwischen(ersterTag, letzterPlantag);
   if (alleTage.length === 0) {
@@ -116,8 +135,20 @@ export function verteilen(einheiten: Einheit[], opts: VerteilenOpts): VerteilenE
   const sicherheitVon = (pointIndex: number | null) =>
     pointIndex === null ? 100 : (opts.sicherheiten[pointIndex] ?? 50);
 
+  // Bereits durch vorbelegt (behaltene Einheiten aus einer vorherigen
+  // Verteilung) verbrauchte Minuten je Lerntag -- nur Eintraege, deren Datum
+  // ueberhaupt ein Lerntag ist (dieselbe Bedingung, die Schritt 3 unten fuer
+  // restbudget nutzt).
+  const belegtAn = new Map<string, number>();
+  for (const v of opts.vorbelegt ?? []) {
+    if (lerntage.includes(v.date)) belegtAn.set(v.date, (belegtAn.get(v.date) ?? 0) + v.minuten);
+  }
+
+  // Freie Kapazitaet: Tagesbudget abzueglich der schon durch vorbelegt
+  // verbrauchten Minuten, pro Tag nie unter 0 -- ein einzelner ueberbelegter
+  // Tag darf die Kapazitaet anderer Tage nicht rechnerisch auffressen.
   const kapazitaet = (budgets: Map<string, number>) =>
-    lerntage.reduce((sum, iso) => sum + (budgets.get(iso) ?? 0), 0);
+    lerntage.reduce((sum, iso) => sum + Math.max(0, (budgets.get(iso) ?? 0) - (belegtAn.get(iso) ?? 0)), 0);
 
   // Schritt 1: streichen, wenn die Gesamtzeit die Kapazitaet uebersteigt --
   // Reihenfolge: probe von Punkten >= 40, dann alle probe, dann ueben von
@@ -146,12 +177,20 @@ export function verteilen(einheiten: Einheit[], opts: VerteilenOpts): VerteilenE
   // bis alles passt.
   const budgets = new Map(grundBudgets);
   let hinweis: "knapp" | undefined;
+  let budgetErhoeht = false;
   if (gestrichen > 0) hinweis = "knapp";
   if (summeMinuten(arbeitsliste) > kapazitaet(budgets)) {
     hinweis = "knapp";
+    budgetErhoeht = true;
     const benoetigt = summeMinuten(arbeitsliste);
-    const vorhanden = kapazitaet(budgets);
-    const faktor = vorhanden > 0 ? benoetigt / vorhanden : 1;
+    // Faktor bezieht sich auf die VOLLEN Tagesbudgets (nicht die freie
+    // Kapazitaet) und auf benoetigt PLUS bereits durch vorbelegt verbrauchte
+    // Minuten -- sonst bliebe ein durch vorbelegt komplett verbrauchter Tag
+    // bei 0*faktor = 0 und wuerde nie mit hochskaliert. Reduziert sich ohne
+    // vorbelegt exakt auf die alte Rechnung (belegtGesamt dann 0).
+    const belegtGesamt = lerntage.reduce((sum, iso) => sum + (belegtAn.get(iso) ?? 0), 0);
+    const volleKapazitaet = lerntage.reduce((sum, iso) => sum + (budgets.get(iso) ?? 0), 0);
+    const faktor = volleKapazitaet > 0 ? (benoetigt + belegtGesamt) / volleKapazitaet : 1;
     for (const iso of lerntage) budgets.set(iso, Math.ceil((budgets.get(iso) ?? 0) * faktor));
   }
 
@@ -253,7 +292,7 @@ export function verteilen(einheiten: Einheit[], opts: VerteilenOpts): VerteilenE
     });
   }
 
-  return { items, hinweis, gestrichen, tage: alleTage };
+  return { items, hinweis, gestrichen, budgetErhoeht, tage: alleTage };
 }
 
 // --- Neu verteilen ------------------------------------------------------
@@ -279,6 +318,14 @@ export type NeuVerteilenErgebnis = {
   neu: GelegteEinheit[];
   zusaetzlich: number;
   hinweis?: "knapp";
+  // S1: unterscheidet fuer den Aufrufer, ob "knapp" von gestrichenen
+  // Einheiten kommt oder (auch) von hochskalierten Tagesbudgets -- siehe
+  // budgetErhoeht in VerteilenErgebnis.
+  budgetErhoeht: boolean;
+  // S4: gestrichen und budgetErhoeht sind unabhaengig voneinander wahr. Der
+  // Aufrufer muss beides nennen koennen, sonst verschweigt die Erfolgsmeldung
+  // beim Neuverteilen, dass Uebungseinheiten ersatzlos weggefallen sind.
+  gestrichen: number;
 };
 
 export function neuVerteilen(plan: NeuVerteilenInput, opts: NeuVerteilenOpts): NeuVerteilenErgebnis {
@@ -309,7 +356,7 @@ export function neuVerteilen(plan: NeuVerteilenInput, opts: NeuVerteilenOpts): N
   plan.punkte.forEach((punkt, pointIndex) => {
     if (punkt.sicherheit >= 40) return;
     const hatUeben =
-      behalten.some((i) => i.pointIndex === pointIndex && i.phase === "ueben") ||
+      behalten.some((i) => i.pointIndex === pointIndex && i.phase === "ueben" && i.doneAt === null) ||
       zuLegen.some((e) => e.pointIndex === pointIndex && e.phase === "ueben");
     if (!hatUeben) {
       zuLegen.push({ pointIndex, phase: "ueben", minuten: 10 });
@@ -329,5 +376,7 @@ export function neuVerteilen(plan: NeuVerteilenInput, opts: NeuVerteilenOpts): N
     neu,
     zusaetzlich,
     hinweis: ergebnis.hinweis,
+    budgetErhoeht: ergebnis.budgetErhoeht,
+    gestrichen: ergebnis.gestrichen,
   };
 }

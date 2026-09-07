@@ -21,7 +21,15 @@ export function weekdayName(iso: string): string {
   return WOCHENTAG[idx];
 }
 
-export type Stunde = { startTime: string; endTime: string | null; fach: string; raum: string | null };
+export type Stunde = {
+  startTime: string;
+  endTime: string | null;
+  fach: string;
+  raum: string | null;
+  status?: CalendarEvent["status"];
+  lehrer?: string | null;
+  vertretung?: string | null;
+};
 export type AufgabeKurz = { id: string; titel: string; fach: string | null; typ: AssignmentType; faellig: string | null };
 export type NotizKurz = { id: string; titel: string; fach: string; geaendert: string };
 
@@ -39,7 +47,15 @@ export type Lagebild = {
 };
 
 function toStunde(e: CalendarEvent): Stunde {
-  return { startTime: e.startTime, endTime: e.endTime, fach: e.title, raum: e.room };
+  return {
+    startTime: e.startTime,
+    endTime: e.endTime,
+    fach: e.title,
+    raum: e.room,
+    status: e.status,
+    lehrer: e.teacher,
+    vertretung: e.substitutionText,
+  };
 }
 
 // Laedt das Lagebild aus allen Quellen. Jeder Teil einzeln in try/catch,
@@ -123,7 +139,17 @@ function tageDazwischen(vonISO: string, bisISO: string): number {
 }
 
 function stundenZeile(stunden: Stunde[]): string {
-  return stunden.map((s) => `${s.startTime}-${s.endTime ?? "?"} ${s.fach}${s.raum ? ` ${s.raum}` : ""}`).join("; ");
+  return stunden
+    .map((s) => {
+      const basis = `${s.startTime}-${s.endTime ?? "?"} ${s.fach}${s.raum ? ` ${s.raum}` : ""}`;
+      if (s.status === "cancelled") return `${basis} (entfällt)`;
+      if (s.status === "substituted") {
+        const detail = s.vertretung ? `: ${s.vertretung}` : s.lehrer ? ` bei ${s.lehrer}` : "";
+        return `${basis} (Vertretung${detail})`;
+      }
+      return basis;
+    })
+    .join("; ");
 }
 
 // Reine Funktion: baut aus dem Lagebild den kompakten Text fuer den

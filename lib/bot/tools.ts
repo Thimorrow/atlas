@@ -117,7 +117,7 @@ export const botTools: ChatTool[] = [
     function: {
       name: "stundenplan_lesen",
       description:
-        "Liest die Schulstunden in einem Zeitraum. Ohne Angabe: heute bis in sieben Tagen.",
+        "Liest die Schulstunden in einem Zeitraum. Ohne Angabe: heute bis in sieben Tagen. Jede Stunde meldet status (regular = normal, substituted = Vertretung oder Raumänderung, cancelled = entfällt) und vertretung (Untis-Text dazu, sonst null).",
       parameters: {
         type: "object",
         properties: {
@@ -525,6 +525,7 @@ async function stundenplanLesen(args: Record<string, unknown>) {
         raum: e.room,
         lehrer: e.teacher,
         status: e.status,
+        vertretung: e.substitutionText,
       })),
     })),
   };
@@ -885,6 +886,8 @@ async function jetztLesen() {
           raum: k.selected.room,
           lehrer: k.selected.teacher,
           fach: k.selected.subjectName,
+          status: k.selected.status,
+          vertretung: k.selected.substitutionText,
           restMinuten: k.selected.minutesLeft,
           minutenBis: k.selected.minutesUntil,
         }
@@ -893,7 +896,12 @@ async function jetztLesen() {
     demnaechst: k.demnaechst.map((a) => ({ id: a.id, titel: a.title, faelligAm: a.dueDate })),
     naechstePruefung: k.naechstePruefung,
     naechsterTermin: k.naechsterTermin,
-    tagesplan: k.tag.map((ev) => ({ von: ev.startTime, titel: ev.title, status: ev.status })),
+    tagesplan: k.tag.map((ev) => ({
+      von: ev.startTime,
+      titel: ev.title,
+      status: ev.status,
+      vertretung: ev.substitutionText,
+    })),
   };
 }
 

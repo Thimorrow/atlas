@@ -254,7 +254,7 @@ export default function SettingsPage() {
                     {selected && (
                       <motion.span
                         layoutId="theme-active"
-                        className="absolute inset-0 -z-10 rounded-xl border-2 border-primary bg-primary/10"
+                        className="absolute inset-0 -z-10 rounded-xl bg-primary/10 ring-2 ring-primary"
                         transition={{ type: "spring", stiffness: 500, damping: 46 }}
                       />
                     )}

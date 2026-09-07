@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { expandDay, expandWeek, isRealDate } from "@/lib/calendar-expand";
 import { lokalesDatum } from "@/lib/jetzt-stunde";
+import { cachedJson } from "@/lib/http-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,5 +35,7 @@ export async function GET(req: Request) {
   }
 
   const range = view === "day" ? await expandDay(date) : await expandWeek(date);
-  return NextResponse.json({ view, ...range });
+  // Wochenplaene aendern sich nur per Sync: 2 Minuten frisch, danach noch
+  // leise erneuerbar. Fehler muenden oben in 400 ohne Header.
+  return cachedJson({ view, ...range }, 120);
 }

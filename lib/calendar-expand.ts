@@ -18,6 +18,7 @@ export type CalendarEvent = {
   status: SchoolBlock["status"];
   room: string | null;
   teacher: string | null;
+  substitutionText: string | null;
   hasNote: boolean;
   hasAssignment: boolean;
   participation: number | null; // null = nicht erfasst, sonst der gezaehlte Wert (auch 0)
@@ -97,6 +98,7 @@ function schoolToEvent(
     status: b.status,
     room: b.room,
     teacher: b.teacher,
+    substitutionText: b.substitutionText,
     hasNote: notedBlockIds.has(b.id),
     hasAssignment: dueBlockIds.has(b.id),
     participation: participationByBlock.has(b.id) ? participationByBlock.get(b.id)! : null,

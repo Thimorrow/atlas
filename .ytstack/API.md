@@ -35,6 +35,48 @@ wissen muss, und benennt vor allem die Luecken.
 | POST/DELETE | /api/assignments/{id}/complete | abhaken, Haken entfernen |
 | GET | /api/calendar?date=&view=week\|day | Stundenplan |
 | GET/POST | /api/sync/untis | GET liest den Stand, POST stoesst den Abgleich an (`{start,end}` optional) |
+| GET | /api/stunde?block= | Stunden-Cockpit: aktuelle Stunde, Tagesleiste, Faellig-jetzt, Kontext |
+| GET | /api/morgen?date= | Fokus-Zieltag mit Stunden und Aufgaben bis zum Zieltag |
+| GET/POST | /api/bot | GET: Begruessung plus frische conversationId ohne Modellaufruf; POST: Nachricht als NDJSON-Stream |
+| GET | /api/bot/verlauf | letzte Gespraeche mit Nachrichten |
+| GET | /api/bot/verlauf/{id} | ein Gespraech mit Existenzpruefung seiner Aktionen |
+| GET | /api/lernen | Uebersicht aller Faecher fuers Lernbereich-Dashboard |
+| GET | /api/lernen/{subjectId} | Fach mit Karten, Fortschritt, Lernplan und botEnabled |
+| POST | /api/lernen/themen | Thema anlegen (`{subjectId, title, assignmentId?}`) |
+| PATCH/DELETE | /api/lernen/themen/{id} | Thema umbenennen oder archivieren; DELETE behaelt Karten (topicId null) |
+| POST | /api/lernen/themen/{id}/lernzettel | Lernzettel per Bot erzeugen und am Thema speichern |
+| GET/POST | /api/lernen/karten | Karten eines Fachs lesen (`?subject=`), Karte manuell anlegen |
+| PATCH/DELETE | /api/lernen/karten/{id} | Karte aendern, archivieren, loeschen |
+| POST | /api/lernen/karten/{id}/antwort | Antwort protokollieren, Leitner-Box hoch oder runter |
+| POST | /api/lernen/karten/{id}/bewerten | freie Antwort bewerten (`{antwort}` zu `{urteil, feedback}`) |
+| POST | /api/lernen/karten/{id}/erklaeren | Erklaerung zur Karte als Text streamen |
+| POST | /api/lernen/karten/{id}/variante | Aufgabenvariante als neue Karte im selben Thema |
+| POST | /api/lernen/generieren | Karten per Bot erzeugen und direkt speichern |
+| GET/POST | /api/lernen/tutor | Sessions auflisten, neue Session anlegen (`{topicId, modus?, cardId?, einheitId?, pruefung?}`) |
+| GET/POST/DELETE | /api/lernen/tutor/{id} | Verlauf lesen, Nachricht als NDJSON-Stream senden, Session loeschen |
+| POST | /api/lernen/tutor/{id}/karten | Fazit-Vorschlaege als Karten im Thema anlegen |
+| POST | /api/lernen/plan | Lernplan anlegen (Schritt 4 der Spec) |
+| POST | /api/lernen/plan/lesen | Checkliste plus Blaetter lesen, Punkte-Entwurf ohne Speichern |
+| POST | /api/lernen/plan/bewerten | Diagnosetest auswerten (Schritt 3 der Spec) |
+| GET/PATCH/DELETE | /api/lernen/plan/{id} | GET: Plan per assignmentId; PATCH: Zeitbudget neu verteilen; DELETE: Plan loeschen |
+| POST | /api/lernen/plan/{id}/verteilen | offene Einheiten neu verteilen (`{umfang}`) |
+| PATCH | /api/lernen/plan/items/{id} | Einheit abhaken (`{done, result?}`) |
+| PATCH | /api/lernen/plan/points/{id} | Punkt pflegen (`{cardsState?, topicId?}`) |
+| GET/PUT/DELETE | /api/lessons/{id}/note | Stundennotiz lesen, schreiben (leer loescht), loeschen |
+| GET/PUT/DELETE | /api/lessons/{id}/participation | Meldungszaehler lesen, setzen (0 bleibt), loeschen |
+| GET | /api/lessons/{id}/next-due | naechste Stunde desselben Fachs als Faelligkeitsvorschlag |
+| GET | /api/grades | Schnitt je Fach plus Gesamtschnitt |
+| PATCH/DELETE | /api/grades/{id} | Note aendern, loeschen |
+| GET/POST | /api/subjects/{id}/grades | Noten eines Fachs mit Schnitt lesen, Note anlegen |
+| GET/PUT/DELETE | /api/subjects/{id}/curriculum | Lehrplan lesen, schreiben (leer loescht), loeschen |
+| POST | /api/subjects/{id}/curriculum/seed | ein Fach aus der Vorlage vorbelegen |
+| POST | /api/subjects/curriculum/seed | alle unbelegten Faecher vorbelegen, idempotent |
+| GET/DELETE | /api/microsoft/status | Anbindungsstand lesen, Verbindung trennen |
+| GET | /api/microsoft/login | Browser zur Microsoft-Anmeldung schicken |
+| GET | /api/microsoft/callback | OAuth-Ruecksprung mit Code und State |
+| GET | /api/microsoft/sections | OneNote-Abschnitte des Nutzers |
+| POST | /api/notes/{id}/onenote | Notiz als Seite nach OneNote schreiben |
+| POST | /api/admin/migrate | SQL-Dateien aus drizzle/ anwenden |
 
 Fehlerantworten haben immer die Form `{"error": "<deutscher Satz>"}`.
 Eine kaputte UUID im Pfad ergibt 404, nie 400.

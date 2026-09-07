@@ -35,8 +35,13 @@ function LoginForm() {
         return;
       }
       // Harter Wechsel statt router.push: der Proxy soll die Seite mit dem
-      // frischen Cookie neu bewerten.
-      window.location.href = weiter.startsWith("/") ? weiter : "/";
+      // frischen Cookie neu bewerten. Nur echte Pfade wie /abc: "//evil.com"
+      // sieht absolut aus, fuehrt aber weg, und Backslashes gehoeren nicht
+      // in einen Pfad.
+      window.location.href =
+        weiter.startsWith("/") && !weiter.startsWith("//") && !weiter.includes("\\")
+          ? weiter
+          : "/";
     } catch {
       setError("Keine Verbindung zum Server.");
       setBusy(false);

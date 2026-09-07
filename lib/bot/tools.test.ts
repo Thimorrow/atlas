@@ -229,7 +229,7 @@ describe("lernplan_lesen liest den gemockten Store und formatiert", () => {
         total: 10,
         done: 3,
         punkte: [{ titel: "Quadratische Funktionen", sicherheit: 40, quelle: "diagnose" }],
-        heute: [{ id: "i1", planId: "plan1", pointId: "p1", punktTitel: "Quadratische Funktionen", date: "2026-09-04", position: 0, phase: "lernen", minuten: 20, doneAt: null, result: null }],
+        heute: [{ id: "i1", planId: "plan1", pointId: "p1", punktTitel: "Quadratische Funktionen", topicId: null, date: "2026-09-04", position: 0, phase: "lernen", minuten: 20, doneAt: null, result: null }],
         ueberfaellig: [],
       },
     ]);

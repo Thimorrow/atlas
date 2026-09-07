@@ -28,8 +28,10 @@ npm run db:seed                # Testdaten, solange WebUntis abgeschaltet ist
 npm run dev
 ```
 
-`BLOB_READ_WRITE_TOKEN` ist optional. Fehlt es, zeigt der Dateibereich einen
-ruhigen Hinweis und der Rest der App funktioniert unverändert weiter.
+`BLOB_READ_WRITE_TOKEN` ist lokal optional und auf Vercel gesetzt. Fehlt es
+lokal, zeigt der Dateibereich einen ruhigen Hinweis und der Rest der App
+funktioniert unverändert weiter. Live ist der Blob-Store aktiv
+(`enabled: true`).
 
 ## Microsoft 365 und OneNote
 
@@ -115,22 +117,64 @@ einmal neu bei Microsoft an.
 app/
   page.tsx              Plan (Woche und Fokus, der Fokus zeigt heute solange
                         heute noch Unterricht laeuft oder ansteht, sonst morgen)
-  aufgaben/             Aufgaben mit Tabs Offen und Pruefungen
-  faecher/              Fächer-Übersicht (mit Notenschnitt und Zuletzt
-                        eingetragen) und Detailseite
-  settings/             Einstellungen, Untis-Sync, Theme
-  api/                  calendar, morgen, sync/untis, subjects, notes, assignments, files, grades, microsoft
+  aufgaben/page.tsx     Aufgaben mit Tabs Offen und Pruefungen
+  stunde/page.tsx       Stunden-Cockpit (live/pause/vor/nach/frei, Faellig-jetzt,
+                        Notiz, Meldung, Dateien, Kontext)
+  faecher/page.tsx      Fächer-Übersicht (mit Notenschnitt und Zuletzt
+                        eingetragen)
+  faecher/[id]/page.tsx Fachdetail (Stammdaten, Notizen, Dateien, Aufgaben, Noten)
+  lernen/page.tsx       Lernbereich-Dashboard (Karteikarten, Themen, Plaene)
+  lernen/[subjectId]/   Fach im Lernbereich (page, session, themen/[topicId],
+                        tutor, plan/[assignmentId] mit neu)
+  bot/page.tsx          Bot-Chat (mit Verlauf unter bot/verlauf und Detail)
+  namensschild/page.tsx Namensschild
+  settings/page.tsx     Einstellungen, Untis-Sync, Theme, OneNote
+  login/page.tsx        Passwort-Anmeldung (siehe Status)
+  api/                  61 Routen (Stand 2026-09-07):
+                        login, session, home, colors,
+                        calendar, morgen, stunde,
+                        assignments (+ [id], [id]/complete),
+                        subjects (+ [id], candidates, setup, reconcile,
+                          [id]/notes, [id]/files, [id]/files/upload,
+                          [id]/grades, [id]/curriculum,
+                          [id]/curriculum/seed, curriculum/seed),
+                        notes/[id] (+ [id]/onenote),
+                        files/[id],
+                        grades (+ [id]),
+                        lessons/[id]/note, lessons/[id]/participation,
+                          lessons/[id]/next-due,
+                        bot (+ verlauf, verlauf/[id]),
+                        lernen (+ [subjectId], themen, themen/[id],
+                          themen/[id]/lernzettel, karten, karten/[id],
+                          karten/[id]/antwort, karten/[id]/bewerten,
+                          karten/[id]/erklaeren, karten/[id]/variante,
+                          generieren, tutor, tutor/[id], tutor/[id]/karten,
+                          plan, plan/lesen, plan/bewerten, plan/[id],
+                          plan/[id]/verteilen, plan/items/[id],
+                          plan/points/[id]),
+                        sync/untis,
+                        microsoft (+ login, callback, status, sections),
+                        admin/migrate
 components/             UI-Bausteine, alle im selben Stil
 lib/
   db/schema.ts          Drizzle-Schema
+  gate.ts               Passwort-Gate (mit proxy.ts, HMAC-Cookie)
   calendar-expand.ts    Untis-Stunden zu Tages-Instanzen expandieren
   assignments-view.ts   Gruppierung und Sortierung der Aufgaben (rein, getestet)
   morgen-view.ts        Fokus-Zieltag und Aufgaben bis zum Zieltag (rein, getestet)
+  jetzt-stunde.ts       Logik des Stunden-Cockpits (rein, getestet)
+  lernen.ts             Leitner-Boxen 0..5 fuer Karteikarten (rein, getestet)
+  lernplan.ts           Einheiten und Verteilung des Lernplans (rein, getestet)
+  study-store.ts        Lernbereich-Store (Drizzle)
+  lernplan-store.ts     Lernplan-Store (Drizzle)
+  tutor/                KI-Tutor (Session, Tools, Prompt)
+  bot/                  Bot-Modell, Verlauf, Stunden-Kontext
   subject-colors.ts     Fachfarben-Palette und Vorbelegung
   markdown.ts           Markdown für Notizen, escape-first
   microsoft.ts          Entra-ID-Anmeldung (PKCE) und OneNote über Graph
   untis/                WebUntis-Client, Adapter, Sync-Policy
-drizzle/                Migrationen
+  zeit.ts               Europe/Berlin heute/jetzt auf dem Server
+drizzle/                Migrationen (0000 bis 0019)
 .ytstack/               Projektzustand, Entscheidungen, Specs
 ```
 
@@ -186,5 +230,11 @@ gelöscht, sonst legt der nächste Sync es still wieder an. `subject_notes` und
 
 ## Status
 
-Single-User, kein Auth, kein Deploy. Der aktuelle Stand und die offenen Punkte
-stehen in `.ytstack/STATE.md`.
+Live auf Vercel (https://atlas-ten-orpin.vercel.app) hinter einem
+Passwort-Gate: `proxy.ts` plus `lib/gate.ts` pruefen ein HMAC-signiertes
+Cookie (`ATLAS_PASSWORD`, `ATLAS_SESSION_SECRET`). Ohne das Cookie antworten
+Seiten mit einer Weiterleitung auf `/login`, API-Routen mit 401. Lokal ohne
+`ATLAS_PASSWORD` bleibt die App offen. Die App wendet ihre Migrationen selbst
+an (`POST /api/admin/migrate`). `BLOB_READ_WRITE_TOKEN` ist auf Vercel gesetzt,
+der Dateibereich ist live aktiv (`enabled: true`). Der aktuelle Stand und die
+offenen Punkte stehen in `.ytstack/STATE.md`.

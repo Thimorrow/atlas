@@ -42,6 +42,7 @@ import { TEACHER_TITLES } from "@/lib/teacher";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { dueLabel, isExamPageType, type AssignmentDTO } from "@/lib/assignments-view";
+import { invalidateSubjectsCaches } from "@/lib/fetch-cache";
 import type { GradeDTO } from "@/lib/grade-store";
 
 export type LessonDTO = {
@@ -240,7 +241,7 @@ export function SubjectDetail({ id }: { id: string }) {
   const switchTab = useCallback(
     (next: Tab) => {
       setTab(next);
-      const url = next === "uebersicht" ? `/fächer/${id}` : `/fächer/${id}?tab=${next}`;
+      const url = next === "uebersicht" ? `/faecher/${id}` : `/faecher/${id}?tab=${next}`;
       window.history.replaceState(null, "", url);
     },
     [id],
@@ -257,6 +258,8 @@ export function SubjectDetail({ id }: { id: string }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
+      // Name/Farbe/Raum stehen auch in Kalender, Fokus und Uebersicht.
+      invalidateSubjectsCaches();
       setData((prev) => (prev ? { ...prev, subject: json.subject as SubjectDTO } : prev));
     } catch (e) {
       toast((e as Error).message || "Die Änderung konnte nicht gespeichert werden.");

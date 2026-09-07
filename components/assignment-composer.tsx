@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
 import { TYPE_LABEL, type AssignmentDTO, type AssignmentType } from "@/lib/assignments-view";
+import { invalidateAssignmentsCaches } from "@/lib/fetch-cache";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -178,6 +179,9 @@ export function AssignmentComposer({
       );
       if (!res.ok) throw new Error("save failed");
       const data = (await res.json()) as { assignment: AssignmentDTO };
+      // Andere Ansichten (Fokus, Kalender-Spur, Lernbereich) duerfen den
+      // alten Stand nicht weiter zeigen.
+      invalidateAssignmentsCaches();
       onSaved(data.assignment);
       close();
     } catch {

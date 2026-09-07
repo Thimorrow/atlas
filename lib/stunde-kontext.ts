@@ -47,6 +47,7 @@ export type StundeLessonDTO = {
   status: "regular" | "cancelled" | "substituted";
   room: string | null;
   teacher: string | null;
+  substitutionText: string | null;
   subjectId: string | null;
   subjectColor: string | null;
   subjectName: string | null;
@@ -109,6 +110,7 @@ export async function ladeStundeKontext(blockId?: string | null): Promise<Stunde
         status: ev.status,
         room: ev.room,
         teacher: ev.teacher,
+        substitutionText: ev.substitutionText,
         subjectId: s?.id ?? null,
         subjectColor: s?.color ?? null,
         subjectName: s?.name ?? null,
