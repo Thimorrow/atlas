@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { isObj, isUuid } from "@/lib/subject-store";
 import { botEnabled } from "@/lib/bot/model";
 import { getCard, getTopic } from "@/lib/study-store";
+import { planLaden, punktMitBlaettern } from "@/lib/lernplan-store";
+import { isExamPageType } from "@/lib/assignments-view";
 import { getAssignment } from "@/lib/assignment-store";
 import {
   appendTutorMessage,
@@ -84,10 +86,24 @@ export async function POST(req: Request) {
   if (cardId) {
     card = await getCard(cardId);
     if (!card) return NextResponse.json({ error: "Karte nicht gefunden." }, { status: 404 });
+    if (card.subjectId !== subjectId || card.topicId !== topicId || !topicId) return NextResponse.json({ error: "Karte gehört nicht zu diesem Thema." }, { status: 400 });
   }
 
   const einheitId = typeof body.einheitId === "string" ? body.einheitId : undefined;
   const pruefung = typeof body.pruefung === "string" ? body.pruefung : undefined;
+
+  if (pruefung) {
+    const assignment = await getAssignment(pruefung);
+    if (!assignment) return NextResponse.json({ error: "Prüfung nicht gefunden." }, { status: 404 });
+    if (assignment.subjectId !== subjectId || !isExamPageType(assignment.type)) return NextResponse.json({ error: "Prüfung gehört nicht zu diesem Fach." }, { status: 400 });
+  }
+  if (einheitId) {
+    const plan = pruefung ? await planLaden(pruefung) : (await punktMitBlaettern(einheitId))?.plan;
+    const item = plan?.items.find((entry) => entry.id === einheitId);
+    if (!plan || plan.subjectId !== subjectId || !item || item.topicId !== topicId || (!topicId && item.phase !== "simulation")) {
+      return NextResponse.json({ error: "Einheit gehört nicht zu diesem Thema oder Prüfungsplan." }, { status: 400 });
+    }
+  }
 
   const conversation = await createTutorConversation({
     topicId,

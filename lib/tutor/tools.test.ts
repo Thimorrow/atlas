@@ -76,3 +76,17 @@ describe("parseFazit", () => {
     if (r.ok) expect(r.value.neueKarten).toHaveLength(8);
   });
 });
+
+describe("ungültige Tutor-Bewertungen", () => {
+  it.each([
+    { punkte: 100, gesamt: 1 }, { punkte: -1, gesamt: 5 },
+    { punkte: 0, gesamt: 0 }, { punkte: Infinity, gesamt: 5 },
+    { punkte: NaN, gesamt: 5 }, { punkte: 3 },
+    { punktePlan: [{ pointId: "p", prozent: 500 }] },
+    { punktePlan: [{ pointId: "p", prozent: -1 }] },
+    { punktePlan: [{ pointId: "p", prozent: NaN }] },
+    { punktePlan: [{ pointId: "p", prozent: 50 }, { pointId: "p", prozent: 80 }] },
+  ])("weist unplausible Zahlen zurück: %j", (value) => {
+    expect(parseFazit({ gutWar: [], schwach: [], neueKarten: [], ...value }).ok).toBe(false);
+  });
+});

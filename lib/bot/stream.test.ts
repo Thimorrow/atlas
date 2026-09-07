@@ -36,10 +36,21 @@ describe("parseBotEvent", () => {
   });
 
   it("liest ein proposal-Ereignis", () => {
-    expect(parseBotEvent('{"type":"proposal","kind":"grade","data":{"punkte":10}}')).toEqual({
+    expect(parseBotEvent('{"type":"proposal","kind":"grade","messageId":"proposal-1","data":{"punkte":10}}')).toEqual({
       type: "proposal",
       kind: "grade",
+      messageId: "proposal-1",
       data: { punkte: 10 },
+    });
+  });
+
+  it("verwirft Vorschläge ohne dauerhaft identifizierbare Nachricht", () => {
+    expect(parseBotEvent('{"type":"proposal","kind":"grade","data":{"punkte":10}}')).toBeNull();
+  });
+
+  it("merkt die Gesprächs-ID bereits vor dem Abschluss", () => {
+    expect(parseBotEvent('{"type":"conversation","conversationId":"chat-1"}')).toEqual({
+      type: "conversation", conversationId: "chat-1",
     });
   });
 

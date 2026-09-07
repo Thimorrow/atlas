@@ -29,7 +29,7 @@ import { aktualisiereAusFazit, planLaden, punktMitBlaettern } from "@/lib/lernpl
 import { readSubjectFile } from "@/lib/bot/files";
 
 const MAX_ROUNDS = 6;
-const ROUND_TIMEOUT_MS = 110_000;
+const TURN_TIMEOUT_MS = 100_000;
 // Gesamtlaenge aller Arbeitsblaetter eines Punkts im Prompt, siehe SPEC.md
 // "Tutor kennt die Blätter des Punkts".
 const MAX_BLAETTER_CHARS = 15_000;
@@ -170,6 +170,7 @@ export async function* runTutorTurn(
   signal?: AbortSignal,
   deps: TutorSessionDeps = defaultDeps,
 ): AsyncGenerator<TutorEvent> {
+  const deadline = Date.now() + TURN_TIMEOUT_MS;
   const conversation = await deps.getTutorConversation(conversationId);
   if (!conversation) {
     yield { type: "error", text: "Diese Tutor-Session gibt es nicht." };
@@ -195,7 +196,7 @@ export async function* runTutorTurn(
 
   if (conversation.topicId) {
     const topic = await deps.getTopic(conversation.topicId);
-    if (!topic) {
+    if (!topic || topic.subjectId !== conversation.subjectId) {
       yield { type: "error", text: "Thema oder Fach nicht gefunden." };
       return;
     }
@@ -205,13 +206,17 @@ export async function* runTutorTurn(
       .filter((c) => c.topicId === conversation.topicId)
       .map((c) => ({ question: c.question, answer: c.answer, box: c.box, kind: c.kind }));
     entryCard = conversation.cardId ? await deps.getCard(conversation.cardId) : undefined;
+    if (entryCard && (entryCard.subjectId !== conversation.subjectId || entryCard.topicId !== conversation.topicId)) {
+      yield { type: "error", text: "Die Karte gehört nicht zu diesem Thema." };
+      return;
+    }
   }
 
   let simulation: TutorContextInput["simulation"] = null;
   if (conversation.assignmentId && deps.ladePlan) {
     try {
       const plan = await deps.ladePlan(conversation.assignmentId);
-      if (plan) {
+      if (plan && plan.subjectId === conversation.subjectId) {
         simulation = { punkte: plan.punkte.map((p) => ({ pointId: p.id, titel: p.titel, sicherheit: p.sicherheit })) };
       }
     } catch (err) {
@@ -279,6 +284,10 @@ export async function* runTutorTurn(
   let round = 0;
   while (round < MAX_ROUNDS) {
     if (signal?.aborted) return;
+    if (Date.now() >= deadline) {
+      yield { type: "error", text: "Die Tutor-Anfrage hat zu lange gedauert. Bitte nochmal senden." };
+      return;
+    }
     round++;
 
     const roundController = new AbortController();
@@ -286,7 +295,7 @@ export async function* runTutorTurn(
     const timer = setTimeout(() => {
       timedOut = true;
       roundController.abort();
-    }, ROUND_TIMEOUT_MS);
+    }, Math.max(1, deadline - Date.now()));
     const onOuterAbort = () => roundController.abort();
     signal?.addEventListener("abort", onOuterAbort);
 
@@ -328,6 +337,11 @@ export async function* runTutorTurn(
     chatMessages.push({ role: "assistant", content: roundText.length > 0 ? roundText : null, tool_calls: toolCalls });
 
     for (const call of toolCalls) {
+      if (signal?.aborted) return;
+      if (Date.now() >= deadline) {
+        yield { type: "error", text: "Die Tutor-Anfrage hat zu lange gedauert. Bitte nochmal senden." };
+        return;
+      }
       const args = parseToolArgs(call);
       const name = call.function.name;
 
@@ -382,6 +396,13 @@ export async function* runTutorTurn(
           continue;
         }
 
+        const aufgabe = currentCheckliste?.aufgaben.find((a) => a.nr === parsed.value.nr);
+        if (!aufgabe || (parsed.value.punkte !== undefined && (parsed.value.punkte > aufgabe.schwierigkeit || (parsed.value.status === "uebersprungen" && parsed.value.punkte !== 0)))) {
+          const error = "Unbekannte Aufgabe oder Punkte außerhalb ihrer erreichbaren Punktzahl.";
+          await saveToolError(deps, conversationId, name, args, error);
+          chatMessages.push({ role: "tool", tool_call_id: call.id, name, content: JSON.stringify({ error }) });
+          continue;
+        }
         const updated = await deps.setAufgabeStatus(conversationId, parsed.value.nr, parsed.value.status, parsed.value.punkte);
         if (!updated) {
           const error = "Unbekannte Aufgabennummer.";
@@ -407,6 +428,15 @@ export async function* runTutorTurn(
           continue;
         }
 
+        const isSimulation = conversation.modus === "probe" && conversation.topicId === null && Boolean(conversation.assignmentId);
+        const expectedPoints = simulation?.punkte ?? [];
+        const receivedPoints = parsed.value.punktePlan ?? [];
+        if ((isSimulation && (expectedPoints.length === 0 || receivedPoints.length !== expectedPoints.length || receivedPoints.some((p) => !expectedPoints.some((expected) => expected.pointId === p.pointId)))) || (!isSimulation && receivedPoints.length > 0)) {
+          const error = "Simulationsergebnis muss jeden Punkt des geladenen Plans genau einmal enthalten.";
+          await saveToolError(deps, conversationId, name, args, error);
+          chatMessages.push({ role: "tool", tool_call_id: call.id, name, content: JSON.stringify({ error }) });
+          continue;
+        }
         let { punkte, gesamt } = parsed.value;
         let prozent: number | undefined;
         let note: number | undefined;
@@ -424,9 +454,9 @@ export async function* runTutorTurn(
               note = noteFuerProzent(prozent);
             }
           } else {
-            if (punkte === undefined || gesamt === undefined) {
+            if (currentCheckliste || punkte === undefined || gesamt === undefined) {
               const aufgaben = currentCheckliste?.aufgaben ?? [];
-              punkte = aufgaben.filter((a) => a.status === "richtig").reduce((sum, a) => sum + a.schwierigkeit, 0);
+              punkte = aufgaben.reduce((sum, a) => sum + (a.status === "offen" || a.status === "uebersprungen" ? 0 : Math.min(a.schwierigkeit, Math.max(0, a.punkte ?? (a.status === "richtig" ? a.schwierigkeit : 0)))), 0);
               gesamt = aufgaben.reduce((sum, a) => sum + a.schwierigkeit, 0);
             }
             prozent = gesamt > 0 ? Math.round((punkte / gesamt) * 100) : 0;
@@ -470,7 +500,7 @@ export async function* runTutorTurn(
     }
   }
 
-  yield { type: "done", conversationId };
+  yield { type: "error", text: "Der Tutor hat zu viele Schritte benötigt. Bitte erneut versuchen." };
 }
 
 // Speichert den Aufruf (assistant-Zeile) und im selben Zug das Ergebnis

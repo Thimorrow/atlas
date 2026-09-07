@@ -330,3 +330,15 @@ describe("der Bot hat kein Löschwerkzeug", () => {
     expect(ergebnis).toHaveProperty("error");
   });
 });
+
+it("führt nach einem Abbruch während der Validierung keine Schreibaktion aus", async () => {
+  const controller = new AbortController();
+  getAssignment.mockImplementation(async () => { controller.abort(); return { id: ID }; });
+  await expect(runTool("aufgabe_aendern", { aufgabeId: ID, titel: "Neu" }, controller.signal)).rejects.toThrow();
+  expect(updateAssignment).not.toHaveBeenCalled();
+});
+
+it("startet mit bereits abgebrochenem Signal kein Werkzeug", async () => {
+  await expect(runTool("aufgabe_anlegen", { titel: "Neu" }, AbortSignal.abort())).rejects.toThrow();
+  expect(createAssignment).not.toHaveBeenCalled();
+});

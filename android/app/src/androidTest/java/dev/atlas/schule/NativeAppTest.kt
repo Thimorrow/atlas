@@ -97,7 +97,7 @@ class NativeAppTest {
                     }), due = (0..7).map { assignment.copy(id = "a-$it", title = if (it == 7) "Letzte Aufgabe" else "Aufgabe $it") }))
                 path == "/api/bot" -> Json.encodeToString(BotStartAntwort(true, "Was möchtest du lernen?", listOf("Was steht morgen an?"), "chat-test"))
                 path == "/api/bot/verlauf" -> Json.encodeToString(BotVerlaufAntwort(listOf(BotVerlaufEintragDTO("chat-test", "Testgespräch"))))
-                path == "/api/bot/verlauf/chat-test" -> Json.encodeToString(BotVerlaufDetailAntwort("chat-test", "Testgespräch", listOf(BotTurnDTO("assistant", "Wir üben Brüche."))))
+                path == "/api/bot/verlauf/chat-test" -> Json.encodeToString(BotVerlaufDetailAntwort(BotVerlaufEintragDTO("chat-test", "Testgespräch"), listOf(BotTurnDTO("assistant", "Wir üben Brüche."))))
                 path.endsWith("/note") -> {
                     if (request.method == "PUT") {
                         saveStarted.countDown()

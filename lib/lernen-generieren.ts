@@ -165,7 +165,8 @@ function systemPrompt(anzahl: number, subjectName: string, lernart: Lernart, kin
   );
 }
 
-export async function generateCards(input: GenerateInput): Promise<GenerateResult> {
+export async function generateCards(input: GenerateInput, signal?: AbortSignal): Promise<GenerateResult> {
+  signal?.throwIfAborted();
   if (!botEnabled()) throw new Error("BOT_DISABLED");
 
   const subject = await getSubject(input.subjectId);
@@ -191,7 +192,7 @@ export async function generateCards(input: GenerateInput): Promise<GenerateResul
 
   let text = "";
   try {
-    for await (const event of streamChatWithFallback(messages, [], controller.signal)) {
+    for await (const event of streamChatWithFallback(messages, [], signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)) {
       if (event.type === "text") text += event.delta;
       // thinking wird bewusst ignoriert -- nur die eigentliche Antwort zaehlt.
     }
@@ -199,6 +200,7 @@ export async function generateCards(input: GenerateInput): Promise<GenerateResul
     clearTimeout(timeout);
   }
 
+  signal?.throwIfAborted();
   const parsed = parseGeneratedCards(text);
   const cards = parsed.map((c) => ({ question: c.question, answer: c.answer, kind: c.kind ?? kind }));
   return {

@@ -231,6 +231,7 @@ export async function* streamChat(
   signal?: AbortSignal,
   model: string = BOT_MODEL,
 ): AsyncGenerator<StreamEvent> {
+  signal?.throwIfAborted();
   const key = process.env.ZAI_API_KEY;
   if (!key) throw new Error("Der Atlas-Bot ist noch nicht eingerichtet. Dafür fehlt der Schlüssel ZAI_API_KEY.");
 
@@ -290,6 +291,8 @@ export async function* streamChat(
   const decoder = new TextDecoder();
   const toolAcc: ToolCallAccumulator = new Map();
   let buffer = "";
+  let stopReason: string | undefined;
+  const openTools = new Set<number>();
 
   try {
     while (true) {
@@ -324,10 +327,23 @@ export async function* streamChat(
         if (!isObj(parsed)) continue;
         const eventType = parsed.type;
 
+        if (eventType === "error") {
+          throw new Error("Der Modellanbieter hat den Stream mit einem Fehler abgebrochen.");
+        }
+        if (eventType === "message_delta" && isObj(parsed.delta)) {
+          if (typeof parsed.delta.stop_reason === "string") stopReason = parsed.delta.stop_reason;
+          continue;
+        }
+        if (eventType === "content_block_stop" && typeof parsed.index === "number") {
+          openTools.delete(parsed.index);
+          continue;
+        }
+
         if (eventType === "content_block_start") {
           const block = parsed.content_block;
           const index = parsed.index;
           if (isObj(block) && typeof index === "number" && block.type === "tool_use") {
+            openTools.add(index);
             applyToolCallDelta(toolAcc, index, {
               id: typeof block.id === "string" ? block.id : undefined,
               name: typeof block.name === "string" ? block.name : undefined,
@@ -355,23 +371,39 @@ export async function* streamChat(
         }
 
         if (eventType === "message_stop") {
-          if (toolAcc.size > 0) yield { type: "tool_calls", toolCalls: finishedToolCalls(toolAcc) };
+          if (stopReason && !["end_turn", "tool_use"].includes(stopReason)) {
+            throw new Error("Die Modellantwort wurde nicht vollständig abgeschlossen. Bitte die Anfrage verkürzen.");
+          }
+          if (openTools.size > 0 || (toolAcc.size > 0 && stopReason !== "tool_use") || (stopReason === "tool_use" && toolAcc.size === 0)) {
+            throw new Error("Der Werkzeugaufruf wurde nicht vollständig übertragen.");
+          }
+          const calls = finishedToolCalls(toolAcc);
+          for (const call of calls) {
+            let args: unknown;
+            try { args = JSON.parse(call.function.arguments || "{}"); } catch {
+              throw new Error("Der Bot hat ungültige Werkzeugargumente geliefert.");
+            }
+            if (!call.id || !call.function.name || !isObj(args) || Array.isArray(args)) {
+              throw new Error("Der Bot hat ungültige Werkzeugargumente geliefert.");
+            }
+          }
+          if (calls.length > 0) yield { type: "tool_calls", toolCalls: calls };
           yield { type: "done" };
           return;
         }
 
-        // message_start, ping, content_block_stop, message_delta: keine
+        // message_start, ping: keine
         // eigene Behandlung noetig.
       }
     }
   } finally {
     if (idleTimer) clearTimeout(idleTimer);
     signal?.removeEventListener("abort", onOuterAbort);
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 
-  if (toolAcc.size > 0) yield { type: "tool_calls", toolCalls: finishedToolCalls(toolAcc) };
-  yield { type: "done" };
+  throw new Error("Die Verbindung zum Bot endete vor dem vollständigen Abschluss.");
 }
 
 function isObj(v: unknown): v is Record<string, unknown> {

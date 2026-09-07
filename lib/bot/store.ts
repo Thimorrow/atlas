@@ -2,7 +2,8 @@
 // bot_messages). Reine Persistenz -- die Chat-Logik selbst steht in
 // app/api/bot/route.ts.
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, exists, inArray } from "drizzle-orm";
+import { proposalDecision } from "@/lib/bot/proposal-state";
 import { db } from "@/lib/db";
 import { botConversations, botMessages, type BotMessageRole } from "@/lib/db/schema";
 
@@ -14,6 +15,7 @@ export type MessageDTO = {
   toolArgs: unknown;
   toolResult: unknown;
   createdAt: string;
+  proposalState?: "pending" | "entered" | "discarded";
 };
 
 export type ConversationDTO = {
@@ -25,6 +27,7 @@ export type ConversationDTO = {
 
 function toMessageDTO(row: typeof botMessages.$inferSelect): MessageDTO {
   return {
+    proposalState: row.toolName === "note_vorschlagen" ? proposalDecision(row.toolResult)?.state ?? "pending" : undefined,
     id: row.id,
     role: row.role,
     content: row.content,
@@ -108,14 +111,16 @@ export async function listConversationsWithMessages(
   const conversations = await db
     .select()
     .from(botConversations)
+    .where(exists(db.select({ id: botMessages.id }).from(botMessages).where(eq(botMessages.conversationId, botConversations.id))))
     .orderBy(desc(botConversations.updatedAt))
     .limit(limit);
 
-  const withMessages = await Promise.all(
-    conversations.map(async (c) => ({
-      ...toConversationDTO(c),
-      messages: await listMessages(c.id),
-    })),
-  );
-  return withMessages;
+  if (conversations.length === 0) return [];
+  const rows = await db.select().from(botMessages)
+    .where(inArray(botMessages.conversationId, conversations.map((c) => c.id)))
+    .orderBy(asc(botMessages.createdAt));
+  return conversations.map((c) => ({
+    ...toConversationDTO(c),
+    messages: rows.filter((row) => row.conversationId === c.id).map(toMessageDTO),
+  }));
 }

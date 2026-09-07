@@ -100,9 +100,10 @@ export function ActionCard({
       <motion.div {...enter} className="max-w-[92%] rounded-xl border bg-card px-4 py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <GraduationCap className="size-3.5" />
-          {r.anzahl} Lernkarten erzeugt
+          {r.anzahl === 0 ? "Keine Lernkarten erzeugt" : `${r.anzahl} Lernkarten erzeugt`}
         </div>
         <p className="mt-1.5 text-[15px] font-medium leading-snug">{r.fach}</p>
+        {r.hinweis && <p className="mt-1.5 text-[13px] text-muted-foreground">{r.hinweis}</p>}
         {r.karten.length > 0 && (
           <ul className="mt-1.5 space-y-1 text-[13.5px] text-muted-foreground">
             {r.karten.slice(0, 3).map((k) => (
@@ -112,7 +113,7 @@ export function ActionCard({
             ))}
           </ul>
         )}
-        <Link href={r.seite} className="mt-2 inline-block text-[12.5px] font-medium text-primary hover:underline">
+        <Link href={r.seite} className="mt-2 inline-flex min-h-11 items-center text-[12.5px] font-medium text-primary hover:underline">
           Zum Lernen
         </Link>
         {footerNode}
@@ -129,7 +130,7 @@ export function ActionCard({
           Lernkarte angelegt
         </div>
         <p className="mt-1.5 text-[15px] font-medium leading-snug">{r.karte.frage}</p>
-        <Link href={r.seite} className="mt-2 inline-block text-[12.5px] font-medium text-primary hover:underline">
+        <Link href={r.seite} className="mt-2 inline-flex min-h-11 items-center text-[12.5px] font-medium text-primary hover:underline">
           Zum Lernen
         </Link>
         {footerNode}
@@ -162,6 +163,7 @@ export function ActionCard({
           )}
           {a.dueDate && <span className="tabular-nums">Fällig am {fmtDate(a.dueDate)}</span>}
         </div>
+        {(result as AssignmentActionResult).hinweisFaellig && <p className="mt-1.5 text-[13px] text-muted-foreground">{(result as AssignmentActionResult).hinweisFaellig}</p>}
         {footerNode}
       </motion.div>
     );

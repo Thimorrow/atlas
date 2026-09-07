@@ -21,7 +21,7 @@ describe("toModelMessages", () => {
     expect(result).toEqual([{ role: "system", content: "Du bist Atlas." }]);
   });
 
-  it("ältere Züge (vor den letzten sechs Nutzerfragen) behalten nur den Text, keine Werkzeugergebnisse", () => {
+  it("begrenzt den Verlauf auf die letzten sechs Nutzerfragen", () => {
     const history: MessageDTO[] = [
       msg({ id: "1", role: "user", content: "Frage eins" }),
       msg({ id: "2", role: "tool", toolName: "faecher_lesen", toolArgs: {}, toolResult: { faecher: [] } }),
@@ -45,8 +45,7 @@ describe("toModelMessages", () => {
     // (Nachricht 2) faellt weg, nur user/assistant-Text bleibt.
     expect(result).toEqual([
       { role: "system", content: "System" },
-      { role: "user", content: "Frage eins" },
-      { role: "assistant", content: "Antwort eins" },
+
       { role: "user", content: "Frage zwei" },
       { role: "assistant", content: "Antwort zwei" },
       { role: "user", content: "Frage drei" },
@@ -154,4 +153,15 @@ describe("toModelMessages", () => {
     const result = toModelMessages(history, "System");
     expect(result.some((m) => m.role === "tool")).toBe(true);
   });
+});
+
+it("entfernt Base64-Bilder auch aus alten gespeicherten Ergebnissen", () => {
+  const messages = toModelMessages([msg({ content: "Bild?" }), msg({role:"tool",toolName:"datei_lesen",toolArgs:{dateiId:"a"},toolResult:{inhalt:{typ:"bild",url:"data:image/png;base64,"+"x".repeat(100000)}}})], "sys");
+  expect(JSON.stringify(messages)).not.toContain("base64");
+  expect(JSON.stringify(messages)).toContain("erneut aufrufen");
+});
+it("begrenzt auch den gesamten Textkontext und behält den jüngsten Zug", () => {
+  const messages = toModelMessages(Array.from({length: 20}, (_,i)=>msg({content: String(i)+"x".repeat(20000)})), "sys");
+  expect(JSON.stringify(messages).length).toBeLessThan(61000);
+  expect(messages.at(-1)?.content).toMatch(/^19/);
 });

@@ -24,6 +24,14 @@ function heuteLokal(offset = 0): string {
 }
 
 describe("buildGreeting", () => {
+  it("bleibt mit ehrlicher Auskunft nutzbar, wenn der Stundenplan nicht geladen werden kann", async () => {
+    expandRange.mockRejectedValueOnce(new Error("offline"));
+    listAssignments.mockResolvedValue([]);
+    const greeting = await buildGreeting();
+    expect(greeting.text).toContain("nicht vollständig laden");
+    expect(greeting.text).not.toContain("keine Schulstunden");
+    expect(greeting.suggestions).toHaveLength(3);
+  });
   it("sagt ehrlich, dass keine Stunden anstehen, wenn der Plan leer ist", async () => {
     expandRange.mockResolvedValue({ days: Array.from({ length: 8 }, (_, i) => ({ date: heuteLokal(i), events: [] })) });
     listAssignments.mockResolvedValue([]);
@@ -200,6 +208,19 @@ describe("buildGreeting", () => {
 
     const greeting = await buildGreeting(jetzt);
     expect(greeting.text).toContain("Vertretung durch Herrn Lehmann");
+  });
+
+  it("behält den Stundenkontext, wenn nur die Prüfungsabfrage ausfällt", async () => {
+    listAssignments.mockRejectedValueOnce(new Error("offline"));
+    const greeting = await buildGreeting(fixtureJetzt());
+    expect(greeting.text).toContain("Gerade läuft Mathe");
+    expect(greeting.text).toContain("Prüfungen kann ich derzeit nicht prüfen");
+  });
+
+  it("interpretiert einen leeren gespeicherten Plan nicht als bestätigten schulfreien Tag", () => {
+    const prompt = buildSystemPrompt(fixtureJetzt({ modus: "frei", selected: null }));
+    expect(prompt).toContain("keine Schulstunden im gespeicherten Plan");
+    expect(prompt).not.toContain("heute keine Schule");
   });
 });
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { subjects, studyTopics } from "@/lib/db/schema";
+import { subjects, studyTopics, studyCards } from "@/lib/db/schema";
 import {
   appendTutorMessage,
   createTutorConversation,
@@ -12,6 +12,7 @@ import {
   setAufgabeStatus,
   setCheckliste,
   setErgebnis,
+  saveProposedTutorCards,
 } from "@/lib/tutor/store";
 import type { Checkliste, TutorErgebnis } from "@/lib/tutor/types";
 
@@ -39,6 +40,24 @@ describe.skipIf(!mitDb)("tutor-store (Integration, Neon)", () => {
   });
 
   afterAll(cleanup);
+
+  it("gleichzeitige Bestätigungen erzeugen die vorgeschlagenen Karten genau einmal", async () => {
+    const conversation = await createTutorConversation({ topicId, subjectId, modus: "lernen" });
+    await setErgebnis(conversation.id, { gutWar: [], schwach: [], neueKarten: [{ question: "Atomar?", answer: "Ja" }] });
+    const results = await Promise.all([saveProposedTutorCards(conversation.id), saveProposedTutorCards(conversation.id)]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    const cards = await db.select().from(studyCards).where(eq(studyCards.sourceRef, `tutor:${conversation.id}`));
+    expect(cards).toHaveLength(1);
+    expect((await getTutorConversation(conversation.id))?.kartenAngelegt).toBe(true);
+  });
+
+  it("fehlgeschlagene Kartenanlage setzt keinen Bestätigungsstatus", async () => {
+    const conversation = await createTutorConversation({ topicId, subjectId, modus: "lernen" });
+    await setErgebnis(conversation.id, { gutWar: [], schwach: [], neueKarten: [{ question: "Ungültig", answer: null as unknown as string }] });
+    await expect(saveProposedTutorCards(conversation.id)).rejects.toThrow();
+    expect((await getTutorConversation(conversation.id))?.kartenAngelegt).toBe(false);
+    expect(await db.select().from(studyCards).where(eq(studyCards.sourceRef, `tutor:${conversation.id}`))).toHaveLength(0);
+  });
 
   it("createTutorConversation legt eine Session im Modus lernen an", async () => {
     const conversation = await createTutorConversation({ topicId, subjectId, modus: "lernen" });

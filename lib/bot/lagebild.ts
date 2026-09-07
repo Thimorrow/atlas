@@ -44,6 +44,9 @@ export type Lagebild = {
   // Optional, damit bestehende Lagebild-Literale (z. B. in Tests) ohne das
   // Feld weiter gueltig bleiben. Fehlt es, wird kein Satz dazu ausgegeben.
   lernplaene?: number;
+  nichtVerfuegbar?: Array<"faecher" | "stundenplan" | "aufgaben" | "notizen" | "lernplaene">;
+  weitereAufgaben?: number;
+  weiterePruefungen?: number;
 };
 
 function toStunde(e: CalendarEvent): Stunde {
@@ -59,16 +62,16 @@ function toStunde(e: CalendarEvent): Stunde {
 }
 
 // Laedt das Lagebild aus allen Quellen. Jeder Teil einzeln in try/catch,
-// damit der Bot nie an einem einzelnen kaputten Teil scheitert -- lieber ein
-// leeres Feld als gar kein Lagebild.
+// Ein fehlgeschlagener Teil bleibt ausdrücklich unbekannt, nicht leer.
 export async function ladeLagebild(): Promise<Lagebild> {
   const heute = localISO();
   const bis14 = addDays(heute, 14);
   const bis30 = addDays(heute, 30);
+  const nichtVerfuegbar: NonNullable<Lagebild["nichtVerfuegbar"]> = [];
 
   const faecher = await listSubjects("active")
     .then((subjects) => subjects.map((s) => ({ name: s.name, lehrer: s.teacherLabel, raum: s.room })))
-    .catch(() => []);
+    .catch(() => { nichtVerfuegbar.push("faecher"); return []; });
 
   let stundenHeute: Stunde[] = [];
   let naechsterSchultag: Lagebild["naechsterSchultag"] = null;
@@ -76,34 +79,38 @@ export async function ladeLagebild(): Promise<Lagebild> {
     const range = await expandRange(heute, addDays(heute, 7));
     const heuteTag = range.days.find((d) => d.date === heute);
     stundenHeute = heuteTag ? heuteTag.events.map(toStunde) : [];
-    const naechsterTag = range.days.find((d) => d.date !== heute && d.events.length > 0);
+    const naechsterTag = range.days.find((d) => d.date !== heute && d.events.some((e) => e.status !== "cancelled"));
     naechsterSchultag = naechsterTag
       ? { date: naechsterTag.date, stunden: naechsterTag.events.map(toStunde) }
       : null;
   } catch {
-    stundenHeute = [];
-    naechsterSchultag = null;
+    nichtVerfuegbar.push("stundenplan");
   }
 
   let aufgaben: AufgabeKurz[] = [];
   let pruefungen: AufgabeKurz[] = [];
+  let weitereAufgaben = 0;
+  let weiterePruefungen = 0;
   try {
     const offene = await listAssignments({ includeCompleted: false });
 
-    aufgaben = offene
+    const aufgabenImFenster = offene
       .filter((a) => !isExamPageType(a.type) && (a.dueDate === null || (a.dueDate <= bis14)))
-      .sort((a, b) => (a.dueDate ?? "￿").localeCompare(b.dueDate ?? "￿"))
+      .sort((a, b) => (a.dueDate ?? "￿").localeCompare(b.dueDate ?? "￿"));
+    weitereAufgaben = Math.max(0, aufgabenImFenster.length - 25);
+    aufgaben = aufgabenImFenster
       .slice(0, 25)
       .map((a) => ({ id: a.id, titel: a.title, fach: a.subjectName, typ: a.type, faellig: a.dueDate }));
 
-    pruefungen = offene
+    const pruefungenImFenster = offene
       .filter((a) => isExamPageType(a.type) && a.dueDate !== null && a.dueDate >= heute && a.dueDate <= bis30)
-      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
+      .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
+    weiterePruefungen = Math.max(0, pruefungenImFenster.length - 10);
+    pruefungen = pruefungenImFenster
       .slice(0, 10)
       .map((a) => ({ id: a.id, titel: a.title, fach: a.subjectName, typ: a.type, faellig: a.dueDate }));
   } catch {
-    aufgaben = [];
-    pruefungen = [];
+    nichtVerfuegbar.push("aufgaben");
   }
 
   let notizen: NotizKurz[] = [];
@@ -111,12 +118,12 @@ export async function ladeLagebild(): Promise<Lagebild> {
     const recent = await listRecentNotes(8);
     notizen = recent.map((n) => ({ id: n.id, titel: n.title, fach: n.subjectName, geaendert: n.updatedAt.slice(0, 10) }));
   } catch {
-    notizen = [];
+    nichtVerfuegbar.push("notizen");
   }
 
-  const lernplaene = await lernplaeneAnzahl().catch(() => undefined);
+  const lernplaene = await lernplaeneAnzahl().catch(() => { nichtVerfuegbar.push("lernplaene"); return undefined; });
 
-  return { heute, faecher, stundenHeute, naechsterSchultag, aufgaben, pruefungen, notizen, lernplaene };
+  return { heute, faecher, stundenHeute, naechsterSchultag, aufgaben, pruefungen, notizen, lernplaene, nichtVerfuegbar, weitereAufgaben, weiterePruefungen };
 }
 
 // Relative Tagesangabe: "(heute)", "(morgen)", "(in 3 Tagen)",
@@ -155,11 +162,14 @@ function stundenZeile(stunden: Stunde[]): string {
 // Reine Funktion: baut aus dem Lagebild den kompakten Text fuer den
 // System-Prompt.
 export function lagebildAlsText(l: Lagebild): string {
+  const fehlt = new Set(l.nichtVerfuegbar);
   const zeilen: string[] = [
-    "Lagebild (Stand heute aus der Datenbank; für Details, Texte, Noten und ältere Einträge die Werkzeuge nutzen):",
+    "Lagebild (Auszug aus gespeicherten Daten, kein Live-Abruf bei Untis; für Details, Texte, Noten und ältere Einträge die Werkzeuge nutzen):",
   ];
 
-  if (l.faecher.length > 0) {
+  if (fehlt.has("faecher")) {
+    zeilen.push("Fächer: derzeit nicht verfügbar.");
+  } else if (l.faecher.length > 0) {
     const faecherText = l.faecher
       .map((f) => {
         const klammer = [f.lehrer, f.raum].filter(Boolean).join(", ");
@@ -170,54 +180,68 @@ export function lagebildAlsText(l: Lagebild): string {
   }
 
   const heuteWochentag = weekdayName(l.heute);
-  if (l.stundenHeute.length > 0) {
+  if (fehlt.has("stundenplan")) {
+    zeilen.push("Stundenplan: derzeit nicht verfügbar. Ob Unterricht stattfindet, ist unbekannt.");
+  } else if (l.stundenHeute.length > 0) {
     zeilen.push(`Heute, ${heuteWochentag}: ${stundenZeile(l.stundenHeute)}`);
   } else {
-    zeilen.push(`Heute, ${heuteWochentag}: keine Schule`);
+    zeilen.push(`Heute, ${heuteWochentag}: keine Schulstunden im gespeicherten Plan`);
   }
 
-  if (l.naechsterSchultag) {
+  if (!fehlt.has("stundenplan") && l.naechsterSchultag) {
     const wochentag = weekdayName(l.naechsterSchultag.date);
     zeilen.push(
       `Nächster Schultag ${wochentag} ${l.naechsterSchultag.date}: ${stundenZeile(l.naechsterSchultag.stunden)}`,
     );
-  } else {
-    zeilen.push("Nächster Schultag: in den nächsten 7 Tagen keiner");
+  } else if (!fehlt.has("stundenplan")) {
+    zeilen.push("Nächster Schultag: in den nächsten 7 Tagen kein Eintrag im gespeicherten Plan");
   }
 
-  zeilen.push("Offene Aufgaben (bis in 14 Tagen, ohne Prüfungen):");
-  if (l.aufgaben.length === 0) {
-    zeilen.push("- keine");
+  if (fehlt.has("aufgaben")) {
+    zeilen.push("Aufgaben und Prüfungen: derzeit nicht verfügbar. Fälligkeiten sind unbekannt.");
   } else {
-    for (const a of l.aufgaben) {
-      const typLabel = TYPE_LABEL[a.typ];
-      const fachTeil = a.fach ? ` ${a.fach}` : "";
-      const faelligTeil = a.faellig ? `fällig ${a.faellig} ${relativTag(a.faellig, l.heute)}` : "ohne Datum";
-      zeilen.push(`- [${a.id}] ${typLabel}${fachTeil} "${a.titel}", ${faelligTeil}`);
+    zeilen.push("Offene Aufgaben (bis in 14 Tagen, ohne Prüfungen):");
+    if (l.aufgaben.length === 0) {
+      zeilen.push("- keine");
+    } else {
+      for (const a of l.aufgaben) {
+        const typLabel = TYPE_LABEL[a.typ];
+        const fachTeil = a.fach ? ` ${a.fach}` : "";
+        const faelligTeil = a.faellig ? `fällig ${a.faellig} ${relativTag(a.faellig, l.heute)}` : "ohne Datum";
+        zeilen.push(`- [${a.id}] ${typLabel}${fachTeil} "${a.titel}", ${faelligTeil}`);
+      }
     }
-  }
+    if (l.weitereAufgaben) zeilen.push(`${l.weitereAufgaben} weitere Aufgaben nicht angezeigt; dafür aufgaben_lesen nutzen.`);
 
-  zeilen.push("Prüfungen (nächste 30 Tage):");
-  if (l.pruefungen.length === 0) {
-    zeilen.push("- keine");
-  } else {
-    for (const p of l.pruefungen) {
-      const typLabel = TYPE_LABEL[p.typ];
-      const fachTeil = p.fach ? ` ${p.fach}` : "";
-      zeilen.push(`- [${p.id}] ${typLabel}${fachTeil} "${p.titel}" am ${p.faellig} ${relativTag(p.faellig!, l.heute)}`);
+    zeilen.push("Prüfungen (nächste 30 Tage):");
+    if (l.pruefungen.length === 0) {
+      zeilen.push("- keine");
+    } else {
+      for (const p of l.pruefungen) {
+        const typLabel = TYPE_LABEL[p.typ];
+        const fachTeil = p.fach ? ` ${p.fach}` : "";
+        zeilen.push(`- [${p.id}] ${typLabel}${fachTeil} "${p.titel}" am ${p.faellig} ${relativTag(p.faellig!, l.heute)}`);
+      }
     }
+    if (l.weiterePruefungen) zeilen.push(`${l.weiterePruefungen} weitere Prüfungen nicht angezeigt; dafür aufgaben_lesen nutzen.`);
   }
 
-  if (l.lernplaene) {
+  if (fehlt.has("lernplaene")) {
+    zeilen.push("Lernpläne: derzeit nicht verfügbar.");
+  } else if (l.lernplaene) {
     zeilen.push(`Lernpläne: ${l.lernplaene} aktiv`);
   }
 
-  zeilen.push("Zuletzt geänderte Notizen:");
-  if (l.notizen.length === 0) {
-    zeilen.push("- keine");
+  if (fehlt.has("notizen")) {
+    zeilen.push("Notizen: derzeit nicht verfügbar.");
   } else {
-    for (const n of l.notizen) {
-      zeilen.push(`- [${n.id}] ${n.fach} "${n.titel}" (${n.geaendert})`);
+    zeilen.push("Zuletzt geänderte Notizen:");
+    if (l.notizen.length === 0) {
+      zeilen.push("- keine");
+    } else {
+      for (const n of l.notizen) {
+        zeilen.push(`- [${n.id}] ${n.fach} "${n.titel}" (${n.geaendert})`);
+      }
     }
   }
 

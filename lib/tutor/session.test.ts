@@ -480,3 +480,43 @@ describe("runTutorTurn", () => {
     expect(ergebnis?.gesamt).toBeUndefined();
   });
 });
+
+
+describe("Tutor-Bewertungen bleiben an ihre Daten gebunden", () => {
+  it.each([{ punktePlan: [] }, { punktePlan: [{ pointId: "fremd", prozent: 100 }] }])("verwirft unvollständige/fremde Simulationsergebnisse", async ({ punktePlan }) => {
+    const hook = vi.fn();
+    const { deps, getErgebnis } = makeDeps({
+      topicId: null, assignmentId: ASSIGNMENT_ID, itemId: ITEM_ID, modus: "probe",
+      ladePlan: async () => makePlan([makePunkt()]), sicherheitAusFazit: hook,
+      rounds: [[toolCallEvent("fazit", { gutWar: [], schwach: [], neueKarten: [], punktePlan })]],
+    });
+    for await (const _event of runTutorTurn(CONVERSATION_ID, undefined, deps)) { /* consume */ }
+    expect(getErgebnis()).toBeNull();
+    expect(hook).not.toHaveBeenCalled();
+  });
+  it("bewertet anhand der Checkliste statt erfundener Modell-Gesamtpunkte", async () => {
+    const { deps, getErgebnis } = makeDeps({
+      modus: "probe", checkliste: { titel: "Probe", aufgaben: [{ nr: 1, text: "A", schwierigkeit: 3, status: "falsch", punkte: 1 }] },
+      rounds: [[toolCallEvent("fazit", { gutWar: [], schwach: [], neueKarten: [], punkte: 100, gesamt: 100 })]],
+    });
+    for await (const _event of runTutorTurn(CONVERSATION_ID, undefined, deps)) { /* consume */ }
+    expect(getErgebnis()).toMatchObject({ punkte: 1, gesamt: 3, prozent: 33 });
+  });
+});
+
+it("Tutor-Runden teilen ein gesamtes Zeitbudget", async () => {
+  const { deps } = makeDeps({ rounds: [] });
+  const now = vi.spyOn(Date, "now").mockReturnValue(0);
+  let rounds = 0;
+  deps.streamChat = async function* () {
+    rounds++;
+    now.mockReturnValue(rounds * 60_000);
+    yield toolCallEvent("unbekannt", {});
+  };
+  try {
+    const events = [];
+    for await (const event of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(event);
+    expect(rounds).toBe(2);
+    expect(events.at(-1)?.type).toBe("error");
+  } finally { now.mockRestore(); }
+});

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { buildGreeting, buildSystemPrompt } from "@/lib/bot/context";
 import { botEnabled, streamChatWithFallback, type ChatToolCall } from "@/lib/bot/model";
 import { botTools, runTool, statusTextFor } from "@/lib/bot/tools";
-import { toModelMessages } from "@/lib/bot/history";
+import { storedToolResult, toModelMessages } from "@/lib/bot/history";
 import { ladeLagebild } from "@/lib/bot/lagebild";
 import { ladeStundeKontext, type StundeResponse } from "@/lib/stunde-kontext";
 import {
@@ -17,6 +17,8 @@ import { isUuid, isObj } from "@/lib/subject-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+const REQUEST_TIMEOUT_MS = 270_000;
 
 // Schreibende Werkzeuge: nur bei diesen kommt ein "action"-Ereignis mit dem
 // vollstaendigen Datensatz, damit die Oberflaeche eine Karte + Rueckgaengig
@@ -42,7 +44,7 @@ async function ladeJetztSicher(): Promise<StundeResponse | null> {
   }
 }
 
-// GET /api/bot -- Begruessung + frische conversationId, ohne Modellaufruf.
+// GET /api/bot -- Begruessung ohne leeres Gespraech anzulegen.
 export async function GET() {
   if (!botEnabled()) {
     return NextResponse.json({
@@ -53,14 +55,14 @@ export async function GET() {
     });
   }
 
-  const [jetzt, conversation] = await Promise.all([ladeJetztSicher(), createConversation()]);
+  const jetzt = await ladeJetztSicher();
   const { text, suggestions } = await buildGreeting(jetzt);
 
   return NextResponse.json({
     enabled: true,
     greeting: text,
     suggestions,
-    conversationId: conversation.id,
+    conversationId: null,
   });
 }
 
@@ -97,7 +99,9 @@ export async function POST(req: Request) {
   await appendMessage(conversationId, { role: "user", content: userMessage });
   await setTitleIfEmpty(conversationId, userMessage);
 
-  const signal = req.signal;
+  const abortController = new AbortController();
+  const deadline = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = AbortSignal.any([req.signal, abortController.signal, deadline]);
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -113,12 +117,15 @@ export async function POST(req: Request) {
       };
 
       try {
+        send({ type: "conversation", conversationId });
+        signal.throwIfAborted();
         const history = await listMessages(conversationId!);
         const [jetzt, lagebild] = await Promise.all([ladeJetztSicher(), ladeLagebild().catch(() => null)]);
         const chatMessages = toModelMessages(history, buildSystemPrompt(jetzt, lagebild));
 
         let finalText = "";
         let round = 0;
+        let completed = false;
 
         while (round < MAX_ROUNDS && !signal.aborted) {
           round++;
@@ -145,6 +152,7 @@ export async function POST(req: Request) {
 
           if (toolCalls.length === 0) {
             finalText = roundText;
+            completed = true;
             break;
           }
 
@@ -154,39 +162,40 @@ export async function POST(req: Request) {
             tool_calls: toolCalls,
           });
 
+          const images: string[] = [];
           for (const call of toolCalls) {
-            let args: Record<string, unknown> = {};
-            try {
-              args = call.function.arguments ? JSON.parse(call.function.arguments) : {};
-            } catch {
-              // Kaputtes JSON vom Modell -> leere Argumente, das Werkzeug meldet
-              // dann selbst, was ihm fehlt.
+            signal.throwIfAborted();
+            let args: unknown;
+            try { args = JSON.parse(call.function.arguments || "{}"); } catch {
+              throw new Error("Der Bot hat ungültige Werkzeugargumente geliefert.");
             }
+            if (!isObj(args) || Array.isArray(args)) throw new Error("Ungültige Werkzeugargumente.");
 
             send({ type: "status", text: statusTextFor(call.function.name, args) });
 
-            const result = await runTool(call.function.name, args);
+            const result = await runTool(call.function.name, args, signal);
+            const persistedResult = storedToolResult(result);
 
-            await appendMessage(conversationId!, {
+            const saved = await appendMessage(conversationId!, {
               role: "tool",
               content: "",
               toolName: call.function.name,
               toolArgs: args,
-              toolResult: result,
+              toolResult: persistedResult,
             });
 
             if (WRITE_TOOLS.has(call.function.name) && isObj(result) && !("error" in result)) {
               send({ type: "action", tool: call.function.name, result });
             }
             if (call.function.name === "note_vorschlagen" && isObj(result) && "vorschlag" in result) {
-              send({ type: "proposal", kind: "grade", data: result.vorschlag });
+              send({ type: "proposal", kind: "grade", messageId: saved.id, data: result.vorschlag });
             }
 
             chatMessages.push({
               role: "tool",
               tool_call_id: call.id,
               name: call.function.name,
-              content: JSON.stringify(result),
+              content: JSON.stringify(persistedResult),
             });
 
             // Bilder gehen nicht als Text im Werkzeugergebnis ans Modell,
@@ -198,15 +207,16 @@ export async function POST(req: Request) {
               result.inhalt.typ === "bild" &&
               typeof result.inhalt.url === "string"
             ) {
-              chatMessages.push({
-                role: "user",
-                content: [{ type: "image_url", image_url: { url: result.inhalt.url } }],
-              });
+              images.push(result.inhalt.url);
             }
+          }
+          if (images.length > 0) {
+            chatMessages.push({ role: "user", content: images.map((url) => ({ type: "image_url", image_url: { url } })) });
           }
         }
 
-        if (signal.aborted) return;
+        signal.throwIfAborted();
+        if (!completed) throw new Error("Atlas hat die maximale Anzahl an Arbeitsschritten erreicht. Bereits angezeigte Änderungen sind gespeichert; die Anfrage ist noch nicht vollständig erledigt.");
 
         if (finalText) {
           await appendMessage(conversationId!, { role: "assistant", content: finalText });
@@ -215,20 +225,19 @@ export async function POST(req: Request) {
 
         send({ type: "done", conversationId });
       } catch (err) {
-        if (!signal.aborted) {
+        if (!req.signal.aborted && !abortController.signal.aborted) {
           send({
             type: "error",
-            text: err instanceof Error ? err.message : "Beim Bot ist ein unbekannter Fehler aufgetreten.",
+            text: deadline.aborted ? "Die Anfrage hat zu lange gedauert. Bereits angezeigte Änderungen sind gespeichert." : err instanceof Error ? err.message : "Beim Bot ist ein unbekannter Fehler aufgetreten.",
           });
         }
       } finally {
         closed = true;
-        controller.close();
+        try { controller.close(); } catch { /* Reader bereits geschlossen. */ }
       }
     },
     cancel() {
-      // Browser hat abgebrochen -- streamChat bekommt das ueber signal.aborted
-      // mit, hier gibt es nichts weiter zu tun.
+      abortController.abort();
     },
   });
 

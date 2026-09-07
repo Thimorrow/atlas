@@ -11,6 +11,7 @@ import { parseBotEvent, splitNDJSON } from "@/lib/bot/stream";
 import { isWriteToolMessage } from "@/lib/bot/verlauf";
 import {
   BOT_NEW_EVENT,
+  clearChatSnapshot,
   getChatSnapshot,
   loadStoredConversationId,
   loadStoredDraft,
@@ -18,7 +19,7 @@ import {
   saveStoredDraft,
   setChatSnapshot,
 } from "@/lib/bot/chat-session";
-import { cachedGetJSON, invalidateAssignmentsCaches, invalidateGetCache, invalidateMorgenCaches } from "@/lib/fetch-cache";
+import { cachedGetJSON, invalidateAssignmentsCaches, invalidateGetCache, invalidateGetCacheByPrefix, invalidateGradesCaches, invalidateLernenCaches, invalidateMorgenCaches } from "@/lib/fetch-cache";
 import type { MessageDTO } from "@/lib/bot/store";
 import {
   ActionCard,
@@ -172,7 +173,7 @@ function turnsFromHistory(messages: Array<MessageDTO & { stillExists?: boolean }
           kind: "proposal",
           id: m.id,
           data: m.toolResult.vorschlag as GradeProposalData,
-          state: "pending",
+          state: m.proposalState ?? "pending",
           busy: false,
         });
       }
@@ -203,6 +204,9 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const [input, setInput] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [restoring, setRestoring] = useState(true);
+  const requestVersion = useRef(0);
+  const followBottom = useRef(true);
+  const [announcement, setAnnouncement] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -232,6 +236,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
 
   useEffect(() => {
     let alive = true;
+    const version = requestVersion.current;
+    const isCurrent = () => alive && version === requestVersion.current;
     // Wiedereroeffnen: sofort zeigen, was im Sofort-Cache steht -- kein
     // Spinner, kein verlorener Entwurf. Die Auffrischung laeuft danach leise
     // im Hintergrund. Ein beim Schliessen noch laufender Stream ist nach dem
@@ -240,16 +246,16 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     if (cached && (cached.turns.length > 0 || cached.info)) {
       setInfo(cached.info);
       setConversationId(cached.conversationId);
-      setTurns(
-        cached.turns.map((t) => (t.streaming ? { ...t, streaming: false, statusText: null } : t)),
-      );
+      const before = cached.turns.map((t) => (t.streaming ? { ...t, streaming: false, statusText: null } : t));
+      turnsRef.current = before;
+      setTurns(before);
       setInput(loadStoredDraft());
       setRestoring(false);
-      const before = cached.turns;
+
       (async () => {
         try {
           const d = await cachedGetJSON<BotInfo>("/api/bot");
-          if (!alive) return;
+          if (!isCurrent()) return;
           setInfo(d);
         } catch {
           // Cache bleibt stehen -- lieber alt zeigen als gar nichts.
@@ -258,13 +264,13 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         if (!stored) return;
         try {
           const hr = await fetch(`/api/bot/verlauf/${stored}`);
-          if (!hr.ok || !alive || turnsRef.current !== before) return;
+          if (!hr.ok || !isCurrent() || turnsRef.current !== before) return;
           const data = (await hr.json()) as {
             conversation: { id: string };
             messages: Array<MessageDTO & { stillExists?: boolean }>;
           };
           const restored = turnsFromHistory(data.messages);
-          if (!alive || turnsRef.current !== before || restored.length === 0) return;
+          if (!isCurrent() || turnsRef.current !== before || restored.length === 0) return;
           setTurns(restored);
           setConversationId(data.conversation.id);
           saveStoredConversationId(data.conversation.id);
@@ -274,6 +280,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       })();
       return () => {
         alive = false;
+        requestVersion.current++;
+        abortRef.current?.abort();
       };
     }
     (async () => {
@@ -282,7 +290,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       setInput(loadStoredDraft());
       try {
         const d = await cachedGetJSON<BotInfo>("/api/bot");
-        if (!alive) return;
+        if (!isCurrent()) return;
         setInfo(d);
         // Gespeichertes Gespräch zuerst versuchen -- erst wenn es weg ist
         // (gelöscht, ungültig, leer), gilt die frische Id aus dem GET.
@@ -295,7 +303,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
                 messages: Array<MessageDTO & { stillExists?: boolean }>;
               };
               const restored = turnsFromHistory(data.messages);
-              if (!alive) return;
+              if (!isCurrent()) return;
               if (restored.length > 0) {
                 setTurns(restored);
                 setConversationId(data.conversation.id);
@@ -307,18 +315,19 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           } catch {
             // Heruntergefallener Verlauf -- unten einfach frisch anfangen.
           }
-          if (!alive) return;
+          if (!isCurrent()) return;
         }
         setConversationId(d.conversationId);
         saveStoredConversationId(d.conversationId);
       } catch {
-        if (alive) setLoadError(true);
+        if (isCurrent()) setLoadError(true);
       } finally {
-        if (alive) setRestoring(false);
+        if (isCurrent()) setRestoring(false);
       }
     })();
     return () => {
       alive = false;
+      requestVersion.current++;
       // Beim Schliessen des Panels wird ausgehaengt: einen noch laufenden
       // Stream abbrechen, statt ihn unsichtbar weiterlaufen zu lassen. Der
       // bis dahin gestreamte Text steht bereits im Sofort-Cache.
@@ -330,7 +339,14 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   // conversationId holen und speichern.
   useEffect(() => {
     const onNew = async () => {
+      const version = ++requestVersion.current;
       abortRef.current?.abort();
+      setConversationId(null);
+      saveStoredConversationId(null);
+      saveStoredDraft("");
+      clearChatSnapshot();
+      setLoadError(false);
+      followBottom.current = true;
       setTurns([]);
       setInput("");
       setRestoring(true);
@@ -340,14 +356,16 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       invalidateGetCache("/api/bot");
       try {
         const res = await fetch("/api/bot");
+        if (!res.ok) throw new Error("Chat konnte nicht geladen werden.");
         const d = (await res.json()) as BotInfo;
+        if (version !== requestVersion.current) return;
         setInfo(d);
         setConversationId(d.conversationId);
         saveStoredConversationId(d.conversationId);
       } catch {
-        setLoadError(true);
+        if (version === requestVersion.current) setLoadError(true);
       } finally {
-        setRestoring(false);
+        if (version === requestVersion.current) setRestoring(false);
       }
       inputRef.current?.focus();
     };
@@ -360,10 +378,9 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
-  // Beim Eintreffen neuer Inhalte ans Ende scrollen -- ein wachsendes
-  // Gespraech soll immer die aktuelle Antwort zeigen, nicht den Anfang.
+  // Neue Inhalte nur verfolgen, solange am Ende gelesen wird.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    if (followBottom.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [turns]);
 
   const updateTurn = useCallback((id: string, fn: (t: Turn) => Turn) => {
@@ -407,11 +424,18 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
             items: [...t.items, { kind: "action", id, tool: evt.tool, result, state: "active", busy: false }],
             needsBreak: t.assistantText ? true : t.needsBreak,
           }));
-          toast(actionToastText(evt.tool), "success");
+          if (evt.tool.startsWith("aufgabe_")) invalidateAssignmentsCaches();
+          else if (evt.tool.startsWith("notiz_")) {
+            invalidateGetCacheByPrefix("/api/subjects");
+            invalidateMorgenCaches();
+          } else invalidateLernenCaches();
+          const empty = "anzahl" in result && result.anzahl === 0;
+          if (empty) toast("Keine Lernkarten erzeugt.");
+          else toast(actionToastText(evt.tool), "success");
           break;
         }
         case "proposal": {
-          const id = crypto.randomUUID();
+          const id = evt.messageId;
           const data = evt.data as GradeProposalData;
           updateTurn(turnId, (t) => ({
             ...t,
@@ -423,6 +447,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         case "error":
           updateTurn(turnId, (t) => ({ ...t, errorText: evt.text, statusText: null }));
           break;
+        case "conversation":
         case "done":
           setConversationId(evt.conversationId);
           saveStoredConversationId(evt.conversationId);
@@ -435,7 +460,11 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || streaming || info?.enabled === false) return;
+      if (!trimmed || restoring || abortRef.current || streaming || info?.enabled === false) return;
+      const version = ++requestVersion.current;
+      followBottom.current = true;
+      setAnnouncement("");
+      setLoadError(false);
       const turnId = crypto.randomUUID();
       setTurns((prev) => [
         ...prev,
@@ -482,19 +511,23 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
           buffer += decoder.decode(value, { stream: true });
           const { lines, rest } = splitNDJSON(buffer);
           buffer = rest;
+          if (version !== requestVersion.current || controller.signal.aborted) break;
           for (const line of lines) handleLine(turnId, line);
         }
-        handleLine(turnId, buffer);
+        if (version === requestVersion.current && !controller.signal.aborted) handleLine(turnId, buffer);
       } catch (err) {
         if ((err as Error)?.name !== "AbortError") {
           updateTurn(turnId, (t) => ({ ...t, errorText: "Die Verbindung zum Bot wurde unterbrochen." }));
         }
       } finally {
-        updateTurn(turnId, (t) => ({ ...t, streaming: false, statusText: null }));
-        abortRef.current = null;
+        if (version === requestVersion.current) {
+          updateTurn(turnId, (t) => ({ ...t, streaming: false, statusText: null, errorText: t.errorText ?? (controller.signal.aborted ? "Antwort abgebrochen. Bereits ausgeführte Aktionen bleiben gespeichert." : null) }));
+          setAnnouncement(controller.signal.aborted ? "Antwort abgebrochen." : "Atlas hat die Antwort beendet.");
+        }
+        if (abortRef.current === controller) abortRef.current = null;
       }
     },
-    [conversationId, handleLine, info?.enabled, streaming, updateTurn],
+    [conversationId, handleLine, info?.enabled, restoring, streaming, updateTurn],
   );
 
   const abort = useCallback(() => abortRef.current?.abort(), []);
@@ -514,7 +547,10 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
         const res = await fetch(url, { method: "DELETE" });
         if (!res.ok) throw new Error("undo failed");
         if (isAssignment) invalidateAssignmentsCaches();
-        else invalidateMorgenCaches();
+        else {
+          invalidateGetCacheByPrefix("/api/subjects");
+          invalidateMorgenCaches();
+        }
         updateTurn(turnId, (t) => ({
           ...t,
           items: t.items.map((i) =>
@@ -534,38 +570,35 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   );
 
   const enterGrade = useCallback(
-    async (turnId: string, item: ProposalItem) => {
-      if (!item.data.subjectId) return;
+    async (turnId: string, item: ProposalItem, decision: "accept" | "discard" = "accept") => {
+      if (item.busy || item.state !== "pending" || (decision === "accept" && !item.data.subjectId)) return;
       updateTurn(turnId, (t) => ({
         ...t,
         items: t.items.map((i) => (i.kind === "proposal" && i.id === item.id ? { ...i, busy: true } : i)),
       }));
       try {
-        const res = await fetch(`/api/subjects/${item.data.subjectId}/grades`, {
+        const res = await fetch(`/api/bot/proposals/${item.id}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            points: item.data.punkte,
-            label: item.data.bezeichnung,
-            kind: item.data.art,
-            date: item.data.datum,
-            weight: item.data.gewicht,
-          }),
+          body: JSON.stringify({ decision }),
         });
-        if (!res.ok) throw new Error("grade failed");
+        const data = await res.json() as { state: "entered" | "discarded"; error?: string };
+        if (!res.ok) throw new Error(data.error ?? "Der Vorschlag konnte nicht gespeichert werden.");
+        invalidateGradesCaches();
+        invalidateGetCacheByPrefix("/api/subjects");
         updateTurn(turnId, (t) => ({
           ...t,
           items: t.items.map((i) =>
-            i.kind === "proposal" && i.id === item.id ? { ...i, state: "entered" as const, busy: false } : i,
+            i.kind === "proposal" && i.id === item.id ? { ...i, state: data.state, busy: false } : i,
           ),
         }));
-        toast("Note eingetragen.", "success");
-      } catch {
+        toast(data.state === "entered" ? "Note eingetragen." : "Vorschlag verworfen.", "success");
+      } catch (error) {
         updateTurn(turnId, (t) => ({
           ...t,
           items: t.items.map((i) => (i.kind === "proposal" && i.id === item.id ? { ...i, busy: false } : i)),
         }));
-        toast("Die Note konnte nicht eingetragen werden.");
+        toast(error instanceof Error ? error.message : "Der Vorschlag konnte nicht gespeichert werden.");
       }
     },
     [toast, updateTurn],
@@ -574,18 +607,6 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
   const toggleThinking = useCallback(
     (turnId: string) => {
       updateTurn(turnId, (t) => ({ ...t, thinkingCollapsed: !t.thinkingCollapsed }));
-    },
-    [updateTurn],
-  );
-
-  const discardGrade = useCallback(
-    (turnId: string, itemId: string) => {
-      updateTurn(turnId, (t) => ({
-        ...t,
-        items: t.items.map((i) =>
-          i.kind === "proposal" && i.id === itemId ? { ...i, state: "discarded" as const } : i,
-        ),
-      }));
     },
     [updateTurn],
   );
@@ -634,7 +655,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
+      <div ref={scrollRef} onScroll={(e) => { const el = e.currentTarget; followBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48; }} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5">
         {restoring && turns.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 px-2" aria-label="Chat wird geladen" aria-busy="true">
             <span className="relative grid size-14 place-items-center">
@@ -689,7 +711,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
               turn={t}
               onUndo={(item) => void undoAction(t.id, item)}
               onEnterGrade={(item) => void enterGrade(t.id, item)}
-              onDiscardGrade={(itemId) => discardGrade(t.id, itemId)}
+              onDiscardGrade={(item) => void enterGrade(t.id, item, "discard")}
               onToggleThinking={() => toggleThinking(t.id)}
             />
           ))
@@ -699,6 +721,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       {/* Eingabe als eine Flaeche statt Feld-plus-Knopf: der Rahmen umfasst
           beides und reagiert auf den Fokus des Feldes darin (focus-within),
           damit die Zeile als ein Bauteil liest. */}
+      {loadError && <p role="alert" className="px-4 text-[13px] text-muted-foreground">Der Chat konnte nicht geladen werden. Du kannst eine neue Nachricht versuchen.</p>}
       <form onSubmit={onSubmit} className="px-3 pb-3 pt-2">
         <div className="flex items-end gap-1.5 rounded-2xl border bg-background p-1.5 pl-3 shadow-sm transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-ring/25">
           <textarea
@@ -708,6 +731,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
             onChange={onInputChange}
             onKeyDown={onKeyDown}
             rows={1}
+            aria-label="Nachricht an Atlas"
             placeholder="Frag Atlas …"
             // 16px sind Pflicht: kleinere Felder loesen auf iOS den
             // Auto-Zoom aus, der das ganze Panel verschiebt.
@@ -722,7 +746,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
               onClick={abort}
               aria-label="Antwort abbrechen"
               title="Antwort abbrechen"
-              className="grid size-9 shrink-0 place-items-center rounded-xl border bg-card text-foreground transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="grid size-11 shrink-0 place-items-center rounded-xl border bg-card text-foreground transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <Square className="size-3" fill="currentColor" />
             </button>
@@ -730,8 +754,8 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
             <button
               type="submit"
               aria-label="Absenden"
-              disabled={!input.trim()}
-              className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground transition-[opacity,transform] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] disabled:pointer-events-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:active:scale-95"
+              disabled={restoring || !input.trim()}
+              className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground transition-[opacity,transform] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] disabled:pointer-events-none disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-safe:active:scale-95"
             >
               <ArrowUp className="size-4" strokeWidth={2.5} />
             </button>
@@ -754,7 +778,7 @@ function TurnView({
   turn: Turn;
   onUndo: (item: ActionItem) => void;
   onEnterGrade: (item: ProposalItem) => void;
-  onDiscardGrade: (itemId: string) => void;
+  onDiscardGrade: (item: ProposalItem) => void;
   onToggleThinking: () => void;
 }) {
   // Gestreamter Bot-Text kommt manchmal ohne Trennzeichen zwischen zwei
@@ -814,7 +838,7 @@ function TurnView({
             type="button"
             onClick={onToggleThinking}
             aria-expanded={!turn.thinkingCollapsed}
-            className="flex w-fit items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="flex min-h-11 w-fit items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             Gedankengang
           </button>
@@ -862,7 +886,7 @@ function TurnView({
                         size="sm"
                         disabled={item.busy}
                         onClick={() => onUndo(item)}
-                        className="h-7 px-2 text-[12.5px]"
+                        className="h-11 px-2 text-[12.5px]"
                       >
                         <Undo2 className="size-3.5" />
                         {item.busy ? "Wird zurückgenommen …" : "Rückgängig"}
@@ -877,13 +901,13 @@ function TurnView({
               key={item.id}
               item={item}
               onEnter={() => onEnterGrade(item)}
-              onDiscard={() => onDiscardGrade(item.id)}
+              onDiscard={() => onDiscardGrade(item)}
             />
           ),
         )}
 
         {turn.errorText && (
-          <p className="flex items-start gap-1.5 text-[13px] text-muted-foreground">
+          <p role="alert" className="flex items-start gap-1.5 text-[13px] text-muted-foreground">
             <AlertTriangle className="mt-px size-3.5 shrink-0" />
             {turn.errorText}
           </p>
@@ -933,10 +957,10 @@ function ProposalCard({
             </p>
           )}
           <div className="mt-2 flex gap-2">
-            <Button size="sm" disabled={item.busy || !d.subjectId} onClick={onEnter} className="h-7 px-2.5 text-[12.5px]">
-              {item.busy ? "Trägt ein …" : "Eintragen"}
+            <Button size="sm" disabled={item.busy || !d.subjectId} onClick={onEnter} className="h-11 px-2.5 text-[12.5px]">
+              {item.busy ? "Speichert …" : "Eintragen"}
             </Button>
-            <Button variant="ghost" size="sm" disabled={item.busy} onClick={onDiscard} className="h-7 px-2.5 text-[12.5px]">
+            <Button variant="ghost" size="sm" disabled={item.busy} onClick={onDiscard} className="h-11 px-2.5 text-[12.5px]">
               Verwerfen
             </Button>
           </div>

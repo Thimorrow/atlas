@@ -2,6 +2,8 @@ package dev.atlas.schule.data
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
 import java.time.Instant
 import java.time.LocalDate
 
@@ -485,10 +487,13 @@ data class BotStartAntwort(
 @Serializable
 data class BotVerlaufEintragDTO(
     val id: String,
-    val title: String = "",
+    @SerialName("title") private val rawTitle: String? = null,
     val updatedAt: String? = null,
-    val hasCreated: Boolean = false,
-)
+    val messages: List<BotTurnDTO> = emptyList(),
+) {
+    val title: String get() = rawTitle.orEmpty()
+    val hasCreated: Boolean get() = messages.any { it.isSuccessfulWrite }
+}
 
 @Serializable
 data class BotVerlaufAntwort(val conversations: List<BotVerlaufEintragDTO> = emptyList())
@@ -498,14 +503,23 @@ data class BotTurnDTO(
     val role: String,
     val content: String = "",
     val createdAt: String? = null,
-)
+    val toolName: String? = null,
+    val toolResult: JsonElement? = null,
+) {
+    val isSuccessfulWrite: Boolean get() = role == "tool" &&
+        toolName in setOf("aufgabe_anlegen", "aufgabe_aendern", "notiz_anlegen", "notiz_aendern", "lernkarten_erzeugen", "lernkarte_anlegen") &&
+        toolResult is JsonObject && "error" !in toolResult
+}
 
 @Serializable
 data class BotVerlaufDetailAntwort(
-    val id: String = "",
-    val title: String = "",
-    val turns: List<BotTurnDTO> = emptyList(),
-)
+    val conversation: BotVerlaufEintragDTO,
+    val messages: List<BotTurnDTO>,
+) {
+    val id: String get() = conversation.id
+    val title: String get() = conversation.title
+    val turns: List<BotTurnDTO> get() = messages.filter { (it.role == "user" || it.role == "assistant") && it.content.isNotBlank() }
+}
 
 @Serializable
 data class FilesAntwort(val files: List<FileDTO> = emptyList())

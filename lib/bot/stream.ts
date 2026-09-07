@@ -10,7 +10,8 @@ export type BotStreamEvent =
   // damit den Gedankengang der vorigen Runde statt ihn endlos anzuhaengen.
   | { type: "round" }
   | { type: "action"; tool: string; result: unknown }
-  | { type: "proposal"; kind: "grade"; data: unknown }
+  | { type: "proposal"; kind: "grade"; messageId: string; data: unknown }
+  | { type: "conversation"; conversationId: string }
   | { type: "error"; text: string }
   | { type: "done"; conversationId: string };
 
@@ -34,7 +35,8 @@ function isValidEvent(v: unknown): v is BotStreamEvent {
     case "action":
       return typeof v.tool === "string" && "result" in v;
     case "proposal":
-      return v.kind === "grade" && "data" in v;
+      return v.kind === "grade" && typeof v.messageId === "string" && "data" in v;
+    case "conversation":
     case "done":
       return typeof v.conversationId === "string";
     default:

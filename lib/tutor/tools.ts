@@ -187,6 +187,9 @@ export function parseCheckliste(args: unknown): ParseResult<ChecklisteInput> {
     if (!isObj(a) || typeof a.nr !== "number" || typeof a.text !== "string" || !a.text.trim()) {
       return { ok: false, error: "jede Aufgabe braucht nr und text." };
     }
+    if (!Number.isInteger(a.nr) || a.nr !== aufgaben.length + 1 || (a.schwierigkeit !== undefined && (typeof a.schwierigkeit !== "number" || !Number.isFinite(a.schwierigkeit)))) {
+      return { ok: false, error: "Aufgaben brauchen fortlaufende Nummern ab 1 und eine endliche Schwierigkeit." };
+    }
     const schwierigkeitRaw = typeof a.schwierigkeit === "number" ? a.schwierigkeit : 1;
     const schwierigkeit = Math.min(Math.max(Math.round(schwierigkeitRaw), 1), 3);
     aufgaben.push({ nr: a.nr, text: a.text.trim(), schwierigkeit });
@@ -206,13 +209,16 @@ export function parseAufgabeErgebnis(args: unknown): ParseResult<AufgabeErgebnis
   if (!isObj(args)) return { ok: false, error: "Ungültige Argumente." };
 
   const nr = args.nr;
-  if (typeof nr !== "number") return { ok: false, error: "nr muss eine Zahl sein." };
+  if (typeof nr !== "number" || !Number.isInteger(nr) || nr < 1) return { ok: false, error: "nr muss eine Zahl sein." };
 
   const status = args.status;
   if (typeof status !== "string" || !(AUFGABE_ERGEBNIS_STATUS as readonly string[]).includes(status)) {
     return { ok: false, error: `status muss eine von ${AUFGABE_ERGEBNIS_STATUS.join(", ")} sein.` };
   }
 
+  if (args.punkte !== undefined && (typeof args.punkte !== "number" || !Number.isFinite(args.punkte) || args.punkte < 0)) {
+    return { ok: false, error: "punkte muss eine endliche, nicht negative Zahl sein." };
+  }
   const punkte = typeof args.punkte === "number" ? args.punkte : undefined;
 
   return { ok: true, value: { nr, status: status as AufgabeErgebnisInput["status"], ...(punkte !== undefined ? { punkte } : {}) } };
@@ -259,13 +265,25 @@ export function parseFazit(args: unknown): ParseResult<FazitInput> {
     neueKarten.push({ question: k.question.trim(), answer: k.answer.trim(), kind });
   }
 
+  if (args.punkte !== undefined && (typeof args.punkte !== "number" || !Number.isFinite(args.punkte) || args.punkte < 0)) {
+    return { ok: false, error: "punkte muss eine endliche, nicht negative Zahl sein." };
+  }
   const punkte = typeof args.punkte === "number" ? args.punkte : undefined;
+  if (args.gesamt !== undefined && (typeof args.gesamt !== "number" || !Number.isFinite(args.gesamt) || args.gesamt <= 0)) {
+    return { ok: false, error: "gesamt muss eine endliche Zahl größer als 0 sein." };
+  }
   const gesamt = typeof args.gesamt === "number" ? args.gesamt : undefined;
+  if ((punkte === undefined) !== (gesamt === undefined) || (punkte !== undefined && gesamt !== undefined && punkte > gesamt)) {
+    return { ok: false, error: "punkte und gesamt gemeinsam angeben; punkte darf gesamt nicht überschreiten." };
+  }
+  if (args.punktePlan !== undefined && !Array.isArray(args.punktePlan)) return { ok: false, error: "punktePlan muss eine Liste sein." };
 
   const punktePlanRaw = Array.isArray(args.punktePlan) ? args.punktePlan : [];
   const punktePlan: FazitPunktPlan[] = [];
   for (const p of punktePlanRaw) {
-    if (!isObj(p) || typeof p.pointId !== "string" || !p.pointId.trim() || typeof p.prozent !== "number") continue;
+    if (!isObj(p) || typeof p.pointId !== "string" || !p.pointId.trim() || typeof p.prozent !== "number" || !Number.isFinite(p.prozent) || p.prozent < 0 || p.prozent > 100 || punktePlan.some((entry) => entry.pointId === p.pointId)) {
+      return { ok: false, error: "Jeder Planpunkt braucht eine eindeutige ID und 0 bis 100 Prozent." };
+    }
     punktePlan.push({ pointId: p.pointId, prozent: p.prozent });
   }
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/lib/lernplan-store", () => ({ planLaden: vi.fn(), punktMitBlaettern: vi.fn() }));
 vi.mock("@/lib/bot/model", () => ({ botEnabled: vi.fn(() => true) }));
 vi.mock("@/lib/tutor/store", () => ({
   createTutorConversation: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock("@/lib/assignment-store", () => ({
   getAssignment: vi.fn(),
 }));
 
+import { punktMitBlaettern } from "@/lib/lernplan-store";
 import { GET, POST } from "@/app/api/lernen/tutor/route";
 import { botEnabled } from "@/lib/bot/model";
 import { getCard, getTopic } from "@/lib/study-store";
@@ -221,4 +223,29 @@ describe("GET /api/lernen/tutor", () => {
     const json = await res.json();
     expect(json.conversations[0].checklisteFortschritt).toEqual({ erledigt: 2, gesamt: 3 });
   });
+});
+
+it("verhindert eine fremde Karte vor dem Erstellen einer Session", async () => {
+  vi.mocked(getTopic).mockResolvedValue({ id: TOPIC_ID, subjectId: SUBJECT_ID } as Awaited<ReturnType<typeof getTopic>>);
+  vi.mocked(getCard).mockResolvedValue({ id: ASSIGNMENT_ID, topicId: "anderes-thema", subjectId: SUBJECT_ID } as Awaited<ReturnType<typeof getCard>>);
+  const response = await POST(req({ topicId: TOPIC_ID, cardId: ASSIGNMENT_ID }));
+  expect(response.status).toBe(400);
+  expect(createTutorConversation).not.toHaveBeenCalled();
+});
+
+it("verhindert eine Prüfung aus einem anderen Fach", async () => {
+  vi.mocked(getTopic).mockResolvedValue({ id: TOPIC_ID, subjectId: SUBJECT_ID } as Awaited<ReturnType<typeof getTopic>>);
+  vi.mocked(getAssignment).mockResolvedValue({ id: ASSIGNMENT_ID, subjectId: "anderes-fach", type: "exam" } as Awaited<ReturnType<typeof getAssignment>>);
+  const response = await POST(req({ topicId: TOPIC_ID, pruefung: ASSIGNMENT_ID }));
+  expect(response.status).toBe(400);
+  expect(createTutorConversation).not.toHaveBeenCalled();
+});
+
+
+it("verhindert eine Lerneinheit aus einem fremden Plan", async () => {
+  vi.mocked(getTopic).mockResolvedValue({ id: TOPIC_ID, subjectId: SUBJECT_ID } as Awaited<ReturnType<typeof getTopic>>);
+  vi.mocked(punktMitBlaettern).mockResolvedValue({ plan: { subjectId: "fremd", items: [{ id: ASSIGNMENT_ID, topicId: TOPIC_ID }] } } as Awaited<ReturnType<typeof punktMitBlaettern>>);
+  const response = await POST(req({ topicId: TOPIC_ID, einheitId: ASSIGNMENT_ID }));
+  expect(response.status).toBe(400);
+  expect(createTutorConversation).not.toHaveBeenCalled();
 });

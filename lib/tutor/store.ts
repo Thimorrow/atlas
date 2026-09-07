@@ -3,8 +3,9 @@
 // die Chat-Logik selbst steht in lib/tutor/session.ts (Slice 2).
 
 import { asc, desc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, withTransaction } from "@/lib/db";
 import {
+  studyCards,
   tutorConversations,
   tutorMessages,
   type TutorMessageRole,
@@ -146,10 +147,10 @@ export async function setAufgabeStatus(
 
   const aufgaben = conversation.checkliste.aufgaben;
   const index = aufgaben.findIndex((a) => a.nr === nr);
-  if (index === -1) return null;
+  if (index === -1 || (punkte !== undefined && (!Number.isFinite(punkte) || punkte < 0 || punkte > aufgaben[index].schwierigkeit))) return null;
 
   const updatedAufgaben = aufgaben.map((a, i) =>
-    i === index ? { ...a, status, ...(punkte !== undefined ? { punkte } : {}) } : a,
+    i === index ? { ...a, status, punkte: status === "offen" || status === "uebersprungen" ? 0 : (punkte ?? (status === "richtig" ? a.schwierigkeit : 0)) } : a,
   );
   const checkliste: Checkliste = { ...conversation.checkliste, aufgaben: updatedAufgaben };
 
@@ -181,4 +182,25 @@ export async function markKartenAngelegt(id: string): Promise<TutorConversationD
 
 export async function deleteTutorConversation(id: string): Promise<void> {
   await db.delete(tutorConversations).where(eq(tutorConversations.id, id));
+}
+
+// Die Zeilensperre serialisiert auch zwei gleichzeitige Klicks. Karten und
+// Bestätigungsstatus werden gemeinsam gespeichert oder gemeinsam verworfen.
+export async function saveProposedTutorCards(id: string) {
+  return withTransaction(async (tx) => {
+    const [conversation] = await tx.select().from(tutorConversations).where(eq(tutorConversations.id, id)).for("update");
+    if (!conversation) return { error: "Session nicht gefunden.", status: 404 };
+    const ergebnis = conversation.ergebnis as TutorErgebnis | null;
+    if (!ergebnis) return { error: "Noch kein Fazit.", status: 400 };
+    if (conversation.kartenAngelegt) return { error: "Karten wurden schon angelegt.", status: 409 };
+    if (!ergebnis.neueKarten.length) return { error: "Keine Karten vorgeschlagen.", status: 400 };
+    const { localISO } = await import("@/lib/assignments-view");
+    const cards = await tx.insert(studyCards).values(ergebnis.neueKarten.map((k) => ({
+      subjectId: conversation.subjectId, topicId: conversation.topicId,
+      question: k.question, answer: k.answer, kind: k.kind ?? "wissen",
+      source: "manuell" as const, sourceRef: `tutor:${id}`, due: localISO(),
+    }))).returning();
+    await tx.update(tutorConversations).set({ kartenAngelegt: true, updatedAt: new Date() }).where(eq(tutorConversations.id, id));
+    return { cards, topicId: conversation.topicId, status: 201 };
+  });
 }

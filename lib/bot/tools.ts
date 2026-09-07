@@ -459,7 +459,8 @@ export function statusTextFor(name: string, args: Record<string, unknown>): stri
 
 // --- Ausfuehrung ---------------------------------------------------------
 
-export async function runTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function runTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+  signal?.throwIfAborted();
   switch (name) {
     case "stundenplan_lesen":
       return stundenplanLesen(args);
@@ -478,13 +479,13 @@ export async function runTool(name: string, args: Record<string, unknown>): Prom
     case "datei_lesen":
       return dateiLesen(args);
     case "aufgabe_anlegen":
-      return aufgabeAnlegen(args);
+      return aufgabeAnlegen(args, signal);
     case "aufgabe_aendern":
-      return aufgabeAendern(args);
+      return aufgabeAendern(args, signal);
     case "notiz_anlegen":
-      return notizAnlegen(args);
+      return notizAnlegen(args, signal);
     case "notiz_aendern":
-      return notizAendern(args);
+      return notizAendern(args, signal);
     case "note_vorschlagen":
       return noteVorschlagen(args);
     case "jetzt_lesen":
@@ -494,9 +495,9 @@ export async function runTool(name: string, args: Record<string, unknown>): Prom
     case "lernplan_lesen":
       return lernplanLesen(args);
     case "lernkarten_erzeugen":
-      return lernkartenErzeugen(args);
+      return lernkartenErzeugen(args, signal);
     case "lernkarte_anlegen":
-      return lernkarteAnlegen(args);
+      return lernkarteAnlegen(args, signal);
     default:
       return { error: `Unbekanntes Werkzeug: ${name}` };
   }
@@ -724,7 +725,7 @@ function modelltext(wert: unknown): string {
   return typeof wert === "string" ? mitUmlauten(wert.trim()) : "";
 }
 
-async function aufgabeAnlegen(args: Record<string, unknown>) {
+async function aufgabeAnlegen(args: Record<string, unknown>, signal?: AbortSignal) {
   const titel = modelltext(args.titel);
   if (!titel) return { error: "titel darf nicht leer sein." };
 
@@ -742,6 +743,7 @@ async function aufgabeAnlegen(args: Record<string, unknown>) {
   if (!(erlaubteTypen as readonly string[]).includes(typ))
     return { error: "typ ist kein gültiger Aufgabentyp." };
 
+  signal?.throwIfAborted();
   const assignment = await createAssignment({
     title: titel,
     subjectId,
@@ -753,7 +755,7 @@ async function aufgabeAnlegen(args: Record<string, unknown>) {
   return { aufgabe: assignment, hinweisFaellig: faellig.hint };
 }
 
-async function aufgabeAendern(args: Record<string, unknown>) {
+async function aufgabeAendern(args: Record<string, unknown>, signal?: AbortSignal) {
   const aufgabeId = typeof args.aufgabeId === "string" ? args.aufgabeId : "";
   if (!isUuid(aufgabeId)) return { error: "aufgabeId ist keine gültige id." };
   if (!(await getAssignment(aufgabeId))) return { error: "Aufgabe nicht gefunden." };
@@ -777,17 +779,19 @@ async function aufgabeAendern(args: Record<string, unknown>) {
   }
 
   if (Object.keys(patch).length > 0) {
+    signal?.throwIfAborted();
     await updateAssignment(aufgabeId, patch);
   }
 
   let aufgabe = await getAssignment(aufgabeId);
+  signal?.throwIfAborted();
   if (args.erledigt === true) aufgabe = await completeAssignment(aufgabeId);
   else if (args.erledigt === false) aufgabe = await uncompleteAssignment(aufgabeId);
 
   return { aufgabe, hinweisFaellig };
 }
 
-async function notizAnlegen(args: Record<string, unknown>) {
+async function notizAnlegen(args: Record<string, unknown>, signal?: AbortSignal) {
   const fach = typeof args.fach === "string" ? args.fach.trim() : "";
   const titel = modelltext(args.titel);
   if (!fach) return { error: "fach darf nicht leer sein." };
@@ -795,6 +799,7 @@ async function notizAnlegen(args: Record<string, unknown>) {
 
   const resolved = await resolveSubjectId(fach);
   if ("error" in resolved) return resolved;
+  signal?.throwIfAborted();
   const notiz = await createNote({
     subjectId: resolved.subjectId,
     title: titel,
@@ -803,7 +808,7 @@ async function notizAnlegen(args: Record<string, unknown>) {
   return { notiz };
 }
 
-async function notizAendern(args: Record<string, unknown>) {
+async function notizAendern(args: Record<string, unknown>, signal?: AbortSignal) {
   const notizId = typeof args.notizId === "string" ? args.notizId : "";
   if (!isUuid(notizId)) return { error: "notizId ist keine gültige id." };
 
@@ -827,6 +832,7 @@ async function notizAendern(args: Record<string, unknown>) {
     return { error: "Es wurde nichts zum Ändern angegeben." };
   }
 
+  signal?.throwIfAborted();
   const notiz = await updateNote(notizId, patch);
   if (!notiz) return { error: "Notiz nicht gefunden." };
   return { notiz };
@@ -856,6 +862,7 @@ async function noteVorschlagen(args: Record<string, unknown>) {
   const gewicht = typeof args.gewicht === "number" ? args.gewicht : 1;
 
   return {
+    proposalVersion: 1,
     vorschlag: {
       fach,
       subjectId: subject?.id ?? null,
@@ -1002,7 +1009,7 @@ async function lernplanLesen(args: Record<string, unknown>) {
 // Nur auf ausdruecklichen Wunsch bzw. nach Rueckfrage gerufen (siehe
 // Systemprompt) -- hier keine eigene Bestaetigungslogik, die Regel steht im
 // Prompt, nicht im Werkzeug.
-async function lernkartenErzeugen(args: Record<string, unknown>) {
+async function lernkartenErzeugen(args: Record<string, unknown>, signal?: AbortSignal) {
   const fach = typeof args.fach === "string" ? args.fach.trim() : "";
   if (!fach) return { error: "fach darf nicht leer sein." };
 
@@ -1026,6 +1033,7 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
     const themen = await listTopics(subject.id);
     const needle = themaTitel.toLowerCase();
     const bestehend = themen.find((t) => t.title.toLowerCase() === needle);
+    signal?.throwIfAborted();
     topicId = bestehend ? bestehend.id : (await createTopic({ subjectId: subject.id, title: themaTitel })).id;
   }
 
@@ -1037,7 +1045,7 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
   };
 
   try {
-    const generated = await generateCards(input);
+    const generated = await generateCards(input, signal);
     if (generated.cards.length === 0) {
       return {
         fach: subject.name,
@@ -1052,6 +1060,7 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
     // Selbe Zuordnung wie app/api/lernen/generieren/route.ts: "dateien" wird
     // zu "datei" (Enum-Wert), "alles" faellt auf "notizen" als Herkunft.
     const quelleForStore = quelle === "dateien" ? "datei" : quelle === "alles" ? "notizen" : quelle;
+    signal?.throwIfAborted();
     const karten = await createCards(
       subject.id,
       generated.cards,
@@ -1073,7 +1082,7 @@ async function lernkartenErzeugen(args: Record<string, unknown>) {
   }
 }
 
-async function lernkarteAnlegen(args: Record<string, unknown>) {
+async function lernkarteAnlegen(args: Record<string, unknown>, signal?: AbortSignal) {
   const fach = typeof args.fach === "string" ? args.fach.trim() : "";
   const frage = typeof args.frage === "string" ? args.frage.trim() : "";
   const antwort = typeof args.antwort === "string" ? args.antwort.trim() : "";
@@ -1084,6 +1093,7 @@ async function lernkarteAnlegen(args: Record<string, unknown>) {
   const resolved = await resolveSubjectId(fach);
   if ("error" in resolved) return resolved;
   const subjectId = resolved.subjectId;
+  signal?.throwIfAborted();
   const [karte] = await createCards(subjectId, [{ question: frage, answer: antwort }], "manuell");
   if (!karte) return { error: "Karte konnte nicht angelegt werden." };
 

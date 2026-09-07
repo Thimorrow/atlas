@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -42,21 +42,34 @@ export function BotLauncher() {
   // Gespraech und legte sich ueber deren Inhalt.
   const onBotPage = pathname.startsWith("/bot");
 
-  const close = useCallback(() => setOpen(false), []);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const close = useCallback(() => {
+    setOpen(false);
+    const target = openerRef.current;
+    (target?.isConnected ? target : launcherRef.current)?.focus();
+  }, []);
+  const toggle = useCallback(() => {
+    if (open) close();
+    else {
+      openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      prefetchChat();
+      setOpen(true);
+    }
+  }, [open, close]);
 
   useEffect(() => {
     const onToggle = () => {
-      prefetchChat();
-      setOpen((o) => !o);
+      toggle();
     };
     window.addEventListener("atlas:bot-toggle", onToggle);
     return () => window.removeEventListener("atlas:bot-toggle", onToggle);
-  }, []);
+  }, [toggle]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && open) {
-        setOpen(false);
+        close();
         return;
       }
       if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey)) return;
@@ -70,12 +83,11 @@ export function BotLauncher() {
         !el.closest("[data-bot-chat]");
       if (typing) return;
       e.preventDefault();
-      prefetchChat();
-      setOpen((o) => !o);
+      toggle();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, close, toggle]);
 
   if (onBotPage) return null;
 
@@ -100,7 +112,7 @@ export function BotLauncher() {
               "pointer-events-auto flex w-[min(26rem,100%)] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-foreground/10",
               // Waechst mit dem Fenster, bleibt aber immer ueber dem Knopf
               // und innerhalb des sichtbaren Bereichs.
-              "h-[min(36rem,calc(100dvh-13rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] md:h-[min(36rem,calc(100svh-9rem))]",
+              "[@media(max-height:600px)]:z-10 [@media(max-height:600px)]:fixed [@media(max-height:600px)]:inset-x-2 [@media(max-height:600px)]:top-2 [@media(max-height:600px)]:bottom-[calc(4rem+env(safe-area-inset-bottom))] [@media(max-height:600px)]:h-auto [@media(max-height:600px)]:w-auto h-[min(36rem,calc(100dvh-13rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] md:h-[min(36rem,calc(100svh-9rem))]",
             )}
           >
             <PanelHeader onClose={close} />
@@ -113,10 +125,8 @@ export function BotLauncher() {
 
       <motion.button
         type="button"
-        onClick={() => {
-          prefetchChat();
-          setOpen((o) => !o);
-        }}
+        ref={launcherRef}
+        onClick={toggle}
         onPointerEnter={prefetchChat}
         onFocus={prefetchChat}
         aria-expanded={open}

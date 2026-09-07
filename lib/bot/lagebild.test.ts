@@ -72,8 +72,8 @@ describe("lagebildAlsText", () => {
 
     const text = lagebildAlsText(lagebild);
 
-    expect(text).toContain("keine Schule");
-    expect(text).toContain("Nächster Schultag: in den nächsten 7 Tagen keiner");
+    expect(text).toContain("keine Schulstunden im gespeicherten Plan");
+    expect(text).toContain("Nächster Schultag: in den nächsten 7 Tagen kein Eintrag im gespeicherten Plan");
     expect(text).not.toContain("Seine Fächer");
     expect(text).toContain("Offene Aufgaben (bis in 14 Tagen, ohne Prüfungen):\n- keine");
     expect(text).toContain("Prüfungen (nächste 30 Tage):\n- keine");
