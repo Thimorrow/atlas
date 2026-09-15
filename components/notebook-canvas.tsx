@@ -194,8 +194,8 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
   const backgroundImage = paper === "grid"
     ? "linear-gradient(#e0e7ef 1px, transparent 1px), linear-gradient(90deg, #e0e7ef 1px, transparent 1px)"
     : paper === "lined" ? "linear-gradient(transparent calc(100% - 1px), #dce5ef 1px)" : undefined;
-  return <div ref={scrollRef} className="h-[min(72svh,1000px)] min-h-80 overflow-auto overscroll-contain rounded-xl border bg-muted/40 p-3 sm:p-6" aria-label="Heftblatt, mit einem Finger verschieben und mit zwei Fingern zoomen">
-    <div style={{ width: `${zoom}%`, minWidth: 150 }}>
+  return <div ref={scrollRef} tabIndex={0} role="region" className="min-h-48 flex-1 overflow-auto overscroll-contain bg-muted/40 p-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-8" aria-label="Heftblatt, mit einem Finger verschieben und mit zwei Fingern zoomen">
+    <div className="mx-auto" style={{ width: `${zoom}%`, minWidth: 150 }}>
       <div ref={pageRef} className="relative mx-auto aspect-[5/7] w-full overflow-hidden bg-white text-slate-900 shadow-md"
         style={{ backgroundImage, backgroundSize: paper === "grid" ? "2.5% 1.785714%" : "100% 2.5%" }}
         onClick={(e) => {
@@ -243,16 +243,16 @@ function PageBlock({ block, editable, selected, onSelect, onChange, pageRef, pag
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   }
   return <div className="absolute" style={{ left: `${live.x / 10}%`, top: `${live.y / 14}%`, width: `${live.width / 10}%`, height: `${live.height / 14}%`, zIndex: editable ? 30 : 1, outline: selected && editable ? "2px solid #2563eb" : undefined }} onClick={(e) => { e.stopPropagation(); onSelect(); }}>
-    {block.type === "text" ? <textarea aria-label="Text auf dem Heftblatt" value={block.text ?? ""} readOnly={!editable}
+    {block.type === "text" ? <textarea autoFocus={editable && selected} aria-label="Text auf dem Heftblatt" value={block.text ?? ""} readOnly={!editable}
       onFocus={onSelect} onChange={(e) => onChange({ ...block, text: e.target.value })}
       placeholder="Hier schreiben …" className="resize-none rounded-none border-0 bg-transparent p-2 text-[22px] leading-relaxed text-slate-900 outline-none placeholder:text-slate-400"
       style={{ width: live.width, height: live.height, transform: `scale(${pageScale})`, transformOrigin: "top left", pointerEvents: editable ? "auto" : "none" }} />
       : block.type === "image" ? <img src={`/api/files/${block.fileId}?preview=1`} alt="Eingefügtes Bild" draggable={false} className="pointer-events-none size-full object-contain" />
       : <PdfBlock fileId={block.fileId!} pageNumber={block.pageNumber ?? 1} />}
     {editable && selected && <>
-      <button aria-label="Element verschieben" className="absolute left-0 flex size-11 items-center justify-center rounded-full border bg-white text-slate-700 shadow-sm" style={{ touchAction: "none", ...(live.y * pageScale >= 44 ? { bottom: "100%" } : { top: "100%" }) }}
+      <button aria-label="Element verschieben" className="absolute left-0 flex size-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 outline-none interaction hover:bg-slate-100 press:bg-slate-200 press:scale-[0.96] focus-visible:ring-2 focus-visible:ring-slate-700" style={{ touchAction: "none", ...(live.y * pageScale >= 44 ? { bottom: "100%" } : { top: "100%" }) }}
         onPointerDown={(e) => down(e, false)} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><Grip className="size-4" /></button>
-      <button aria-label="Elementgröße ändern" className="absolute right-0 flex size-11 items-center justify-center rounded-full border bg-white text-slate-700 shadow-sm" style={{ touchAction: "none", ...(live.y * pageScale >= 44 ? { bottom: "100%" } : { top: "100%" }) }}
+      <button aria-label="Elementgröße ändern" className="absolute right-0 flex size-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 outline-none interaction hover:bg-slate-100 press:bg-slate-200 press:scale-[0.96] focus-visible:ring-2 focus-visible:ring-slate-700" style={{ touchAction: "none", ...(live.y * pageScale >= 44 ? { bottom: "100%" } : { top: "100%" }) }}
         onPointerDown={(e) => down(e, true)} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><MoveDiagonal className="size-4" /></button>
     </>}
   </div>;
