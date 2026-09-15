@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pagePoint, strokeNear } from "@/lib/notebook-drawing";
+import { anchoredScroll, pagePoint, pinchScale, strokeNear } from "@/lib/notebook-drawing";
 
 describe("Heft: skalierte Stifteingabe", () => {
   it("rechnet Bildschirmkoordinaten unabhängig vom Zoom ins Blatt um", () => {
@@ -13,5 +13,25 @@ describe("Heft: skalierte Stifteingabe", () => {
     const stroke = { id: "test", width: 3, color: "#000000", points: [{ x: 0, y: 100, pressure: 1 }, { x: 500, y: 100, pressure: 1 }] };
     expect(strokeNear(stroke, 250, 105)).toBe(true);
     expect(strokeNear(stroke, 250, 150)).toBe(false);
+  });
+});
+
+
+describe("Heft: Pinch-Zoom", () => {
+  it("skaliert relativ zum Beginn und begrenzt auf 50 bis 250 Prozent", () => {
+    expect(pinchScale(100, 200, 300)).toBe(150);
+    expect(pinchScale(150, 200, 100)).toBe(75);
+    expect(pinchScale(100, 200, 10)).toBe(50);
+    expect(pinchScale(200, 100, 200)).toBe(250);
+  });
+  it("hält beim Vergrößern denselben Blattpunkt unter dem Fingermittelpunkt", () => {
+    const result = anchoredScroll({ left: 100, top: 200 }, { left: 20, top: -100, width: 1000, height: 1400 }, { x: 0.5, y: 0.5 }, { x: 270, y: 250 });
+    expect(result).toEqual({ left: 350, top: 550 });
+    expect(20 - (result.left - 100) + 500).toBe(270);
+    expect(-100 - (result.top - 200) + 700).toBe(250);
+  });
+  it("verschiebt bei gleichem Zoom mit zwei Fingern und bleibt am Blattrand", () => {
+    expect(anchoredScroll({ left: 200, top: 300 }, { left: -200, top: -300, width: 1000, height: 1400 }, { x: 0.5, y: 0.5 }, { x: 350, y: 450 })).toEqual({ left: 150, top: 250 });
+    expect(anchoredScroll({ left: 0, top: 0 }, { left: 0, top: 0, width: 500, height: 700 }, { x: 0, y: 0 }, { x: 100, y: 100 })).toEqual({ left: 0, top: 0 });
   });
 });

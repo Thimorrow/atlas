@@ -295,7 +295,7 @@ function NotebookEditor({ id, initial, onPageChange }: { id: string; initial?: N
     </div>
     {pdfImport && <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3"><span className="min-w-0 flex-1 truncate text-sm">{pdfImport.file.name}</span><Select aria-label="PDF-Seite auswählen" value={pdfImport.pageNumber} onValueChange={(v) => setPdfImport({ ...pdfImport, pageNumber: Number(v) })}>{Array.from({ length: pdfImport.pages }, (_, i) => <option key={i} value={i + 1}>Seite {i + 1}</option>)}</Select><Button disabled={uploading} onClick={() => void uploadFile(pdfImport.file, pdfImport.pageNumber, pdfImport.ratio)}>Seite einfügen</Button><Button variant="ghost" disabled={uploading} onClick={() => setPdfImport(null)}>Abbrechen</Button></div>}
     {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
-    <NotebookCanvas content={page.content} paper={page.paper} tool={tool} color={color} width={width} zoom={zoom} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onAddText={addText} onChange={(content) => change({ content })} />
+    <NotebookCanvas content={page.content} paper={page.paper} tool={tool} color={color} width={width} zoom={zoom} onZoomChange={setZoom} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onAddText={addText} onChange={(content) => change({ content })} />
     <p className="px-1 pb-2 text-center text-[11px] text-muted-foreground">{tool === "pen" ? "Mit dem Stift schreiben · Mit einem Finger verschieben" : tool === "eraser" ? "Tippe einen Strich an, um ihn zu entfernen" : tool === "text" ? "Auf das Blatt tippen, um Text einzufügen · Elemente zum Bearbeiten auswählen" : "Das Blatt ziehen, um den Ausschnitt zu verschieben"}</p>
   </section>;
 }

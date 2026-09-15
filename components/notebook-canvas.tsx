@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Grip, Loader2, MoveDiagonal } from "lucide-react";
 import type { NotebookBlock, NotebookContent, NotebookPaper, NotebookStroke } from "@/lib/notebook-types";
-import { drawStroke, pagePoint, strokeNear } from "@/lib/notebook-drawing";
+import { anchoredScroll, drawStroke, pagePoint, pinchScale, strokeNear } from "@/lib/notebook-drawing";
 
 export type NotebookTool = "pen" | "eraser" | "text" | "move";
 
-export function NotebookCanvas({ content, paper, tool, color, width, zoom, onChange, onSelect, selectedBlock, onAddText }: {
+export function NotebookCanvas({ content, paper, tool, color, width, zoom, onChange, onSelect, selectedBlock, onAddText, onZoomChange }: {
   content: NotebookContent; paper: NotebookPaper; tool: NotebookTool; color: string; width: number; zoom: number;
   onChange: (next: NotebookContent) => void; onSelect: (id: string) => void; selectedBlock: string | null;
   onAddText: (x: number, y: number) => void;
+  onZoomChange?: (zoom: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -18,6 +19,11 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
   const activeRef = useRef<HTMLCanvasElement>(null);
   const stroke = useRef<NotebookStroke | null>(null);
   const gesture = useRef<{ id: number; x: number; y: number; pan: boolean } | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ distance: number; zoom: number; anchor: { x: number; y: number } } | null>(null);
+  const zoomFrame = useRef<number | null>(null);
+  const pendingAnchor = useRef<{ anchor: { x: number; y: number }; center: { x: number; y: number } } | null>(null);
+  const penActive = useRef(false);
   const erased = useRef<NotebookContent | null>(null);
   const frame = useRef<number | null>(null);
   const [resolution, setResolution] = useState(1);
@@ -34,6 +40,34 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
     observer.observe(page);
     return () => observer.disconnect();
   }, []);
+
+  function alignAnchor() {
+    const pending = pendingAnchor.current;
+    const scroller = scrollRef.current;
+    const page = pageRef.current;
+    if (!pending || !scroller || !page) return;
+    const next = anchoredScroll({ left: scroller.scrollLeft, top: scroller.scrollTop }, page.getBoundingClientRect(), pending.anchor, pending.center);
+    scroller.scrollLeft = next.left;
+    scroller.scrollTop = next.top;
+    pendingAnchor.current = null;
+  }
+  useLayoutEffect(() => { alignAnchor(); }, [zoom]);
+  useEffect(() => () => { if (zoomFrame.current !== null) cancelAnimationFrame(zoomFrame.current); }, []);
+
+  function queuePinch() {
+    if (zoomFrame.current !== null) return;
+    zoomFrame.current = requestAnimationFrame(() => {
+      zoomFrame.current = null;
+      const state = pinch.current;
+      const pair = [...touches.current.values()];
+      if (!state || pair.length !== 2) return;
+      const center = { x: (pair[0].x + pair[1].x) / 2, y: (pair[0].y + pair[1].y) / 2 };
+      const nextZoom = pinchScale(state.zoom, state.distance, Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y));
+      pendingAnchor.current = { anchor: state.anchor, center };
+      if (nextZoom === zoom || !onZoomChange) alignAnchor();
+      else onZoomChange(nextZoom);
+    });
+  }
 
   function paintActive() {
     if (frame.current !== null) return;
@@ -60,16 +94,38 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
     return { ...pagePoint(e.clientX, e.clientY, pageRef.current!.getBoundingClientRect()), pressure: e.pointerType === "pen" ? Math.max(0.05, e.pressure) : 0.7 };
   }
   function start(e: React.PointerEvent<HTMLCanvasElement>) {
-    // Pencil übernimmt eine gerade begonnene Handballen-/Fingerbewegung.
-    // Weitere Berührungen unterbrechen einen aktiven Strich nicht.
-    if (gesture.current) {
-      if (e.pointerType !== "pen" || !gesture.current.pan) return;
-      const previous = gesture.current.id;
+    if (e.pointerType === "touch") {
+      if (penActive.current || (gesture.current && !gesture.current.pan) || touches.current.size >= 2) return;
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      e.currentTarget.setPointerCapture(e.pointerId);
+      if (touches.current.size === 1) gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: true };
+      else {
+        gesture.current = null;
+        const pair = [...touches.current.values()];
+        const rect = pageRef.current!.getBoundingClientRect();
+        pinch.current = {
+          distance: Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y), zoom,
+          anchor: { x: ((pair[0].x + pair[1].x) / 2 - rect.left) / rect.width, y: ((pair[0].y + pair[1].y) / 2 - rect.top) / rect.height },
+        };
+      }
+      return;
+    }
+    // Pencil übernimmt eine Touch-Geste; Handballen während des Strichs
+    // dürfen weder das Blatt verschieben noch einen Zoom auslösen.
+    if (gesture.current && (e.pointerType !== "pen" || !gesture.current.pan)) return;
+    if (e.pointerType !== "pen" && touches.current.size) return;
+    if (e.pointerType === "pen") {
       gesture.current = null;
-      if (e.currentTarget.hasPointerCapture(previous)) e.currentTarget.releasePointerCapture(previous);
+      pinch.current = null;
+      pendingAnchor.current = null;
+      if (zoomFrame.current !== null) { cancelAnimationFrame(zoomFrame.current); zoomFrame.current = null; }
+      const ids = [...touches.current.keys()];
+      touches.current.clear();
+      for (const pointerId of ids) if (e.currentTarget.hasPointerCapture(pointerId)) e.currentTarget.releasePointerCapture(pointerId);
+      penActive.current = true;
     }
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    const pan = e.pointerType === "touch" || tool === "move";
+    const pan = tool === "move";
     gesture.current = { id: e.pointerId, x: e.clientX, y: e.clientY, pan };
     e.currentTarget.setPointerCapture(e.pointerId);
     if (pan) return;
@@ -88,6 +144,10 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
     paintInk(erased.current);
   }
   function move(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch.current) { queuePinch(); return; }
+    }
     const current = gesture.current;
     if (!current || current.id !== e.pointerId) return;
     if (current.pan) {
@@ -109,7 +169,17 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
     } else if (erased.current) erase(e);
   }
   function finish(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (touches.current.has(e.pointerId)) {
+      touches.current.delete(e.pointerId);
+      pinch.current = null;
+      if (zoomFrame.current !== null) { cancelAnimationFrame(zoomFrame.current); zoomFrame.current = null; }
+      const remaining = [...touches.current.entries()][0];
+      gesture.current = remaining ? { id: remaining[0], ...remaining[1], pan: true } : null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      return;
+    }
     if (gesture.current?.id !== e.pointerId) return;
+    penActive.current = false;
     gesture.current = null;
     if (stroke.current) {
       const next = { ...contentRef.current, strokes: [...contentRef.current.strokes, stroke.current] };
@@ -125,9 +195,9 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
   const backgroundImage = paper === "grid"
     ? "linear-gradient(#e0e7ef 1px, transparent 1px), linear-gradient(90deg, #e0e7ef 1px, transparent 1px)"
     : paper === "lined" ? "linear-gradient(transparent calc(100% - 1px), #dce5ef 1px)" : undefined;
-  return <div ref={scrollRef} className="h-[min(72svh,1000px)] min-h-80 overflow-auto overscroll-contain rounded-xl border bg-muted/40 p-3 sm:p-6" aria-label="Heftblatt, mit einem Finger verschieben">
-    <div style={{ width: `${zoom}%`, minWidth: 300 }}>
-      <div ref={pageRef} className="relative mx-auto aspect-[5/7] w-full max-w-[1000px] overflow-hidden bg-white text-slate-900 shadow-md"
+  return <div ref={scrollRef} className="h-[min(72svh,1000px)] min-h-80 overflow-auto overscroll-contain rounded-xl border bg-muted/40 p-3 sm:p-6" aria-label="Heftblatt, mit einem Finger verschieben und mit zwei Fingern zoomen">
+    <div style={{ width: `${zoom}%`, minWidth: 150 }}>
+      <div ref={pageRef} className="relative mx-auto aspect-[5/7] w-full overflow-hidden bg-white text-slate-900 shadow-md"
         style={{ backgroundImage, backgroundSize: paper === "grid" ? "2.5% 1.785714%" : "100% 2.5%" }}
         onClick={(e) => {
           if (tool !== "text" || e.target !== e.currentTarget) return;

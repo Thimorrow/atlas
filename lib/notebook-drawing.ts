@@ -37,3 +37,14 @@ export function drawStroke(ctx: CanvasRenderingContext2D, stroke: NotebookStroke
     ctx.stroke();
   }
 }
+
+export function pinchScale(zoom: number, startDistance: number, distance: number) {
+  return Math.max(50, Math.min(250, Math.round(zoom * distance / Math.max(1, startDistance))));
+}
+
+export function anchoredScroll(scroll: { left: number; top: number }, rect: { left: number; top: number; width: number; height: number }, anchor: { x: number; y: number }, center: { x: number; y: number }) {
+  return {
+    left: Math.max(0, scroll.left + rect.left + anchor.x * rect.width - center.x),
+    top: Math.max(0, scroll.top + rect.top + anchor.y * rect.height - center.y),
+  };
+}

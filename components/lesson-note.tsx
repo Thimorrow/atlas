@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Overlay } from "@/components/subject-notes";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { clearSavedLessonNoteDraft, queueLessonNoteSave, readLessonNoteDraft, waitForLessonNoteSave, writeLessonNoteDraft } from "@/lib/lesson-note-persistence";
 
 // Was der Aufrufer weiss, ohne dafuer erst die Notiz laden zu muessen -- die
 // Kopfzeile steht sofort, der Text folgt.
@@ -63,6 +64,7 @@ export function LessonNoteField({
   const toast = useToast();
 
   const [body, setBody] = useState("");
+  const [draftError, setDraftError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const loadedRef = useRef(false);
@@ -104,18 +106,27 @@ export function LessonNoteField({
   // Tastendruck ein, darf sie den schon getippten Text nicht ueberschreiben.
   const typedRef = useRef(false);
 
-  const saveQueue = useRef(Promise.resolve());
-
   function persist(id: string, value: string) {
-    saveQueue.current = saveQueue.current.then(() => save(id, value));
-    return saveQueue.current;
+    return queueLessonNoteSave(id, () => save(id, value));
   }
+
+  useEffect(() => {
+    try {
+      const draft = readLessonNoteDraft(schoolBlockId);
+      if (draft !== null && !typedRef.current) {
+        typedRef.current = true;
+        bodyRef.current = draft;
+        setBody(draft);
+      }
+    } catch { setDraftError(true); }
+  }, [schoolBlockId]);
 
   async function save(id: string, value: string) {
     setState("saving");
     try {
       const res = await fetch(`/api/lessons/${id}/note`, {
         method: "PUT",
+        signal: AbortSignal.timeout(20_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ body: value }),
       });
@@ -126,6 +137,8 @@ export function LessonNoteField({
         return;
       }
       savedBodyRef.current = value;
+      try { clearSavedLessonNoteDraft(id, value); }
+      catch { setDraftError(true); }
       setState(bodyRef.current === value ? "saved" : "saving");
       onSaved(id, value.trim().length > 0, value);
     } catch {
@@ -138,7 +151,8 @@ export function LessonNoteField({
   useEffect(() => {
     let alive = true;
     setState("loading");
-    fetch(`/api/lessons/${schoolBlockId}/note`, { cache: "no-store" })
+    waitForLessonNoteSave(schoolBlockId)
+      .then(() => fetch(`/api/lessons/${schoolBlockId}/note`, { cache: "no-store", signal: AbortSignal.timeout(20_000) }))
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { note: { body: string } | null }) => {
         if (!alive) return;
@@ -241,7 +255,12 @@ export function LessonNoteField({
           value={body}
           onChange={(e) => {
             typedRef.current = true;
+            bodyRef.current = e.target.value;
             setBody(e.target.value);
+            try {
+              writeLessonNoteDraft(schoolBlockId, e.target.value);
+              setDraftError(false);
+            } catch { setDraftError(true); }
             if (loadedRef.current) setState("saving");
           }}
           onKeyDown={onKeyDown}
@@ -258,6 +277,7 @@ export function LessonNoteField({
           die Fusszeile dann rund 16px niedriger und spraenge beim ersten
           Speichern auf. Kein eigenes Band (weder Trennlinie noch Toenung)
           -- der Status steht ruhig unter dem Feld. */}
+      {draftError && <p role="alert" className="text-xs text-destructive">Der Entwurf konnte auf diesem Gerät nicht gesichert werden. Bitte warte vor dem Schließen auf „Gespeichert“.</p>}
       <footer className={cn("flex min-h-11 items-center justify-between gap-2", footerClassName)}>
         {state === "error" ? (
           <button type="button" className="min-h-11 rounded-md px-2 text-xs underline focus-visible:ring-2 focus-visible:ring-ring" onClick={() => loaded ? void persist(schoolBlockId, bodyRef.current) : setLoadAttempt((n) => n + 1)}>Erneut versuchen</button>
