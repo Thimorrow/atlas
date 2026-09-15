@@ -190,8 +190,8 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
-    const widget = events[0];
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["widget", "done"]);
+    const widget = events.find((e) => e.type === "widget")!;
     if (widget.type === "widget") {
       expect(widget.frage).toBe("Was weißt du?");
       expect(widget.optionen).toEqual(["Viel", "Wenig"]);
@@ -215,8 +215,8 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["checkliste", "checkliste", "text", "done"]);
-    const last = events[1];
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["checkliste", "checkliste", "text", "done"]);
+    const last = events.filter((e) => e.type !== "status")[1];
     if (last.type === "checkliste") {
       const aufgabe1 = last.checkliste.aufgaben.find((a) => a.nr === 1);
       expect(aufgabe1?.status).toBe("richtig");
@@ -241,7 +241,7 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["fazit", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["fazit", "done"]);
     // punkte = 1 + 3 = 4, gesamt = 1+2+3 = 6, prozent = round(4/6*100) = 67
     const ergebnis = getErgebnis();
     expect(ergebnis?.punkte).toBe(4);
@@ -289,7 +289,7 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["text", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["text", "done"]);
     expect(captured).toBeDefined();
 
     const toolCallIndex = captured!.findIndex((m) => m.role === "assistant" && m.tool_calls?.[0]?.function.name === "frage_auswahl");
@@ -315,7 +315,7 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["widget", "done"]);
     expect(captured!.length).toBe(2);
     expect(captured![0].role).toBe("system");
     expect(captured![1].role).toBe("user");
@@ -334,7 +334,7 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["fazit", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["fazit", "done"]);
     expect(sicherheitAusFazit).toHaveBeenCalledWith(ITEM_ID, 70, undefined);
   });
 
@@ -353,7 +353,7 @@ describe("runTutorTurn", () => {
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
 
-    expect(events.map((e) => e.type)).toEqual(["fazit", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["fazit", "done"]);
     expect(sicherheitAusFazit).toHaveBeenCalled();
   });
 
@@ -384,7 +384,7 @@ describe("runTutorTurn", () => {
 
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
-    expect(events.map((e) => e.type)).toEqual(["widget", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["widget", "done"]);
 
     const system = captured!.find((m) => m.role === "system");
     expect(system?.content).toContain("Arbeitsblätter zu diesem Punkt");
@@ -429,7 +429,7 @@ describe("runTutorTurn", () => {
 
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
-    expect(events.map((e) => e.type)).toEqual(["fazit", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["fazit", "done"]);
 
     const system = captured!.find((m) => m.role === "system");
     expect(system?.content).toContain("Bruchrechnen");
@@ -471,7 +471,7 @@ describe("runTutorTurn", () => {
 
     const events = [];
     for await (const e of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(e);
-    expect(events.map((e) => e.type)).toEqual(["fazit", "done"]);
+    expect(events.filter((e) => e.type !== "status").map((e) => e.type)).toEqual(["fazit", "done"]);
 
     const ergebnis = getErgebnis();
     expect(ergebnis?.prozent).toBe(70);
@@ -519,4 +519,53 @@ it("Tutor-Runden teilen ein gesamtes Zeitbudget", async () => {
     expect(rounds).toBe(2);
     expect(events.at(-1)?.type).toBe("error");
   } finally { now.mockRestore(); }
+});
+
+
+describe("Tutor recovery", () => {
+  it("keeps explanatory text before a persisted widget", async () => {
+    const { deps, messages } = makeDeps({ rounds: [[
+      { type: "text", delta: "Wir starten mit deinem Vorwissen." },
+      toolCallEvent("frage_auswahl", { frage: "Wie sicher bist du?", optionen: ["Sicher", "Unsicher"], mehrfach: false }),
+    ]] });
+    const events = [];
+    for await (const event of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(event);
+    expect(messages[0].content).toBe("Wir starten mit deinem Vorwissen.");
+    expect(messages[1].toolName).toBe("frage_auswahl");
+    expect(events[0]).toEqual({ type: "status", text: "Lernmaterial wird geladen …" });
+    expect(events.some((e) => e.type === "status" && e.text.includes("Frage"))).toBe(true);
+  });
+
+  it("reports an empty model response as recoverable failure", async () => {
+    const { deps } = makeDeps({ rounds: [[]] });
+    const events = [];
+    for await (const event of runTutorTurn(CONVERSATION_ID, undefined, deps)) events.push(event);
+    expect(events.at(-1)?.type).toBe("error");
+    expect(events.some((e) => e.type === "done")).toBe(false);
+  });
+
+  it("times out even when loading material never resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      const { deps } = makeDeps({ rounds: [] });
+      deps.subjectDetail = () => new Promise(() => {});
+      const stream = runTutorTurn(CONVERSATION_ID, undefined, deps);
+      expect((await stream.next()).value).toEqual({ type: "status", text: "Lernmaterial wird geladen …" });
+      const pending = stream.next();
+      await vi.advanceTimersByTimeAsync(100_001);
+      expect((await pending).value).toMatchObject({ type: "error" });
+      expect((await stream.next()).done).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("stops a blocked material load without an error after cancellation", async () => {
+    const { deps } = makeDeps({ rounds: [] });
+    deps.subjectDetail = () => new Promise(() => {});
+    const controller = new AbortController();
+    const stream = runTutorTurn(CONVERSATION_ID, controller.signal, deps);
+    await stream.next();
+    const pending = stream.next();
+    controller.abort();
+    expect((await pending).done).toBe(true);
+  });
 });

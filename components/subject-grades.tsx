@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // Der Noten-Abschnitt der Fach-Detailseite: Schnitt, Liste, Eintragen.
 //
 // Gerechnet wird im Client mit derselben Funktion wie auf dem Server
@@ -124,19 +126,19 @@ export function SubjectGrades({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
           <span className="shrink-0">Gewichtung</span>
-          <select
+          <Select
             // 16px, sonst zoomt iOS-Safari beim Antippen in die Seite hinein.
             aria-label="Gewichtung mündlich zu schriftlich"
             className="h-9 rounded-lg border bg-background px-2 text-[16px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             value={oralWeight}
-            onChange={(e) => void changeOralWeight(Number(e.target.value))}
+            onValueChange={(value) => void changeOralWeight(Number(value))}
           >
             {ORAL_WEIGHT_PRESETS.map((w) => (
               <option key={w} value={w}>
                 {ORAL_WEIGHT_LABEL[w]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         {!composing && (
           <Button size="sm" onClick={() => setComposing(true)}>
@@ -331,18 +333,18 @@ function GradeForm({
         <label className={LABEL} htmlFor="grade-points">
           Punkte
         </label>
-        <select
+        <Select
           id="grade-points"
           className={FIELD}
           value={points}
-          onChange={(e) => setPoints(Number(e.target.value))}
+          onValueChange={(value) => setPoints(Number(value))}
         >
           {POINT_OPTIONS.map((p) => (
             <option key={p} value={p}>
               {p} — Note {pointsToGradeLabel(p)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -350,32 +352,32 @@ function GradeForm({
           <label className={LABEL} htmlFor="grade-kind">
             Art
           </label>
-          <select
+          <Select
             id="grade-kind"
             className={FIELD}
             value={kind}
-            onChange={(e) => setKind(e.target.value as GradeKind)}
+            onValueChange={(value) => setKind(value as GradeKind)}
           >
             <option value="written">{KIND_LABEL.written}</option>
             <option value="oral">{KIND_LABEL.oral}</option>
-          </select>
+          </Select>
         </div>
         <div>
           <label className={LABEL} htmlFor="grade-weight">
             Gewichtung
           </label>
-          <select
+          <Select
             id="grade-weight"
             className={FIELD}
             value={weight}
-            onChange={(e) => setWeight(Number(e.target.value))}
+            onValueChange={(value) => setWeight(Number(value))}
           >
             {WEIGHT_OPTIONS.map((w) => (
               <option key={w.value} value={w.value}>
                 {w.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 

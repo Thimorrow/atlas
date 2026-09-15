@@ -20,7 +20,7 @@ import { del, get, head, put } from "@vercel/blob";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { subjectFiles, subjects, type SubjectFile } from "@/lib/db/schema";
-import { MAX_FILE_SIZE } from "@/lib/file-limits";
+import { MAX_FILE_SIZE, ACCEPTED_TYPES } from "@/lib/file-limits";
 
 // --- DTO ---------------------------------------------------------------------
 
@@ -39,13 +39,7 @@ export type FileDTO = {
 
 export const MAX_SIZE = MAX_FILE_SIZE;
 
-export const ALLOWED_CONTENT_TYPES = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/heic",
-] as const;
+export const ALLOWED_CONTENT_TYPES = ACCEPTED_TYPES;
 
 export const MAX_SIZE_LABEL = "10 MB";
 

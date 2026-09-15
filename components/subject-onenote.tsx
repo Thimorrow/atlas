@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 import { useCallback, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -183,13 +185,13 @@ export function SubjectOnenote({
         Abschnitt für dieses Fach
       </label>
       <div className="flex items-center gap-2">
-        <select
+        <Select
           id={selectId}
           className={FIELD}
           value={sectionId ?? ""}
           disabled={saving}
-          onChange={(e) => {
-            const picked = sections.find((s) => s.id === e.target.value) ?? null;
+          onValueChange={(value) => {
+            const picked = sections.find((s) => s.id === value) ?? null;
             void save(picked);
           }}
         >
@@ -202,7 +204,7 @@ export function SubjectOnenote({
               {[s.notebook, s.name].filter(Boolean).join(" / ")}
             </option>
           ))}
-        </select>
+        </Select>
         {saving && <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin text-muted-foreground" />}
       </div>
       <p className="text-[12px] text-muted-foreground">

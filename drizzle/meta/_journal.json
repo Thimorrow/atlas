@@ -148,6 +148,13 @@
       "when": 1788804360571,
       "tag": "0020_karten_sicherheit",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789455896195,
+      "tag": "0021_notebook_pages",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Brain, CalendarDays, IdCard, ListChecks, Library, MoreHorizontal, Radio, Settings } from "lucide-react";
+import { Brain, CalendarDays, IdCard, ListChecks, Library, MoreHorizontal, NotebookPen, Radio, Settings } from "lucide-react";
+import { toggleBotOverlay } from "@/components/bot-launcher";
+import { AtlasBotMark } from "@/components/atlas-bot-mark";
 import { namensschildSichtbar } from "@/components/app-sidebar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -23,16 +25,16 @@ export function MobileHeader() {
   }, []);
 
   const tap = "flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0.5 py-2 text-[11px] leading-tight [touch-action:manipulation] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
-  const secondaryActive = pathname.startsWith("/settings") || pathname.startsWith("/namensschild");
+  const secondaryActive = pathname.startsWith("/faecher") || pathname.startsWith("/settings") || pathname.startsWith("/namensschild");
 
   return (
-    <footer className="z-30 shrink-0 border-t bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden">
+    <footer className="z-30 shrink-0 border-t bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
       <nav aria-label="Hauptnavigation" className="grid grid-cols-6 gap-0.5">
         {[
           { href: "/", label: "Plan", ariaLabel: "Stundenplan", icon: CalendarDays },
           { href: "/stunde", label: "Stunde", icon: Radio },
           { href: "/aufgaben", label: "Aufgaben", icon: ListChecks },
-          { href: "/faecher", label: "Fächer", icon: Library },
+          { href: "/hefte", label: "Hefte", icon: NotebookPen },
           { href: "/lernen", label: "Lernen", icon: Brain },
         ].map((m) => {
           const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
@@ -52,6 +54,8 @@ export function MobileHeader() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top">
+            <DropdownMenuItem onSelect={toggleBotOverlay} className="min-h-11"><AtlasBotMark className="size-4" />Atlas fragen</DropdownMenuItem>
+            <DropdownMenuItem asChild><Link href="/faecher" className="min-h-11"><Library aria-hidden className="size-4" />Fächer</Link></DropdownMenuItem>
             {namensschildAn && <DropdownMenuItem asChild><Link href="/namensschild" className="min-h-11"><IdCard aria-hidden className="size-4" />Namensschild</Link></DropdownMenuItem>}
             <DropdownMenuItem asChild><Link href="/settings" className="min-h-11"><Settings aria-hidden className="size-4" />Einstellungen</Link></DropdownMenuItem>
           </DropdownMenuContent>

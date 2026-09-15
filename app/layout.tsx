@@ -62,7 +62,7 @@ export default async function RootLayout({
               <AppSidebar defaultCollapsed={collapsed} defaultWidth={sidebarWidth} />
               {/* Mobil bleibt die Navigation unter dem separat scrollenden
                   Inhalt stehen. Sie übernimmt das Inset für den Home-Balken. */}
-              <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0 md:pb-[env(safe-area-inset-bottom)]">
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden pt-[env(safe-area-inset-top)] lg:pt-0 lg:pb-[env(safe-area-inset-bottom)]">
                 <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
                 <MobileHeader />
               </div>

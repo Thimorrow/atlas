@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Download, FileText, RotateCw, Trash2, Upload, X } from "lucide-react";
+import { DocxPreview } from "@/components/docx-preview";
+import { Overlay } from "@/components/subject-notes";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { ladeDateiInFachHoch } from "@/lib/datei-upload";
 import { invalidateMorgenCaches } from "@/lib/fetch-cache";
 import type { FileDTO } from "@/lib/subject-file-store";
-import { ACCEPT_ATTR, ACCEPTED_TYPES, MAX_FILES_PER_UPLOAD, MAX_FILE_SIZE } from "@/lib/file-limits";
+import { canPreview, MAX_FILES_PER_UPLOAD, MAX_FILE_SIZE } from "@/lib/file-limits";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -42,10 +44,16 @@ function formatDate(iso: string): string {
 }
 
 export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.Element {
+  return <SubjectFileList key={subjectId} subjectId={subjectId} />;
+}
+
+function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Element {
   const toast = useToast();
   const reduce = useReducedMotion();
   const uid = useId();
 
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [files, setFiles] = useState<FileDTO[]>([]);
@@ -57,6 +65,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
   const [batchTotal, setBatchTotal] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [pending, setPending] = useState<FileDTO | null>(null);
+  const [preview, setPreview] = useState<FileDTO | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // dragenter/dragleave feuern auch beim Wechsel auf Kindelemente. Ein Zaehler
@@ -83,7 +92,9 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
 
   useEffect(() => {
     let alive = true;
-    fetch(`/api/subjects/${subjectId}/files`)
+    setLoading(true);
+    setLoadFailed(false);
+    fetch(`/api/subjects/${subjectId}/files`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("load failed"))))
       .then((data: { enabled: boolean; files: FileDTO[] }) => {
         if (!alive) return;
@@ -91,7 +102,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
         setFiles(data.files);
       })
       .catch(() => {
-        if (alive) toast("Die Dateien konnten nicht geladen werden.");
+        if (alive) setLoadFailed(true);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -99,7 +110,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
     return () => {
       alive = false;
     };
-  }, [subjectId, toast]);
+  }, [subjectId, loadAttempt]);
 
   // Der Browser laedt direkt in den Store hoch und meldet die fertige Datei
   // danach an. Wuerde die Datei durch unsere Route wandern, waere bei 4,5 MB
@@ -153,17 +164,15 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
       // Grenzen noch einmal; hier geht es nur darum, dem Nutzer den Weg durch
       // einen langen Upload zu ersparen, der ohnehin abgewiesen wuerde.
       const valid: File[] = [];
-      let skipped = 0;
+      const rejected: string[] = [];
       for (const file of selected) {
-        if (!ACCEPTED_TYPES.includes(file.type as (typeof ACCEPTED_TYPES)[number]) || file.size > MAX_FILE_SIZE) {
-          skipped += 1;
+        if (file.size === 0 || file.size > MAX_FILE_SIZE) {
+          rejected.push(`„${file.name}“: ${file.size === 0 ? "Datei ist leer." : "Größer als 10 MB."}`);
           continue;
         }
         valid.push(file);
       }
-      if (skipped > 0) {
-        toast(`${skipped} ${skipped === 1 ? "Datei" : "Dateien"} übersprungen: falscher Typ oder größer als 10 MB.`);
-      }
+      if (rejected.length > 0) toast(rejected.join(" "));
       if (valid.length === 0) return;
 
       const startingFresh = queueRef.current.length === 0;
@@ -206,14 +215,16 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
   async function confirmDelete() {
     if (!pending || deleting) return;
     setDeleting(true);
-    const id = pending.id;
+    const removed = pending;
+    const id = removed.id;
+    setFiles((prev) => prev.filter((f) => f.id !== id));
+    setPending(null);
     try {
       const res = await fetch(`/api/files/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("delete failed");
       invalidateMorgenCaches();
-      setFiles((prev) => prev.filter((f) => f.id !== id));
-      setPending(null);
     } catch {
+      setFiles((prev) => [...prev, removed].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
       toast("Die Datei konnte nicht gelöscht werden.");
     } finally {
       setDeleting(false);
@@ -240,6 +251,11 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
     <div className="space-y-3">
       {loading ? (
         <p className="text-[13px] text-muted-foreground">Wird geladen …</p>
+      ) : loadFailed ? (
+        <div role="alert" className="rounded-lg border p-4 text-sm">
+          <p>Die Dateien konnten nicht geladen werden.</p>
+          <Button variant="outline" className="mt-3" onClick={() => setLoadAttempt((n) => n + 1)}>Erneut versuchen</Button>
+        </div>
       ) : !enabled ? (
         // Token fehlt: ein ruhiger Hinweis, kein Upload, keine Fehlerfarbe.
         // Der Rest der Seite bleibt davon unberührt.
@@ -282,7 +298,6 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
               id={`${uid}-input`}
               type="file"
               multiple
-              accept={ACCEPT_ATTR}
               className="peer sr-only"
               onChange={(e) => {
                 const picked = Array.from(e.target.files ?? []);
@@ -303,7 +318,7 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                 {uploading ? `Wird hochgeladen … (${batchDone} von ${batchTotal})` : "Datei auswählen oder hierher ziehen"}
               </span>
               <span className="text-[12px] text-muted-foreground">
-                PDF, PNG, JPG, WEBP oder HEIC, bis 10 MB pro Datei, mehrere auf einmal möglich
+                Alle Dateitypen · bis 10 MB pro Datei
               </span>
             </label>
           </div>
@@ -370,14 +385,14 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
                     className="flex items-center gap-3 px-3 py-2"
                   >
                     <FileText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium" title={f.name}>
+                    <button type="button" onClick={() => setPreview(f)} aria-label={`${f.name} ansehen`} className="min-h-11 min-w-0 flex-1 rounded-md text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <p className="truncate text-[13px] font-medium underline decoration-foreground/20 underline-offset-4" title={f.name}>
                         {f.name}
                       </p>
                       <p className="text-[12px] text-muted-foreground">
                         {formatSize(f.size)} · {formatDate(f.createdAt)}
                       </p>
-                    </div>
+                    </button>
                     {/* A1 (Touch): before blaeht beide Aktionen unsichtbar auf 44px auf. */}
                     {/* Der Blob-Store ist privat, es gibt keine direkte
                         Datei-URL. Der Server reicht die Datei hinter der
@@ -406,6 +421,25 @@ export function SubjectFiles({ subjectId }: { subjectId: string }): React.JSX.El
           )}
         </>
       )}
+
+      <Overlay open={preview !== null} onClose={() => setPreview(null)} labelledBy={`${uid}-preview`} className="sm:max-w-4xl">
+        {preview && <>
+          <header className="flex items-center gap-3 border-b p-4">
+            <h3 id={`${uid}-preview`} className="min-w-0 flex-1 truncate font-medium">{preview.name}</h3>
+            <a href={`/api/files/${preview.id}`} download={preview.name} className="rounded-md px-3 py-2 text-sm underline">Herunterladen</a>
+            <Button variant="ghost" size="icon" onClick={() => setPreview(null)} aria-label="Vorschau schließen"><X className="size-4" /></Button>
+          </header>
+          {preview.contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || preview.name.toLowerCase().endsWith(".docx") ? (
+            <DocxPreview src={`/api/files/${preview.id}`} name={preview.name} className="h-[70svh]" />
+          ) : canPreview(preview.contentType) ? (
+            preview.contentType.startsWith("image/") ? (
+              <img src={`/api/files/${preview.id}?preview=1`} alt={preview.name} className="max-h-[70svh] w-full object-contain p-4" />
+            ) : (
+              <iframe title={preview.name} src={`/api/files/${preview.id}?preview=1`} className="h-[70svh] w-full border-0 bg-white" />
+            )
+          ) : <p className="p-6 text-sm text-muted-foreground">Für dieses Format ist keine Vorschau verfügbar. Lade die Datei herunter und öffne sie in der passenden App.</p>}
+        </>}
+      </Overlay>
 
       {/* Eigenes Bestätigungs-Overlay statt window.confirm: das native Fenster
           bricht optisch aus der App aus und ist nicht gestaltbar. */}

@@ -11,6 +11,7 @@ import {
   ListChecks,
   Radio,
   Library,
+  NotebookPen,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -39,6 +40,7 @@ const MODULES: Mod[] = [
   { label: "Stunde", icon: Radio, href: "/stunde" },
   { label: "Aufgaben", icon: ListChecks, href: "/aufgaben" },
   { label: "Fächer", icon: Library, href: "/faecher" },
+  { label: "Hefte", icon: NotebookPen, href: "/hefte" },
   { label: "Lernen", icon: Brain, href: "/lernen" },
 ];
 
@@ -193,7 +195,7 @@ export function AppSidebar({
     // teurer Blur-Filter auf einer grossen Flaeche bei jedem Reload. Entfernt
     // statt gekuerzt: die Sidebar braucht keinen Auftritt, sie ist einfach da.
     <div
-      className="sticky top-0 hidden h-dvh shrink-0 md:block"
+      className="sticky top-0 hidden h-dvh shrink-0 lg:block"
       style={{
         width: collapsed ? COLLAPSED : width,
         // Beim Ziehen keine Transition -> Breite folgt 1:1 dem Cursor.
@@ -268,11 +270,6 @@ export function AppSidebar({
 
         {/* Module */}
         <nav className="flex flex-col gap-0.5 py-2">
-          {/* A2 (Kontrast): /70 auf Kartenweiss faellt auf ~2.7:1 -- unter der
-              AA-Mindestgrenze fuer Text. Volle muted-foreground erreicht 4.7:1. */}
-          <div className={cn("mx-2 pl-10 pr-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-opacity duration-200", collapsed && "opacity-0")}>
-            Module
-          </div>
           {MODULES.map((m) => {
             const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
             return (
@@ -319,7 +316,7 @@ export function AppSidebar({
             title={collapsed ? "Atlas fragen (⌘K)" : undefined}
             className={cn(
               row,
-              "mx-0 [touch-action:manipulation] text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "mx-0 w-full pr-3 [touch-action:manipulation] text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             )}
           >
             <span className={iconBox}>
@@ -357,7 +354,7 @@ export function AppSidebar({
                     TZ
                   </span>
                 </span>
-                <span className={labelCls("leading-tight")}>
+                <span className={labelCls("ml-2.5 leading-tight")}>
                   <span className="block truncate text-[13px] font-medium">Thimofej</span>
                   <span className="block truncate text-[11px] text-muted-foreground">Schüler</span>
                 </span>

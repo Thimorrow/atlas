@@ -1,3 +1,4 @@
+import { canPreview } from "@/lib/file-limits";
 import { NextResponse } from "next/server";
 import { deleteFile, isUuid, readFile } from "@/lib/subject-file-store";
 
@@ -14,7 +15,7 @@ const NOT_FOUND = () => NextResponse.json({ error: "Datei nicht gefunden." }, { 
 // holt der Server sie und reicht sie durch. Diese Route liegt unter /api/ und
 // damit hinter der Sperre aus proxy.ts: ohne Anmeldung gibt es eine 401,
 // bevor hier ueberhaupt Code laeuft.
-export async function GET(_req: Request, { params }: Ctx) {
+export async function GET(req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isUuid(id)) return NOT_FOUND();
 
@@ -22,13 +23,14 @@ export async function GET(_req: Request, { params }: Ctx) {
   if (!found) return NOT_FOUND();
 
   const { row, stream } = found;
+  const disposition = new URL(req.url).searchParams.get("preview") === "1" && canPreview(row.contentType) ? "inline" : "attachment";
   return new Response(stream, {
     headers: {
       "content-type": row.contentType,
       "content-length": String(row.size),
       // attachment plus filename*: so behaelt die Datei ihren Namen, auch mit
       // Umlauten. Der ASCII-Rueckfall daneben ist fuer aeltere Browser.
-      "content-disposition": `attachment; filename="${asciiName(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
+      "content-disposition": `${disposition}; filename="${asciiName(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
       // Privat heisst auch: kein Zwischenspeicher unterwegs.
       "cache-control": "private, no-store",
       // Kein MIME-Sniffing: der Browser soll den Typ nicht umdeuten.

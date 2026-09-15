@@ -35,6 +35,7 @@ const TURN_TIMEOUT_MS = 100_000;
 const MAX_BLAETTER_CHARS = 15_000;
 
 export type TutorEvent =
+  | { type: "status"; text: string }
   | { type: "text"; delta: string }
   | { type: "widget"; messageId: string; frage: string; optionen: string[]; mehrfach: boolean }
   | { type: "checkliste"; checkliste: Checkliste }
@@ -170,6 +171,41 @@ export async function* runTutorTurn(
   signal?: AbortSignal,
   deps: TutorSessionDeps = defaultDeps,
 ): AsyncGenerator<TutorEvent> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) controller.abort();
+  const timer = setTimeout(abort, TURN_TIMEOUT_MS);
+  let rejectAbort: (() => void) | undefined;
+  const interrupted = new Promise<never>((_, reject) => {
+    rejectAbort = () => reject(new Error("Die Tutor-Anfrage hat zu lange gedauert. Bitte erneut versuchen."));
+    controller.signal.addEventListener("abort", rejectAbort, { once: true });
+  });
+  const iterator = runTutorTurnInternal(conversationId, controller.signal, deps);
+  try {
+    if (controller.signal.aborted) return;
+    while (true) {
+      const next = await Promise.race([iterator.next(), interrupted]);
+      if (next.done) return;
+      yield next.value;
+    }
+  } catch (err) {
+    if (!signal?.aborted) yield { type: "error", text: err instanceof Error ? err.message : "Der Tutor konnte nicht antworten." };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+    if (rejectAbort) controller.signal.removeEventListener("abort", rejectAbort);
+    controller.abort();
+    void iterator.return(undefined).catch(() => {});
+  }
+}
+
+async function* runTutorTurnInternal(
+  conversationId: string,
+  signal?: AbortSignal,
+  deps: TutorSessionDeps = defaultDeps,
+): AsyncGenerator<TutorEvent> {
+  yield { type: "status", text: "Lernmaterial wird geladen …" };
   const deadline = Date.now() + TURN_TIMEOUT_MS;
   const conversation = await deps.getTutorConversation(conversationId);
   if (!conversation) {
@@ -289,6 +325,7 @@ export async function* runTutorTurn(
       return;
     }
     round++;
+    yield { type: "status", text: round === 1 ? "Der Tutor bereitet eine Antwort vor …" : "Der Tutor plant den nächsten Schritt …" };
 
     const roundController = new AbortController();
     let timedOut = false;
@@ -330,10 +367,16 @@ export async function* runTutorTurn(
       if (roundText) {
         await deps.appendTutorMessage(conversationId, { role: "assistant", content: roundText });
       }
+      if (!roundText.trim()) {
+        yield { type: "error", text: "Der Tutor hat keine Antwort geliefert. Bitte erneut versuchen." };
+        return;
+      }
       yield { type: "done", conversationId };
       return;
     }
 
+    // Tool rounds also contain explanations; keep them after a reload.
+    if (roundText) await deps.appendTutorMessage(conversationId, { role: "assistant", content: roundText });
     chatMessages.push({ role: "assistant", content: roundText.length > 0 ? roundText : null, tool_calls: toolCalls });
 
     for (const call of toolCalls) {
@@ -344,6 +387,13 @@ export async function* runTutorTurn(
       }
       const args = parseToolArgs(call);
       const name = call.function.name;
+      const labels: Record<string, string> = {
+        frage_auswahl: "Eine Frage wird vorbereitet …",
+        checkliste_erstellen: "Dein Lernablauf wird zusammengestellt …",
+        aufgabe_ergebnis: "Deine Antwort wird ausgewertet …",
+        fazit: "Dein Fazit wird erstellt …",
+      };
+      if (labels[name]) yield { type: "status", text: labels[name] };
 
       if (name === "frage_auswahl") {
         const parsed = parseFrageAuswahl(args);
@@ -490,7 +540,8 @@ export async function* runTutorTurn(
         }
 
         yield { type: "fazit", ergebnis };
-        continue;
+        yield { type: "done", conversationId };
+        return;
       }
 
       // Unbekanntes Werkzeug -- dem Modell melden statt abzustuerzen.

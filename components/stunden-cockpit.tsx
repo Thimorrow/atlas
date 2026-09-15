@@ -46,19 +46,41 @@ export function StundenCockpit({ block }: { block: string | null }) {
 
   const [data, setData] = useState<StundeResponse | null>(null);
   const [failed, setFailed] = useState(false);
+  const [switching, setSwitching] = useState(false);
   // Ohne explizite Auswahl folgt das Cockpit der Zeit (live wechselt
   // automatisch mit); mit Auswahl bleibt genau diese Stunde stehen, auch
   // wenn zwischenzeitlich eine andere zu laufen beginnt.
   const [selectedBlock, setSelectedBlock] = useState<string | null>(block);
 
+  const requestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (block !== selectedBlock) {
+      requestRef.current?.abort();
+      setSwitching(true);
+      setSelectedBlock(block);
+    }
+    // Nur externe URL-Wechsel synchronisieren; die direkte Auswahl wird
+    // schon vor der asynchronen Router-Aktualisierung angezeigt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [block]);
+
   const load = useCallback(async () => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
     setFailed(false);
     try {
       const qs = selectedBlock ? `?block=${selectedBlock}` : "";
-      const res = await fetch(`/api/stunde${qs}`);
+      const res = await fetch(`/api/stunde${qs}`, { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error("Laden fehlgeschlagen");
-      setData((await res.json()) as StundeResponse);
+      const next = (await res.json()) as StundeResponse;
+      if (!controller.signal.aborted) {
+        setData(next);
+        setSwitching(false);
+      }
     } catch {
+      if (controller.signal.aborted) return;
       setFailed(true);
       toast("Das Cockpit konnte nicht geladen werden.");
     }
@@ -66,6 +88,7 @@ export function StundenCockpit({ block }: { block: string | null }) {
 
   useEffect(() => {
     void load();
+    return () => requestRef.current?.abort();
   }, [load]);
 
   // Alle 60s neu, und sofort wieder, sobald das Handy aus der Tasche kommt
@@ -83,6 +106,9 @@ export function StundenCockpit({ block }: { block: string | null }) {
   }, [load]);
 
   function selectBlock(refId: string) {
+    if (selectedBlock === refId) return;
+    requestRef.current?.abort();
+    setSwitching(true);
     setSelectedBlock(refId);
     router.replace(`/stunde?block=${refId}`, { scroll: false });
   }
@@ -117,9 +143,16 @@ export function StundenCockpit({ block }: { block: string | null }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <Tagesleiste data={data} selectedRefId={data.selected?.refId ?? null} onSelect={selectBlock} />
+      <Tagesleiste data={data} selectedRefId={selectedBlock ?? data.selected?.refId ?? null} onSelect={selectBlock} />
 
-      {data.modus === "frei" ? (
+      {switching ? (
+        failed ? (
+          <div className="rounded-xl border bg-card p-5" role="alert">
+            <p className="text-sm text-muted-foreground">Diese Stunde konnte nicht geladen werden.</p>
+            <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-md px-3 text-sm font-medium hover:bg-accent">Erneut versuchen</button>
+          </div>
+        ) : <CockpitSkeleton showDays={false} />
+      ) : data.modus === "frei" ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-12 text-center">
           <p className="text-[15px] font-medium">Heute keine Schule.</p>
           <Link
@@ -130,7 +163,7 @@ export function StundenCockpit({ block }: { block: string | null }) {
           </Link>
         </div>
       ) : data.selected ? (
-        <CockpitBody data={data} onExpired={load} />
+        <CockpitBody key={data.selected.refId} data={data} onExpired={load} />
       ) : null}
     </div>
   );
@@ -161,6 +194,7 @@ function Tagesleiste({
             key={ev.refId}
             type="button"
             onClick={() => onSelect(ev.refId)}
+            aria-pressed={active}
             className={cn(
               "flex min-h-11 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 text-[12.5px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               active ? "bg-accent border-border" : "border-transparent hover:bg-accent/50",
@@ -343,13 +377,13 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
           </details>
         )}
         <div className="rounded-xl border bg-card px-4 pt-1 pb-2 shadow-card">
-          <LessonNoteField schoolBlockId={sel.notizBlockId} onSaved={() => {}} placeholder="Was kam dran?" />
+          <LessonNoteField key={sel.notizBlockId} schoolBlockId={sel.notizBlockId} onSaved={() => {}} placeholder="Was kam dran?" />
         </div>
       </Abschnitt>
 
       <Abschnitt titel="Meldung">
         <div className="rounded-xl border bg-card px-4 pb-2 shadow-card">
-          <ParticipationCounter schoolBlockId={sel.meldungBlockId} onSaved={() => {}} />
+          <ParticipationCounter key={sel.meldungBlockId} schoolBlockId={sel.meldungBlockId} onSaved={() => {}} />
         </div>
       </Abschnitt>
 
@@ -544,17 +578,17 @@ function Abschnitt({ titel, children }: { titel: string; children: React.ReactNo
   );
 }
 
-function CockpitSkeleton() {
+function CockpitSkeleton({ showDays = true }: { showDays?: boolean }) {
   return (
     // NIT-Fix: aria-label auf einem <div> ohne Rolle wird von den meisten
     // Screenreadern ignoriert, aria-busy allein wird dort nicht vorgelesen --
     // role="status" macht daraus eine echte Live-Region.
     <div className="flex flex-col gap-6" role="status" aria-label="Wird geladen" aria-busy="true">
-      <div className="flex gap-1.5">
+      {showDays && <div className="flex gap-1.5 overflow-hidden">
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-7 w-24 shrink-0 rounded-full" />
         ))}
-      </div>
+      </div>}
       <div className="flex flex-col gap-2">
         <Skeleton className="h-3 w-32" />
         <Skeleton className="h-7 w-2/3" />

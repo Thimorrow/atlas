@@ -5,6 +5,8 @@ import {
   invalidateGetCache,
   invalidateGetCacheByPrefix,
   readGetCache,
+  getCacheRevision,
+  subscribeCacheInvalidation,
   writeGetCache,
 } from "@/lib/fetch-cache";
 
@@ -104,5 +106,45 @@ describe("fetch-cache: Bereichs-Invalidierung", () => {
     expect(readGetCache("/api/calendar?view=week&date=2026-09-01", 60_000)).toBeNull();
     expect(readGetCache("/api/lernen", 60_000)).toBeNull();
     expect(readGetCache("/api/subjects", 60_000)).toEqual([]);
+  });
+});
+
+
+describe("fetch-cache: Mutationen während laufender Anfragen", () => {
+  it("eine invalidierte alte Anfrage liefert und speichert den neuen Stand", async () => {
+    let finishOld!: (response: unknown) => void;
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ version: 2 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const old = cachedGetJSON("/api/calendar?week=1");
+    invalidateGetCacheByPrefix("/api/calendar");
+    const fresh = await cachedGetJSON("/api/calendar?week=1");
+    finishOld({ ok: true, json: async () => ({ version: 1 }) });
+    expect(await old).toEqual(fresh);
+    expect(readGetCache("/api/calendar?week=1", 60_000)).toEqual({ version: 2 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("eine optimistische Änderung überlebt eine ältere GET-Antwort", async () => {
+    let finish!: (response: unknown) => void;
+    vi.stubGlobal("fetch", vi.fn(() => new Promise((resolve) => { finish = resolve; })));
+    const request = cachedGetJSON("/api/tasks", -1);
+    writeGetCache("/api/tasks", { completed: true });
+    finish({ ok: true, json: async () => ({ completed: false }) });
+    expect(await request).toEqual({ completed: true });
+    expect(readGetCache("/api/tasks", 60_000)).toEqual({ completed: true });
+  });
+
+  it("benachrichtigt auch aktive Hooks ohne gespeicherte Antwort", () => {
+    getCacheRevision("/api/subjects?active=1");
+    const listener = vi.fn();
+    const unsubscribe = subscribeCacheInvalidation(listener);
+    invalidateGetCacheByPrefix("/api/subjects");
+    expect(listener).toHaveBeenCalledWith("/api/subjects?active=1");
+    unsubscribe();
+    listener.mockClear();
+    invalidateGetCache();
+    expect(listener).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Square } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Loader2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { renderMarkdown, repairMissingParagraphBreaks } from "@/lib/markdown";
@@ -71,8 +71,8 @@ function buildItemsFromHistory(history: TutorMessageDTO[]): ChatItem[] {
     if (m.role === "assistant" && m.toolName === "frage_auswahl") {
       const args = (m.toolArgs ?? {}) as { frage?: string; optionen?: string[]; mehrfach?: boolean };
       const next = history[i + 1];
-      const answered = next?.role === "tool";
-      const result = answered ? ((next!.toolResult ?? {}) as { auswahl?: string[]; text?: string }) : null;
+      const answered = next?.role === "tool" || next?.role === "user";
+      const result = next?.role === "user" ? { auswahl: [], text: next.content } : answered ? ((next!.toolResult ?? {}) as { auswahl?: string[]; text?: string }) : null;
       items.push({
         kind: "widget",
         id: m.id,
@@ -140,7 +140,10 @@ export function LernenTutor({
   const [kartenAngelegt, setKartenAngelegt] = useState(false);
   const [kartenAnlegend, setKartenAnlegend] = useState(false);
 
-  const [phase, setPhase] = useState<"loading" | "no-bot" | "not-found" | "ready">("loading");
+  const [phase, setPhase] = useState<"loading" | "no-bot" | "not-found" | "error" | "ready">("loading");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [activity, setActivity] = useState("Sitzung wird geöffnet …");
+  const [canRetry, setCanRetry] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState("");
   const [checklisteOpen, setChecklisteOpen] = useState(false);
@@ -153,6 +156,17 @@ export function LernenTutor({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const startedRef = useRef(false);
+  const mountedRef = useRef(true);
+  const retryingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Strict Mode immediately reattaches effects; only abort a real departure.
+      queueMicrotask(() => { if (!mountedRef.current) abortRef.current?.abort(); });
+    };
+  }, []);
 
   // Thema-Titel: eigener kleiner Ladevorgang, unabhaengig von der Session.
   // Simulation (kein Thema): kein Ladevorgang, der Header zeigt "Simulation".
@@ -190,7 +204,11 @@ export function LernenTutor({
       const e = evt as Record<string, unknown>;
 
       switch (e.type) {
+        case "status":
+          if (typeof e.text === "string") setActivity(e.text);
+          break;
         case "text": {
+          setActivity("Der Tutor schreibt …");
           const delta = typeof e.delta === "string" ? e.delta : "";
           if (currentAssistantId.current === null) {
             const id = crypto.randomUUID();
@@ -226,6 +244,7 @@ export function LernenTutor({
           break;
         }
         case "error": {
+          setCanRetry(true);
           appendItem({ kind: "error", id: crypto.randomUUID(), text: typeof e.text === "string" ? e.text : "Verbindung weg, nochmal senden." });
           if (restoreOnError !== undefined) setInput(restoreOnError);
           currentAssistantId.current = null;
@@ -242,11 +261,16 @@ export function LernenTutor({
   const runTurn = useCallback(
     async (body: Record<string, unknown>, restoreOnError?: string) => {
       const cid = conversationIdRef.current;
-      if (!cid) return;
+      if (!cid || abortRef.current || !mountedRef.current) return;
       setStreaming(true);
+      setCanRetry(false);
+      setActivity("Verbindung zum Tutor wird hergestellt …");
       const controller = new AbortController();
       abortRef.current = controller;
       const currentAssistantId = { current: null as string | null };
+      let completed = false;
+      let timedOut = false;
+      const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 115_000);
 
       try {
         const res = await fetch(`/api/lernen/tutor/${cid}`, {
@@ -257,8 +281,14 @@ export function LernenTutor({
         });
 
         if (!res.ok || !res.body) {
+          setCanRetry(true);
           const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          toast(data?.error ?? "Der Tutor konnte nicht antworten.");
+          appendItem({ kind: "error", id: crypto.randomUUID(), text: data?.error ?? "Der Tutor konnte nicht antworten." });
+          const answer = body.widgetAntwort as { messageId: string } | undefined;
+          if (answer) {
+            setItems((prev) => prev.map((it) => it.kind === "widget" && it.id === answer.messageId
+              ? { ...it, answered: false, auswahl: null, freitext: undefined } : it));
+          }
           if (restoreOnError !== undefined) setInput(restoreOnError);
           return;
         }
@@ -272,21 +302,58 @@ export function LernenTutor({
           buffer += decoder.decode(value, { stream: true });
           const { lines, rest } = splitLines(buffer);
           buffer = rest;
-          for (const line of lines) handleEvent(line, currentAssistantId, restoreOnError);
+          for (const line of lines) {
+            try { if (JSON.parse(line).type === "done") completed = true; } catch { /* handled below */ }
+            handleEvent(line, currentAssistantId);
+          }
         }
-        handleEvent(buffer, currentAssistantId, restoreOnError);
+        try { if (buffer.trim() && JSON.parse(buffer).type === "done") completed = true; } catch { /* handled below */ }
+        handleEvent(buffer, currentAssistantId);
+        if (!completed) {
+          setCanRetry(true);
+          appendItem({ kind: "error", id: crypto.randomUUID(), text: "Die Antwort wurde unterbrochen. Lade das Gespräch erneut, um fortzusetzen." });
+        }
       } catch (err) {
-        if ((err as Error)?.name !== "AbortError") {
+        setCanRetry(true);
+        if ((err as Error)?.name === "AbortError") {
+          appendItem({ kind: "system", id: crypto.randomUUID(), text: timedOut ? "Der Tutor braucht zu lange. Du kannst es erneut versuchen." : "Antwort gestoppt. Du kannst fortsetzen." });
+        } else {
           appendItem({ kind: "error", id: crypto.randomUUID(), text: "Verbindung weg, nochmal senden." });
           if (restoreOnError !== undefined) setInput(restoreOnError);
         }
       } finally {
+        clearTimeout(timeout);
         setStreaming(false);
         abortRef.current = null;
       }
     },
-    [appendItem, handleEvent, toast],
+    [appendItem, handleEvent],
   );
+
+  const retryTurn = async () => {
+    const cid = conversationIdRef.current;
+    if (!cid || streaming || retryingRef.current || abortRef.current) return;
+    retryingRef.current = true;
+    setStreaming(true);
+    setActivity("Gespeichertes Gespräch wird geladen …");
+    try {
+      const res = await fetch(`/api/lernen/tutor/${cid}`, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error("Das Gespräch konnte nicht geladen werden.");
+      const data = await res.json();
+      const restored = buildItemsFromHistory(data.messages);
+      setItems(restored);
+      setCheckliste(data.checkliste);
+      setErgebnis(data.ergebnis);
+      setEnded(Boolean(data.conversation.endedAt));
+      if (data.conversation.endedAt || restored.some((it) => it.kind === "widget" && isWidgetOpen(it))) {
+        setCanRetry(false);
+        return;
+      }
+      await runTurn({ resume: true });
+    } catch {
+      toast("Das Gespräch konnte nicht geladen werden. Bitte erneut versuchen.");
+    } finally { retryingRef.current = false; setStreaming(false); }
+  };
 
   // --- Laden / Anlegen der Session -----------------------------------------
 
@@ -298,9 +365,9 @@ export function LernenTutor({
       if (sessionId) {
         conversationIdRef.current = sessionId;
         try {
-          const res = await fetch(`/api/lernen/tutor/${sessionId}`);
+          const res = await fetch(`/api/lernen/tutor/${sessionId}`, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
           if (!res.ok) {
-            setPhase("not-found");
+            setPhase(res.status === 404 ? "not-found" : "error");
             return;
           }
           const data = (await res.json()) as {
@@ -309,7 +376,11 @@ export function LernenTutor({
             checkliste: Checkliste | null;
             ergebnis: TutorErgebnis | null;
           };
-          setItems(buildItemsFromHistory(data.messages));
+          if (!mountedRef.current) return;
+          const restored = buildItemsFromHistory(data.messages);
+          setItems(restored);
+          const last = data.messages.at(-1);
+          setCanRetry(!data.conversation.endedAt && (!last || last.role === "user" || last.role === "tool"));
           setCheckliste(data.checkliste);
           setErgebnis(data.ergebnis);
           setEnded(Boolean(data.conversation.endedAt));
@@ -318,13 +389,14 @@ export function LernenTutor({
           // Bestehende Session: nie automatisch einen Turn starten, egal wie
           // der Verlauf endet -- nur eine neu angelegte Session startet sofort.
         } catch {
-          setPhase("not-found");
+          setPhase("error");
         }
         return;
       }
 
       try {
         const res = await fetch("/api/lernen/tutor", {
+          signal: AbortSignal.timeout(20_000),
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -344,10 +416,11 @@ export function LernenTutor({
           return;
         }
         if (!res.ok) {
-          setPhase("not-found");
+          setPhase("error");
           return;
         }
         const data = (await res.json()) as { conversation: TutorConversationDTO };
+        if (!mountedRef.current) return;
         conversationIdRef.current = data.conversation.id;
         setPhase("ready");
         // history.replaceState statt router.replace: der App-Router remountet
@@ -366,20 +439,20 @@ export function LernenTutor({
         window.history.replaceState(null, "", `/lernen/${subjectId}/tutor?${query}`);
         await runTurn({});
       } catch {
-        setPhase("not-found");
+        setPhase("error");
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [items]);
+  }, [items, activity, streaming]);
 
   const sendMessage = useCallback(
     async (raw: string, opts?: { hidden?: boolean }) => {
       const trimmed = raw.trim();
-      if (!trimmed || streaming || ended) return;
+      if (!trimmed || streaming || abortRef.current || ended || phase !== "ready") return;
 
       // Ist das letzte Widget noch offen, darf keine message geschickt werden
       // -- das Modell wartet auf ein tool_result. Egal ob getippt, "Anders...",
@@ -405,15 +478,16 @@ export function LernenTutor({
       }
       await runTurn({ message: trimmed }, opts?.hidden ? undefined : trimmed);
     },
-    [appendItem, ended, items, runTurn, streaming],
+    [appendItem, ended, items, runTurn, streaming, phase],
   );
 
   const sendWidgetAnswer = useCallback(
     async (messageId: string, auswahl: string[]) => {
+      if (streaming || retryingRef.current || abortRef.current || ended || phase !== "ready") return;
       setItems((prev) => prev.map((it) => (it.kind === "widget" && it.id === messageId ? { ...it, answered: true, auswahl } : it)));
       await runTurn({ widgetAntwort: { messageId, auswahl } });
     },
-    [runTurn],
+    [runTurn, ended, phase, streaming],
   );
 
   const beenden = useCallback(async () => {
@@ -448,7 +522,7 @@ export function LernenTutor({
   }, [kartenAnlegend, toast]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void sendMessage(input);
     }
@@ -477,7 +551,7 @@ export function LernenTutor({
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 px-6 py-16 text-center">
         <AlertTriangle className="size-6 text-muted-foreground" />
-        <p className="max-w-sm text-[13px] text-muted-foreground">Der Tutor ist nicht eingerichtet: ZAI_API_KEY fehlt.</p>
+        <p className="max-w-sm text-[13px] text-muted-foreground">Der Tutor ist derzeit nicht verfügbar.</p>
         <Link
           href={backHref}
           className="text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -486,6 +560,15 @@ export function LernenTutor({
         </Link>
       </div>
     );
+  }
+
+  if (phase === "error") {
+    return <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-16 text-center">
+      <h1 className="font-semibold">Der Tutor konnte nicht geöffnet werden</h1>
+      <p className="text-sm text-muted-foreground">Bitte prüfe deine Verbindung und versuche es erneut.</p>
+      <Button onClick={() => { startedRef.current = false; setPhase("loading"); setLoadAttempt((n) => n + 1); }}>Erneut versuchen</Button>
+      <Link href={backHref} className="text-sm underline">{backLabel}</Link>
+    </div>;
   }
 
   if (phase === "not-found") {
@@ -518,12 +601,12 @@ export function LernenTutor({
         <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {modus === "probe" ? "Probe" : "Tutor"}
         </span>
-        <Button type="button" size="sm" variant="outline" className="min-h-11 shrink-0" onClick={() => void beenden()} disabled={streaming || ended}>
+        <Button type="button" size="sm" variant="outline" className="min-h-11 shrink-0" onClick={() => void beenden()} disabled={phase !== "ready" || streaming || ended}>
           Beenden
         </Button>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1fr_280px]">
+      <div className={cn("grid min-h-0 flex-1 grid-cols-1 gap-4", checkliste && "md:grid-cols-[1fr_280px]")}>
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           {checkliste && (
             <div className="md:hidden">
@@ -536,26 +619,31 @@ export function LernenTutor({
               <ChatBubble key={item.id} item={item} onSendWidgetAnswer={sendWidgetAnswer} onWidgetDraftChange={setItems} onAnders={() => {
                 setPendingFreeText(true);
                 inputRef.current?.focus();
-              }} disabled={streaming || ended} />
+              }} disabled={phase !== "ready" || streaming || ended} />
             ))}
+            {(phase === "loading" || streaming) && <div role="status" aria-live="polite" className="flex min-h-12 items-center gap-3 text-sm text-muted-foreground"><Loader2 aria-hidden className="size-4 animate-spin" />{phase === "loading" ? "Sitzung wird geöffnet …" : activity}</div>}
+            {canRetry && !streaming && !ended && <Button variant="outline" onClick={() => void retryTurn()}>Gespräch fortsetzen</Button>}
+            {phase === "ready" && !streaming && items.length === 0 && !canRetry && <Button variant="outline" onClick={() => void runTurn({})}>Tutor starten</Button>}
             {ergebnis && <FazitCard subjectId={subjectId} topicId={topicId} modus={modus} ergebnis={ergebnis} kartenAngelegt={kartenAngelegt} onLegeKartenAn={legeKartenAn} anlegend={kartenAnlegend} />}
           </div>
 
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-1.5">
-              <QuickButton label="skip" onClick={() => void sendMessage("skip")} disabled={streaming || ended} />
-              <QuickButton label="erklär du alles" onClick={() => void sendMessage("erklär du alles")} disabled={streaming || ended} />
-              <QuickButton label="gecheckt" onClick={() => void sendMessage("gecheckt")} disabled={streaming || ended} />
+              <QuickButton label="Überspringen" onClick={() => void sendMessage("skip")} disabled={phase !== "ready" || streaming || ended} />
+              <QuickButton label="Erklären lassen" onClick={() => void sendMessage("erklär du alles")} disabled={phase !== "ready" || streaming || ended} />
+              <QuickButton label="Verstanden" onClick={() => void sendMessage("gecheckt")} disabled={phase !== "ready" || streaming || ended} />
             </div>
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
+                aria-label="Nachricht an den Tutor"
+                maxLength={4000}
                 value={input}
                 onChange={onInputChange}
                 onKeyDown={onKeyDown}
                 rows={1}
                 placeholder={ended ? "Session beendet" : pendingFreeText ? "Deine Antwort …" : "Nachricht an den Tutor …"}
-                disabled={streaming || ended}
+                disabled={phase !== "ready" || streaming || ended}
                 className="min-h-11 max-h-40 w-full min-w-0 resize-none rounded-md border bg-background px-3 py-2.5 text-base leading-snug outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               />
               {streaming ? (
@@ -563,7 +651,7 @@ export function LernenTutor({
                   <Square className="size-4" />
                 </Button>
               ) : (
-                <Button type="button" size="default" className="min-h-11 shrink-0" onClick={() => void sendMessage(input)} disabled={!input.trim() || ended}>
+                <Button type="button" size="default" className="min-h-11 shrink-0" onClick={() => void sendMessage(input)} disabled={phase !== "ready" || !input.trim() || ended}>
                   Senden
                 </Button>
               )}
@@ -665,7 +753,7 @@ function ChatBubble({
       <p className="max-w-[92%] min-w-0 break-words text-[15px] font-medium leading-snug text-foreground">{w.frage}</p>
       <div className="flex flex-wrap gap-1.5">
         {w.optionen.map((opt) => {
-          const selected = w.mehrfach ? w.draft.includes(opt) : w.auswahl?.includes(opt);
+          const selected = w.mehrfach && open ? w.draft.includes(opt) : w.auswahl?.includes(opt);
           return (
             <button
               key={opt}

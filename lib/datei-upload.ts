@@ -6,14 +6,16 @@
 
 "use client";
 
+import { uploadContentType } from "@/lib/file-limits";
 import { upload } from "@vercel/blob/client";
 import type { FileDTO } from "@/lib/subject-file-store";
 
 export async function ladeDateiInFachHoch(subjectId: string, file: File): Promise<FileDTO> {
+  const contentType = uploadContentType(file);
   const blob = await upload(file.name, file, {
     access: "private",
     handleUploadUrl: `/api/subjects/${subjectId}/files/upload`,
-    contentType: file.type,
+    contentType,
   });
 
   const res = await fetch(`/api/subjects/${subjectId}/files`, {

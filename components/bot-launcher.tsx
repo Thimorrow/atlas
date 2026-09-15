@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { History, Minus, SquarePen, X } from "lucide-react";
+import { History, Loader2, Minus, SquarePen, X } from "lucide-react";
 import { AtlasBotMark } from "@/components/atlas-bot-mark";
 import { requestBotNewChat } from "@/lib/bot/chat-session";
 import { cn } from "@/lib/utils";
@@ -15,9 +15,7 @@ import { cn } from "@/lib/utils";
 // anfasst. Bis dahin kostet der Bot nur diesen Launcher.
 const BotChat = dynamic(() => import("@/components/bot-chat").then((m) => m.BotChat), {
   ssr: false,
-  // Bewusst kein Spinner: das Panel soll im Moment des Oeffnens fertig
-  // aussehen, nicht "am Laden". Die Kopfzeile steht ja schon.
-  loading: () => <div className="h-full" />,
+  loading: () => <div className="flex h-full items-center justify-center gap-3 px-5 text-sm text-muted-foreground" role="status"><Loader2 aria-hidden className="size-4 animate-spin" />Atlas wird geöffnet …</div>,
 });
 
 let prefetched = false;
@@ -41,6 +39,7 @@ export function BotLauncher() {
   // Auf den Bot-Seiten selbst waere der Knopf ein zweiter Weg zum selben
   // Gespraech und legte sich ueber deren Inhalt.
   const onBotPage = pathname.startsWith("/bot");
+  const onNotebookPage = pathname.startsWith("/hefte");
 
   const openerRef = useRef<HTMLElement | null>(null);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
@@ -94,22 +93,22 @@ export function BotLauncher() {
   return (
     // Der Rahmen deckt die Ecke ab, faengt aber keine Klicks -- nur Panel und
     // Knopf selbst sind anfassbar, alles dahinter bleibt die App.
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-3 px-4 pb-4 pr-[max(1rem,env(safe-area-inset-right))] md:bottom-0 md:pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 flex flex-col items-end gap-3 px-4 pb-4 pr-[max(1rem,env(safe-area-inset-right))] lg:bottom-0 lg:pb-[max(1rem,env(safe-area-inset-bottom))]">
       <AnimatePresence>
         {open && (
           <motion.div
             // Waechst aus dem Knopf: Ursprung unten rechts, dazu ein kurzer
             // Weg nach oben. Beim Schliessen faellt es in denselben Punkt
             // zurueck.
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86, y: 16 }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.9, y: 12 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.26, ease: EASE }}
             style={{ transformOrigin: "bottom right" }}
             role="dialog"
             aria-label="Atlas-Bot"
             className={cn(
-              "pointer-events-auto flex w-[min(26rem,100%)] flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl shadow-foreground/10",
+              "pointer-events-auto flex w-[min(26rem,100%)] flex-col overflow-hidden rounded-2xl border bg-card shadow-popover",
               // Waechst mit dem Fenster, bleibt aber immer ueber dem Knopf
               // und innerhalb des sichtbaren Bereichs.
               "[@media(max-height:600px)]:z-10 [@media(max-height:600px)]:fixed [@media(max-height:600px)]:inset-x-2 [@media(max-height:600px)]:top-2 [@media(max-height:600px)]:bottom-[calc(4rem+env(safe-area-inset-bottom))] [@media(max-height:600px)]:h-auto [@media(max-height:600px)]:w-auto h-[min(36rem,calc(100dvh-13rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] md:h-[min(36rem,calc(100svh-9rem))]",
@@ -123,7 +122,7 @@ export function BotLauncher() {
         )}
       </AnimatePresence>
 
-      <motion.button
+      {(!onNotebookPage || open) && <motion.button
         type="button"
         ref={launcherRef}
         onClick={toggle}
@@ -154,7 +153,7 @@ export function BotLauncher() {
             <X className="size-5" />
           </motion.span>
         </span>
-      </motion.button>
+      </motion.button>}
     </div>
   );
 }

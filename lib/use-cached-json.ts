@@ -9,7 +9,7 @@
 // invalidate* in lib/fetch-cache.ts, der Hook zieht danach von selbst nach.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readGetCache, writeGetCache } from "@/lib/fetch-cache";
+import { getCacheRevision, readGetCache, subscribeCacheInvalidation, writeGetCache } from "@/lib/fetch-cache";
 
 export type CachedState<T> = {
   data: T | null;
@@ -50,6 +50,10 @@ export function useCachedJSON<T>(
     [url],
   );
 
+  useEffect(() => subscribeCacheInvalidation((invalidatedUrl) => {
+    if (invalidatedUrl === url) setManual((n) => n + 1);
+  }), [url]);
+
   useEffect(() => {
     if (!url) {
       setBoth(null);
@@ -78,15 +82,24 @@ export function useCachedJSON<T>(
       setLoading(true);
       setError(false);
     }
-    fetch(url)
+    const startedAt = getCacheRevision(url);
+    const controller = new AbortController();
+    fetch(url, { cache: "no-store", signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json() as Promise<T>;
       })
       .then((fresh) => {
         if (!alive) return;
-        writeGetCache(url, fresh);
-        setBoth(fresh);
+        // Eine spätere optimistische Änderung darf diese ältere Antwort
+        // nicht überschreiben. Invalidierungen starten einen neuen Effekt.
+        if (getCacheRevision(url) === startedAt) {
+          writeGetCache(url, fresh);
+          setBoth(fresh);
+        } else {
+          const latest = readGetCache<T>(url, Number.POSITIVE_INFINITY);
+          if (latest !== null) setBoth(latest);
+        }
         setLoading(false);
         setError(false);
       })
@@ -99,6 +112,7 @@ export function useCachedJSON<T>(
       });
     return () => {
       alive = false;
+      controller.abort();
     };
     // ttlMs ist pro Aufrufstelle konstant (CACHE_TTLS), keepPrevious auch.
     // eslint-disable-next-line react-hooks/exhaustive-deps

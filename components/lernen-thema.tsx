@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // Themen-Seite (/lernen/[subjectId]/themen/[topicId]): Lernzettel (Markdown,
 // erzeugt oder von Hand), Karten dieses Themas erzeugen/schreiben/verwalten.
 // "allgemein" (topicId "allgemein" = Karten ohne Thema) hat keinen Lernzettel
@@ -347,12 +349,12 @@ function PruefungsSelect({
           "Keine Prüfung zugeordnet"
         )}
       </span>
-      <select
+      <Select
         value={exam?.id ?? ""}
         disabled={saving}
-        onChange={async (e) => {
+        onValueChange={async (value) => {
           setSaving(true);
-          await onSave(e.target.value || null);
+          await onSave(value || null);
           setSaving(false);
         }}
         className="rounded-md border bg-background px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
@@ -363,7 +365,7 @@ function PruefungsSelect({
             {p.title}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   );
 }
@@ -1139,9 +1141,9 @@ function KartenZeile({
       </button>
       <div className="flex items-center justify-end gap-1 px-3 pb-2">
         {themen.length > 0 && (
-          <select
+          <Select
             value={card.topicId ?? "allgemein"}
-            onChange={(e) => void moveTo(e.target.value)}
+            onValueChange={(value) => void moveTo(value)}
             aria-label="Thema verschieben"
             className="mr-auto rounded-md border bg-background px-2 py-1 text-[16px] sm:text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -1151,7 +1153,7 @@ function KartenZeile({
                 {t.title}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <button
           type="button"

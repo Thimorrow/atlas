@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import { Plus } from "lucide-react";
@@ -194,10 +196,10 @@ export function AssignmentQuickAdd({
                   className="size-2 shrink-0 rounded-full"
                   style={{ backgroundColor: selectedSubject ? colorValue(selectedSubject.color) : "var(--muted-foreground)" }}
                 />
-                <select
+                <Select
                   aria-label="Fach"
                   value={subjectId}
-                  onChange={(e) => setSubjectId(e.target.value)}
+                  onValueChange={(value) => setSubjectId(value)}
                   className="relative rounded-md border bg-background px-2 py-1.5 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]"
                 >
                   <option value="">Allgemein</option>
@@ -206,7 +208,7 @@ export function AssignmentQuickAdd({
                       {s.name}
                     </option>
                   ))}
-                </select>
+                </Select>
 
                 <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
   Archive,
@@ -160,14 +161,6 @@ function Section({
 type Tab = "uebersicht" | "noten" | "aufgaben" | "notizen" | "material";
 const TAB_IDS: Tab[] = ["uebersicht", "noten", "aufgaben", "notizen", "material"];
 
-// Gleiches Muster wie /aufgaben: der Tab kommt direkt aus der URL, kein
-// zusaetzlicher Umweg ueber useEffect noetig.
-function initialTab(): Tab {
-  if (typeof window === "undefined") return "uebersicht";
-  const raw = new URLSearchParams(window.location.search).get("tab");
-  return (TAB_IDS as string[]).includes(raw ?? "") ? (raw as Tab) : "uebersicht";
-}
-
 // Ersetzt in `full` genau die Eintraege, die auch im ausgewerteten Ausschnitt
 // standen -- unveraendert gebliebene Aufgaben ausserhalb des Ausschnitts
 // bleiben unangetastet, geloeschte fallen raus. Gebraucht, weil die
@@ -211,7 +204,9 @@ export function SubjectDetail({ id }: { id: string }) {
   // in die Liste einzufuegen (siehe onSaved am LessonNoteEditor unten).
   const [noteMeta, setNoteMeta] = useState<{ date: string; startTime: string } | null>(null);
 
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const tab: Tab = TAB_IDS.includes(requestedTab as Tab) ? requestedTab as Tab : "uebersicht";
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   const load = useCallback(async () => {
@@ -240,16 +235,25 @@ export function SubjectDetail({ id }: { id: string }) {
 
   const switchTab = useCallback(
     (next: Tab) => {
-      setTab(next);
-      const url = next === "uebersicht" ? `/faecher/${id}` : `/faecher/${id}?tab=${next}`;
-      window.history.replaceState(null, "", url);
+      const url = new URL(window.location.href);
+      if (next === "uebersicht") url.searchParams.delete("tab");
+      else url.searchParams.set("tab", next);
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     },
     [id],
   );
 
-  async function patch(body: Record<string, unknown>) {
+  const patchVersions = useRef<Record<string, number>>({});
+
+  async function patch(body: Partial<SubjectDTO>) {
     if (!data) return;
     setBusy(true);
+    const previousSubject = data.subject;
+    const versions = Object.fromEntries(Object.keys(body).map((key) => [key, patchVersions.current[key] = (patchVersions.current[key] ?? 0) + 1]));
+    const currentFields = (subject: SubjectDTO) => Object.fromEntries(
+      Object.keys(body).filter((key) => patchVersions.current[key] === versions[key]).map((key) => [key, subject[key as keyof SubjectDTO]]),
+    );
+    setData((prev) => prev ? { ...prev, subject: { ...prev.subject, ...body } } : prev);
     try {
       const res = await fetch(`/api/subjects/${id}`, {
         method: "PATCH",
@@ -260,16 +264,15 @@ export function SubjectDetail({ id }: { id: string }) {
       if (!res.ok) throw new Error(json?.error ?? "Speichern fehlgeschlagen");
       // Name/Farbe/Raum stehen auch in Kalender, Fokus und Uebersicht.
       invalidateSubjectsCaches();
-      setData((prev) => (prev ? { ...prev, subject: json.subject as SubjectDTO } : prev));
+      setData((prev) => (prev ? { ...prev, subject: { ...prev.subject, ...currentFields(json.subject as SubjectDTO) } } : prev));
     } catch (e) {
       toast((e as Error).message || "Die Änderung konnte nicht gespeichert werden.");
       // Zurueck auf den zuletzt bestaetigten Serverstand, statt eine Aenderung
       // stehen zu lassen, die gar nicht angekommen ist.
-      if (data) {
-        setName(data.subject.name);
-        setTeacher(data.subject.teacher ?? "");
-        setRoom(data.subject.room ?? "");
-      }
+      setData((prev) => prev ? { ...prev, subject: { ...prev.subject, ...currentFields(previousSubject) } } : prev);
+      if ("name" in body && patchVersions.current.name === versions.name) setName(previousSubject.name);
+      if ("teacher" in body && patchVersions.current.teacher === versions.teacher) setTeacher(previousSubject.teacher ?? "");
+      if ("room" in body && patchVersions.current.room === versions.room) setRoom(previousSubject.room ?? "");
     } finally {
       setBusy(false);
     }
@@ -429,13 +432,13 @@ export function SubjectDetail({ id }: { id: string }) {
         <div
           role="tablist"
           aria-label="Fachbereiche"
-          className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 shadow-card"
+          className="flex flex-wrap gap-x-4 gap-y-1 border-b"
           onKeyDown={(e) => {
-            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
             e.preventDefault();
             const idx = tabs.findIndex((t) => t.id === tab);
             const dir = e.key === "ArrowRight" ? 1 : -1;
-            const next = tabs[(idx + dir + tabs.length) % tabs.length];
+            const next = e.key === "Home" ? tabs[0] : e.key === "End" ? tabs[tabs.length - 1] : tabs[(idx + dir + tabs.length) % tabs.length];
             switchTab(next.id);
             tabRefs.current[next.id]?.focus();
           }}
@@ -450,11 +453,12 @@ export function SubjectDetail({ id }: { id: string }) {
               type="button"
               role="tab"
               aria-selected={tab === t.id}
+              tabIndex={tab === t.id ? 0 : -1}
               aria-controls={`fach-panel-${t.id}`}
               onClick={() => switchTab(t.id)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:flex-1",
-                tab === t.id ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                "flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[13px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:flex-1",
+                tab === t.id ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
               )}
             >
               {t.label}

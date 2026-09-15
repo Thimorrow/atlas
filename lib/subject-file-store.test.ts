@@ -30,7 +30,7 @@ describe("storeUploadedFile, Abweisungen vor dem Upload", () => {
   });
 
   it("weist nicht erlaubte Dateitypen mit 400 ab", async () => {
-    const res = await storeUploadedFile(subjectId, datei(10, "text/plain", "notiz.txt"));
+    const res = await storeUploadedFile(subjectId, datei(10, "text/html", "seite.html"));
     expect(res).toMatchObject({ status: 400 });
   });
 
@@ -42,7 +42,7 @@ describe("storeUploadedFile, Abweisungen vor dem Upload", () => {
     for (const t of ["application/pdf", "image/png", "image/jpeg", "image/webp", "image/heic"]) {
       expect(isAllowedContentType(t)).toBe(true);
     }
-    expect(isAllowedContentType("text/plain")).toBe(false);
-    expect(isAllowedContentType("image/gif")).toBe(false);
+    expect(isAllowedContentType("text/plain")).toBe(true);
+    expect(isAllowedContentType("image/gif")).toBe(true);
   });
 });

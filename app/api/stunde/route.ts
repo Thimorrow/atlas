@@ -20,5 +20,5 @@ export async function GET(req: Request) {
   }
 
   const result = await ladeStundeKontext(blockParam);
-  return NextResponse.json(result);
+  return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
 }

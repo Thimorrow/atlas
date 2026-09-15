@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // Eigenstaendiger Anlege-Flow fuer Pruefungen (Klassenarbeit, Test, Referat).
 // Bewusst eine eigene Komponente statt AssignmentComposer wiederzuverwenden:
 // eine Klassenarbeit ist keine umbenannte Hausaufgabe. Der Termin ist das
@@ -15,7 +17,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, GraduationCap, Presentation, X } from "lucide-react";
+import { GraduationCap, Presentation, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { colorValue } from "@/lib/subject-colors";
@@ -115,7 +117,7 @@ export function ExamComposer({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dateRef = useRef<HTMLInputElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
-  const subjectRef = useRef<HTMLSelectElement | null>(null);
+  const subjectRef = useRef<HTMLButtonElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
   const [type, setType] = useState<AssignmentType>("exam");
@@ -416,7 +418,7 @@ export function ExamComposer({
                         style={{ backgroundColor: colorValue(selectedSubject.color) }}
                       />
                     )}
-                    <select
+                    <Select
                       id={`${uid}-subject`}
                       ref={subjectRef}
                       className={cn(
@@ -428,8 +430,8 @@ export function ExamComposer({
                           "border-destructive focus-visible:border-destructive focus-visible:ring-destructive",
                       )}
                       value={subjectId}
-                      onChange={(e) => {
-                        setSubjectId(e.target.value);
+                      onValueChange={(value) => {
+                        setSubjectId(value);
                         setSubjectTouched(false);
                       }}
                       aria-invalid={Boolean(subjectError)}
@@ -441,11 +443,7 @@ export function ExamComposer({
                           {s.name}
                         </option>
                       ))}
-                    </select>
-                    <ChevronDown
-                      aria-hidden
-                      className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                    />
+                    </Select>
                   </div>
                 )}
                 {subjectError && (

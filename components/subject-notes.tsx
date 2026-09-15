@@ -292,6 +292,7 @@ function MonthHeading({ label }: { label: string }) {
 // das umschliessende <Overlay> weiter dessen eigenen Open/Close-Zustand
 // steuert (AnimatePresence braucht die Kind-Identitaet stabil).
 function ReadNoteBody({
+  saving,
   note,
   html,
   onClose,
@@ -301,6 +302,7 @@ function ReadNoteBody({
   send,
   onSendToOnenote,
 }: {
+  saving: boolean;
   note: NoteDTO;
   html: string;
   onClose: () => void;
@@ -317,7 +319,7 @@ function ReadNoteBody({
           <h3 id="note-read-title" className="text-[17px] font-semibold leading-tight tracking-tight">
             {note.title}
           </h3>
-          <p className="mt-0.5 text-[12px] text-muted-foreground">Zuletzt geändert am {fmtDate(note.updatedAt)}</p>
+          <p role="status" className="mt-0.5 text-[12px] text-muted-foreground">{saving ? "Wird gespeichert …" : `Zuletzt geändert am ${fmtDate(note.updatedAt)}`}</p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Notiz schließen" onClick={onClose}>
           <X className="size-4" />
@@ -335,6 +337,7 @@ function ReadNoteBody({
           variant="ghost"
           size="sm"
           onClick={onDelete}
+          disabled={saving}
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="size-4" />
@@ -352,7 +355,7 @@ function ReadNoteBody({
                 : ""}
           </span>
           {onenoteReady && (
-            <Button variant="outline" size="sm" disabled={send === "sending"} onClick={onSendToOnenote}>
+            <Button variant="outline" size="sm" disabled={saving || send === "sending"} onClick={onSendToOnenote}>
               {send === "sending" ? (
                 <Loader2 aria-hidden="true" className="size-4 animate-spin" />
               ) : send === "sent" ? (
@@ -376,7 +379,7 @@ function ReadNoteBody({
               </span>
             </Button>
           )}
-          <Button size="sm" onClick={onEdit}>
+          <Button size="sm" onClick={onEdit} disabled={saving}>
             <Pencil className="size-4" />
             Bearbeiten
           </Button>
@@ -418,7 +421,7 @@ function EditNoteBody({
         <h3 id="note-edit-title" className="flex-1 text-[17px] font-semibold leading-tight tracking-tight">
           {editor.id ? "Notiz bearbeiten" : "Neue Notiz"}
         </h3>
-        <Button variant="ghost" size="icon" aria-label="Abbrechen" onClick={onCancel}>
+        <Button variant="ghost" size="icon" aria-label="Abbrechen" onClick={onCancel} disabled={busy}>
           <X className="size-4" />
         </Button>
       </header>
@@ -430,6 +433,7 @@ function EditNoteBody({
           <input
             id="note-title"
             data-autofocus
+            disabled={busy}
             value={editor.title}
             onChange={(e) => onChange({ ...editor, title: e.target.value })}
             onKeyDown={onKeyDown}
@@ -488,15 +492,16 @@ function EditNoteBody({
           {mode === "write" ? (
             <textarea
               id="note-body"
+              disabled={busy}
               value={editor.body}
               onChange={(e) => onChange({ ...editor, body: e.target.value })}
               onKeyDown={onKeyDown}
-              rows={10}
-              placeholder={"## Überschrift\n- Punkt\n**fett**, `code`, [Link](https://…)"}
-              className="min-h-[180px] w-full resize-y rounded-lg border bg-background px-3 py-2.5 font-mono text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
+              rows={12}
+              placeholder="Schreib deine Gedanken, Fragen oder eine Zusammenfassung auf …"
+              className="min-h-[280px] w-full resize-y rounded-xl border bg-card px-4 py-3 text-[16px] leading-relaxed outline-none transition-[border-color,box-shadow] duration-150 ease-[var(--ease-atlas)] placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]"
             />
           ) : (
-            <div className="min-h-[180px] w-full rounded-lg border bg-background px-3 py-2.5">
+            <div className="min-h-[280px] w-full rounded-xl border bg-card px-4 py-3">
               {editor.body.trim() ? (
                 <div className={PROSE} dangerouslySetInnerHTML={{ __html: previewHtml }} />
               ) : (
@@ -644,38 +649,32 @@ export function SubjectNotes({
       setSaveError("Die Notiz braucht einen Titel.");
       return;
     }
+    const draft = editor;
+    const previous = notes.find((note) => note.id === draft.id);
+    const optimisticId = draft.id ?? `pending-${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    upsert({ id: optimisticId, subjectId, title, body: draft.body, createdAt: previous?.createdAt ?? now, updatedAt: now });
     setBusy(true);
     setSaveError(null);
+    setEditor(null);
+    setOpenId(optimisticId);
     try {
-      const res = editor.id
-        ? await fetch(`/api/notes/${editor.id}`, {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ title, body: editor.body }),
-          })
-        : await fetch(`/api/subjects/${subjectId}/notes`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ title, body: editor.body }),
-          });
+      const res = await fetch(draft.id ? `/api/notes/${draft.id}` : `/api/subjects/${subjectId}/notes`, {
+        method: draft.id ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, body: draft.body }),
+      });
       const data = (await res.json().catch(() => null)) as { note?: NoteDTO; error?: string } | null;
-      if (!res.ok || !data?.note) {
-        // Getippter Text bleibt im Editor-State stehen (kein setEditor(null))
-        // -- ein fehlgeschlagenes Speichern darf niemals loeschen, was der
-        // Nutzer schon geschrieben hat.
-        const message = data?.error ?? "Die Notiz konnte nicht gespeichert werden.";
-        setSaveError(message);
-        toast(message);
-        return;
-      }
-      upsert(data.note);
-      // Fokus-Ansicht listet Notiztitel unter "Mitzunehmen".
+      if (!res.ok || !data?.note) throw new Error(data?.error ?? "Die Notiz konnte nicht gespeichert werden.");
+      const saved = data.note;
+      setNotes((prev) => [saved, ...prev.filter((note) => note.id !== optimisticId && note.id !== saved.id)].sort(byUpdatedDesc));
       invalidateMorgenCaches();
-      setEditor(null);
-      setSaveError(null);
-      setOpenId(data.note.id);
-    } catch {
-      const message = "Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.";
+      setOpenId((current) => current === optimisticId ? saved.id : current);
+    } catch (error) {
+      setNotes((prev) => [ ...(previous ? [previous] : []), ...prev.filter((note) => note.id !== optimisticId)].sort(byUpdatedDesc));
+      setOpenId(null);
+      setEditor(draft);
+      const message = error instanceof Error && !(error instanceof TypeError) ? error.message : "Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.";
       setSaveError(message);
       toast(message);
     } finally {
@@ -789,7 +788,7 @@ export function SubjectNotes({
             ? "Noch keine Notizen"
             : `${merged.length} ${merged.length === 1 ? "Notiz" : "Notizen"}`}
         </p>
-        <Button size="sm" variant="outline" onClick={() => openEditor({ id: null, title: "", body: "" })}>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => openEditor({ id: null, title: "", body: "" })}>
           <Plus className="size-4" />
           Neue Notiz
         </Button>
@@ -860,6 +859,7 @@ export function SubjectNotes({
       <Overlay open={!!open} onClose={() => setOpenId(null)} labelledBy="note-read-title">
         {open ? (
           <ReadNoteBody
+            saving={busy}
             note={open}
             html={html}
             onClose={() => setOpenId(null)}
@@ -873,7 +873,7 @@ export function SubjectNotes({
       </Overlay>
 
       {/* Anlegen und Bearbeiten */}
-      <Overlay open={!!editor} onClose={() => setEditor(null)} labelledBy="note-edit-title">
+      <Overlay open={!!editor} onClose={() => { if (!busy) setEditor(null); }} labelledBy="note-edit-title" className="sm:max-w-2xl">
         {editor ? (
           <EditNoteBody
             editor={editor}

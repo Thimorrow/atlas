@@ -11,6 +11,26 @@ const mem = new Map<string, Entry>();
 // URL laden (z.B. /api/subjects auf fast jeder Seite), teilen sich eine
 // Anfrage statt zwei zu stellen.
 const pending = new Map<string, Promise<unknown>>();
+const revisions = new Map<string, number>();
+let revision = 0;
+const invalidationListeners = new Set<(url: string) => void>();
+
+export function getCacheRevision(url: string) {
+  if (!revisions.has(url)) revisions.set(url, 0);
+  return revisions.get(url)!;
+}
+
+export function subscribeCacheInvalidation(listener: (url: string) => void) {
+  invalidationListeners.add(listener);
+  return () => { invalidationListeners.delete(listener); };
+}
+
+function invalidateKey(url: string) {
+  revisions.set(url, ++revision);
+  mem.delete(url);
+  pending.delete(url);
+  for (const listener of invalidationListeners) listener(url);
+}
 
 // TTL-Vorgaben je Bereich in ms. Kalender und Aufgaben aendern sich oefters
 // (Sync, Abhaken), Faecher fast nie -- ein Wert je Bereich statt raten an
@@ -32,20 +52,21 @@ export function readGetCache<T>(url: string, ttlMs: number): T | null {
 }
 
 export function writeGetCache<T>(url: string, data: T) {
+  revisions.set(url, ++revision);
   mem.set(url, { data, savedAt: Date.now() });
 }
 
 export function invalidateGetCache(url?: string) {
-  if (url) mem.delete(url);
-  else mem.clear();
+  if (url) invalidateKey(url);
+  else for (const key of new Set([...mem.keys(), ...pending.keys(), ...revisions.keys()])) invalidateKey(key);
 }
 
 // Vergisst alles unter einem Praefix -- z.B. alle Kalenderwochen
 // ("/api/calendar") oder alle Aufgaben-Queries ("?completed=1" eingeschlossen).
 // Die exakte Variante oben bleibt fuer den Einzel-Fall (Tests, Bot).
 export function invalidateGetCacheByPrefix(prefix: string) {
-  for (const key of mem.keys()) {
-    if (key.startsWith(prefix)) mem.delete(key);
+  for (const key of new Set([...mem.keys(), ...pending.keys(), ...revisions.keys()])) {
+    if (key.startsWith(prefix)) invalidateKey(key);
   }
 }
 
@@ -94,10 +115,11 @@ export async function cachedGetJSON<T>(url: string, ttlMs = 5 * 60_000): Promise
   if (hit !== null) return hit;
   const ongoing = pending.get(url);
   if (ongoing) return ongoing as Promise<T>;
+  const startedAt = getCacheRevision(url);
   const job = (async (): Promise<T> => {
     let res: Response;
     try {
-      res = await fetch(url);
+      res = await fetch(url, { cache: "no-store" });
     } catch (err) {
       const stale = mem.get(url)?.data as T | undefined;
       if (stale !== undefined) return stale;
@@ -109,6 +131,9 @@ export async function cachedGetJSON<T>(url: string, ttlMs = 5 * 60_000): Promise
       throw new Error(`GET ${url} scheiterte mit ${res.status}.`);
     }
     const data = (await res.json()) as T;
+    if (getCacheRevision(url) !== startedAt) {
+      return readGetCache<T>(url, Number.POSITIVE_INFINITY) ?? cachedGetJSON<T>(url, ttlMs);
+    }
     writeGetCache(url, data);
     return data;
   })();

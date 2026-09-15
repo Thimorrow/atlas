@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // "Was brauche ich noch?" -- der Zielnoten-Rechner im Fach.
 //
 // Reine Client-Rechnung, wie schon der Fachschnitt in SubjectGrades: dieselbe
@@ -111,18 +113,18 @@ export function SubjectGoal({
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
           <span className="shrink-0">Ziel</span>
-          <select
+          <Select
             aria-label="Wunschnote in Punkten"
             className="h-9 rounded-lg border bg-background px-2 text-[16px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             value={target}
-            onChange={(e) => setTarget(Number(e.target.value))}
+            onValueChange={(value) => setTarget(Number(value))}
           >
             {POINT_OPTIONS.map((p) => (
               <option key={p} value={p}>
                 {p} Punkte (Note {pointsToGradeLabel(p)})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <SegmentedControl

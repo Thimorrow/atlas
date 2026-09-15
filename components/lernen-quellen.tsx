@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // Gemeinsame Quellenauswahl fuer Lernzettel und Kartenerzeugung: woher kommt
 // der Stoff (Notizen/Dateien/Lehrplan/Alles), welche Dateien/Notizen genau,
 // und -- nur wenn onKindChange gesetzt ist -- was erzeugt werden soll
@@ -187,16 +189,16 @@ export function LernenQuellen({
           <label htmlFor={`${uid}-anzahl`} className="mb-1 block text-[12.5px] font-medium text-muted-foreground">
             Anzahl
           </label>
-          <select
+          <Select
             id={`${uid}-anzahl`}
-            value={anzahl}
-            onChange={(e) => onAnzahlChange(Number(e.target.value))}
+            value={anzahl ?? 8}
+            onValueChange={(value) => onAnzahlChange(Number(value))}
             className="w-full rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value={8}>8</option>
             <option value={12}>12</option>
             <option value={20}>20</option>
-          </select>
+          </Select>
         </div>
       )}
     </div>

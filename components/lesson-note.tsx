@@ -11,7 +11,6 @@
 // LessonNoteEditor darunter ist nur noch das Dialog-Geruest drumherum.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useReducedMotion } from "framer-motion";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Overlay } from "@/components/subject-notes";
@@ -62,10 +61,12 @@ export function LessonNoteField({
   footerClassName?: string;
 }) {
   const toast = useToast();
-  const reduce = useReducedMotion();
 
   const [body, setBody] = useState("");
-  const [state, setState] = useState<SaveState>("idle");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
+  const [state, setState] = useState<SaveState>("loading");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Autowachsendes Feld: field-sizing: content waere die einfachere Loesung,
@@ -103,7 +104,14 @@ export function LessonNoteField({
   // Tastendruck ein, darf sie den schon getippten Text nicht ueberschreiben.
   const typedRef = useRef(false);
 
-  async function persist(id: string, value: string) {
+  const saveQueue = useRef(Promise.resolve());
+
+  function persist(id: string, value: string) {
+    saveQueue.current = saveQueue.current.then(() => save(id, value));
+    return saveQueue.current;
+  }
+
+  async function save(id: string, value: string) {
     setState("saving");
     try {
       const res = await fetch(`/api/lessons/${id}/note`, {
@@ -118,7 +126,7 @@ export function LessonNoteField({
         return;
       }
       savedBodyRef.current = value;
-      setState("saved");
+      setState(bodyRef.current === value ? "saved" : "saving");
       onSaved(id, value.trim().length > 0, value);
     } catch {
       toast("Keine Verbindung zum Server. Die Notiz wurde nicht gespeichert.");
@@ -129,14 +137,15 @@ export function LessonNoteField({
   // Notiz laden.
   useEffect(() => {
     let alive = true;
-    typedRef.current = false;
     setState("loading");
-    fetch(`/api/lessons/${schoolBlockId}/note`)
+    fetch(`/api/lessons/${schoolBlockId}/note`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: { note: { body: string } | null }) => {
         if (!alive) return;
         const b = d.note?.body ?? "";
         savedBodyRef.current = b;
+        loadedRef.current = true;
+        setLoaded(true);
         // Nur uebernehmen, wenn der Nutzer seit dem Oeffnen noch nichts
         // eingegeben hat -- sonst reisst die spaet ankommende Antwort den
         // schon getippten Text wieder raus.
@@ -149,20 +158,21 @@ export function LessonNoteField({
           // Ohne bekannten Server-Stand gilt "noch nichts gespeichert" --
           // sonst vergliche der naechste Autosave-Check gegen den Text der
           // vorher geoeffneten Notiz und würde faelschlich nichts speichern.
-          savedBodyRef.current = "";
-          setState("idle");
+          setState("error");
         }
       });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schoolBlockId]);
+  }, [schoolBlockId, loadAttempt]);
+
+  const loading = state === "loading";
 
   // Autosave: 700ms nach der letzten Eingabe, nur wenn sich der Text vom
   // zuletzt gespeicherten Stand unterscheidet.
   useEffect(() => {
-    if (state === "loading") return;
+    if (loading || !loaded) return;
     if (body === savedBodyRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -172,7 +182,7 @@ export function LessonNoteField({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [body, schoolBlockId]);
+  }, [body, schoolBlockId, loading, loaded]);
 
   // Speichern beim Verschwinden (Dialog zu, Stunde gewechselt, Seite
   // umgeschaltet): ein pending Debounce wird sofort ausgeloest statt verworfen
@@ -184,7 +194,7 @@ export function LessonNoteField({
         debounceRef.current = null;
       }
       const current = bodyRef.current;
-      if (current !== savedBodyRef.current) {
+      if (loadedRef.current && typedRef.current && current !== savedBodyRef.current) {
         void persist(schoolBlockId, current);
       }
     };
@@ -202,7 +212,7 @@ export function LessonNoteField({
   }
 
   const statusLabel =
-    state === "saving" ? "Speichert …" : state === "saved" ? "Gespeichert" : state === "error" ? "Fehler" : "";
+    state === "saving" ? "Speichert …" : state === "saved" ? "Gespeichert" : state === "error" ? "Nicht gespeichert" : state === "loading" ? "Notiz wird geladen …" : "";
 
   return (
     <div className={className}>
@@ -232,16 +242,14 @@ export function LessonNoteField({
           onChange={(e) => {
             typedRef.current = true;
             setBody(e.target.value);
+            if (loadedRef.current) setState("saving");
           }}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           rows={4}
           className={cn(
-            // outline-none nie ohne Ersatz: ein weicher Tint statt Ring,
-            // der randlose Look bleibt erhalten, Tastaturnutzer sehen den
-            // Fokus trotzdem klar.
-            "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground focus-visible:bg-accent/40",
-            !reduce && "transition-[height,background-color] duration-150 ease-[var(--ease-atlas)]",
+            // Ein neutraler Ring zeigt den Fokus, ohne die Schreibfläche einzufärben.
+            "min-h-24 w-full max-h-[40svh] resize-none overflow-y-auto rounded-lg border-0 bg-transparent p-0 text-[16px] leading-relaxed outline-none [touch-action:manipulation] placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-4",
           )}
         />
       </div>
@@ -251,7 +259,9 @@ export function LessonNoteField({
           Speichern auf. Kein eigenes Band (weder Trennlinie noch Toenung)
           -- der Status steht ruhig unter dem Feld. */}
       <footer className={cn("flex min-h-11 items-center justify-between gap-2", footerClassName)}>
-        {state === "idle" && !statusLabel ? (
+        {state === "error" ? (
+          <button type="button" className="min-h-11 rounded-md px-2 text-xs underline focus-visible:ring-2 focus-visible:ring-ring" onClick={() => loaded ? void persist(schoolBlockId, bodyRef.current) : setLoadAttempt((n) => n + 1)}>Erneut versuchen</button>
+        ) : state === "idle" && !statusLabel ? (
           <p className="truncate text-[11px] text-muted-foreground">
             Speichert automatisch{onRequestClose ? ` · ${modKey} + Enter zum Schließen` : ""}
           </p>

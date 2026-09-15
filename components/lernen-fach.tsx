@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 // Fach-Seite des Lernbereichs (/lernen/[subjectId]): Fortschritt, Lernart,
 // Liste der Themen (jedes Thema traegt seinen eigenen Lernzettel und seine
 // eigenen Karten -- das lebt auf der Themenseite) und "Neues Thema".
@@ -150,10 +152,10 @@ function LernenFachBody({
         <label htmlFor="lernart" className="text-[13px] text-muted-foreground">
           Lernart: <span className="font-medium text-foreground">{LERNART_LABEL[subject.lernart]}</span>
         </label>
-        <select
+        <Select
           id="lernart"
           value={subject.lernartAuto ? "auto" : subject.lernart}
-          onChange={(e) => void changeLernart(e.target.value)}
+          onValueChange={(value) => void changeLernart(value)}
           disabled={savingLernart}
           className="rounded-md border bg-background px-2.5 py-1.5 text-[16px] sm:text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
@@ -163,7 +165,7 @@ function LernenFachBody({
               {LERNART_LABEL[l]}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {progress.total > 0 && (
@@ -372,10 +374,10 @@ function NeuesThema({
           <label htmlFor={`${uid}-prüfung`} className="mb-1 block text-[12.5px] font-medium text-muted-foreground">
             Prüfung (optional)
           </label>
-          <select
+          <Select
             id={`${uid}-prüfung`}
             value={assignmentId}
-            onChange={(e) => setAssignmentId(e.target.value)}
+            onValueChange={(value) => setAssignmentId(value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">Keine</option>
@@ -384,7 +386,7 @@ function NeuesThema({
                 {p.title}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       )}
       <div className="flex flex-wrap justify-end gap-2 pt-1">

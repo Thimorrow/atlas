@@ -55,10 +55,18 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Genau eins von message oder widgetAntwort." }, { status: 400 });
   }
 
+  if (body.resume !== undefined && (body.resume !== true || hasMessage || hasWidgetAntwort)) {
+    return NextResponse.json({ error: "Ungültige Fortsetzung." }, { status: 400 });
+  }
+
   if (!hasMessage && !hasWidgetAntwort) {
     const history = await listTutorMessages(id);
     const isFirstTurn = history.length === 0 || (history.length === 1 && history[0].role === "user");
-    if (!isFirstTurn) {
+    const pendingWidget = history.some((m, i) => m.role === "assistant" && m.toolName === "frage_auswahl" && history[i + 1]?.role !== "tool" && history[i + 1]?.role !== "user");
+    if (body.resume === true && pendingWidget) {
+      return NextResponse.json({ error: "Bitte beantworte zuerst die offene Frage." }, { status: 400 });
+    }
+    if (!isFirstTurn && body.resume !== true) {
       return NextResponse.json({ error: "Genau eins von message oder widgetAntwort." }, { status: 400 });
     }
   }
@@ -97,7 +105,11 @@ export async function POST(req: Request, { params }: Ctx) {
     }
   }
 
-  const signal = req.signal;
+  const turnController = new AbortController();
+  const abortTurn = () => turnController.abort();
+  req.signal.addEventListener("abort", abortTurn, { once: true });
+  if (req.signal.aborted) abortTurn();
+  const signal = turnController.signal;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -109,6 +121,7 @@ export async function POST(req: Request, { params }: Ctx) {
           controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         } catch {
           closed = true;
+          abortTurn();
         }
       };
 
@@ -117,13 +130,17 @@ export async function POST(req: Request, { params }: Ctx) {
       } catch (err) {
         send({ type: "error", text: err instanceof Error ? err.message : "Beim Tutor ist ein unbekannter Fehler aufgetreten." });
       } finally {
+        req.signal.removeEventListener("abort", abortTurn);
+        if (!closed) {
+          try { controller.close(); } catch { /* The client already cancelled the stream. */ }
+        }
         closed = true;
-        controller.close();
       }
     },
+    cancel() { abortTurn(); },
   });
 
-  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson" } });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store, no-transform" } });
 }
 
 // DELETE /api/lernen/tutor/[id]

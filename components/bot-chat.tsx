@@ -394,7 +394,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
       switch (evt.type) {
         case "status":
           updateTurn(turnId, (t) =>
-            t.assistantText ? { ...t, needsBreak: true } : { ...t, statusText: evt.text },
+            ({ ...t, needsBreak: Boolean(t.assistantText), statusText: evt.text }),
           );
           break;
         case "text":
@@ -788,7 +788,7 @@ function TurnView({
     () => renderMarkdown(repairMissingParagraphBreaks(turn.assistantText)),
     [turn.assistantText],
   );
-  const showStatus = turn.streaming && turn.statusText && !turn.assistantText;
+  const showStatus = turn.streaming && turn.statusText;
   // Live-Gedankengang nur solange die Runde noch keinen Antworttext hat --
   // die Werkzeug-Statuszeile hat Vorrang, falls beides gleichzeitig zutraefe.
   const showThinkingLive =
@@ -814,13 +814,6 @@ function TurnView({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        {showStatus && (
-          <p className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-            <TypingDots />
-            {turn.statusText}
-          </p>
-        )}
-
         {showThinkingLive && (
           // Live-Gedankengang: gedaempft, nur die letzten Zeilen (max-height +
           // Ausrichtung am unteren Rand), damit das Layout nicht springt.
@@ -867,6 +860,13 @@ function TurnView({
         ) : turn.streaming && !showStatus && !turn.errorText ? (
           <TypingDots />
         ) : null}
+
+        {showStatus && (
+          <p role="status" className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            <TypingDots />
+            {turn.statusText}
+          </p>
+        )}
 
         {turn.items.map((item) =>
           item.kind === "action" ? (

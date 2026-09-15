@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { localISO } from "@/lib/assignments-view";
 import { verkleinereBild } from "@/lib/bild-verkleinern";
 import { ladeDateiInFachHoch } from "@/lib/datei-upload";
-import { ACCEPT_ATTR, ACCEPTED_TYPES } from "@/lib/file-limits";
+import { LEARNING_TYPES as ACCEPTED_TYPES } from "@/lib/file-limits";
 import { addTageISO, ersterPlantag } from "@/lib/lernplan";
 import {
   MAX_PUNKTE_PRO_PLAN,
@@ -880,7 +880,7 @@ function SchrittMaterial({
               ref={checklistInputRef}
               id={checklistInputId}
               type="file"
-              accept={ACCEPT_ATTR}
+              accept={ACCEPTED_TYPES.join(",")}
               disabled={checklistUploading}
               className="peer sr-only"
               onChange={(e) => {
@@ -1822,7 +1822,7 @@ function BlattHinzufuegen({
         ref={uploadInputRef}
         id={uploadInputId}
         type="file"
-        accept={ACCEPT_ATTR}
+        accept={ACCEPTED_TYPES.join(",")}
         tabIndex={-1}
         disabled={hochladenAktiv}
         className="sr-only"

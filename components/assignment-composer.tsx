@@ -1,5 +1,7 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
+
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
@@ -288,11 +290,11 @@ export function AssignmentComposer({
                   <label className={LABEL} htmlFor={`${uid}-subject`}>
                     Fach
                   </label>
-                  <select
+                  <Select
                     id={`${uid}-subject`}
                     className={FIELD}
                     value={subjectId}
-                    onChange={(e) => setSubjectId(e.target.value)}
+                    onValueChange={(value) => setSubjectId(value)}
                   >
                     {/* Leerer Wert = kein Fach. Die Liste zeigt solche Aufgaben
                         als "Allgemein" mit neutralem Punkt. */}
@@ -302,7 +304,7 @@ export function AssignmentComposer({
                         {s.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
 
