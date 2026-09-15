@@ -1,3 +1,4 @@
+import { lernkartenFuerAbschnitt, type Vokabel } from "./vokabeln";
 import { describe, expect, it } from "vitest";
 import {
   fortschritt,
@@ -65,5 +66,66 @@ describe("Vokabelkasten", () => {
     expect(() => leseVokabelJson("Keine Vokabeln sichtbar")).toThrow(
       /nicht sicher/,
     );
+  });
+});
+
+describe("Lernen pro Lektion oder Seite", () => {
+  const karten = [
+    {
+      id: "a",
+      sprache: "latein",
+      abschnitt: "13",
+      wort: "cura",
+      deutsch: "Sorge",
+      box: 1,
+      revision: 0,
+    },
+    {
+      id: "b",
+      sprache: "latein",
+      abschnitt: "14",
+      wort: "hora",
+      deutsch: "Stunde",
+      box: 2,
+      revision: 0,
+    },
+    {
+      id: "c",
+      sprache: "englisch",
+      abschnitt: "13",
+      wort: "time",
+      deutsch: "Zeit",
+      box: 1,
+      revision: 0,
+    },
+    {
+      id: "d",
+      sprache: "latein",
+      abschnitt: "13",
+      wort: "mare",
+      deutsch: "Meer",
+      box: 6,
+      revision: 0,
+    },
+  ] satisfies Vokabel[];
+  it("mischt weder Lektionen noch Sprachen", () => {
+    expect(
+      lernkartenFuerAbschnitt(karten, "latein", "13").map((k) => k.id),
+    ).toEqual(["a"]);
+    expect(
+      lernkartenFuerAbschnitt(karten, "englisch", "13").map((k) => k.id),
+    ).toEqual(["c"]);
+  });
+  it("wiederholt eine vollständig gelernte Lektion ohne fremde Wörter", () => {
+    expect(
+      lernkartenFuerAbschnitt(
+        karten.map((k) => ({ ...k, box: 6 })),
+        "latein",
+        "13",
+      ).map((k) => k.id),
+    ).toEqual(["a", "d"]);
+  });
+  it("startet keine gemischte Ersatzrunde bei unbekannter Lektion", () => {
+    expect(lernkartenFuerAbschnitt(karten, "latein", "999")).toEqual([]);
   });
 });

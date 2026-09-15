@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import {
   abschnittLabel,
   fortschritt,
+  lernkartenFuerAbschnitt,
   type Sprache,
   type Vokabel,
 } from "@/lib/vokabeln";
@@ -87,6 +88,14 @@ export function VokabelBereich() {
     : sprache === "latein"
       ? "Dein Latein."
       : "Dein Englisch.";
+
+  function lernen(abschnitt: string) {
+    const runde = lernkartenFuerAbschnitt(karten, sprache, abschnitt);
+    if (!runde.length) return;
+    setAuswahl(abschnitt);
+    setSession(runde);
+    setAnsicht("lernen");
+  }
 
   if (ansicht === "import")
     return (
@@ -204,207 +213,247 @@ export function VokabelBereich() {
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border bg-card p-6 shadow-card sm:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-6">
-              <div>
-                <p className="mb-2 text-sm text-muted-foreground">
-                  {sprache === "latein" ? "Latein" : "Englisch"} → Deutsch
-                </p>
-                <h2 className="text-3xl font-medium tracking-tight">{titel}</h2>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {gelernt} von {gefiltert.length} Vokabeln gelernt
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-5xl font-medium tabular-nums tracking-tighter">
-                  {prozent}
-                  <span className="ml-1 text-2xl text-muted-foreground">%</span>
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Lernfortschritt
-                </p>
-              </div>
-            </div>
-            <div
-              role="progressbar"
-              aria-label="Lernfortschritt"
-              aria-valuenow={prozent}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="mt-7 h-2 overflow-hidden rounded-full bg-muted"
-            >
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${prozent}%` }}
-              />
-            </div>
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-              <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-                Jede Box zählt: Box 1 = 0 %, Box 6 = 100 %.
-                <br />
-                Dein Fortschritt ist der Durchschnitt aller Vokabeln.
-              </p>
+          {auswahl !== null && (
+            <>
               <Button
-                className="min-h-11"
+                variant="ghost"
+                className="-ml-3 min-h-11"
                 onClick={() => {
-                  setSession(offen.length ? offen : gefiltert);
-                  setAnsicht("lernen");
+                  setAuswahl(null);
+                  setSuche("");
                 }}
               >
-                {offen.length
-                  ? `${offen.length} Vokabeln lernen`
-                  : "Gelernte wiederholen"}
-                <ChevronRight className="size-4" />
+                <ArrowLeft className="size-4" />{" "}
+                {sprache === "latein" ? "Alle Lektionen" : "Alle Seiten"}
               </Button>
-            </div>
-          </section>
-          <section aria-label="Fortschritt je Abschnitt" className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium">
-                {sprache === "latein" ? "Deine Lektionen" : "Deine Seiten"}
-              </h2>
-              <button
-                onClick={() => setAuswahl(null)}
-                aria-pressed={auswahl === null}
-                className="min-h-11 px-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Alle anzeigen
-              </button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {abschnitte.map((abschnitt) => {
-                const gruppe = fachKarten.filter(
-                  (k) => k.abschnitt === abschnitt,
-                );
-                const wert = fortschritt(gruppe);
-                return (
-                  <button
-                    key={abschnitt}
-                    onClick={() =>
-                      setAuswahl(auswahl === abschnitt ? null : abschnitt)
-                    }
-                    aria-pressed={auswahl === abschnitt}
-                    className={cn(
-                      "rounded-xl border p-4 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      auswahl === abschnitt && "border-primary bg-accent",
-                    )}
-                  >
-                    <div className="flex justify-between gap-3">
-                      <span className="text-sm font-medium">
-                        {abschnittLabel(sprache, abschnitt)}
-                      </span>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {wert} %
-                      </span>
-                    </div>
-                    <div className="my-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${wert}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {gruppe.length} Vokabeln ·{" "}
-                      {gruppe.filter((k) => k.box === 6).length} gelernt
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-          <section className="rounded-xl border p-5">
-            <h2 className="flex items-center gap-2 text-sm font-medium">
-              <Layers className="size-4" /> Deine sechs Boxen
-            </h2>
-            <div className="mt-5 grid grid-cols-6 gap-2 sm:gap-4">
-              {[1, 2, 3, 4, 5, 6].map((box) => {
-                const anzahl = gefiltert.filter((k) => k.box === box).length;
-                return (
-                  <div
-                    key={box}
-                    className="text-center"
-                    aria-label={`Box ${box}: ${anzahl} Vokabeln`}
-                  >
-                    <div className="flex h-16 items-end rounded-md bg-muted">
-                      <div
-                        className="w-full rounded-md bg-primary/70"
-                        style={{
-                          height: anzahl
-                            ? `${Math.max(6, (anzahl / gefiltert.length) * 100)}%`
-                            : 0,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2 text-sm font-medium tabular-nums">
-                      {anzahl}
+              <section className="rounded-2xl border bg-card p-6 shadow-card sm:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-6">
+                  <div>
+                    <p className="mb-2 text-sm text-muted-foreground">
+                      {sprache === "latein" ? "Latein" : "Englisch"} → Deutsch
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Box {box}
+                    <h2 className="text-3xl font-medium tracking-tight">
+                      {titel}
+                    </h2>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {gelernt} von {gefiltert.length} Vokabeln gelernt
                     </p>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-medium">
-                Durchgucken{" "}
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {gefiltert.length}
-                </span>
-              </h2>
-              <label className="flex min-h-11 items-center gap-2 rounded-lg border border-input px-3 focus-within:ring-2 focus-within:ring-ring">
-                <Search className="size-4 text-muted-foreground" />
-                <input
-                  aria-label="Vokabel suchen"
-                  value={suche}
-                  onChange={(event) => setSuche(event.target.value)}
-                  placeholder="Vokabel suchen"
-                  className="w-44 bg-transparent py-2 text-base outline-none sm:text-sm"
-                />
-              </label>
-            </div>
-            <div className="overflow-hidden rounded-xl border">
-              <div className="grid grid-cols-[1fr_1fr_3rem] gap-3 bg-muted/60 px-4 py-3 text-xs text-muted-foreground">
-                <span>{sprache === "latein" ? "Latein" : "Englisch"}</span>
-                <span>Deutsch</span>
-                <span className="text-right">Box</span>
-              </div>
-              {sichtbar.map((karte) => (
-                <div
-                  key={karte.id}
-                  className="grid grid-cols-[1fr_1fr_3rem] items-start gap-3 border-t px-4 py-4 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="select-text break-words font-medium">
-                      {karte.wort}
+                  <div className="text-right">
+                    <p className="text-5xl font-medium tabular-nums tracking-tighter">
+                      {prozent}
+                      <span className="ml-1 text-2xl text-muted-foreground">
+                        %
+                      </span>
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {abschnittLabel(sprache, karte.abschnitt)}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Lernfortschritt
                     </p>
                   </div>
-                  <p className="select-text break-words leading-relaxed">
-                    {karte.deutsch}
-                  </p>
-                  <span className="justify-self-end rounded-md bg-muted px-2 py-1 text-xs tabular-nums">
-                    {karte.box}
-                    {karte.box === 6 && (
-                      <Check
-                        aria-label="gelernt"
-                        className="ml-1 inline size-3"
-                      />
-                    )}
-                  </span>
                 </div>
-              ))}
-              {sichtbar.length === 0 && (
-                <p className="p-6 text-center text-sm text-muted-foreground">
-                  Keine Vokabel passt zu deiner Suche.
+                <div
+                  role="progressbar"
+                  aria-label="Lernfortschritt"
+                  aria-valuenow={prozent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  className="mt-7 h-2 overflow-hidden rounded-full bg-muted"
+                >
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${prozent}%` }}
+                  />
+                </div>
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                  <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+                    Jede Box zählt: Box 1 = 0 %, Box 6 = 100 %.
+                    <br />
+                    Dein Fortschritt ist der Durchschnitt aller Vokabeln.
+                  </p>
+                  <Button className="min-h-11" onClick={() => lernen(auswahl)}>
+                    {offen.length
+                      ? `${offen.length} Vokabeln lernen`
+                      : "Gelernte wiederholen"}
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </section>
+            </>
+          )}
+          {auswahl === null && (
+            <section
+              aria-label="Fortschritt je Abschnitt"
+              className="space-y-4"
+            >
+              <div>
+                <h2 className="text-xl font-medium tracking-tight">
+                  {sprache === "latein"
+                    ? "Welche Lektion möchtest du lernen?"
+                    : "Welche Seite möchtest du lernen?"}
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {abschnitte.length}{" "}
+                  {sprache === "latein" ? "Lektionen" : "Seiten"} ·{" "}
+                  {fachKarten.length} Vokabeln. Jede Lernrunde bleibt in deiner
+                  Auswahl.
                 </p>
-              )}
-            </div>
-          </section>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {abschnitte.map((abschnitt) => {
+                  const gruppe = fachKarten.filter(
+                    (k) => k.abschnitt === abschnitt,
+                  );
+                  const wert = fortschritt(gruppe);
+                  return (
+                    <article
+                      key={abschnitt}
+                      aria-label={abschnittLabel(sprache, abschnitt)}
+                      className="rounded-xl border bg-card p-5 shadow-card"
+                    >
+                      <div className="flex justify-between gap-3">
+                        <span className="text-sm font-medium">
+                          {abschnittLabel(sprache, abschnitt)}
+                        </span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {wert} %
+                        </span>
+                      </div>
+                      <div className="my-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${wert}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {gruppe.length} Vokabeln ·{" "}
+                        {gruppe.filter((k) => k.box === 6).length} gelernt
+                      </span>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          className="min-h-11 flex-1"
+                          onClick={() => {
+                            setAuswahl(abschnitt);
+                            setSuche("");
+                          }}
+                        >
+                          Durchgucken
+                        </Button>
+                        <Button
+                          className="min-h-11 flex-1"
+                          onClick={() => lernen(abschnitt)}
+                        >
+                          {gruppe.every((k) => k.box === 6)
+                            ? "Wiederholen"
+                            : "Lernen"}
+                          <ChevronRight className="size-4" />
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {auswahl !== null && (
+            <>
+              <section className="rounded-xl border p-5">
+                <h2 className="flex items-center gap-2 text-sm font-medium">
+                  <Layers className="size-4" /> Deine sechs Boxen
+                </h2>
+                <div className="mt-5 grid grid-cols-6 gap-2 sm:gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((box) => {
+                    const anzahl = gefiltert.filter(
+                      (k) => k.box === box,
+                    ).length;
+                    return (
+                      <div
+                        key={box}
+                        className="text-center"
+                        aria-label={`Box ${box}: ${anzahl} Vokabeln`}
+                      >
+                        <div className="flex h-16 items-end rounded-md bg-muted">
+                          <div
+                            className="w-full rounded-md bg-primary/70"
+                            style={{
+                              height: anzahl
+                                ? `${Math.max(6, (anzahl / gefiltert.length) * 100)}%`
+                                : 0,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-2 text-sm font-medium tabular-nums">
+                          {anzahl}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Box {box}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="font-medium">
+                    Durchgucken{" "}
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      {gefiltert.length}
+                    </span>
+                  </h2>
+                  <label className="flex min-h-11 items-center gap-2 rounded-lg border border-input px-3 focus-within:ring-2 focus-within:ring-ring">
+                    <Search className="size-4 text-muted-foreground" />
+                    <input
+                      aria-label="Vokabel suchen"
+                      value={suche}
+                      onChange={(event) => setSuche(event.target.value)}
+                      placeholder="Vokabel suchen"
+                      className="w-44 bg-transparent py-2 text-base outline-none sm:text-sm"
+                    />
+                  </label>
+                </div>
+                <div className="overflow-hidden rounded-xl border">
+                  <div className="grid grid-cols-[1fr_1fr_3rem] gap-3 bg-muted/60 px-4 py-3 text-xs text-muted-foreground">
+                    <span>{sprache === "latein" ? "Latein" : "Englisch"}</span>
+                    <span>Deutsch</span>
+                    <span className="text-right">Box</span>
+                  </div>
+                  {sichtbar.map((karte) => (
+                    <div
+                      key={karte.id}
+                      className="grid grid-cols-[1fr_1fr_3rem] items-start gap-3 border-t px-4 py-4 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="select-text break-words font-medium">
+                          {karte.wort}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {abschnittLabel(sprache, karte.abschnitt)}
+                        </p>
+                      </div>
+                      <p className="select-text break-words leading-relaxed">
+                        {karte.deutsch}
+                      </p>
+                      <span className="justify-self-end rounded-md bg-muted px-2 py-1 text-xs tabular-nums">
+                        {karte.box}
+                        {karte.box === 6 && (
+                          <Check
+                            aria-label="gelernt"
+                            className="ml-1 inline size-3"
+                          />
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                  {sichtbar.length === 0 && (
+                    <p className="p-6 text-center text-sm text-muted-foreground">
+                      Keine Vokabel passt zu deiner Suche.
+                    </p>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
         </>
       )}
     </div>

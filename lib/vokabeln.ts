@@ -77,3 +77,15 @@ export function leseVokabelJson(text: string): VokabelEntwurf[] {
     );
   }
 }
+
+export function lernkartenFuerAbschnitt(
+  karten: Vokabel[],
+  sprache: Sprache,
+  abschnitt: string,
+): Vokabel[] {
+  const gruppe = karten.filter(
+    (karte) => karte.sprache === sprache && karte.abschnitt === abschnitt,
+  );
+  const offen = gruppe.filter((karte) => karte.box < 6);
+  return offen.length ? offen : gruppe;
+}
