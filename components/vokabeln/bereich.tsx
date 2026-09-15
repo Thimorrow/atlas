@@ -313,7 +313,7 @@ export function VokabelBereich() {
                         setAuswahl(abschnitt);
                         setSuche("");
                       }}
-                      className="rounded-xl border bg-card p-5 text-left shadow-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="rounded-xl border bg-card p-5 text-left shadow-card transition-colors duration-150 hover:border-foreground/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <div className="flex justify-between gap-3">
                         <span className="text-sm font-medium">
