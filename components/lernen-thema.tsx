@@ -60,7 +60,7 @@ export function LernenThema({ subjectId, topicId }: { subjectId: string; topicId
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -484,14 +484,14 @@ function TutorBlock({
                   <button
                     type="button"
                     onClick={() => void deleteSession(s.id)}
-                    className="relative min-h-11 rounded-md px-2 text-[12px] font-medium text-destructive before:absolute before:-inset-1 before:content-[''] hover:bg-accent"
+                    className="relative min-h-11 rounded-md px-2 text-[12px] font-medium text-destructive before:absolute before:-inset-1 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed"
                   >
                     Wirklich löschen?
                   </button>
                   <button
                     type="button"
                     onClick={() => setPendingDeleteId(null)}
-                    className="relative min-h-11 rounded-md px-2 text-[12px] text-muted-foreground before:absolute before:-inset-1 before:content-[''] hover:bg-accent"
+                    className="relative min-h-11 rounded-md px-2 text-[12px] text-muted-foreground before:absolute before:-inset-1 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed"
                   >
                     Abbrechen
                   </button>
@@ -501,7 +501,7 @@ function TutorBlock({
                   type="button"
                   onClick={() => setPendingDeleteId(s.id)}
                   aria-label="Session löschen"
-                  className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive"
+                  className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -570,14 +570,14 @@ function LernzettelBlock({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="rounded-md px-2 py-1 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-md px-2 py-1 text-[12.5px] font-medium text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Bearbeiten
             </button>
             <button
               type="button"
               onClick={() => setErzeugenOffen((o) => !o)}
-              className="rounded-md px-2 py-1 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-md px-2 py-1 text-[12.5px] font-medium text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Neu erzeugen
             </button>
@@ -1129,7 +1129,7 @@ function KartenZeile({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex w-full items-start gap-2 px-3 py-2.5 text-left interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-medium">{card.question}</p>
@@ -1159,7 +1159,7 @@ function KartenZeile({
           type="button"
           onClick={() => setEditing(true)}
           aria-label="Karte bearbeiten"
-          className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <Pencil className="size-4" />
         </button>
@@ -1167,7 +1167,7 @@ function KartenZeile({
           type="button"
           onClick={() => setPendingDelete(true)}
           aria-label="Karte löschen"
-          className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <Trash2 className="size-4" />
         </button>
@@ -1223,7 +1223,7 @@ function KartenZeile({
                   size="sm"
                   onClick={() => void confirmDelete()}
                   disabled={deleting}
-                  className="bg-destructive text-background hover:bg-destructive/90"
+                  variant="destructive"
                 >
                   {deleting ? "Löscht …" : "Löschen"}
                 </Button>

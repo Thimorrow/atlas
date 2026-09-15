@@ -243,7 +243,7 @@ export function AppSidebar({
               onClick={toggle}
               title="Einklappen"
               aria-label="Sidebar einklappen"
-              className="relative ml-auto flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-accent hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="relative ml-auto flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <PanelLeftClose className="size-[18px]" />
             </button>
@@ -262,7 +262,7 @@ export function AppSidebar({
                 onClick={toggle}
                 title="Ausklappen"
                 aria-label="Sidebar ausklappen"
-                className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-accent hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <PanelLeftOpen className="size-[19px]" />
               </button>
@@ -289,7 +289,7 @@ export function AppSidebar({
                   "[touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   // A2 (Kontrast): /80 faellt auf der Karte auf ~3.2:1 -- volle
                   // muted-foreground erreicht 4.7:1 (14px-Text braucht 4.5:1).
-                  active ? "relative bg-accent font-medium text-foreground before:absolute before:inset-y-2 before:left-1 before:w-[3px] before:rounded-full before:bg-primary" : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+                  active ? "relative bg-accent font-medium text-foreground before:absolute before:inset-y-2 before:left-1 before:w-[3px] before:rounded-full before:bg-primary" : "text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground",
                 )}
               >
                 <span className={iconBox}>
@@ -305,7 +305,7 @@ export function AppSidebar({
           <div className="mx-2 border-t py-2">
             <Link href="/namensschild" title={collapsed ? "Namensschild" : undefined}
               aria-current={pathname === "/namensschild" ? "page" : undefined}
-              className={cn(row, "mx-0 text-muted-foreground hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", pathname === "/namensschild" && "bg-accent text-foreground")}>
+              className={cn(row, "mx-0 text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", pathname === "/namensschild" && "bg-accent text-foreground")}>
               <span className={iconBox}><IdCard aria-hidden className="size-[18px]" /></span>
               <span className={labelCls()}>Namensschild</span>
             </Link>
@@ -322,7 +322,7 @@ export function AppSidebar({
             title={collapsed ? "Atlas fragen (⌘K)" : undefined}
             className={cn(
               row,
-              "mx-0 w-full pr-3 [touch-action:manipulation] text-muted-foreground hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "mx-0 w-full pr-3 [touch-action:manipulation] text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             )}
           >
             <span className={iconBox}>
@@ -351,7 +351,7 @@ export function AppSidebar({
                   // klappt "wo die Sidebar waere" auf statt neben dem Avatar.
                   // A1: relative + after blaeht die Trefferflaeche horizontal auf
                   // (bei collapsed ist w-10=40px sonst knapp unter 44px).
-                  "relative flex items-center rounded-lg py-1 text-left transition-colors [touch-action:manipulation] after:absolute after:-inset-x-1 after:inset-y-0 after:content-[''] hover:bg-accent/50 data-[state=open]:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "relative flex items-center rounded-lg py-1 text-left [touch-action:manipulation] after:absolute after:-inset-x-1 after:inset-y-0 after:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed data-[state=open]:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   collapsed ? "w-10" : "w-full",
                 )}
               >

@@ -7,7 +7,7 @@ export default function LernenPage() {
     <>
       <Link
         href="/lernen/vokabeln"
-        className="mx-auto mb-6 flex max-w-2xl items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:bg-accent"
+        className="mx-auto mb-6 flex max-w-2xl items-center gap-3 rounded-xl border bg-card p-4 interaction hover:bg-interaction-hover press:bg-interaction-pressed"
       >
         <Languages className="size-5" />
         <span className="flex-1">

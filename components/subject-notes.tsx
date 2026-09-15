@@ -241,7 +241,7 @@ function MergedNoteRow({
   onOpenLessonNote: (n: SubjectLessonNoteDTO) => void;
 }) {
   const rowClass =
-    "relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]";
+    "relative flex min-h-[44px] w-full flex-col items-start gap-0.5 rounded-xl border bg-card px-4 py-3 text-left interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background [touch-action:manipulation]";
 
   if (entry.kind === "note") {
     return (
@@ -334,11 +334,10 @@ function ReadNoteBody({
       </div>
       <footer className="flex items-center justify-between gap-2 border-t px-5 py-3">
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           size="sm"
           onClick={onDelete}
           disabled={saving}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="size-4" />
           Löschen

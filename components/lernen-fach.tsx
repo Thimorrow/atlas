@@ -59,7 +59,7 @@ export function LernenFach({ subjectId }: { subjectId: string }) {
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -204,7 +204,7 @@ function LernenFachBody({
                 <li key={t.id}>
                   <Link
                     href={`/lernen/${subjectId}/themen/${t.id}`}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                    className="flex items-center gap-3 px-4 py-3 interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -233,7 +233,7 @@ function LernenFachBody({
               <li>
                 <Link
                   href={`/lernen/${subjectId}/themen/allgemein`}
-                  className="flex items-center gap-3 px-4 py-3 text-muted-foreground transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  className="flex items-center gap-3 px-4 py-3 text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 >
                   <span className="min-w-0 flex-1 truncate text-[14px]">Allgemein ({ohneThema.total} Karten)</span>
                   <ChevronRight aria-hidden className="size-4 shrink-0" />

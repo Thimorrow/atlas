@@ -287,7 +287,7 @@ export function ExamComposer({
                   type="button"
                   onClick={close}
                   aria-label="Schließen"
-                  className="relative -mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]"
+                  className="relative -mr-1 -mt-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]"
                 >
                   <X className="size-4" />
                 </button>
@@ -313,7 +313,7 @@ export function ExamComposer({
                         "relative flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-2 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
                         active
                           ? "border-foreground/25 bg-background text-foreground"
-                          : "border-transparent text-muted-foreground hover:bg-background/60 hover:text-foreground",
+                          : "border-transparent text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground",
                       )}
                     >
                       <Icon className="size-3.5" strokeWidth={2.25} />
@@ -358,7 +358,7 @@ export function ExamComposer({
                           "relative rounded-full border px-2 py-1.5 text-[12px] font-medium transition-colors [touch-action:manipulation] before:absolute before:inset-x-0 before:-inset-y-3 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card active:scale-[0.96]",
                           dueDate === s.date
                             ? "border-foreground/25 bg-accent text-foreground"
-                            : "border-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+                            : "border-transparent text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground",
                         )}
                       >
                         {s.label}

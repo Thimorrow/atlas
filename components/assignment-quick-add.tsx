@@ -146,7 +146,7 @@ export function AssignmentQuickAdd({
         onKeyDown={onKeyDownContainer}
         className={cn(
           "rounded-lg border border-dashed transition-colors",
-          expanded ? "border-border bg-card" : "border-transparent hover:border-border hover:bg-accent/40",
+          expanded ? "border-border bg-card" : "border-transparent hover:border-border interaction hover:bg-interaction-hover press:bg-interaction-pressed",
         )}
       >
         <div className="flex items-center gap-2.5 px-2.5 py-2.5">
@@ -224,7 +224,7 @@ export function AssignmentQuickAdd({
                         "relative rounded-full border px-2.5 py-1.5 text-[13px] transition-colors before:absolute before:-inset-y-2.5 before:content-[''] [touch-action:manipulation]",
                         active
                           ? "border-primary bg-primary/10 font-medium text-primary"
-                          : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+                          : "border-border text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground",
                       )}
                     >
                       {c.label}

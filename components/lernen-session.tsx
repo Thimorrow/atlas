@@ -268,7 +268,7 @@ export function LernenSession({
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -319,7 +319,7 @@ export function LernenSession({
               aria-disabled={leerAbhaken === "laeuft" || leerAbhaken === "fertig"}
               aria-busy={leerAbhaken === "laeuft"}
               className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent",
+                "inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed",
                 (leerAbhaken === "laeuft" || leerAbhaken === "fertig") && "opacity-60",
               )}
             >

@@ -698,7 +698,7 @@ function ChecklistModeRadiogroup({
               // einzige Begrenzung des Bedienelements (keine Fuellung) --
               // border-border-control statt border-border, siehe Rechnung
               // dazu in app/globals.css.
-              checked ? "border-primary bg-primary text-primary-foreground" : "border-border-control hover:bg-accent",
+              checked ? "border-primary bg-primary text-primary-foreground" : "border-border-control interaction hover:bg-interaction-hover press:bg-interaction-pressed",
             )}
           >
             {m.label}
@@ -893,7 +893,7 @@ function SchrittMaterial({
               htmlFor={checklistInputId}
               aria-busy={checklistUploading}
               className={cn(
-                "flex min-h-[64px] w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-4 text-center transition-colors ease-[var(--ease-atlas)] [touch-action:manipulation] hover:bg-accent/40 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
+                "flex min-h-[64px] w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed px-4 py-4 text-center [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
                 checklistUploading && "opacity-60",
               )}
             >
@@ -927,7 +927,7 @@ function SchrittMaterial({
             {dateien.length === 0 && <li className="px-2 py-1.5 text-[13px] text-muted-foreground">Noch keine Fach-Dateien.</li>}
             {dateien.map((f) => (
               <li key={f.id}>
-                <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-accent">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed">
                   <input
                     type="radio"
                     name="checklist-fach"
@@ -1576,7 +1576,7 @@ function SchrittPunkte({
                 }}
                 aria-label={`${p.titel || "Punkt"} löschen`}
                 onClick={() => loeschePunkt(p.key)}
-                className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors ease-[var(--ease-atlas)] [touch-action:manipulation] before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="size-4" />
               </button>
@@ -1801,7 +1801,7 @@ function BlattHinzufuegen({
         onClick={() => setOffen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={offen}
-        className="relative inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11.5px] text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="relative inline-flex min-h-7 items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[11.5px] text-muted-foreground [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <Plus className="size-3" />
         Blatt
@@ -1852,7 +1852,7 @@ function BlattHinzufuegen({
                   onAdd(d.id);
                   schliessenUndFokusZurueck();
                 }}
-                className="flex min-h-11 w-full items-center truncate rounded-md px-2 py-1.5 text-left text-[12.5px] [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-11 w-full items-center truncate rounded-md px-2 py-1.5 text-left text-[12.5px] [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {d.name}
               </button>
@@ -1882,7 +1882,7 @@ function BlattHinzufuegen({
                 uploadInputRef.current?.click();
               }}
               className={cn(
-                "flex min-h-11 w-full cursor-pointer items-center gap-1.5 truncate rounded-md px-2 py-1.5 text-left text-[12.5px] text-muted-foreground [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "flex min-h-11 w-full cursor-pointer items-center gap-1.5 truncate rounded-md px-2 py-1.5 text-left text-[12.5px] text-muted-foreground [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 hochladenAktiv && "opacity-60",
               )}
             >
@@ -2371,7 +2371,7 @@ function SchrittTest({
           // beim Gate-Fehler oben (gate === "fehlt").
           <Link
             href={`/lernen/${subjectId}`}
-            className="relative flex h-11 w-full items-center justify-center rounded-md border border-border-control text-[13.5px] font-medium [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative flex h-11 w-full items-center justify-center rounded-md border border-border-control text-[13.5px] font-medium [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Zurück zum Fach
           </Link>

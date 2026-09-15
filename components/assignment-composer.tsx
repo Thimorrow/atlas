@@ -231,7 +231,7 @@ export function AssignmentComposer({
                 type="button"
                 onClick={close}
                 aria-label="Schließen"
-                className="relative -mr-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                className="relative -mr-1 grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
               >
                 <X className="size-4" />
               </button>

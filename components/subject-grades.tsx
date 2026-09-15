@@ -209,7 +209,7 @@ export function SubjectGrades({
                 aria-label={`Note „${g.label}“ löschen`}
                 // Die Trefferflaeche reicht ueber das Symbol hinaus (before),
                 // sonst sind es auf dem Handy 16 statt 44 Pixel.
-                className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+                className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
               >
                 {busyId === g.id ? (
                   <Loader2 className="size-4 animate-spin" />

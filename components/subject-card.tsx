@@ -48,7 +48,7 @@ export function SubjectCard({
         // bei kurzem Namen weit ueber 44px.
         "group relative flex min-h-[104px] flex-col justify-between overflow-hidden rounded-xl border bg-card p-4 pl-5 text-left shadow-card",
         "transition-[background-color,border-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation]",
-        "hover:bg-accent/40 active:scale-[0.985]",
+        "interaction hover:bg-interaction-hover press:bg-interaction-pressed active:scale-[0.985]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         archived && "opacity-70",
       )}

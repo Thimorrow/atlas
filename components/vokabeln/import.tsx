@@ -169,7 +169,7 @@ export function VokabelImport({
           event.preventDefault();
           void lesen(Array.from(event.dataTransfer.files));
         }}
-        className="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-border-control bg-muted/20 px-6 py-9 transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait"
+        className="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-border-control bg-muted/20 px-6 py-9 interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait"
       >
         {busy ? (
           <Loader2 className="size-7 animate-spin motion-reduce:animate-none" />

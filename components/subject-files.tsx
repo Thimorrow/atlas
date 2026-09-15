@@ -309,7 +309,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
             <label
               htmlFor={`${uid}-input`}
               className={cn(
-                "flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-4 py-6 text-center transition-colors [touch-action:manipulation] hover:bg-accent/40 peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
+                "flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-4 py-6 text-center [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
                 uploading && "opacity-60",
               )}
             >
@@ -350,7 +350,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
                         type="button"
                         onClick={() => retryOne(item.key)}
                         aria-label={`${item.name} erneut hochladen`}
-                        className="relative grid size-8 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="relative grid size-8 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         <RotateCw className="size-3.5" />
                       </button>
@@ -358,7 +358,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
                         type="button"
                         onClick={() => discardOne(item.key)}
                         aria-label={`${item.name} verwerfen`}
-                        className="relative grid size-8 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="relative grid size-8 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         <X className="size-3.5" />
                       </button>
@@ -402,7 +402,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
                       download={f.name}
                       rel="noopener"
                       aria-label={`${f.name} herunterladen`}
-                      className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       <Download className="size-4" />
                     </a>
@@ -410,7 +410,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
                       type="button"
                       onClick={() => setPending(f)}
                       aria-label={`${f.name} löschen`}
-                      className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                      className="relative grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -493,8 +493,7 @@ function SubjectFileList({ subjectId }: { subjectId: string }): React.JSX.Elemen
                   size="sm"
                   onClick={confirmDelete}
                   disabled={deleting}
-                  // Es gibt kein --destructive-foreground-Token: text-background traegt.
-                  className="bg-destructive text-background hover:bg-destructive/90"
+                  variant="destructive"
                 >
                   {deleting ? "Löscht …" : "Löschen"}
                 </Button>

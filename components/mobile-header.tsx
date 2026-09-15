@@ -40,7 +40,7 @@ export function MobileHeader() {
           const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
           return (
             <Link key={m.href} href={m.href} aria-label={m.ariaLabel ?? m.label} aria-current={active ? "page" : undefined}
-              className={cn(tap, active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
+              className={cn(tap, active ? "bg-accent text-foreground" : "text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground")}>
               <m.icon aria-hidden className="size-[18px]" />
               <span>{m.label}</span>
             </Link>
@@ -48,7 +48,7 @@ export function MobileHeader() {
         })}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" className={cn(tap, secondaryActive ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}>
+            <button type="button" className={cn(tap, secondaryActive ? "bg-accent text-foreground" : "text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground")}>
               <MoreHorizontal aria-hidden className="size-[18px]" />
               <span>Mehr</span>
             </button>

@@ -123,7 +123,7 @@ export function StundenCockpit({ block }: { block: string | null }) {
             // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
             // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
             // (Outline-Button), siehe app/globals.css --border-control.
-            className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
+            className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -149,7 +149,7 @@ export function StundenCockpit({ block }: { block: string | null }) {
         failed ? (
           <div className="rounded-xl border bg-card p-5" role="alert">
             <p className="text-sm text-muted-foreground">Diese Stunde konnte nicht geladen werden.</p>
-            <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-md px-3 text-sm font-medium hover:bg-accent">Erneut versuchen</button>
+            <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-md px-3 text-sm font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed">Erneut versuchen</button>
           </div>
         ) : <CockpitSkeleton showDays={false} />
       ) : data.modus === "frei" ? (
@@ -197,7 +197,7 @@ function Tagesleiste({
             aria-pressed={active}
             className={cn(
               "flex min-h-11 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 text-[12.5px] font-medium transition-colors [touch-action:manipulation] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-              active ? "bg-accent border-border" : "border-transparent hover:bg-accent/50",
+              active ? "bg-accent border-border" : "border-transparent interaction hover:bg-interaction-hover press:bg-interaction-pressed",
               cancelled && "text-muted-foreground line-through decoration-foreground/30",
             )}
           >
@@ -424,7 +424,7 @@ function CockpitBody({ data, onExpired }: { data: StundeResponse; onExpired: () 
               // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
               // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
               // (Outline-Button), siehe app/globals.css --border-control.
-              className="relative mt-2 inline-flex rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
+              className="relative mt-2 inline-flex rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             >
               Fächer abgleichen
             </Link>

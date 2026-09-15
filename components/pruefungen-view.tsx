@@ -114,7 +114,7 @@ function NextExamCard({ exam, today }: { exam: AssignmentDTO; today: string }) {
       {exam.subjectId ? (
         <Link
           href={`/faecher/${exam.subjectId}`}
-          className="group -m-1 block rounded-lg p-1 transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="group -m-1 block rounded-lg p-1 interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           {kopf}
         </Link>
@@ -140,7 +140,7 @@ function NextExamLernplan({ exam }: { exam: AssignmentDTO }) {
       <div className="mt-3 border-t pt-3 pl-2">
         <Link
           href={`/lernen/${subjectId}/plan/${exam.id}/neu`}
-          className="relative inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="relative inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ListChecks className="size-3.5" strokeWidth={2.25} />
           Lernplan erstellen
@@ -255,7 +255,7 @@ function ExamRow({
   );
 
   const className =
-    "group flex items-center gap-3 rounded-lg px-2.5 py-2.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "group flex items-center gap-3 rounded-lg px-2.5 py-2.5 [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <li>
@@ -264,7 +264,7 @@ function ExamRow({
           {inner}
         </Link>
       ) : (
-        <div className={cn(className, "hover:bg-transparent")}>{inner}</div>
+        <div className={cn(className, "hover:bg-transparent press:bg-transparent")}>{inner}</div>
       )}
       <ExamRowLernplanLink exam={exam} />
     </li>
@@ -371,7 +371,7 @@ function PastRow({ exam, today }: { exam: AssignmentDTO; today: string }) {
     </>
   );
   const className =
-    "group flex items-center gap-3 rounded-lg px-2.5 py-2 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "group flex items-center gap-3 rounded-lg px-2.5 py-2 [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
   return (
     <li>
       {exam.subjectId ? (
@@ -379,7 +379,7 @@ function PastRow({ exam, today }: { exam: AssignmentDTO; today: string }) {
           {inner}
         </Link>
       ) : (
-        <div className={cn(className, "hover:bg-transparent")}>{inner}</div>
+        <div className={cn(className, "hover:bg-transparent press:bg-transparent")}>{inner}</div>
       )}
     </li>
   );

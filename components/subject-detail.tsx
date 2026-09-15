@@ -809,9 +809,7 @@ export function SubjectDetail({ id }: { id: string }) {
           <Button
             disabled={busy}
             onClick={() => void remove()}
-            // Es gibt kein --destructive-foreground-Token: text-background traegt
-            // in beiden Themes (helles Rot/dunkle Schrift bzw. umgekehrt).
-            className="bg-destructive text-background hover:bg-destructive/90"
+            variant="destructive"
           >
             {busy && <Loader2 className="size-4 animate-spin" />}
             Endgültig löschen
@@ -1042,10 +1040,9 @@ function SubjectCurriculum({
           </Button>
         )}
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           disabled={busy}
           onClick={() => void speichern("")}
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
         >
           <Trash2 className="size-4" />
           Löschen

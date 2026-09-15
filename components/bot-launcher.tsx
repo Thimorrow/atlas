@@ -163,7 +163,7 @@ function PanelHeader({ onClose }: { onClose: () => void }) {
   // z.B. subject-files.tsx): so bleibt die Kopfzeile kompakt und erfuellt
   // trotzdem das 40px-Minimum, ohne Layout-Bruch durch fix h-10 w-10.
   const action =
-    "relative grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card";
+    "relative grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground before:absolute before:-inset-1.5 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card";
 
   return (
     <header className="flex items-center gap-2.5 border-b bg-gradient-to-b from-muted/50 to-muted/20 px-3.5 py-3">

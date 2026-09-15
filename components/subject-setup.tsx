@@ -164,7 +164,7 @@ export function ColorPicker({
             onClick={() => onChange(c.token)}
             onKeyDown={(e) => onKeyDown(e, i)}
             // size-11 = 44px Trefferflaeche, der sichtbare Punkt bleibt klein.
-            className="flex size-11 items-center justify-center rounded-full transition-colors [touch-action:manipulation] hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="flex size-11 items-center justify-center rounded-full [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <span
               className={cn(
@@ -427,7 +427,7 @@ export function SubjectSetup({ onDone }: { onDone: (subjects: SubjectDTO[]) => v
               <label
                 className={cn(
                   "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-[15px] transition-colors [touch-action:manipulation]",
-                  "hover:bg-accent/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card",
+                  "interaction hover:bg-interaction-hover press:bg-interaction-pressed has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-card",
                 )}
               >
                 <input
@@ -496,7 +496,7 @@ export function ButtonLink({ href, children }: { href: string; children: React.R
   return (
     <Link
       href={href}
-      className="relative inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-[background-color,scale] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] hover:bg-primary/90 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="relative inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground [touch-action:manipulation] before:absolute before:-inset-1 before:content-[''] interaction hover:bg-primary-hover press:bg-primary-pressed active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {children}
     </Link>

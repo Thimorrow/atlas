@@ -109,7 +109,7 @@ export function MorgenPanel() {
                 // BLOCKIEREND: --border liegt auf --card bei nur 1,27:1 -- WCAG
                 // 1.4.11 verlangt 3:1 fuer die Begrenzung eines Bedienelements
                 // (Outline-Button), siehe app/globals.css --border-control.
-                className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] hover:bg-accent"
+                className="relative mt-3 rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium [touch-action:manipulation] before:absolute before:-inset-2 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed"
                 onClick={() => load()}
               >
                 Erneut versuchen
@@ -236,7 +236,7 @@ function ExamCard({ exam }: { exam: AssignmentDTO }) {
     <div
       className={cn(
         "relative overflow-hidden rounded-2xl border bg-card p-5 shadow-card",
-        exam.subjectId && "transition-colors group-hover:bg-accent/30",
+        exam.subjectId && "group-interaction hover:bg-interaction-hover press:bg-interaction-pressed",
       )}
     >
       <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: tint }} />
@@ -372,7 +372,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
   return (
     <Link
       href="/stunde"
-      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card transition-colors [touch-action:manipulation] hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group flex items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-card [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <span aria-hidden className="size-2.5 shrink-0 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: tint }} />
       <div className="min-w-0 flex-1">
@@ -381,7 +381,7 @@ function LiveCard({ live }: { live: LiveLessonDTO }) {
         </p>
         <p className="mt-0.5 truncate text-[15px] font-medium leading-snug">{live.title}</p>
       </div>
-      <span className="shrink-0 rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium transition-colors group-hover:bg-accent">
+      <span className="shrink-0 rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium group-interaction hover:bg-interaction-hover press:bg-interaction-pressed">
         Zum Cockpit
       </span>
     </Link>
@@ -465,7 +465,7 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
   );
 
   const className =
-    "group flex items-start gap-3 rounded-lg px-2 py-2 transition-colors [touch-action:manipulation] hover:bg-accent/40 active:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "group flex items-start gap-3 rounded-lg px-2 py-2 [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   return (
     <li>
@@ -481,7 +481,7 @@ function LessonRow({ ev, live = false }: { ev: MorgenLessonDTO; live?: boolean }
           {inner}
         </Link>
       ) : (
-        <div className={cn(className, "hover:bg-transparent active:bg-transparent")}>{inner}</div>
+        <div className={cn(className, "hover:bg-transparent press:bg-transparent")}>{inner}</div>
       )}
     </li>
   );
@@ -496,7 +496,7 @@ function MaterialCard({ material }: { material: MaterialDTO }) {
   return (
     <Link
       href={`/faecher/${material.subjectId}`}
-      className="group block rounded-xl border bg-card px-3.5 py-3 shadow-card transition-colors [touch-action:manipulation] hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group block rounded-xl border bg-card px-3.5 py-3 shadow-card [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <div className="flex items-center gap-2">
         <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />

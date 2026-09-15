@@ -350,7 +350,7 @@ function RowMenu({
           // A1 (Touch): before blaeht die 28px-Flaeche unsichtbar auf 44px auf.
           // Auf Touch-Geraeten ist das Menue immer sichtbar (opacity-100), weil
           // es dort kein Hover gibt, das es einblenden koennte.
-          className="relative grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground/60 transition-[opacity,color,background-color] before:absolute before:-inset-2 before:content-[''] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=open]:bg-accent data-[state=open]:text-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 md:data-[state=open]:opacity-100"
+          className="relative grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground/60 before:absolute before:-inset-2 before:content-[''] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=open]:bg-accent data-[state=open]:text-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 md:data-[state=open]:opacity-100"
         >
           <MoreHorizontal className="size-[18px]" />
         </button>
@@ -412,7 +412,7 @@ function Row({
           // opacity gehoert mit in die Transition-Liste -- sonst springt die
           // Zeile beim Abhaken hart auf 55%, statt mit dem Haken zusammen
           // ruhig einzublenden.
-          "group flex items-center gap-3.5 rounded-lg px-2.5 py-3 transition-[color,background-color,opacity] duration-200 ease-[var(--ease-atlas)] hover:bg-accent/40",
+          "group flex items-center gap-3.5 rounded-lg px-2.5 py-3 interaction hover:bg-interaction-hover press:bg-interaction-pressed",
           checked && "opacity-55",
         )}
       >

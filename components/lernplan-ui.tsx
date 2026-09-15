@@ -303,7 +303,7 @@ export function LernenEinheitZeile({
   const titelOverflow = useOverflowTitle<HTMLSpanElement>(titel);
 
   const rowClass =
-    "flex min-h-11 items-center gap-2 rounded-lg px-1 py-1.5 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+    "flex min-h-11 items-center gap-2 rounded-lg px-1 py-1.5 [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
   // S5: der Link ist die ganze Zeile (Klick navigiert), darum kein
   // eigenstaendiger Checkbox-Button wie auf der Planseite -- stattdessen ein

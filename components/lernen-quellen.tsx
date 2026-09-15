@@ -37,7 +37,7 @@ function Chip({
     <label
       className={cn(
         "relative flex min-h-11 cursor-pointer items-center rounded-full border px-3.5 text-[13px] font-medium transition-colors [touch-action:manipulation] peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-background",
-        checked ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent",
+        checked ? "border-primary bg-primary text-primary-foreground" : "border-border interaction hover:bg-interaction-hover press:bg-interaction-pressed",
       )}
     >
       <input
@@ -132,7 +132,7 @@ export function LernenQuellen({
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
             {dateien.map((f) => (
               <li key={f.id}>
-                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-accent">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed">
                   <input
                     type="checkbox"
                     checked={fileIds.includes(f.id)}
@@ -155,7 +155,7 @@ export function LernenQuellen({
           <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
             {notizen.map((n) => (
               <li key={n.id}>
-                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-accent">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed">
                   <input
                     type="checkbox"
                     checked={noteIds.includes(n.id)}

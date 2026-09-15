@@ -553,7 +553,7 @@ export function LernplanSeite({ subjectId, assignmentId }: { subjectId: string; 
           <p className="mt-1 text-[12.5px] text-muted-foreground">Prüfe die Verbindung und versuche es erneut.</p>
           <button
             type="button"
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium transition-colors ease-[var(--ease-atlas)] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-border-control px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => void load()}
           >
             Erneut versuchen
@@ -963,7 +963,7 @@ function KopfMenu({
                 role="menuitem"
                 tabIndex={-1}
                 onClick={schliessenUndFokusZurueck}
-                className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Checkliste öffnen
               </a>
@@ -981,7 +981,7 @@ function KopfMenu({
                   onToggleCheckliste();
                   schliessenUndFokusZurueck();
                 }}
-                className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {checklisteOffen ? "Checkliste verbergen" : "Checkliste anzeigen"}
               </button>
@@ -998,7 +998,7 @@ function KopfMenu({
                 onToggleBudget();
                 schliessenUndFokusZurueck();
               }}
-              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {budgetOffen ? "Zeitbudget verbergen" : "Zeitbudget ändern"}
             </button>
@@ -1010,7 +1010,7 @@ function KopfMenu({
               role="menuitem"
               tabIndex={-1}
               onClick={schliessenUndFokusZurueck}
-              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Plan neu erstellen
             </Link>
@@ -1025,7 +1025,7 @@ function KopfMenu({
                 schliessenUndFokusZurueck();
                 onLoeschenOeffnen();
               }}
-              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-[13px] text-destructive interaction hover:bg-danger-hover press:bg-danger-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Plan löschen
             </button>
@@ -1552,7 +1552,7 @@ function EinheitZeile({
                     target="_blank"
                     rel="noopener"
                     title={b.name}
-                    className="relative inline-flex min-h-[32px] max-w-[14rem] items-center truncate rounded-full border border-border-control px-2.5 py-1 text-[11.5px] before:absolute before:-inset-1.5 before:content-[''] [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="relative inline-flex min-h-[32px] max-w-[14rem] items-center truncate rounded-full border border-border-control px-2.5 py-1 text-[11.5px] before:absolute before:-inset-1.5 before:content-[''] [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {b.name}
                   </a>
@@ -2004,10 +2004,10 @@ function PlanLoeschenDialog({
           </Button>
           <Button
             type="button"
-            // Es gibt kein --destructive-foreground-Token: text-background traegt.
             // Bleibt fokussierbar waehrend laeuft, sonst wirft der Browser den
             // Fokus auf body -- siehe Guard im onClick statt disabled.
-            className={cn("h-11 flex-1 bg-destructive text-background hover:bg-destructive/90", laeuft && "opacity-60")}
+            variant="destructive"
+            className={cn("h-11 flex-1", laeuft && "opacity-60")}
             aria-disabled={laeuft}
             aria-busy={laeuft}
             onClick={() => {

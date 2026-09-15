@@ -16,7 +16,7 @@ import { NotebookConflictError, readNotebookDraft, saveNotebookDraft, subjectNot
 import type { NotebookBlock, NotebookContent, NotebookPage, NotebookPageSummary, NotebookPaper } from "@/lib/notebook-types";
 
 type Subject = { id: string; name: string };
-const toolButton = "flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:text-muted-foreground/40 [touch-action:manipulation]";
+const toolButton = "flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground outline-none interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:text-muted-foreground/40 [touch-action:manipulation]";
 
 export function Notebook() {
   const { data, loading, error, reload } = useCachedJSON<{ subjects: Subject[] }>("/api/subjects", CACHE_TTLS.subjects);
@@ -64,7 +64,7 @@ function SubjectNotebook({ subjectId }: { subjectId: string }) {
     <div className="flex items-center gap-2 border-b px-1 pb-2">
       <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" aria-label="Heftseiten">
         {pages.map((page, index) => <button key={page.id} onClick={() => setSelected(page.id)} aria-pressed={currentId === page.id}
-          className={cn("flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]", currentId === page.id ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent/60")}>
+          className={cn("flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]", currentId === page.id ? "bg-accent font-medium text-foreground" : "text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed")}>
           <span className="flex size-5 items-center justify-center rounded border border-current/20 text-[11px] tabular-nums text-muted-foreground">{index + 1}</span><span className="max-w-36 truncate">{page.title}</span>
         </button>)}
       </div>
@@ -257,12 +257,12 @@ function NotebookEditor({ id, initial, onPageChange }: { id: string; initial?: N
     <div className="sticky top-0 z-30 flex items-center gap-1 overflow-x-auto rounded-xl border bg-card p-1 shadow-sm" role="group" aria-label="Heftwerkzeuge">
       <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Werkzeug wählen">
         {tools.map(({ id: toolId, label, icon: Icon }) => <button key={toolId} type="button" title={label} aria-label={label} aria-pressed={tool === toolId} onClick={() => setTool(toolId)}
-          className={cn("flex size-11 shrink-0 items-center justify-center rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]", tool === toolId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground")}><Icon aria-hidden className="size-5" /></button>)}
+          className={cn("flex size-11 shrink-0 items-center justify-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]", tool === toolId ? "bg-primary text-primary-foreground" : "text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground")}><Icon aria-hidden className="size-5" /></button>)}
       </div>
       <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-border" />
       <div className="flex h-11 w-[88px] shrink-0 items-center" aria-label="Werkzeugeinstellungen">
         {tool === "pen" && <DropdownMenu>
-          <DropdownMenuTrigger asChild><button type="button" aria-label="Stiftfarbe und Stärke" title="Stiftfarbe und Stärke" className="flex h-11 w-full items-center justify-center gap-2 rounded-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]"><span className="flex size-6 items-center justify-center rounded-full border border-border" style={{ background: color }}><span className="rounded-full bg-white" style={{ width: width + 2, height: width + 2 }} /></span><ChevronDown aria-hidden className="size-3.5 text-muted-foreground" /></button></DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild><button type="button" aria-label="Stiftfarbe und Stärke" title="Stiftfarbe und Stärke" className="flex h-11 w-full items-center justify-center gap-2 rounded-lg outline-none interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:ring-2 focus-visible:ring-ring [touch-action:manipulation]"><span className="flex size-6 items-center justify-center rounded-full border border-border" style={{ background: color }}><span className="rounded-full bg-white" style={{ width: width + 2, height: width + 2 }} /></span><ChevronDown aria-hidden className="size-3.5 text-muted-foreground" /></button></DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-52 overflow-y-auto">
             <DropdownMenuLabel className="text-xs text-muted-foreground">Stiftfarbe</DropdownMenuLabel>
             {[["#1e293b", "Schwarz"], ["#2563eb", "Blau"], ["#dc2626", "Rot"], ["#15803d", "Grün"]].map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11" onSelect={() => setColor(value)}><span className="size-4 rounded-full" style={{ background: value }} />{label}{color === value && <Check aria-label="Ausgewählt" className="ml-auto" />}</DropdownMenuItem>)}

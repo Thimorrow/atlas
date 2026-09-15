@@ -91,7 +91,7 @@ function ConversationRow({ conversation }: { conversation: ConversationWithMessa
     <li>
       <Link
         href={`/bot/verlauf/${conversation.id}`}
-        className="group flex items-center gap-3 rounded-lg px-2.5 py-3 transition-colors [touch-action:manipulation] hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group flex items-center gap-3 rounded-lg px-2.5 py-3 [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <span
           aria-hidden
@@ -129,7 +129,7 @@ function EmptyState() {
       </div>
       <Link
         href="/bot"
-        className="mt-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="mt-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         Zum Bot
       </Link>

@@ -154,7 +154,7 @@ export function ParticipationCounter({
           aria-label="Eine Meldung abziehen"
           disabled={loading || count <= 0}
           onClick={() => change(count - 1)}
-          className={cn(BUTTON_BASE, "border bg-background text-foreground hover:bg-muted")}
+          className={cn(BUTTON_BASE, "border bg-background text-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed")}
         >
           <Minus className="size-6" />
         </button>
@@ -178,7 +178,7 @@ export function ParticipationCounter({
           aria-label="Eine Meldung hinzufügen"
           disabled={loading || count >= MAX_COUNT}
           onClick={() => change(count + 1)}
-          className={cn(BUTTON_BASE, "bg-primary text-primary-foreground hover:bg-primary/90")}
+          className={cn(BUTTON_BASE, "bg-primary text-primary-foreground interaction hover:bg-primary-hover press:bg-primary-pressed")}
         >
           <Plus className="size-6" />
         </button>

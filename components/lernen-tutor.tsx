@@ -677,7 +677,7 @@ function QuickButton({ label, onClick, disabled }: { label: string; onClick: () 
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="min-h-11 rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+      className="min-h-11 rounded-full border px-3 text-[13px] font-medium text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground disabled:opacity-50"
     >
       {label}
     </button>
@@ -762,7 +762,7 @@ function ChatBubble({
               onClick={() => (w.mehrfach ? toggleDraft(opt) : onSendWidgetAnswer(w.id, [opt]))}
               className={cn(
                 "min-h-11 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-60",
-                selected ? "border-primary bg-primary/10 text-primary" : "text-foreground hover:bg-accent",
+                selected ? "border-primary bg-primary/10 text-primary" : "text-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed",
                 open && !disabled && "cursor-pointer",
               )}
             >
@@ -775,7 +775,7 @@ function ChatBubble({
             type="button"
             disabled={disabled}
             onClick={() => onAnders(w.id)}
-            className="min-h-11 rounded-full border border-dashed px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent disabled:opacity-60"
+            className="min-h-11 rounded-full border border-dashed px-3 text-[13px] font-medium text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed disabled:opacity-60"
           >
             Anders...
           </button>
@@ -938,7 +938,7 @@ function FazitCard({
             // ein Remount ueber key={session} wuerde die alte Session nur
             // "neu" starten, wenn die URL sich tatsaechlich aendert.
             onClick={() => window.location.assign(`/lernen/${subjectId}/tutor?thema=${topicId}&modus=lernen`)}
-            className="inline-flex min-h-11 items-center rounded-md border px-3 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="inline-flex min-h-11 items-center rounded-md border px-3 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed"
           >
             Nochmal üben
           </button>

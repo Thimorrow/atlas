@@ -23,7 +23,7 @@ import {
 import { Stagger, StaggerItem } from "@/components/stagger";
 import { MicrosoftConnection } from "@/components/microsoft-connection";
 import { namensschildSichtbar, setNamensschildSichtbar } from "@/components/app-sidebar";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -358,7 +358,7 @@ export default function SettingsPage() {
                       "relative isolate flex flex-col items-center gap-2.5 rounded-xl border p-3 text-sm font-medium transition-[color,background-color,scale] [touch-action:manipulation] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       selected
                         ? "border-transparent text-foreground"
-                        : "border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                        : "border-border/60 text-muted-foreground interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground",
                     )}
                   >
                     {selected && (
@@ -389,6 +389,9 @@ export default function SettingsPage() {
                 );
               })}
             </div>
+            <Link href="/design-system" className={cn(buttonVariants({ variant: "outline" }), "mt-4")}>
+              Designsystem öffnen
+            </Link>
           </Section>
         </StaggerItem>
 
@@ -404,7 +407,7 @@ export default function SettingsPage() {
               role="switch"
               aria-checked={namensschildAn}
               onClick={toggleNamensschild}
-              className="relative flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors [touch-action:manipulation] hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="relative flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-background text-muted-foreground">
                 <IdCard className="size-[18px]" />

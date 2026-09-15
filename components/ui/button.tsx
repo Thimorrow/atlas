@@ -3,22 +3,22 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  // F11: `scale` muss in der Transition-Liste stehen -- Tailwind v4 emittiert fuer
-  //      `scale-[0.96]` die eigenstaendige `scale`-Property (nicht `transform`),
-  //      sonst snappt der Press instant.
-  // F12: explizite Atlas-Kurve + Dauer statt der Material-Default-Kurve.
+  // Gemeinsame Farb-, Fokus- und Press-Zustaende: app/globals.css.
   // A1 (Touch): `before` blaeht die Treffflaeche unsichtbar auf 44x44 auf, ohne die
   // sichtbare Groesse zu aendern -- -4px auf jeder Seite reicht bei jeder Size hier
   // (kleinste sichtbare Hoehe ist 36px). `touch-action: manipulation` unterdrueckt
   // Doppeltipp-Zoom auf dem Button selbst.
-  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[color,background-color,border-color,scale,opacity] duration-150 ease-[var(--ease-atlas)] [touch-action:manipulation] active:scale-[0.96] before:absolute before:-inset-1 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium interaction [touch-action:manipulation] press:scale-[0.96] before:absolute before:-inset-1 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        outline: "border border-border-control bg-background hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover press:bg-primary-pressed",
+        outline: "border border-border-control bg-background hover:bg-interaction-hover press:bg-interaction-pressed hover:text-accent-foreground",
+        ghost: "hover:bg-interaction-hover press:bg-interaction-pressed hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-interaction-hover press:bg-interaction-pressed",
+        destructive: "bg-destructive-fill text-destructive-foreground hover:bg-destructive-hover press:bg-destructive-pressed",
+        "destructive-ghost": "text-destructive hover:bg-danger-hover press:bg-danger-pressed hover:text-destructive",
+        link: "text-muted-foreground underline-offset-4 hover:text-foreground hover:underline press:text-foreground",
       },
       size: {
         // A1 (Touch): reale Trefferflaeche liegt dank des `before`-Pseudo-Elements

@@ -93,7 +93,7 @@ export default function NamensschildPage() {
                 type="button"
                 onClick={vollbildAus}
                 aria-label="Vollbild schließen"
-                className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] flex size-11 items-center justify-center rounded-md text-muted-foreground transition-colors [touch-action:manipulation] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] flex size-11 items-center justify-center rounded-md text-muted-foreground [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <X className="size-5" />
               </button>

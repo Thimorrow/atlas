@@ -276,7 +276,7 @@ function LoadErrorState({ onRetry }: { onRetry: () => void }) {
       <button
         type="button"
         onClick={onRetry}
-        className="relative inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-[13px] font-medium transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="relative inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-[13px] font-medium [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <RefreshCw className="size-3.5" />
         Erneut versuchen

@@ -695,7 +695,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
                     key={s}
                     type="button"
                     onClick={() => void send(s)}
-                    className="group flex items-center justify-between gap-3 rounded-xl border bg-card px-3.5 py-2.5 text-left text-[13.5px] font-medium leading-snug text-foreground transition-colors hover:border-primary/30 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    className="group flex items-center justify-between gap-3 rounded-xl border bg-card px-3.5 py-2.5 text-left text-[13.5px] font-medium leading-snug text-foreground hover:border-primary/30 interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     {s}
                     <ArrowRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -746,7 +746,7 @@ export function BotChat({ className, autoFocus = false }: { className?: string; 
               onClick={abort}
               aria-label="Antwort abbrechen"
               title="Antwort abbrechen"
-              className="grid size-11 shrink-0 place-items-center rounded-xl border bg-card text-foreground transition-colors [touch-action:manipulation] hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="grid size-11 shrink-0 place-items-center rounded-xl border bg-card text-foreground [touch-action:manipulation] interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <Square className="size-3" fill="currentColor" />
             </button>

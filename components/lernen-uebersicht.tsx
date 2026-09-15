@@ -62,7 +62,7 @@ export function LernenUebersicht() {
           <p className="text-[14px] text-muted-foreground">Das hat nicht geklappt.</p>
           <button
             type="button"
-            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent"
+            className="mt-3 rounded-md border px-3 py-1.5 text-[13px] font-medium interaction hover:bg-interaction-hover press:bg-interaction-pressed"
             onClick={() => load()}
           >
             Erneut versuchen
@@ -244,7 +244,7 @@ function FachZeile({ fach }: { fach: SubjectOverview }) {
     <li>
       <Link
         href={`/lernen/${fach.subjectId}`}
-        className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex items-center gap-3 px-4 py-3 interaction hover:bg-interaction-hover press:bg-interaction-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span
           aria-hidden
