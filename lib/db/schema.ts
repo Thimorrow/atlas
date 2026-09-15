@@ -658,10 +658,18 @@ export type NewStudyPlanItem = typeof studyPlanItems.$inferInsert;
 export type StudyPlanPhase = StudyPlanItem["phase"];
 
 
+export const notebookChapters = pgTable("notebook_chapters", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subjectId: uuid("subject_id").notNull().references(() => subjects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+}, (t) => [index("notebook_chapters_subject_created_idx").on(t.subjectId, t.createdAt)]);
+
 // Eine Heftseite kombiniert Text, Stiftstriche und Fachdateien auf einem Blatt.
 export const notebookPages = pgTable("notebook_pages", {
   id: uuid("id").primaryKey().defaultRandom(),
   subjectId: uuid("subject_id").notNull().references(() => subjects.id, { onDelete: "cascade" }),
+  chapterId: uuid("chapter_id").references(() => notebookChapters.id, { onDelete: "set null" }),
   title: text("title").notNull().default("Neue Seite"),
   paper: text("paper").$type<import("@/lib/notebook-types").NotebookPaper>().notNull().default("lined"),
   content: jsonb("content").$type<import("@/lib/notebook-types").NotebookContent>().notNull().default({ strokes: [], blocks: [] }),

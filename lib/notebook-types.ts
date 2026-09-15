@@ -18,6 +18,7 @@ export type NotebookContent = { strokes: NotebookStroke[]; blocks: NotebookBlock
 export type NotebookPageDTO = {
   id: string;
   subjectId: string;
+  chapterId?: string | null;
   title: string;
   paper: NotebookPaper;
   content: NotebookContent;
@@ -27,3 +28,5 @@ export type NotebookPageDTO = {
 export type NotebookPageSummary = Omit<NotebookPageDTO, "content">;
 
 export type NotebookPage = NotebookPageDTO;
+
+export type NotebookChapter = { id: string; subjectId: string; title: string; createdAt: string };

@@ -57,7 +57,7 @@ export function saveNotebookDraft(draft: NotebookDraft): Promise<NotebookPage> {
     let expectedUpdatedAt = confirmed && (!draft.serverUpdatedAt || confirmed > draft.serverUpdatedAt) ? confirmed : draft.serverUpdatedAt;
     if (draft.needsCreate && !confirmed) {
       const created = await notebookRequest("/api/notebooks", "POST", {
-        id: draft.page.id, subjectId: draft.page.subjectId, title: draft.page.title.trim() || "Unbenannte Seite", paper: draft.page.paper,
+        id: draft.page.id, subjectId: draft.page.subjectId, title: draft.page.title.trim() || "Unbenannte Seite", paper: draft.page.paper, chapterId: draft.page.chapterId,
       });
       if ((created.content.strokes.length || created.content.blocks.length) && JSON.stringify(created.content) !== JSON.stringify(draft.page.content)) {
         throw new NotebookConflictError(created);
@@ -70,7 +70,7 @@ export function saveNotebookDraft(draft: NotebookDraft): Promise<NotebookPage> {
       throw new NotebookConflictError(await notebookRequest(`/api/notebooks/${draft.page.id}`, "GET", undefined));
     }
     const saved = await notebookRequest(`/api/notebooks/${draft.page.id}`, "PATCH", {
-      title: draft.page.title.trim() || "Unbenannte Seite", paper: draft.page.paper, content: draft.page.content, expectedUpdatedAt,
+      title: draft.page.title.trim() || "Unbenannte Seite", paper: draft.page.paper, chapterId: draft.page.chapterId, content: draft.page.content, expectedUpdatedAt,
     });
     confirmedVersions.set(draft.page.id, saved.updatedAt);
     updateLocal(draft.page.id, (latest) => JSON.stringify(latest.page) === JSON.stringify(draft.page)

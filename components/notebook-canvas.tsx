@@ -7,10 +7,9 @@ import { anchoredScroll, drawStroke, pagePoint, pinchScale, strokeNear } from "@
 
 export type NotebookTool = "pen" | "eraser" | "text" | "move";
 
-export function NotebookCanvas({ content, paper, tool, color, width, zoom, onChange, onSelect, selectedBlock, onAddText, onZoomChange }: {
+export function NotebookCanvas({ content, paper, tool, color, width, zoom, onChange, onSelect, selectedBlock, onZoomChange }: {
   content: NotebookContent; paper: NotebookPaper; tool: NotebookTool; color: string; width: number; zoom: number;
-  onChange: (next: NotebookContent) => void; onSelect: (id: string) => void; selectedBlock: string | null;
-  onAddText: (x: number, y: number) => void;
+  onChange: (next: NotebookContent) => void; onSelect: (id: string | null) => void; selectedBlock: string | null;
   onZoomChange?: (zoom: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -201,8 +200,7 @@ export function NotebookCanvas({ content, paper, tool, color, width, zoom, onCha
         style={{ backgroundImage, backgroundSize: paper === "grid" ? "2.5% 1.785714%" : "100% 2.5%" }}
         onClick={(e) => {
           if (tool !== "text" || e.target !== e.currentTarget) return;
-          const p = pagePoint(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
-          onAddText(p.x, p.y);
+          onSelect(null);
         }}>
         {content.blocks.map((block) => <PageBlock key={block.id} block={block} editable={tool === "text" || tool === "move"}
           selected={selectedBlock === block.id} pageScale={pageScale} onSelect={() => onSelect(block.id)} pageRef={pageRef}

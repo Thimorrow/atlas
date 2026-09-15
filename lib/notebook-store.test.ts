@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_NOTEBOOK_BYTES, parseNotebookPatch, readNotebookBody } from "@/lib/notebook-store";
+import { MAX_NOTEBOOK_BYTES, parseNotebookPatch, parseNotebookChapter, readNotebookBody } from "@/lib/notebook-store";
 
 const content = () => ({ strokes: [{ id: "stroke", color: "#121212", width: 3, points: [{ x: 10, y: 20, pressure: 0.5 }] }], blocks: [{ id: "text", type: "text", x: 10, y: 20, width: 400, height: 200, text: "Mein Hefteintrag" }] });
 describe("notebook content validation", () => {
@@ -35,5 +35,21 @@ describe("notebook content validation", () => {
     const req = new Request("http://localhost", { method: "POST", body: "x".repeat(MAX_NOTEBOOK_BYTES + 1) });
     expect(await readNotebookBody(req)).toBeNull();
     expect(await readNotebookBody(new Request("http://localhost", { method: "POST", body: '{"title":"Seite"}' }))).toEqual({ title: "Seite" });
+  });
+});
+
+describe("chapter validation", () => {
+  it.each(["", "  ", "x".repeat(101), 12, null])("rejects invalid chapter title %s", (title) => {
+    expect(parseNotebookChapter({ title }).ok).toBe(false);
+  });
+  it("trims chapter names", () => {
+    expect(parseNotebookChapter({ title: "  Geometrie  " })).toEqual({ ok: true, title: "Geometrie" });
+  });
+  it.each(["unknown", 42, {}, ""])("rejects invalid chapter reference %s", (chapterId) => {
+    expect(parseNotebookPatch({ chapterId }).ok).toBe(false);
+  });
+  it("does not reset a chapter when an older client omits the field", () => {
+    expect(parseNotebookPatch({ title: "Alt" })).toEqual({ ok: true, value: { title: "Alt" } });
+    expect(parseNotebookPatch({ chapterId: null })).toEqual({ ok: true, value: { chapterId: null } });
   });
 });

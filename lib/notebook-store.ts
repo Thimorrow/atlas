@@ -1,11 +1,11 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { notebookPages, subjectFiles } from "@/lib/db/schema";
+import { notebookChapters, notebookPages, subjectFiles } from "@/lib/db/schema";
 import { isObj, isUuid } from "@/lib/subject-store";
 import { NOTEBOOK_HEIGHT, NOTEBOOK_WIDTH, type NotebookContent, type NotebookPageDTO, type NotebookPaper } from "@/lib/notebook-types";
 
 export const MAX_NOTEBOOK_BYTES = 2_000_000;
-type Patch = { title?: string; paper?: NotebookPaper; content?: NotebookContent };
+type Patch = { chapterId?: string | null; title?: string; paper?: NotebookPaper; content?: NotebookContent };
 type Parsed = { ok: true; value: Patch } | { ok: false; error: string };
 const finite = (value: unknown, min: number, max: number): value is number => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
@@ -15,6 +15,10 @@ export function parseNotebookPatch(input: unknown): Parsed {
   if (input.title !== undefined) {
     if (typeof input.title !== "string" || !input.title.trim() || input.title.length > 200) return { ok: false, error: "Der Seitentitel muss 1 bis 200 Zeichen enthalten." };
     value.title = input.title.trim();
+  }
+  if (input.chapterId !== undefined) {
+    if (input.chapterId !== null && (typeof input.chapterId !== "string" || !isUuid(input.chapterId))) return { ok: false, error: "Ungültiges Kapitel." };
+    value.chapterId = input.chapterId;
   }
   if (input.paper !== undefined) {
     if (!["blank", "lined", "grid"].includes(String(input.paper))) return { ok: false, error: "Ungültiges Papier." };
@@ -52,14 +56,14 @@ function dto(row: typeof notebookPages.$inferSelect): NotebookPageDTO {
 }
 export async function listNotebookPages(subjectId: string) {
   // Große Stiftinhalte werden erst beim Öffnen einer Seite übertragen.
-  const rows = await db.select({ id: notebookPages.id, subjectId: notebookPages.subjectId, title: notebookPages.title, paper: notebookPages.paper, createdAt: notebookPages.createdAt, updatedAt: notebookPages.updatedAt }).from(notebookPages).where(eq(notebookPages.subjectId, subjectId)).orderBy(asc(notebookPages.createdAt), asc(notebookPages.id));
+  const rows = await db.select({ id: notebookPages.id, subjectId: notebookPages.subjectId, chapterId: notebookPages.chapterId, title: notebookPages.title, paper: notebookPages.paper, createdAt: notebookPages.createdAt, updatedAt: notebookPages.updatedAt }).from(notebookPages).where(eq(notebookPages.subjectId, subjectId)).orderBy(asc(notebookPages.createdAt), asc(notebookPages.id));
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() }));
 }
 export async function getNotebookPage(id: string) {
   const [row] = await db.select().from(notebookPages).where(eq(notebookPages.id, id)).limit(1);
   return row ? dto(row) : null;
 }
-export async function createNotebookPage(input: { id?: string; subjectId: string; title?: string; paper?: NotebookPaper }) {
+export async function createNotebookPage(input: { id?: string; subjectId: string; chapterId?: string | null; title?: string; paper?: NotebookPaper }) {
   const [row] = await db.insert(notebookPages).values(input).onConflictDoNothing().returning();
   if (row) return dto(row);
   // Wiederholtes Senden derselben clientseitigen UUID legt keine zweite Seite an.
@@ -105,4 +109,25 @@ export async function readNotebookBody(req: Request): Promise<unknown> {
     return JSON.parse(text + decoder.decode());
   } catch { return null; }
   finally { reader.releaseLock(); }
+}
+
+export function parseNotebookChapter(input: unknown): { ok: true; title: string } | { ok: false; error: string } {
+  if (!isObj(input) || typeof input.title !== "string" || !input.title.trim() || input.title.trim().length > 100) return { ok: false, error: "Der Kapitelname muss 1 bis 100 Zeichen enthalten." };
+  return { ok: true, title: input.title.trim() };
+}
+export async function listNotebookChapters(subjectId: string) {
+  const rows = await db.select().from(notebookChapters).where(eq(notebookChapters.subjectId, subjectId)).orderBy(asc(notebookChapters.createdAt), asc(notebookChapters.id));
+  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+}
+export async function notebookChapterBelongsToSubject(subjectId: string, chapterId: string) {
+  const [row] = await db.select({ id: notebookChapters.id }).from(notebookChapters).where(and(eq(notebookChapters.id, chapterId), eq(notebookChapters.subjectId, subjectId))).limit(1);
+  return Boolean(row);
+}
+export async function createNotebookChapter(subjectId: string, title: string) {
+  const [row] = await db.insert(notebookChapters).values({ subjectId, title }).returning();
+  return { ...row, createdAt: row.createdAt.toISOString() };
+}
+export async function renameNotebookChapter(id: string, title: string) {
+  const [row] = await db.update(notebookChapters).set({ title }).where(eq(notebookChapters.id, id)).returning();
+  return row ? { ...row, createdAt: row.createdAt.toISOString() } : null;
 }

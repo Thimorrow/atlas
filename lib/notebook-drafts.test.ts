@@ -74,3 +74,22 @@ describe("Heft: sichere Entwürfe und Autosave", () => {
     expect(readNotebookDraft(page.id)?.dirty).toBe(true);
   });
 });
+
+it("preserves chapter assignments when creating and syncing an offline draft", async () => {
+  page.chapterId = crypto.randomUUID();
+  const fetchMock = vi.fn().mockResolvedValue(response(page));
+  vi.stubGlobal("fetch", fetchMock);
+  const draft = { page, dirty: true, needsCreate: true };
+  writeNotebookDraft(draft);
+  await saveNotebookDraft(draft);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  for (const call of fetchMock.mock.calls) expect(JSON.parse(call[1].body).chapterId).toBe(page.chapterId);
+  expect(readNotebookDraft(page.id)?.page.chapterId).toBe(page.chapterId);
+});
+
+it("omits chapter changes for legacy drafts", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(response(page));
+  vi.stubGlobal("fetch", fetchMock);
+  await saveNotebookDraft({ page, dirty: true, needsCreate: false, serverUpdatedAt: page.updatedAt });
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("chapterId");
+});
