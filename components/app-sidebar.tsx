@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Brain,
+  Languages,
   CalendarDays,
   IdCard,
   ListChecks,
@@ -42,6 +43,7 @@ const MODULES: Mod[] = [
   { label: "Fächer", icon: Library, href: "/faecher" },
   { label: "Hefte", icon: NotebookPen, href: "/hefte" },
   { label: "Lernen", icon: Brain, href: "/lernen" },
+  { label: "Vokabeln", icon: Languages, href: "/lernen/vokabeln" },
 ];
 
 const EXPANDED = 248;
@@ -271,7 +273,11 @@ export function AppSidebar({
         {/* Module */}
         <nav className="flex flex-col gap-0.5 py-2">
           {MODULES.map((m) => {
-            const active = m.href === "/" ? pathname === "/" : pathname.startsWith(m.href);
+            const active = m.href === "/"
+              ? pathname === "/"
+              : m.href === "/lernen"
+                ? pathname.startsWith("/lernen") && !pathname.startsWith("/lernen/vokabeln")
+                : pathname.startsWith(m.href);
             return (
               <Link
                 key={m.label}

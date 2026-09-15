@@ -1,3 +1,4 @@
+import { STATE_COOKIE, VERIFIER_COOKIE } from "@/lib/microsoft-cookies";
 import { NextResponse } from "next/server";
 import {
   NOT_CONFIGURED,
@@ -10,9 +11,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-export const STATE_COOKIE = "ms-oauth-state";
-export const VERIFIER_COOKIE = "ms-oauth-verifier";
 
 // Zehn Minuten reichen fuer eine Anmeldung mit Zwei-Faktor. Bricht der Nutzer
 // ab, raeumt der Browser die Cookies von selbst weg.

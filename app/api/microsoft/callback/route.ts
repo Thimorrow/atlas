@@ -9,7 +9,7 @@ import {
   redirectUri,
   saveAccount,
 } from "@/lib/microsoft";
-import { STATE_COOKIE, VERIFIER_COOKIE } from "../login/route";
+import { STATE_COOKIE, VERIFIER_COOKIE } from "@/lib/microsoft-cookies";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

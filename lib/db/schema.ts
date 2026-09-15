@@ -668,3 +668,14 @@ export const notebookPages = pgTable("notebook_pages", {
   createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
 }, (t) => [index("notebook_pages_subject_created_idx").on(t.subjectId, t.createdAt)]);
+
+// Eigener Vokabelkasten: 1..6, ohne Fälligkeitsintervalle der allgemeinen Lernkarten.
+export const vokabeln = pgTable("vokabeln", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  sprache: text("sprache").notNull(),
+  abschnitt: text("abschnitt").notNull(),
+  wort: text("wort").notNull(),
+  deutsch: text("deutsch").notNull(),
+  box: integer("box").notNull().default(1),
+  revision: integer("revision").notNull().default(0),
+}, (t) => [uniqueIndex("vokabeln_eintrag_uq").on(t.sprache, t.abschnitt, t.wort, t.deutsch)]);
