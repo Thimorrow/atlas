@@ -2,7 +2,7 @@ export const NOTEBOOK_WIDTH = 1000;
 export const NOTEBOOK_HEIGHT = 1400;
 export type NotebookPaper = "blank" | "lined" | "grid";
 export type NotebookPoint = { x: number; y: number; pressure: number };
-export type NotebookStroke = { id: string; points: NotebookPoint[]; color: string; width: number };
+export type NotebookStroke = { id: string; points: NotebookPoint[]; color: string; width: number; kind?: "ink" | "marker" | "shape" };
 export type NotebookBlock = {
   id: string;
   type: "text" | "image" | "pdf";

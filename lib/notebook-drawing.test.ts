@@ -35,3 +35,22 @@ describe("Heft: Pinch-Zoom", () => {
     expect(anchoredScroll({ left: 0, top: 0 }, { left: 0, top: 0, width: 500, height: 700 }, { x: 0, y: 0 }, { x: 100, y: 100 })).toEqual({ left: 0, top: 0 });
   });
 });
+
+// Shapes must remain erasable using the same geometry that is saved.
+import { shapePoints } from "@/lib/notebook-drawing";
+describe("Heft: Formen", () => {
+  const start = { x: 800, y: 900, pressure: 0.4 };
+  const end = { x: 100, y: 200, pressure: 0.2 };
+  it("schließt Rechtecke auch beim Ziehen nach links oben", () => {
+    const points = shapePoints("rectangle", start, end);
+    expect(points[0]).toEqual(points.at(-1));
+    expect(strokeNear({ id: "rect", color: "#000", width: 3, points }, 450, 200)).toBe(true);
+    expect(strokeNear({ id: "rect", color: "#000", width: 3, points }, 450, 550)).toBe(false);
+  });
+  it("hält Ellipsen innerhalb der gezogenen Fläche", () => {
+    const points = shapePoints("ellipse", start, end);
+    expect(points.every(p => p.x >= 100 && p.x <= 800 && p.y >= 200 && p.y <= 900)).toBe(true);
+    expect(points.at(-1)!.x).toBeCloseTo(points[0].x);
+    expect(points.at(-1)!.y).toBeCloseTo(points[0].y);
+  });
+});

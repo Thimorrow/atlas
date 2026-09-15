@@ -53,3 +53,14 @@ describe("chapter validation", () => {
     expect(parseNotebookPatch({ chapterId: null })).toEqual({ ok: true, value: { chapterId: null } });
   });
 });
+
+it.each(["ink", "marker", "shape"])("preserves %s strokes when saving", (kind) => {
+  const c = content();
+  const updated = { ...c, strokes: [{ ...c.strokes[0], kind }] };
+  const result = parseNotebookPatch({ content: updated });
+  expect(result).toEqual({ ok: true, value: { content: updated } });
+});
+it("rejects unknown drawing modes", () => {
+  const c = content();
+  expect(parseNotebookPatch({ content: { ...c, strokes: [{ ...c.strokes[0], kind: "unknown" }] } }).ok).toBe(false);
+});

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, CircleAlert, Minus, MoreHorizontal, ChevronRight, MousePointer2, Search, PanelLeftClose, PanelLeftOpen, Check, ChevronDown, Eraser, Hand, Loader2, Paperclip, PenLine, Plus, Redo2, Settings2, Trash2, Type, Undo2 } from "lucide-react";
+import { BookOpen, Highlighter, LassoSelect, Shapes, CircleAlert, Minus, MoreHorizontal, ChevronRight, MousePointer2, Search, PanelLeftClose, PanelLeftOpen, Check, ChevronDown, Eraser, Hand, Loader2, Paperclip, PenLine, Plus, Redo2, Settings2, Trash2, Type, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { ladeDateiInFachHoch } from "@/lib/datei-upload";
 import { NotebookConflictError, readNotebookDraft, saveNotebookDraft, subjectNotebookDrafts, writeNotebookDraft, type NotebookDraft } from "@/lib/notebook-drafts";
 import type { NotebookBlock, NotebookChapter, NotebookContent, NotebookPage, NotebookPageSummary, NotebookPaper } from "@/lib/notebook-types";
+
+import type { NotebookShape } from "@/lib/notebook-drawing";
 
 type Subject = { id: string; name: string };
 const control = "cursor-pointer rounded-md outline-none interaction hover:bg-interaction-hover press:bg-interaction-pressed press:scale-[0.96] data-[state=open]:bg-interaction-hover disabled:pointer-events-none disabled:text-muted-foreground/40 [touch-action:manipulation]";
@@ -175,6 +177,15 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
   const [tool, setTool] = useState<NotebookTool>("pen");
   const [color, setColor] = useState("#1e293b");
   const [width, setWidth] = useState(3);
+  const [markerColor, setMarkerColor] = useState("#facc15");
+  const [markerWidth, setMarkerWidth] = useState(24);
+  const [eraserRadius, setEraserRadius] = useState(18);
+  const [markerOnly, setMarkerOnly] = useState(false);
+  const [autoShape, setAutoShape] = useState(true);
+  const lastTextEdit = useRef<{ id: string; time: number } | null>(null);
+  const [shape, setShape] = useState<NotebookShape>("line");
+  const activeColor = tool === "marker" ? markerColor : color;
+  const activeWidth = tool === "marker" ? markerWidth : width;
   const [zoom, setZoom] = useState(100);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -185,6 +196,7 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
   const latest = useRef<NotebookDraft | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const insertedTextFocus = useRef<string | null>(null);
   const alive = useRef(true);
   const onPageChangeRef = useRef(onPageChange);
   onPageChangeRef.current = onPageChange;
@@ -245,10 +257,12 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function change(fields: Partial<NotebookPage>, remember = true) {
+  function change(fields: Partial<NotebookPage>, remember = true, textEditId?: string) {
     const current = latest.current;
     if (!current) return;
-    if (fields.content && remember) {
+    const groupedText = textEditId && lastTextEdit.current?.id === textEditId && Date.now() - lastTextEdit.current.time < 1200;
+    lastTextEdit.current = textEditId ? { id: textEditId, time: Date.now() } : null;
+    if (fields.content && remember && !groupedText) {
       history.current.past.push(current.page.content);
       if (history.current.past.length > 50) history.current.past.shift();
       history.current.future = [];
@@ -261,6 +275,7 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
   function undo(redo = false) {
     const current = latest.current;
     if (!current) return;
+    lastTextEdit.current = null;
     const from = redo ? history.current.future : history.current.past;
     const to = redo ? history.current.past : history.current.future;
     const previous = from.pop();
@@ -274,7 +289,9 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
     setSelectedBlock(block.id); setTool("text");
   }
   function addText(x = 100, y = 120) {
-    addBlock({ id: crypto.randomUUID(), type: "text", x: Math.min(x, 650), y: Math.max(70, Math.min(y, 1200)), width: 330, height: 160, text: "" });
+    const id = crypto.randomUUID();
+    addBlock({ id, type: "text", x: Math.min(x, 650), y: Math.max(70, Math.min(y, 1200)), width: 330, height: 160, text: "" });
+    return id;
   }
   async function uploadFile(file: File, pageNumber = 1, ratio?: number) {
     const current = latest.current;
@@ -312,7 +329,7 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
 
   if (!draft) return status === "error" ? <div className="rounded-xl border p-6"><p>{error}</p><Button variant="outline" className="mt-3" onClick={() => setLoadAttempt((n) => n + 1)}>Erneut versuchen</Button></div> : <Skeleton className="h-96 w-full rounded-xl" />;
   const page = draft.page;
-  const tools: { id: NotebookTool; label: string; icon: typeof PenLine }[] = [{ id: "pen", label: "Stift", icon: PenLine }, { id: "eraser", label: "Radierer", icon: Eraser }, { id: "text", label: "Auswählen", icon: MousePointer2 }, { id: "move", label: "Verschieben", icon: Hand }];
+  const tools: { id: NotebookTool; label: string; icon: typeof PenLine }[] = [{ id: "pen", label: "Stift", icon: PenLine }, { id: "marker", label: "Textmarker", icon: Highlighter }, { id: "shape", label: "Formen", icon: Shapes }, { id: "lasso", label: "Lasso", icon: LassoSelect }, { id: "eraser", label: "Radierer", icon: Eraser }, { id: "text", label: "Text & Elemente", icon: MousePointer2 }, { id: "move", label: "Verschieben", icon: Hand }];
   const statusText = status === "saving" ? "Speichert …" : status === "pending" ? "Lokal gesichert" : status === "error" ? draft.dirty ? "Nicht synchronisiert" : "Offline verfügbar" : "Gespeichert";
   return <section className="@container/editor flex min-h-0 flex-1 flex-col" aria-label="Heftseite bearbeiten" onKeyDown={(e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !(e.target instanceof HTMLTextAreaElement) && !(e.target instanceof HTMLInputElement)) {
@@ -340,8 +357,8 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
       void persist(next);
     }}>Meinen Entwurf übernehmen</Button></div></div>}
     {!conflict && (error || storageError) && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/20 px-3 py-2 text-sm" role="alert"><span>{error || "Lokale Sicherung nicht möglich. Lass die Seite bis zum Speichern geöffnet."}{error && !storageError ? " Dein Entwurf bleibt auf diesem Gerät." : ""}</span><Button variant="outline" onClick={() => { if (latest.current?.dirty) void persist(latest.current); else setLoadAttempt((n) => n + 1); }}>{draft.dirty ? "Erneut speichern" : "Erneut laden"}</Button></div>}
-    <div className="z-30 grid shrink-0 grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 border-y bg-background px-3 py-2 sm:px-7 @min-[620px]/editor:grid-cols-[auto_auto_1fr] @min-[620px]/editor:gap-x-4" role="group" aria-label="Heftwerkzeuge">
-      <div className="flex min-w-0 items-center gap-0 @min-[360px]/editor:gap-1" role="group" aria-label="Werkzeug wählen">
+    <div className="z-30 grid shrink-0 grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 border-y bg-background px-3 py-2 sm:px-7 @min-[1000px]/editor:grid-cols-[auto_auto_1fr] @min-[1000px]/editor:gap-x-4" role="group" aria-label="Heftwerkzeuge">
+      <div className="flex min-w-0 items-center overflow-x-auto gap-0 @min-[360px]/editor:gap-1" role="group" aria-label="Werkzeug wählen">
         {tools.map(({ id: toolId, label, icon: Icon }) => <button key={toolId} type="button" title={label} aria-label={label} aria-pressed={tool === toolId} onClick={() => setTool(toolId)}
           className={cn(toolButton, tool === toolId ? "bg-accent text-foreground ring-1 ring-inset ring-border" : "")}><Icon aria-hidden className="size-4" /></button>)}
       </div>
@@ -349,17 +366,39 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
         <button type="button" aria-label="Rückgängig" title="Rückgängig" disabled={!history.current.past.length} onClick={() => undo()} className={toolButton}><Undo2 aria-hidden className="size-4" /></button>
         <button type="button" aria-label="Wiederholen" title="Wiederholen" disabled={!history.current.future.length} onClick={() => undo(true)} className={toolButton}><Redo2 aria-hidden className="size-4" /></button>
       </div>
-      <div className="col-span-2 flex min-w-0 items-center gap-2 @min-[620px]/editor:col-span-1">
-      <div className="flex min-h-11 min-w-0 items-center gap-1" aria-label="Werkzeugeinstellungen">
-        <span className="min-w-0 truncate pl-2 pr-1 text-xs text-muted-foreground">{tool === "text" ? "Element" : tools.find((entry) => entry.id === tool)?.label}</span>
-        {tool === "pen" && <DropdownMenu>
-          <DropdownMenuTrigger asChild><button type="button" aria-label="Stiftfarbe und Stärke" title="Stiftfarbe und Stärke" className={cn(control, "flex h-11 shrink-0 items-center justify-center gap-2 px-3")}><span className="flex size-6 items-center justify-center rounded-full border border-border" style={{ background: color }}><span className="rounded-full bg-white" style={{ width: width + 2, height: width + 2 }} /></span><ChevronDown aria-hidden className="size-3.5 text-muted-foreground" /></button></DropdownMenuTrigger>
+      <div className="col-span-2 flex min-w-0 items-center gap-2 @min-[1000px]/editor:col-span-1">
+      <div className="flex min-h-11 shrink-0 items-center gap-1" aria-label="Werkzeugeinstellungen">
+        <span className="hidden pl-2 pr-1 text-xs text-muted-foreground @min-[460px]/editor:block">{tool === "text" ? "Element" : tools.find((entry) => entry.id === tool)?.label}</span>
+        {(tool === "pen" || tool === "marker" || tool === "shape") && <DropdownMenu>
+          <DropdownMenuTrigger asChild><button type="button" aria-label="Stiftfarbe und Stärke" title="Stiftfarbe und Stärke" className={cn(control, "flex h-11 shrink-0 items-center justify-center gap-2 px-3")}><span className="flex size-6 items-center justify-center rounded-full border border-border" style={{ background: activeColor }}><span className="rounded-full bg-white" style={{ width: Math.min(12, activeWidth + 2), height: Math.min(12, activeWidth + 2) }} /></span><ChevronDown aria-hidden className="size-3.5 text-muted-foreground" /></button></DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-52 overflow-y-auto rounded-lg p-1.5 motion-reduce:animate-none">
             <DropdownMenuLabel className="text-xs text-muted-foreground">Stiftfarbe</DropdownMenuLabel>
-            {[["#1e293b", "Schwarz"], ["#2563eb", "Blau"], ["#dc2626", "Rot"], ["#15803d", "Grün"]].map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => setColor(value)}><span className="size-4 rounded-full" style={{ background: value }} />{label}{color === value && <Check aria-label="Ausgewählt" className="ml-auto" />}</DropdownMenuItem>)}
+            {(tool === "marker" ? [["#facc15", "Gelb"], ["#4ade80", "Mint"], ["#38bdf8", "Hellblau"], ["#f472b6", "Rosa"]] : [["#1e293b", "Schwarz"], ["#2563eb", "Blau"], ["#dc2626", "Rot"], ["#15803d", "Grün"]]).map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => tool === "marker" ? setMarkerColor(value) : setColor(value)}><span className="size-4 rounded-full" style={{ background: value }} />{label}{activeColor === value && <Check aria-label="Ausgewählt" className="ml-auto" />}</DropdownMenuItem>)}
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Stiftstärke</DropdownMenuLabel>
-            {[[2, "Fein"], [3, "Mittel"], [6, "Breit"]].map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => setWidth(Number(value))}><span className="flex w-4 items-center justify-center"><span className="rounded-full bg-current" style={{ width: Number(value) + 2, height: Number(value) + 2 }} /></span>{label}{width === value && <Check aria-label="Ausgewählt" className="ml-auto" />}</DropdownMenuItem>)}
+            {(tool === "marker" ? [[14, "Schmal"], [24, "Mittel"], [36, "Breit"]] : [[2, "Fein"], [3, "Mittel"], [6, "Breit"]]).map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => tool === "marker" ? setMarkerWidth(Number(value)) : setWidth(Number(value))}><span className="flex w-4 items-center justify-center"><span className="rounded-full bg-current" style={{ width: Math.min(14, Number(value) + 2), height: Math.min(14, Number(value) + 2) }} /></span>{label}{activeWidth === value && <Check aria-label="Ausgewählt" className="ml-auto" />}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {(tool === "pen" || tool === "marker") && <DropdownMenu>
+          <DropdownMenuTrigger asChild><button type="button" aria-label="Formerkennung einstellen" title="Formerkennung einstellen" className={cn(toolButton, autoShape && "text-foreground")}><Shapes className="size-4" /></button></DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-w-72">
+            <DropdownMenuItem className="min-h-11" onSelect={() => setAutoShape(!autoShape)}>Formen durch Halten{autoShape && <Check className="ml-auto size-4" />}</DropdownMenuItem>
+            <p className="px-2 py-2 text-xs text-muted-foreground">Zeichnen und kurz stillhalten. Weiterzeichnen hebt die Erkennung auf.</p>
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {tool === "eraser" && <DropdownMenu>
+          <DropdownMenuTrigger asChild><button type="button" aria-label="Radierer einstellen" className={cn(control, "min-h-11 px-2 text-xs")}>{markerOnly ? "Nur Marker" : "Ganze Striche"}<ChevronDown className="ml-1 inline size-3" /></button></DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuLabel>Radiergröße</DropdownMenuLabel>
+            {([[8, "Klein"], [18, "Mittel"], [32, "Groß"]] as const).map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11" onSelect={() => setEraserRadius(value)}>{label}{eraserRadius === value && <Check className="ml-auto size-4" />}</DropdownMenuItem>)}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="min-h-11" onSelect={() => setMarkerOnly(!markerOnly)}>Nur Textmarker radieren{markerOnly && <Check className="ml-auto size-4" />}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>}
+        {tool === "shape" && <DropdownMenu>
+          <DropdownMenuTrigger asChild><button type="button" aria-label="Form wählen" className={cn(control, "min-h-11 px-2 text-xs")}>{shape === "line" ? "Linie" : shape === "rectangle" ? "Rechteck" : "Ellipse"}<ChevronDown className="ml-1 inline size-3" /></button></DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {([["line", "Linie"], ["rectangle", "Rechteck"], ["ellipse", "Ellipse"]] as const).map(([value, label]) => <DropdownMenuItem key={value} className="min-h-11" onSelect={() => setShape(value)}>{label}{shape === value && <Check className="ml-auto size-4" />}</DropdownMenuItem>)}
           </DropdownMenuContent>
         </DropdownMenu>}
         {tool === "text" && <><button type="button" title="Ausgewähltes Element löschen" aria-label="Ausgewähltes Element löschen" disabled={!selectedBlock} onClick={() => { change({ content: { ...page.content, blocks: page.content.blocks.filter((b) => b.id !== selectedBlock) } }); setSelectedBlock(null); }} className={cn(toolButton, "text-destructive")}><Trash2 aria-hidden className="size-4" /></button></>}
@@ -368,8 +407,13 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
       <div className="flex-1" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild><Button variant="ghost" disabled={uploading} className="min-h-11 shrink-0 gap-2 px-3 text-xs before:inset-0 data-[state=open]:bg-interaction-hover">{uploading ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}Einfügen</Button></DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="rounded-lg p-1.5 motion-reduce:animate-none">
-          <DropdownMenuItem className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => addText()}><Type className="size-4" />Textfeld</DropdownMenuItem>
+        <DropdownMenuContent align="end" className="rounded-lg p-1.5 motion-reduce:animate-none" onCloseAutoFocus={(event) => {
+          const id = insertedTextFocus.current;
+          if (!id) return;
+          event.preventDefault(); insertedTextFocus.current = null;
+          requestAnimationFrame(() => document.getElementById(`notebook-text-${id}`)?.focus({ preventScroll: true }));
+        }}>
+          <DropdownMenuItem className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => { insertedTextFocus.current = addText(); }}><Type className="size-4" />Textfeld</DropdownMenuItem>
           <DropdownMenuItem className="min-h-11 rounded-md px-3 py-2.5" onSelect={() => fileInput.current?.click()}><Paperclip className="size-4" />Bild oder PDF</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -390,9 +434,9 @@ function NotebookEditor({ id, initial, chapters, onPageChange }: { id: string; i
     </div>
     {pdfImport && <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3"><span className="min-w-0 flex-1 truncate text-sm">{pdfImport.file.name}</span><Select aria-label="PDF-Seite auswählen" value={pdfImport.pageNumber} onValueChange={(v) => setPdfImport({ ...pdfImport, pageNumber: Number(v) })}>{Array.from({ length: pdfImport.pages }, (_, i) => <option key={i} value={i + 1}>Seite {i + 1}</option>)}</Select><Button disabled={uploading} onClick={() => void uploadFile(pdfImport.file, pdfImport.pageNumber, pdfImport.ratio)}>Seite einfügen</Button><Button variant="ghost" disabled={uploading} onClick={() => setPdfImport(null)}>Abbrechen</Button></div>}
     {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
-    <NotebookCanvas content={page.content} paper={page.paper} tool={tool} color={color} width={width} zoom={zoom} onZoomChange={setZoom} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onChange={(content) => change({ content })} />
+    <NotebookCanvas content={page.content} paper={page.paper} tool={tool} color={activeColor} width={activeWidth} shape={shape} eraserRadius={eraserRadius} markerOnly={markerOnly} autoShape={autoShape} onAddText={addText} zoom={zoom} onZoomChange={setZoom} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onChange={(content, textEditId) => change({ content }, true, textEditId)} />
     <div className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-t px-3 sm:px-7">
-      <span className="min-w-0 truncate text-xs text-muted-foreground">{tool === "pen" ? "Stift · Schreiben" : tool === "eraser" ? "Radierer · Ganze Striche" : tool === "text" ? "Elemente auswählen" : "Blatt verschieben"}</span>
+      <span className="min-w-0 truncate text-xs text-muted-foreground">{tool === "pen" ? (autoShape ? "Stift · Für Formen kurz halten" : "Stift · Schreiben") : tool === "marker" ? "Textmarker · Transparent markieren" : tool === "shape" ? "Formen · Zum Zeichnen ziehen" : tool === "lasso" ? "Lasso · Einkreisen und verschieben" : tool === "eraser" ? (markerOnly ? "Radierer · Nur Textmarker" : "Radierer · Ganze Striche") : tool === "text" ? "Text · Für ein neues Feld aufs Blatt tippen" : "Blatt verschieben"}</span>
       <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Blattgröße">
         <button type="button" className={toolButton} aria-label="Blatt verkleinern" title="Verkleinern" disabled={zoom <= 50} onClick={() => setZoom((value) => Math.max(50, value - 25))}><Minus className="size-4" /></button>
         <button type="button" className={cn(control, "min-h-11 min-w-14 px-2 font-mono text-xs tabular-nums")} aria-label="Blatt auf Breite einpassen" title="Auf Breite einpassen" onClick={() => setZoom(100)}>{Math.round(zoom)} %</button>
