@@ -1,11 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { VokabelLernkarte } from "./lernkarte";
 import { Button } from "@/components/ui/button";
-import { fortschritt, type Sprache, type Vokabel } from "@/lib/vokabeln";
+import {
+  fortschritt,
+  naechsteBox,
+  type Sprache,
+  type Vokabel,
+} from "@/lib/vokabeln";
 
 export function VokabelSession({
   karten,
@@ -24,7 +29,8 @@ export function VokabelSession({
   const [runde, setRunde] = useState(karten);
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [pending, setPending] = useState(0);
+  const [fehler, setFehler] = useState<Vokabel[]>([]);
   const [richtigAnzahl, setRichtigAnzahl] = useState(0);
   const [animateIn, setAnimateIn] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -32,50 +38,110 @@ export function VokabelSession({
   const karte = runde[index];
   const fertig = index >= runde.length;
 
-  async function bewerten(
-    richtig: boolean,
-    animation: Promise<unknown>,
-    animateNext: boolean,
-  ) {
-    if (!karte || locked.current || error) return false;
-    locked.current = true;
-    setBusy(true);
+  useEffect(() => {
+    if (!pending) return;
+    const warnen = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warnen);
+    return () => window.removeEventListener("beforeunload", warnen);
+  }, [pending]);
+
+  async function speichern(vorher: Vokabel, richtig: boolean) {
     try {
       const response = await fetch("/api/vokabeln/bewerten", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: karte.id,
-          revision: karte.revision,
+          id: vorher.id,
+          revision: vorher.revision,
           richtig,
         }),
+        keepalive: true,
+        signal: AbortSignal.timeout(30_000),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       const updated = data.vokabel as Vokabel;
-      await animation;
       onUpdate(updated);
       setRunde((alt) => alt.map((k) => (k.id === updated.id ? updated : k)));
-      setFeedback(
-        richtig
-          ? `${karte.wort}: ${updated.box === 6 ? "gelernt · Box 6" : `weiter in Box ${updated.box}`}`
-          : `${karte.wort}: zurück in Box 1`,
-      );
-      if (richtig) setRichtigAnzahl((n) => n + 1);
-      setAnimateIn(animateNext);
-      setIndex((n) => n + 1);
-      return true;
     } catch (err) {
       const message =
-        err instanceof Error && !(err instanceof TypeError)
+        err instanceof Error &&
+        !(err instanceof TypeError) &&
+        err.name !== "TimeoutError"
           ? err.message
           : "Deine Antwort konnte nicht gespeichert werden. Prüfe deine Verbindung.";
-      setError(message);
+      // Nur diese Karte zurücksetzen: spätere Antworten dürfen erhalten bleiben.
+      onUpdate(vorher);
+      setRunde((alt) => alt.map((k) => (k.id === vorher.id ? vorher : k)));
+      if (richtig) setRichtigAnzahl((n) => n - 1);
+      setFehler((alt) => [...alt, vorher]);
       toast(message, "error");
-      return false;
+    } finally {
+      setPending((n) => n - 1);
+    }
+  }
+
+  async function bewerten(
+    richtig: boolean,
+    animation: Promise<unknown>,
+    animateNext: boolean,
+  ) {
+    if (!karte || locked.current) return false;
+    locked.current = true;
+    setBusy(true);
+    const updated = {
+      ...karte,
+      box: naechsteBox(karte.box, richtig),
+      revision: karte.revision + 1,
+    };
+    onUpdate(updated);
+    setRunde((alt) => alt.map((k) => (k.id === karte.id ? updated : k)));
+    if (richtig) setRichtigAnzahl((n) => n + 1);
+    setPending((n) => n + 1);
+    void speichern(karte, richtig);
+    // Der Kartenwechsel wartet ausschließlich auf die kurze Ausfluganimation.
+    await animation;
+    setFeedback(
+      richtig
+        ? `${karte.wort}: ${updated.box === 6 ? "gelernt · Box 6" : `weiter in Box ${updated.box}`}`
+        : `${karte.wort}: zurück in Box 1`,
+    );
+    setAnimateIn(animateNext);
+    setIndex((n) => n + 1);
+    setBusy(false);
+    locked.current = false;
+    return true;
+  }
+
+  async function fehlgeschlageneWiederholen() {
+    if (pending || busy) return;
+    setBusy(true);
+    try {
+      // Bei einer verlorenen Antwort kann der Server bereits gespeichert haben.
+      // Vor einer neuen Bewertung deshalb den tatsächlichen Stand abgleichen.
+      const response = await fetch("/api/vokabeln", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      const ids = new Set(fehler.map((eintrag) => eintrag.id));
+      const neu = (data.vokabeln as Vokabel[]).filter((k) => ids.has(k.id));
+      if (neu.length !== ids.size)
+        throw new Error("Eine Vokabel fehlt. Lade die Lektionsübersicht neu.");
+      neu.forEach(onUpdate);
+      setRunde(neu);
+      setIndex(0);
+      setRichtigAnzahl(0);
+      setFehler([]);
+      setFeedback("");
+      setAnimateIn(false);
+    } catch {
+      toast(
+        "Der Lernstand konnte nicht abgeglichen werden. Deine nicht bestätigten Vokabeln bleiben erhalten.",
+        "error",
+      );
     } finally {
       setBusy(false);
-      locked.current = false;
     }
   }
 
@@ -84,7 +150,7 @@ export function VokabelSession({
       <header className="flex items-center justify-between gap-4">
         <Button
           variant="ghost"
-          disabled={busy}
+          disabled={busy || pending > 0}
           onClick={onBack}
           className="-ml-3 min-h-11"
         >
@@ -129,6 +195,7 @@ export function VokabelSession({
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button
+              disabled={pending > 0 || fehler.length > 0 || busy}
               onClick={() => {
                 const offen = runde.filter((k) => k.box < 6);
                 setRunde(offen.length ? offen : runde);
@@ -139,7 +206,11 @@ export function VokabelSession({
             >
               <RotateCcw className="size-4" /> Noch eine Runde
             </Button>
-            <Button variant="outline" onClick={onBack}>
+            <Button
+              variant="outline"
+              disabled={pending > 0 || busy}
+              onClick={onBack}
+            >
               Zur Übersicht
             </Button>
           </div>
@@ -152,21 +223,46 @@ export function VokabelSession({
             karte={karte}
             sprache={sprache}
             busy={busy}
-            error={!!error}
             onBewerten={bewerten}
           />
-          {error && (
-            <div
-              role="alert"
-              className="rounded-xl border border-destructive/40 p-4"
-            >
-              <p className="text-sm text-destructive">{error}</p>
-              <Button variant="outline" onClick={onBack} className="mt-3">
-                Lernstand neu laden
-              </Button>
-            </div>
-          )}
         </>
+      )}
+      {pending > 0 && (
+        <p role="status" className="text-center text-xs text-muted-foreground">
+          {pending} {pending === 1 ? "Antwort wird" : "Antworten werden"} im
+          Hintergrund gespeichert …
+        </p>
+      )}
+      {fehler.length > 0 && (
+        <section
+          role="alert"
+          className="space-y-3 rounded-xl border border-destructive/40 p-4"
+        >
+          <p className="text-sm font-medium">
+            {fehler.length}{" "}
+            {fehler.length === 1 ? "Antwort wurde" : "Antworten wurden"} nicht
+            bestätigt.
+          </p>
+          <ul className="space-y-1 text-sm text-muted-foreground">
+            {fehler.map((fehlend) => (
+              <li key={fehlend.id}>{fehlend.wort}</li>
+            ))}
+          </ul>
+          {fertig ? (
+            <Button
+              variant="outline"
+              disabled={pending > 0 || busy}
+              onClick={fehlgeschlageneWiederholen}
+            >
+              Nicht gespeicherte Vokabeln wiederholen
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Du kannst diese Vokabeln am Ende der Runde erneut aufrufen. Deine
+              anderen Antworten bleiben erhalten.
+            </p>
+          )}
+        </section>
       )}
     </div>
   );

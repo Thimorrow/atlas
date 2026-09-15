@@ -305,10 +305,15 @@ export function VokabelBereich() {
                   );
                   const wert = fortschritt(gruppe);
                   return (
-                    <article
+                    <button
+                      type="button"
                       key={abschnitt}
-                      aria-label={abschnittLabel(sprache, abschnitt)}
-                      className="rounded-xl border bg-card p-5 shadow-card"
+                      aria-label={`${abschnittLabel(sprache, abschnitt)} öffnen`}
+                      onClick={() => {
+                        setAuswahl(abschnitt);
+                        setSuche("");
+                      }}
+                      className="rounded-xl border bg-card p-5 text-left shadow-card transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <div className="flex justify-between gap-3">
                         <span className="text-sm font-medium">
@@ -328,28 +333,7 @@ export function VokabelBereich() {
                         {gruppe.length} Vokabeln ·{" "}
                         {gruppe.filter((k) => k.box === 6).length} gelernt
                       </span>
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          className="min-h-11 flex-1"
-                          onClick={() => {
-                            setAuswahl(abschnitt);
-                            setSuche("");
-                          }}
-                        >
-                          Durchgucken
-                        </Button>
-                        <Button
-                          className="min-h-11 flex-1"
-                          onClick={() => lernen(abschnitt)}
-                        >
-                          {gruppe.every((k) => k.box === 6)
-                            ? "Wiederholen"
-                            : "Lernen"}
-                          <ChevronRight className="size-4" />
-                        </Button>
-                      </div>
-                    </article>
+                    </button>
                   );
                 })}
               </div>

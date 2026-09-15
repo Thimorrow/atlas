@@ -18,7 +18,6 @@ export function VokabelLernkarte({
   karte,
   sprache,
   busy,
-  error,
   animateIn,
   onBewerten,
 }: {
@@ -26,7 +25,6 @@ export function VokabelLernkarte({
   sprache: Sprache;
   busy: boolean;
   animateIn: boolean;
-  error: boolean;
   onBewerten: (
     richtig: boolean,
     animation: Promise<unknown>,
@@ -44,10 +42,12 @@ export function VokabelLernkarte({
   const links = useTransform(x, [-90, -15, 0], [1, 0, 0]);
   const rechts = useTransform(x, [0, 15, 90], [0, 0, 1]);
   const flipRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { flipRef.current?.focus({ preventScroll: true }); }, []);
+  useEffect(() => {
+    flipRef.current?.focus({ preventScroll: true });
+  }, []);
   const locked = useRef(false);
   const gezogen = useRef(false);
-  const blocked = busy || error || abgabe !== null;
+  const blocked = busy || abgabe !== null;
 
   useEffect(
     () => () => {
@@ -78,8 +78,8 @@ export function VokabelLernkarte({
           }),
           animate(opacity, 0, { duration: 0.18, ease: [0.32, 0.72, 0, 1] }),
         ]);
-    const gespeichert = await onBewerten(richtig, flug, !ohneBewegung);
-    if (!gespeichert) {
+    const angenommen = await onBewerten(richtig, flug, !ohneBewegung);
+    if (!angenommen) {
       await Promise.all([
         animate(x, 0, ohneBewegung ? { duration: 0 } : ZURUECK),
         animate(opacity, 1, { duration: ohneBewegung ? 0 : 0.15 }),
@@ -134,9 +134,7 @@ export function VokabelLernkarte({
           className="absolute inset-2 flex items-center justify-center rounded-2xl border bg-muted/50"
         >
           <span className="text-sm text-muted-foreground">
-            {abgabe !== null
-              ? "Antwort wird gespeichert …"
-              : "Deine nächste Vokabel"}
+            Deine nächste Vokabel
           </span>
         </div>
         <motion.div
@@ -172,7 +170,7 @@ export function VokabelLernkarte({
           className="relative will-change-transform"
         >
           <motion.button
-          ref={flipRef}
+            ref={flipRef}
             type="button"
             disabled={blocked}
             aria-label={
@@ -286,7 +284,7 @@ export function VokabelLernkarte({
       </div>
       <p className="min-h-8 text-center text-xs leading-relaxed text-muted-foreground">
         {busy ? (
-          "Antwort wird gespeichert …"
+          "Nächste Vokabel …"
         ) : gesehen ? (
           <>
             <ArrowLeft className="mr-1 inline size-3" /> Falsch · Wischen oder
