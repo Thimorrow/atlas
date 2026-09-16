@@ -36,6 +36,7 @@ export function parseNotebookPatch(input: unknown): Parsed {
     let totalPoints = 0;
     for (const s of c.strokes) {
       if (!isObj(s) || !validId(s.id) || typeof s.color !== "string" || !/^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(s.color) || !finite(s.width, 0.1, 100) || !Array.isArray(s.points) || !s.points.length) return { ok: false, error: "Ungültiger Stiftstrich." };
+      if (s.kind !== undefined && !["ink", "marker", "shape"].includes(String(s.kind))) return { ok: false, error: "Ungültiges Zeichenwerkzeug." };
       totalPoints += s.points.length;
       if (totalPoints > 50000 || s.points.some((p: unknown) => !isObj(p) || !finite(p.x, 0, NOTEBOOK_WIDTH) || !finite(p.y, 0, NOTEBOOK_HEIGHT) || !finite(p.pressure, 0, 1))) return { ok: false, error: "Zu viele oder ungültige Stiftpunkte." };
     }
