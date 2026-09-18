@@ -21,14 +21,13 @@ async function draft() {
     }
   }, saved.id);
 }
-async function gesture(points, hold = false) {
+async function gesture(points) {
   await expect(page.getByRole("menu")).toBeHidden();
   const rect = await canvas.boundingBox();
   const screen = ([x, y]) => [rect.x + x / 1000 * rect.width, rect.y + y / 1400 * rect.height];
   await page.mouse.move(...screen(points[0]));
   await page.mouse.down();
   for (const point of points.slice(1)) await page.mouse.move(...screen(point));
-  if (hold) await expect(page.getByRole('status').filter({ hasText: /erkannt/ })).toBeVisible();
   await page.mouse.up();
 }
 try {
@@ -57,11 +56,15 @@ try {
   assert.equal((await draft()).content.strokes.length, 2);
   console.log('PASS: fast eraser sweep, marker-only, no-op history, undo');
 
-  await button('Lasso').click();
+  await button('Auswahl').click();
   await gesture([[260, 70], [320, 70], [320, 440], [260, 440], [260, 70]]);
-  await expect(page.getByRole('status').filter({ hasText: '1 Strich' })).toBeVisible();
-  await gesture([[300, 250], [400, 300]]);
-  assert.ok(Math.abs((await draft()).content.strokes[0].points[0].x - 400) < .01);
+  await expect(page.getByRole('status').filter({ hasText: '1 ausgewählt' })).toBeVisible();
+  const moveSelection = await button('Auswahl verschieben').boundingBox();
+  await page.mouse.move(moveSelection.x + 20, moveSelection.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(moveSelection.x + 70, moveSelection.y + 45, { steps: 3 });
+  await page.mouse.up();
+  assert.ok((await draft()).content.strokes[0].points[0].x > 300);
   await button('Rückgängig').click();
   assert.equal((await draft()).content.strokes[0].points[0].x, 300);
   await button('Auswahl duplizieren').click();
@@ -70,28 +73,24 @@ try {
   assert.equal((await draft()).content.strokes.length, 2);
   await button('Rückgängig').click();
   assert.equal((await draft()).content.strokes.length, 3);
-  console.log('PASS: lasso select, move, duplicate, delete, undo');
+  console.log('PASS: unified select, move, duplicate, delete, undo');
 
-  await button('Stift').click();
-  await gesture([[100, 550], [180, 552], [250, 549], [400, 550]], true);
+  await button('Einfügen').click();
+  await page.getByRole('menuitem', { name: 'Linie', exact: true }).click();
+  await gesture([[100, 550], [400, 550]]);
   assert.equal((await draft()).content.strokes.at(-1).kind, 'shape');
   assert.equal((await draft()).content.strokes.at(-1).points.length, 2);
-  await gesture([[550, 500], [800, 500], [800, 700], [550, 700], [550, 500]], true);
+  await button('Einfügen').click();
+  await page.getByRole('menuitem', { name: 'Rechteck', exact: true }).click();
+  await gesture([[550, 500], [800, 700]]);
   assert.equal((await draft()).content.strokes.at(-1).points.length, 5);
-  await button('Formerkennung einstellen').click();
-  await page.getByRole('menuitem', { name: 'Formen durch Halten' }).click();
-  const rect = await canvas.boundingBox();
-  await page.mouse.move(rect.x + .1 * rect.width, rect.y + 600 / 1400 * rect.height);
-  await page.mouse.down();
-  await page.mouse.move(rect.x + .4 * rect.width, rect.y + 600 / 1400 * rect.height);
-  await page.waitForTimeout(850);
-  await page.mouse.up();
-  assert.equal((await draft()).content.strokes.at(-1).kind, 'ink');
-  console.log('PASS: draw and hold, rectangle recognition, disable recognition');
+  console.log('PASS: shapes use their single explicit Insert path');
 
-  await button('Text & Elemente').click();
+  await button('Einfügen').click();
+  await page.getByRole('menuitem', { name: 'Text platzieren', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Tippe auf das Blatt' })).toBeVisible();
   const sheet = await canvas.boundingBox();
-  await page.mouse.click(sheet.x + sheet.width * .1, sheet.y + sheet.height * .58);
+  await page.mouse.click(sheet.x + sheet.width * .22, sheet.y + sheet.height * .58);
   const text = page.getByRole('textbox', { name: 'Text auf dem Heftblatt' });
   await expect(text).toBeFocused();
   const prose = Array.from({ length: 8 }, (_, i) => `Zeile ${i + 1}: Mein Hefteintrag`).join('\n');
@@ -104,7 +103,7 @@ try {
   await button('Wiederholen').click();
   await expect(text).toHaveValue(prose + ' weiter');
   const beforeMove = (await draft()).content.blocks[0];
-  const handle = await button('Element verschieben').boundingBox();
+  const handle = await button('Auswahl verschieben').boundingBox();
   await page.mouse.move(handle.x + 20, handle.y + 20);
   await page.mouse.down();
   await page.mouse.move(handle.x + 55, handle.y - 10, { steps: 3 });
@@ -117,31 +116,41 @@ try {
   await page.mouse.move(resize.x + 55, resize.y + 35, { steps: 3 });
   await page.mouse.up();
   assert.ok((await draft()).content.blocks[0].width > beforeResize.width);
-  await button('Ausgewähltes Element löschen').click();
+  await button('Auswahl löschen').click();
   assert.equal((await draft()).content.blocks.length, 0);
   await button('Rückgängig').click();
   await expect(text).toHaveValue(prose + ' weiter');
   await expect.poll(() => saved.content.blocks[0]?.text).toBe(prose + ' weiter');
   await page.reload();
   await canvas.waitFor();
-  await button('Text & Elemente').click();
   await expect(text).toHaveValue(prose + ' weiter');
-  await text.click();
+  await button('Auswahl').click();
+  const textBox = await text.boundingBox();
+  await page.mouse.click(textBox.x + 30, textBox.y + 30);
+  await expect(text).not.toBeFocused();
+  await button('Text bearbeiten').click();
   await expect(text).toBeFocused();
   await page.screenshot({ path: '/tmp/atlas-hefte-editing.png' });
   await button('Einfügen').click();
-  await page.getByRole('menuitem', { name: 'Textfeld', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Text platzieren', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('status').filter({ hasText: 'Tippe auf das Blatt' })).toBeHidden();
+  await button('Einfügen').click();
+  await page.getByRole('menuitem', { name: 'Text platzieren', exact: true }).click();
+  const secondSheet = await canvas.boundingBox();
+  await page.mouse.click(secondSheet.x + secondSheet.width * .88, secondSheet.y + secondSheet.height * .78);
   await expect(text).toHaveCount(2);
   await expect(text.last()).toBeFocused();
-  await button('Ausgewähltes Element löschen').click();
+  await button('Auswahl löschen').click();
   await expect(text).toHaveCount(1);
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const name of ['Lasso', 'Radierer', 'Text & Elemente']) {
+  for (const name of ['Stift', 'Textmarker', 'Radierer', 'Auswahl']) {
+    await expect(button(name)).toBeVisible();
     await button(name).click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: text placement, focus, growth, grouped undo, move/resize/delete, reload, mobile layout');
+  console.log('PASS: explicit text placement, focus, edit, growth, undo, move/resize/delete, cancel, mobile tools');
 } catch (error) {
   console.log((await page.locator('body').innerText()).slice(-2500));
   await page.screenshot({ path: '/tmp/atlas-hefte-editing-error.png' });
