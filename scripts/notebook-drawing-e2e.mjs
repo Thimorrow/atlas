@@ -20,7 +20,7 @@ try {
   const canvas = page.getByLabel('Zeichenfläche.', { exact: false });
   await canvas.waitFor();
   async function draw(tool, offset) {
-    await page.getByRole('button', { name: tool, exact: true }).click();
+    if (tool) await page.getByRole('button', { name: tool, exact: true }).click();
     const box = await canvas.boundingBox();
     const x = box.x + box.width * .2, y = box.y + offset;
     await page.mouse.move(x, y);
@@ -32,7 +32,9 @@ try {
   }
   await draw('Stift', 60);
   await draw('Textmarker', 130);
-  await draw('Formen', 210);
+  await page.getByRole('button', { name: 'Einfügen', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Linie', exact: true }).click();
+  await draw(null, 210);
   await page.waitForFunction(() => Object.keys(localStorage).some(k => { try { return JSON.parse(localStorage[k]).page?.content?.strokes?.length === 3; } catch { return false; } }));
   await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
   await page.getByRole('button', { name: 'Wiederholen', exact: true }).click();
@@ -41,10 +43,9 @@ try {
   assert.equal(saved.content.strokes[2].points.length, 2);
   await page.reload();
   await canvas.waitFor();
-  await page.getByRole('button', { name: 'Formen', exact: true }).click();
-  await page.getByRole('button', { name: 'Form wählen' }).click();
+  await page.getByRole('button', { name: 'Einfügen', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Rechteck', exact: true }).click();
-  await draw('Formen', 300);
+  await draw(null, 300);
   await page.waitForTimeout(1100);
   assert.equal(saved.content.strokes.at(-1).points.length, 5);
   await page.screenshot({ path: '/tmp/atlas-hefte-drawing.png' });

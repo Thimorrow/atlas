@@ -1,4 +1,4 @@
-import type { NotebookPoint, NotebookStroke } from "@/lib/notebook-types";
+import type { NotebookBlock, NotebookPoint, NotebookStroke } from "@/lib/notebook-types";
 import { shapePoints, type NotebookShape } from "@/lib/notebook-drawing";
 
 type Point = Pick<NotebookPoint, "x" | "y">;
@@ -18,6 +18,14 @@ function segmentsDistance(a: Point, b: Point, c: Point, d: Point) {
   return Math.min(pointSegmentDistance(a, c, d), pointSegmentDistance(b, c, d), pointSegmentDistance(c, a, b), pointSegmentDistance(d, a, b));
 }
 
+function segmentsIntersect(a: Point, b: Point, c: Point, d: Point) {
+  return segmentsDistance(a, b, c, d) <= 0.001;
+}
+
+function segmentHitsPolygon(a: Point, b: Point, polygon: Point[]) {
+  return polygon.some((point, index) => segmentsIntersect(a, b, point, polygon[(index + 1) % polygon.length]));
+}
+
 export function strokeHitsSweep(stroke: NotebookStroke, from: Point, to: Point, radius: number) {
   return stroke.points.some((p, i) => segmentsDistance(from, to, p, stroke.points[i + 1] ?? p) <= radius + stroke.width / 2);
 }
@@ -34,7 +42,22 @@ export function pointInLasso(point: Point, polygon: Point[]) {
 
 export function lassoStrokes(strokes: NotebookStroke[], polygon: Point[]) {
   if (polygon.length < 3) return [];
-  return strokes.filter(s => s.points.every(p => pointInLasso(p, polygon))).map(s => s.id);
+  return strokes.filter((stroke) => stroke.points.some((point) => pointInLasso(point, polygon))
+    || stroke.points.some((point, index) => index > 0 && segmentHitsPolygon(stroke.points[index - 1], point, polygon))).map((stroke) => stroke.id);
+}
+
+export function lassoBlocks(blocks: NotebookBlock[], polygon: Point[]) {
+  if (polygon.length < 3) return [];
+  return blocks.filter((block) => {
+    const points = [
+      { x: block.x, y: block.y },
+      { x: block.x + block.width, y: block.y },
+      { x: block.x + block.width, y: block.y + block.height },
+      { x: block.x, y: block.y + block.height },
+      { x: block.x + block.width / 2, y: block.y + block.height / 2 },
+    ];
+    return points.some((point) => pointInLasso(point, polygon));
+  }).map((block) => block.id);
 }
 
 export function inkBounds(strokes: NotebookStroke[]): InkBounds | null {
@@ -54,6 +77,37 @@ export function moveInk(strokes: NotebookStroke[], ids: string[], dx: number, dy
   dx = Math.max(-bounds.left, Math.min(1000 - bounds.right, dx));
   dy = Math.max(-bounds.top, Math.min(1400 - bounds.bottom, dy));
   return strokes.map(s => selected.has(s.id) ? { ...s, points: s.points.map(p => ({ ...p, x: p.x + dx, y: p.y + dy })) } : s);
+}
+
+export function moveBlocks(blocks: NotebookBlock[], ids: string[], dx: number, dy: number) {
+  const selected = new Set(ids);
+  const chosen = blocks.filter((block) => selected.has(block.id));
+  if (!chosen.length) return blocks;
+  const left = Math.min(...chosen.map((block) => block.x));
+  const top = Math.min(...chosen.map((block) => block.y));
+  const right = Math.max(...chosen.map((block) => block.x + block.width));
+  const bottom = Math.max(...chosen.map((block) => block.y + block.height));
+  const safeX = Math.max(-left, Math.min(1000 - right, dx));
+  const safeY = Math.max(-top, Math.min(1400 - bottom, dy));
+  return blocks.map((block) => selected.has(block.id) ? { ...block, x: block.x + safeX, y: block.y + safeY } : block);
+}
+
+export function moveSelection(content: { strokes: NotebookStroke[]; blocks: NotebookBlock[] }, strokeIds: string[], blockIds: string[], dx: number, dy: number) {
+  const strokes = new Set(strokeIds), blocks = new Set(blockIds);
+  const chosenStrokes = content.strokes.filter((stroke) => strokes.has(stroke.id));
+  const chosenBlocks = content.blocks.filter((block) => blocks.has(block.id));
+  const strokeBounds = inkBounds(chosenStrokes);
+  const left = Math.min(strokeBounds?.left ?? Infinity, ...chosenBlocks.map((block) => block.x));
+  const top = Math.min(strokeBounds?.top ?? Infinity, ...chosenBlocks.map((block) => block.y));
+  const right = Math.max(strokeBounds?.right ?? -Infinity, ...chosenBlocks.map((block) => block.x + block.width));
+  const bottom = Math.max(strokeBounds?.bottom ?? -Infinity, ...chosenBlocks.map((block) => block.y + block.height));
+  if (!Number.isFinite(left)) return content;
+  const safeX = Math.max(-left, Math.min(1000 - right, dx));
+  const safeY = Math.max(-top, Math.min(1400 - bottom, dy));
+  return {
+    strokes: content.strokes.map((stroke) => strokes.has(stroke.id) ? { ...stroke, points: stroke.points.map((point) => ({ ...point, x: point.x + safeX, y: point.y + safeY })) } : stroke),
+    blocks: content.blocks.map((block) => blocks.has(block.id) ? { ...block, x: block.x + safeX, y: block.y + safeY } : block),
+  };
 }
 
 // Resample by travelled distance, so a slow corner has the same weight as a fast edge.

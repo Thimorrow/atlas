@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inkBounds, lassoStrokes, moveInk, recognizeInkShape, strokeHitsSweep } from "@/lib/notebook-geometry";
+import { inkBounds, lassoBlocks, lassoStrokes, moveInk, moveSelection, recognizeInkShape, strokeHitsSweep } from "@/lib/notebook-geometry";
 import { shapePoints } from "@/lib/notebook-drawing";
 const p = (x: number, y: number) => ({ x, y, pressure: 0.7 });
 const stroke = { id: "a", kind: "ink" as const, color: "#000", width: 3, points: [p(100, 100), p(100, 300)] };
@@ -18,9 +18,16 @@ describe("continuous erasing", () => {
 
 describe("lasso selection", () => {
   const polygon = [p(50, 50), p(150, 50), p(150, 350), p(50, 350)];
-  it("selects enclosed strokes but not partly enclosed strokes", () => {
-    expect(lassoStrokes([stroke, { ...stroke, id: "b", points: [p(100, 200), p(300, 200)] }], polygon)).toEqual(["a"]);
+  it("selects enclosed and crossing strokes independent of point density", () => {
+    expect(lassoStrokes([stroke, { ...stroke, id: "b", points: [p(0, 200), p(300, 200)] }, { ...stroke, id: "c", points: [p(300, 20), p(400, 20)] }], polygon)).toEqual(["a", "b"]);
     expect(lassoStrokes([stroke], polygon.slice(0, 2))).toEqual([]);
+  });
+  it("selects blocks in the same lasso as ink", () => {
+    const blocks = [
+      { id: "inside", type: "text" as const, x: 80, y: 100, width: 40, height: 80, text: "Text" },
+      { id: "outside", type: "image" as const, x: 300, y: 100, width: 100, height: 100, fileId: "file" },
+    ];
+    expect(lassoBlocks(blocks, polygon)).toEqual(["inside"]);
   });
   it("moves a selection as a group and clamps to the page without distortion", () => {
     const other = { ...stroke, id: "b", points: [p(200, 400)] };
@@ -29,6 +36,13 @@ describe("lasso selection", () => {
     expect(moved[1]).toBe(other);
     expect(stroke.points[0]).toEqual(p(100, 100));
     expect(inkBounds(moved)).toEqual({ left: 0, top: 400, right: 200, bottom: 1400 });
+  });
+  it("clamps mixed ink and blocks with one shared offset", () => {
+    const block = { id: "block", type: "text" as const, x: 850, y: 100, width: 130, height: 100, text: "Text" };
+    const moved = moveSelection({ strokes: [stroke], blocks: [block] }, [stroke.id], [block.id], 200, 0);
+    expect(moved.strokes[0].points[0].x).toBe(120);
+    expect(moved.blocks[0].x).toBe(870);
+    expect(moved.blocks[0].x - moved.strokes[0].points[0].x).toBe(750);
   });
 });
 

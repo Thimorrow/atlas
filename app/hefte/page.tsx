@@ -1,5 +1,5 @@
 import { Notebook } from "@/components/notebook";
 
 export default function NotebooksPage() {
-  return <main className="h-full overflow-hidden"><Notebook /></main>;
+  return <div className="h-full overflow-hidden"><Notebook /></div>;
 }
