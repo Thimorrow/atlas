@@ -146,17 +146,23 @@ export function VokabelSession({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 overflow-x-clip pb-6">
-      <header className="flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-2xl space-y-5 overflow-x-clip pb-6">
+      <header>
         <Button
           variant="ghost"
+          size="sm"
           disabled={busy || pending > 0}
           onClick={onBack}
-          className="-ml-3 min-h-11"
+          className="mb-3 -ml-3"
         >
-          <ArrowLeft className="size-4" /> Übersicht
+          <ArrowLeft /> Zur Übersicht
         </Button>
-        <span className="text-sm text-muted-foreground">{titel}</span>
+        <h1 className="break-words text-xl font-semibold leading-tight tracking-tight">
+          {titel}
+        </h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          {sprache === "latein" ? "Latein" : "Englisch"} → Deutsch · Lernrunde
+        </p>
       </header>
       <div>
         <div className="mb-3 flex justify-between text-xs text-muted-foreground">
@@ -172,29 +178,34 @@ export function VokabelSession({
           />
         </div>
       </div>
-      <p
-        role="status"
-        className="min-h-5 truncate text-center text-xs text-muted-foreground"
-      >
-        {feedback}
-      </p>
+
       {fertig ? (
-        <section className="rounded-2xl border bg-card p-8 text-center shadow-card">
-          <Check className="mx-auto mb-5 size-8" />
-          <h1 className="text-3xl font-medium tracking-tight">
-            Eine Runde weiter.
-          </h1>
-          <p className="mt-4 text-sm text-muted-foreground">
-            {richtigAnzahl} von {runde.length} Antworten richtig.
-          </p>
-          <p className="mt-6 text-5xl font-medium tabular-nums">
-            {fortschritt(runde)} %
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Fortschritt der Vokabeln dieser Runde
-          </p>
+        <section className="rounded-xl border bg-card p-6 text-center shadow-card sm:p-8">
+          <Check className="mx-auto mb-4 size-6 text-muted-foreground" />
+          <h2 className="text-lg font-semibold tracking-tight">
+            Runde abgeschlossen
+          </h2>
+          <div className="mx-auto mt-6 grid max-w-sm grid-cols-2 divide-x rounded-lg border py-4">
+            <div>
+              <p className="text-xl font-semibold tabular-nums">
+                {richtigAnzahl} / {runde.length}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Richtig beantwortet
+              </p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold tabular-nums">
+                {fortschritt(runde)} %
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Fortschritt dieser Karten
+              </p>
+            </div>
+          </div>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button
+              size="sm"
               disabled={pending > 0 || fehler.length > 0 || busy}
               onClick={() => {
                 const offen = runde.filter((k) => k.box < 6);
@@ -207,6 +218,7 @@ export function VokabelSession({
               <RotateCcw className="size-4" /> Noch eine Runde
             </Button>
             <Button
+              size="sm"
               variant="outline"
               disabled={pending > 0 || busy}
               onClick={onBack}
@@ -227,6 +239,12 @@ export function VokabelSession({
           />
         </>
       )}
+      <p
+        role="status"
+        className="min-h-5 text-center text-xs text-muted-foreground"
+      >
+        {feedback}
+      </p>
       {pending > 0 && (
         <p role="status" className="text-center text-xs text-muted-foreground">
           {pending} {pending === 1 ? "Antwort wird" : "Antworten werden"} im
@@ -250,9 +268,11 @@ export function VokabelSession({
           </ul>
           {fertig ? (
             <Button
+              size="sm"
               variant="outline"
               disabled={pending > 0 || busy}
               onClick={fehlgeschlageneWiederholen}
+              className="h-auto min-h-11 whitespace-normal text-left"
             >
               Nicht gespeicherte Vokabeln wiederholen
             </Button>

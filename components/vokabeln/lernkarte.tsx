@@ -113,7 +113,7 @@ export function VokabelLernkarte({
   });
 
   const flaeche =
-    "[grid-area:1/1] flex min-h-80 w-full flex-col rounded-2xl border bg-card p-6 shadow-card sm:min-h-96 sm:p-9";
+    "[grid-area:1/1] flex min-h-72 w-full flex-col rounded-xl border bg-card p-5 shadow-card sm:min-h-80 sm:p-6";
   const rueckseite = {
     backfaceVisibility: "hidden",
     WebkitBackfaceVisibility: "hidden",
@@ -131,12 +131,8 @@ export function VokabelLernkarte({
       >
         <div
           aria-hidden="true"
-          className="absolute inset-2 flex items-center justify-center rounded-2xl border bg-muted/50"
-        >
-          <span className="text-sm text-muted-foreground">
-            Deine nächste Vokabel
-          </span>
-        </div>
+          className="pointer-events-none absolute inset-0 translate-y-1.5 scale-x-[0.98] rounded-xl border bg-muted"
+        ></div>
         <motion.div
           drag={gesehen && !blocked ? "x" : false}
           dragMomentum={false}
@@ -167,7 +163,7 @@ export function VokabelLernkarte({
             rotate: reduce ? 0 : rotation,
             touchAction: "pan-y",
           }}
-          className="relative will-change-transform"
+          className="relative"
         >
           <motion.button
             ref={flipRef}
@@ -190,7 +186,7 @@ export function VokabelLernkarte({
               ease: [0.65, 0, 0.35, 1],
             }}
             style={{ transformStyle: "preserve-3d" }}
-            className="grid w-full cursor-pointer rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 disabled:cursor-default"
+            className="grid w-full cursor-pointer rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 disabled:cursor-default"
           >
             <span
               aria-hidden={umgedreht}
@@ -205,16 +201,16 @@ export function VokabelLernkarte({
                   Box {karte.box}
                 </span>
               </span>
-              <span className="flex flex-1 flex-col items-center justify-center gap-5 py-9 text-center">
+              <span className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
                 <span className="text-xs text-muted-foreground">
                   {sprache === "latein" ? "Latein" : "Englisch"} → Deutsch
                 </span>
-                <span className="max-w-full break-words text-3xl font-medium leading-snug tracking-tight sm:text-4xl">
+                <span className="max-w-full break-words text-2xl font-medium leading-snug tracking-tight sm:text-3xl">
                   {karte.wort}
                 </span>
               </span>
               <span className="text-center text-xs text-muted-foreground">
-                Antippen zum Umdrehen
+                Antippen oder Leertaste zum Umdrehen
               </span>
             </span>
             <span
@@ -223,13 +219,13 @@ export function VokabelLernkarte({
               className={flaeche}
             >
               <span className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>Die deutsche Bedeutung</span>
+                <span>Deutsch</span>
                 <span className="shrink-0 rounded-md bg-muted px-2 py-1">
                   Box {karte.box}
                 </span>
               </span>
-              <span className="flex flex-1 flex-col items-center justify-center gap-5 py-9 text-center">
-                <span className="max-w-full break-words text-3xl font-medium leading-snug tracking-tight sm:text-4xl">
+              <span className="flex flex-1 flex-col items-center justify-center gap-4 py-8 text-center">
+                <span className="max-w-full break-words text-2xl font-medium leading-snug tracking-tight sm:text-3xl">
                   {karte.deutsch}
                 </span>
                 <span className="max-w-full break-words text-sm text-muted-foreground">
@@ -237,21 +233,21 @@ export function VokabelLernkarte({
                 </span>
               </span>
               <span className="text-center text-xs text-muted-foreground">
-                Gewusst? Nach rechts wischen.
+                Antwort prüfen und bewerten
               </span>
             </span>
           </motion.button>
           <motion.span
             aria-hidden="true"
             style={{ opacity: links }}
-            className="pointer-events-none absolute right-5 top-16 -rotate-12 rounded-lg border-2 border-destructive bg-background px-3 py-2 text-sm font-semibold text-destructive"
+            className="pointer-events-none absolute right-5 top-16 rounded-md border bg-background px-3 py-2 text-[13px] font-medium shadow-card"
           >
             <X className="mr-1 inline size-4" /> Falsch
           </motion.span>
           <motion.span
             aria-hidden="true"
             style={{ opacity: rechts }}
-            className="pointer-events-none absolute left-5 top-16 rotate-12 rounded-lg border-2 border-foreground bg-background px-3 py-2 text-sm font-semibold"
+            className="pointer-events-none absolute left-5 top-16 rounded-md border bg-background px-3 py-2 text-[13px] font-medium shadow-card"
           >
             <Check className="mr-1 inline size-4" /> Richtig
           </motion.span>
@@ -260,22 +256,23 @@ export function VokabelLernkarte({
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Button
           variant="outline"
-          className="min-h-14 flex-col gap-1 sm:flex-row sm:gap-2"
+          className="min-h-11 gap-1.5 px-2 text-[13px] sm:gap-2"
           disabled={!gesehen || blocked}
           onClick={(event) => void bewerten(false, event.detail === 0)}
         >
           <X className="size-4" /> Falsch
         </Button>
         <Button
-          variant="outline"
-          className="min-h-14 flex-col gap-1 sm:flex-row sm:gap-2"
+          variant={gesehen ? "ghost" : "default"}
+          className="min-h-11 gap-1.5 px-2 text-[13px] sm:gap-2"
           disabled={blocked}
           onClick={(event) => umdrehen(event.detail === 0)}
         >
           <RotateCcw className="size-4" /> Umdrehen
         </Button>
         <Button
-          className="min-h-14 flex-col gap-1 sm:flex-row sm:gap-2"
+          variant={gesehen ? "default" : "outline"}
+          className="min-h-11 gap-1.5 px-2 text-[13px] sm:gap-2"
           disabled={!gesehen || blocked}
           onClick={(event) => void bewerten(true, event.detail === 0)}
         >
