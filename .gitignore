@@ -49,6 +49,15 @@ android/.cxx/
 *.keystore
 *.jks
 
+# Datenbankdumps (Notizen, Noten, Heftseiten, Bot-Verlaeufe -- nie committen)
+backups/
+
+# Playwright: Spuren, Bilder und Berichte aus dem Testlauf
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # Screenshots aus dem Nacht-Loop, nur lokal
 .ytstack/shots/
 # Echter Datenschnappschuss fuer den Nacht-Loop, bleibt lokal

@@ -1,7 +1,19 @@
 # Atlas HTTP-API, Kurzfassung fuer den Android-Client
 
 Der Code ist die Wahrheit. Diese Datei fasst zusammen, was ein nativer Client
-wissen muss, und benennt vor allem die Luecken.
+wissen muss, und benennt vor allem die Luecken. Damit sie das nicht wieder
+verliert, nennt die Tabelle unter **Routen** jede Route aus `app/api/**/route.ts`
+-- `lib/doku-zahlen.test.ts` macht den Testlauf rot, sobald eine Route hier
+fehlt oder hier eine steht, die es im Code nicht mehr gibt.
+
+Ein Teil der Routen ist nur fuer die Weboberflaeche gebaut und fuer einen
+nativen Client ohne Bedeutung: **Hefte** (`/api/notebooks*`,
+`/api/notebook-chapters*`), **Vokabeln** (`/api/vokabeln*`), **Lernplan und
+Tutor** (`/api/lernen/plan*`, `/api/lernen/tutor*`) und die
+**Notenvorschlaege des Bots** (`/api/bot/proposals/{id}`). Die Android-App
+unter `android/` nutzt davon nichts; sie spricht Anmeldung, `/api/home`,
+`/api/calendar`, `/api/assignments*`, `/api/subjects*`, `/api/grades*`,
+`/api/sync/untis`, `/api/microsoft/status` und die lesenden Bot-Routen.
 
 ## Anmeldung
 - Ein einziges Passwort in `ATLAS_PASSWORD`. Kein Benutzerkonto.
@@ -15,6 +27,12 @@ wissen muss, und benennt vor allem die Luecken.
   muss zum Anmeldebildschirm springen.
 
 ## Routen
+
+<!-- zahlen:start -->
+**71 Routen** stehen in `app/api/**/route.ts`. Die Tabelle unten nennt sie
+alle -- die Pruefung dazu steckt in `lib/doku-zahlen.test.ts`.
+<!-- zahlen:ende -->
+
 | Methode | Pfad | Zweck |
 | --- | --- | --- |
 | POST/DELETE | /api/login | anmelden, abmelden |
@@ -24,6 +42,7 @@ wissen muss, und benennt vor allem die Luecken.
 | GET/POST | /api/subjects | Faecher lesen, anlegen (`?all=1`, `?archived=1`) |
 | GET | /api/subjects/candidates | Untis-Fachnamen fuer die Ersteinrichtung |
 | POST | /api/subjects/setup | Ersteinrichtung, idempotent |
+| POST | /api/subjects/reconcile | Faecher aus dem vorhandenen Stundenplan nachziehen, ohne WebUntis zu fragen |
 | GET/PATCH/DELETE | /api/subjects/{id} | Fach mit Notizen, Aufgaben, naechsten Stunden |
 | GET/POST | /api/subjects/{id}/notes | Notizen |
 | GET/PATCH/DELETE | /api/notes/{id} | eine Notiz |
@@ -35,9 +54,11 @@ wissen muss, und benennt vor allem die Luecken.
 | POST/DELETE | /api/assignments/{id}/complete | abhaken, Haken entfernen |
 | GET | /api/calendar?date=&view=week\|day | Stundenplan |
 | GET/POST | /api/sync/untis | GET liest den Stand, POST stoesst den Abgleich an (`{start,end}` optional) |
+| GET | /api/sync/untis/check?date= | Untis-live gegen die Datenbank fuer einen Tag stellen |
 | GET | /api/stunde?block= | Stunden-Cockpit: aktuelle Stunde, Tagesleiste, Faellig-jetzt, Kontext |
 | GET | /api/morgen?date= | Fokus-Zieltag mit Stunden und Aufgaben bis zum Zieltag |
 | GET/POST | /api/bot | GET: Begruessung plus frische conversationId ohne Modellaufruf; POST: Nachricht als NDJSON-Stream |
+| POST | /api/bot/proposals/{id} | Notenvorschlag des Bots annehmen oder verwerfen (`{decision}`) |
 | GET | /api/bot/verlauf | letzte Gespraeche mit Nachrichten |
 | GET | /api/bot/verlauf/{id} | ein Gespraech mit Existenzpruefung seiner Aktionen |
 | GET | /api/lernen | Uebersicht aller Faecher fuers Lernbereich-Dashboard |
@@ -62,6 +83,13 @@ wissen muss, und benennt vor allem die Luecken.
 | POST | /api/lernen/plan/{id}/verteilen | offene Einheiten neu verteilen (`{umfang}`) |
 | PATCH | /api/lernen/plan/items/{id} | Einheit abhaken (`{done, result?}`) |
 | PATCH | /api/lernen/plan/points/{id} | Punkt pflegen (`{cardsState?, topicId?}`) |
+| GET/POST | /api/notebooks | Heftseiten und Kapitel eines Fachs lesen (`?subjectId=`), Seite anlegen |
+| GET/PATCH/DELETE | /api/notebooks/{id} | eine Heftseite (PATCH traegt Seiteninhalt und `updatedAt` fuer den Konfliktsschutz) |
+| POST | /api/notebook-chapters | Heftkapitel anlegen |
+| PATCH | /api/notebook-chapters/{id} | Kapitel umbenennen |
+| GET/POST | /api/vokabeln | Vokabeln lesen, neue anlegen |
+| POST | /api/vokabeln/bewerten | Vokabelantwort bewerten, Leitner-Box hoch oder runter |
+| POST | /api/vokabeln/lesen | Vokabelliste per Bot aus einem Foto lesen (speichert nichts) |
 | GET/PUT/DELETE | /api/lessons/{id}/note | Stundennotiz lesen, schreiben (leer loescht), loeschen |
 | GET/PUT/DELETE | /api/lessons/{id}/participation | Meldungszaehler lesen, setzen (0 bleibt), loeschen |
 | GET | /api/lessons/{id}/next-due | naechste Stunde desselben Fachs als Faelligkeitsvorschlag |
@@ -77,6 +105,7 @@ wissen muss, und benennt vor allem die Luecken.
 | GET | /api/microsoft/sections | OneNote-Abschnitte des Nutzers |
 | POST | /api/notes/{id}/onenote | Notiz als Seite nach OneNote schreiben |
 | POST | /api/admin/migrate | SQL-Dateien aus drizzle/ anwenden |
+| GET | /api/admin/export | vollstaendiger Datenbankdump als JSON-Datei |
 
 Fehlerantworten haben immer die Form `{"error": "<deutscher Satz>"}`.
 Eine kaputte UUID im Pfad ergibt 404, nie 400.

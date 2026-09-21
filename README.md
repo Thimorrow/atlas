@@ -106,9 +106,15 @@ einmal neu bei Microsoft an.
 | `npm run dev` | Entwicklungsserver |
 | `npm run build` | Produktions-Build |
 | `npm test` | Vitest einmal durchlaufen lassen |
+| `npm run e2e` | Abnahmetests im echten Browser (startet den Server auf Port 3100 selbst) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run docs:zahlen` | Zahlenblock in README, STATE.md und API.md aus dem Code neu schreiben |
+| `npm run docs:check` | pruefen, ob diese Zahlen noch stimmen (laufen auch im Test mit) |
 | `npm run db:generate` | Migration aus dem Schema erzeugen |
 | `npm run db:push` | Schema direkt auf die Datenbank anwenden |
 | `npm run db:seed` | Beispiel-Stundenplan anlegen (`:clear` entfernt ihn wieder) |
+| `npm run db:export` | Sicherung holen (`--db` direkt über die lokale Datenbank) |
+| `npm run db:restore <datei> --ja` | Sicherung zurückspielen (löscht vorher alles) |
 | `npm run db:studio` | Drizzle Studio |
 
 ## Aufbau
@@ -126,35 +132,13 @@ app/
   lernen/page.tsx       Lernbereich-Dashboard (Karteikarten, Themen, Plaene)
   lernen/[subjectId]/   Fach im Lernbereich (page, session, themen/[topicId],
                         tutor, plan/[assignmentId] mit neu)
+  lernen/vokabeln/      Vokabeln (Latein und Englisch, Import per Foto)
+  hefte/page.tsx        Hefte (handschriftliche Notizbuecher je Fach)
   bot/page.tsx          Bot-Chat (mit Verlauf unter bot/verlauf und Detail)
   namensschild/page.tsx Namensschild
   settings/page.tsx     Einstellungen, Untis-Sync, Theme, OneNote
   login/page.tsx        Passwort-Anmeldung (siehe Status)
-   api/                  62 Routen (Stand 2026-09-07):
-                        login, session, home, colors,
-                        calendar, morgen, stunde,
-                        assignments (+ [id], [id]/complete),
-                        subjects (+ [id], candidates, setup, reconcile,
-                          [id]/notes, [id]/files, [id]/files/upload,
-                          [id]/grades, [id]/curriculum,
-                          [id]/curriculum/seed, curriculum/seed),
-                        notes/[id] (+ [id]/onenote),
-                        files/[id],
-                        grades (+ [id]),
-                        lessons/[id]/note, lessons/[id]/participation,
-                          lessons/[id]/next-due,
-                        bot (+ verlauf, verlauf/[id]),
-                        lernen (+ [subjectId], themen, themen/[id],
-                          themen/[id]/lernzettel, karten, karten/[id],
-                          karten/[id]/antwort, karten/[id]/bewerten,
-                          karten/[id]/erklaeren, karten/[id]/variante,
-                          generieren, tutor, tutor/[id], tutor/[id]/karten,
-                          plan, plan/lesen, plan/bewerten, plan/[id],
-                          plan/[id]/verteilen, plan/items/[id],
-                          plan/points/[id]),
-                         sync/untis (+ check: Untis-live gegen DB fuer einen Tag),
-                        microsoft (+ login, callback, status, sections),
-                        admin/migrate
+  api/                   Route fuer Route in .ytstack/API.md (Zahlen unten)
 components/             UI-Bausteine, alle im selben Stil
 lib/
   db/schema.ts          Drizzle-Schema
@@ -174,9 +158,23 @@ lib/
   microsoft.ts          Entra-ID-Anmeldung (PKCE) und OneNote über Graph
   untis/                WebUntis-Client, Adapter, Sync-Policy
   zeit.ts               Europe/Berlin heute/jetzt auf dem Server
-drizzle/                Migrationen (0000 bis 0019)
+drizzle/                Migrationen (Bereich siehe Kennzahlen unten)
 .ytstack/               Projektzustand, Entscheidungen, Specs
 ```
+
+### Kennzahlen
+
+<!-- zahlen:start -->
+_Erzeugt von `scripts/doku-zahlen.mjs`; `npm test` wird rot, wenn diese Zahlen nicht mehr zum Code passen._
+
+| Kennzahl | Wert |
+| --- | --- |
+| API-Routen (`app/api/**/route.ts`) | 71 |
+| Seiten (`app/**/page.tsx`) | 21 |
+| Migrationen (`drizzle/*.sql`) | 24 (`0000` bis `0023`) |
+| Tabellen (`pgTable` in `lib/db/schema.ts`) | 23 |
+| Testdateien (`*.test.ts`) | 89 |
+<!-- zahlen:ende -->
 
 ## Die Android-App
 
@@ -228,9 +226,79 @@ Es werden nur die Desktop-Dateien verpackt, keine `.env`-Dateien,
 Datenbankzugänge oder Serverpakete. Die Electron-Version steht separat in
 `desktop/package.json` und sollte regelmäßig aktualisiert werden.
 
-Bei einem Verbindungsfehler zeigt Atlas eine Seite zum erneuten Verbinden;
-das geht auch über `⌘R`. `⌘Q` beendet die App, das Schließen des Fensters
-lässt sie wie üblich auf macOS im Dock weiterlaufen.
+**Offline:** Ohne Netz zeigt Atlas nicht mehr nur eine Fehlerseite, sondern den
+letzten Stand, den der Server ausgeliefert hat — Stunden mit Raum und Zeit,
+offene Aufgaben, überfällig zuerst. Die App merkt sich dafür genau die Antwort,
+die sie beim Benutzen ohnehin lädt (`GET /api/home`); es wird nichts zusätzlich
+abgefragt. Der Stand wird immer mit Datum und Uhrzeit angezeigt („Letzter Stand:
+21.09.2026, 08:12"), damit veraltete Daten nie wie aktuelle aussehen. Beim
+Schließen des Fensters und beim nächsten Start bleibt er erhalten.
+
+Die Datei dafür liegt im Benutzerordner der App
+(`~/Library/Application Support/Atlas/atlas-offline.json`) und enthält denselben
+Ausschnitt wie die Offline-Seite: die zuletzt geladenen Stunden und offenen
+Aufgaben. Wer die App weitergegeben hat, kann sie dort löschen.
+
+Erneut verbinden geht über den Knopf auf der Offline-Seite oder `⌘R`.
+`⌘Q` beendet die App, das Schließen des Fensters lässt sie wie üblich auf
+macOS im Dock weiterlaufen.
+
+## Sicherung
+
+Neon sichert die Datenbank selbst, aber diese Sicherung liegt bei Neon und lässt
+sich nur dort zurückspielen. Deshalb gibt es einen Dump, den du selbst in der
+Hand hast:
+
+```bash
+npm run db:export              # holt den Dump von der laufenden Instanz
+npm run db:export -- --db      # lokal direkt aus der Datenbank
+npm run db:restore backups/atlas-dump-2026-09-21.json --ja
+```
+
+Der Dump landet in `backups/` (steht in `.gitignore`, weil darin alle Notizen,
+Noten, Heftseiten und Bot-Verläufe stehen) und enthält jede Tabelle mit allen
+Spalten. Welche Tabellen das sind, liest das Skript aus `information_schema`,
+nicht aus einer Liste im Code: eine neue Migration ist automatisch mit dabei.
+Einzeln angeben muss man nur die Ziel-Datei.
+
+Zwei Eigenschaften sind Absicht. Erstens wird zuerst geprüft und erst danach
+gelöscht — ein unbrauchbarer Dump darf die Datenbank nicht leer zurücklassen,
+deshalb verweigert das Zurückspielen ohne `--ja` schon vorher die Arbeit und
+nennt Ziel und Umfang. Zweitens kommt die Einfüge-Reihenfolge aus den
+Fremdschlüsseln (`pg_constraint`), nicht aus einer geratenen Liste; bei einem
+Modellierungsfehler mit echtem Zyklus bricht es mit allen beteiligten Tabellen
+ab, statt einen halben Datenbestand zu hinterlassen.
+
+Der Weg über die Instanz ist der einzige, der gegen den echten Atlas
+funktioniert: die Datenbank-Zugangsdaten liegen auf Vercel als „sensitiv" und
+sind von außen nicht lesbar. `npm run db:export` meldet sich deshalb mit
+`ATLAS_PASSWORD` an und holt `GET /api/admin/export`, das hinter derselben
+Passwortsperre liegt wie der Rest.
+
+## Abnahmetests (`e2e/`)
+
+`npm run e2e` fährt Atlas in einem echten Chromium. Die Tests unter `e2e/`
+brauchen **keine** vorbereiteten Daten: sie fangen die Serverantworten selbst ab
+(`page.route`) und arbeiten mit festgelegten Fixtures. Damit fassen sie nichts
+von deinen echten Heften, Vokabeln oder Noten an, und derselbe Lauf funktioniert
+gegen Production wie gegen den lokalen Server.
+
+Was geprüft wird, sind die Zusagen, die vorher nur per Auge abgehakt wurden:
+dass ein Strich nach dem Nachladen noch genau so aussieht (Stift, Marker, Linie,
+Rechteck, Rückgängig/Wiederholen), dass die nächste Vokabelkarte schon steht,
+während die vorige Antwort noch unterwegs ist, dass ein späterer Fehler nur
+die betroffene Karte trifft, und dass das Passwort-Gate Seiten auf `/login`
+umleitet, APIs aber mit 401 antwortet.
+
+Bewusst **keine** Screenshot-Vergleiche: die Oberfläche ist eine Zeichenfläche
+auf Canvas mit Animationen, ein Pixelvergleich würde bei jedem Schriftart-
+Unterschied rot, ohne einen Fehler zu zeigen. Stattdessen prüfen die Tests das
+Gemeinte und legen im Fehlerfall Bild und Spur als Artefakt ab.
+
+Der Lauf startet seinen eigenen Entwicklungsserver auf Port 3100, damit er
+weder einen laufenden `npm run dev` auf 3000 stört noch dessen Zustand erbt.
+`ATLAS_PASSWORD` wird aus `.env.local` geladen; ohne Passwort ist das Gate
+absichtlich offen und die beiden Gate-Tests überspringen sich selbst.
 
 ## Datenmodell
 

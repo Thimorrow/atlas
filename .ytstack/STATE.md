@@ -9,13 +9,79 @@ active_task: null
 
 # State
 
+## Ist-Stand (aus dem Code erzeugt)
+
+Dieser Block ist die einzige Stelle in dieser Datei mit fortgeschriebenen
+Zahlen. Alles darunter ist Historie und wird bewusst nicht mehr nachgezaehlt --
+gezaehlt wird, was im Code steht (`npm test` faerbt sich rot, wenn der Block
+nicht mehr stimmt).
+
+<!-- zahlen:start -->
+_Erzeugt von `scripts/doku-zahlen.mjs`; `npm test` wird rot, wenn diese Zahlen nicht mehr zum Code passen._
+
+| Kennzahl | Wert |
+| --- | --- |
+| API-Routen (`app/api/**/route.ts`) | 71 |
+| Seiten (`app/**/page.tsx`) | 21 |
+| Migrationen (`drizzle/*.sql`) | 24 (`0000` bis `0023`) |
+| Tabellen (`pgTable` in `lib/db/schema.ts`) | 23 |
+| Testdateien (`*.test.ts`) | 89 |
+<!-- zahlen:ende -->
+
 **Status:** M003 ist abgeschlossen und ueber seinen urspruenglichen Zuschnitt
 hinausgewachsen. Atlas ist heute kein reiner Stundenplan mehr, sondern eine
-Web-App mit fuenf Modulen plus eine eigenstaendige native Android-App.
+Web-App mit sieben Navigations-Modulen, dazu eine eigenstaendige native
+Android-App und eine macOS-App (`desktop/`). Die Zahlen oben sind der Stand von
+heute; die Abschnitte darunter sind Historie und nennen jeweils ihre eigene
+Datierung.
 
 Stand belegt am 2026-09-02 durch einen Durchgang durch den echten Code, nicht
 durch Fortschreibung dieser Datei. Zwischen dem vorigen Stand (2026-09-01) und
 heute liegen **51 Commits**, die hier vorher nicht abgebildet waren.
+
+## Nachtrag 2026-09-21: Absicherung statt neuer Module
+
+Fuenf Pakete, jedes mit eigenem Nachweis. Kein neues Produkt-Feature.
+
+1. **CI** (`.github/workflows/ci.yml`, neu): bei Push auf `main` und jedem PR
+   `npm ci`, Migrationen, `tsc --noEmit`, `docs:check`, `vitest run`, Rundlauf
+   von Export/Restore und `next build` -- mit Postgres 16 als Service, damit
+   die Integrationsdateien nicht mehr uebersprungen werden. Zweiter Job
+   `abnahme` fahr `npm run e2e` (Chromium) und laedt bei Fehlschlag Spur und
+   Bild hoch.
+2. **Doku-Zahlen aus dem Code** (`scripts/doku-zahlen.mjs`, `lib/doku-zahlen.test.ts`):
+   Routen, Seiten, Migrationen, Tabellen, Testdateien werden gezaehlt und in
+   einen markierten Block in README, STATE.md und API.md geschrieben; ein
+   veralteter Block macht `npm test` rot. Zusaetzlich prueft derselbe Test die
+   Routentabelle in API.md in beide Richtungen. Dabei behoben: API.md nannte
+   zehn echte Routen nicht -- die kompletten Module Hefte und Vokabeln, dazu
+   `/api/bot/proposals/{id}`, `/api/subjects/reconcile`, `/api/sync/untis/check`.
+3. **Export und Restore** (`lib/backup.ts`, `app/api/admin/export/route.ts`,
+   `scripts/export.mjs`, `scripts/restore.mjs`): vollstaendiger Dump in eine
+   Datei, Tabellen und Einfuege-Reihenfolge aus `information_schema` bzw.
+   `pg_constraint`. Datumsspalten werden per `to_char` gelesen (sonst verschiebt
+   node-postgres den Kalendertag), jsonb wird als Text geschrieben, ein
+   unbrauchbarer Dump wird vor dem Loeschen abgewiesen.
+4. **Abnahmesuite** (`playwright.config.ts`, `e2e/`): Hefte-Zeichnen
+   (Stift, Marker, Linie, Rechteck, Rueckgaengig/Wiederholen, Nachladen,
+   Handybreite), Vokabeln optimistisch (Kartenwechsel ohne Warten, Fehler nur
+   auf der betroffenen Karte, Antworten in anderer Reihenfolge) und das
+   Passwort-Gate. Ersetzt `scripts/notebook-drawing-e2e.mjs` und
+   `scripts/vokabeln-optimistic-e2e.mjs`; die beiden Skripte sind geloescht.
+   Befund dabei: das Vokabeln-Skript suchte zwei Knopfe, die es in der
+   Oberflaeche nicht mehr gibt -- es war unbemerkt veraltet.
+5. **Mac-App offline** (`desktop/offline-cache.cjs`): statt nur einer
+   Fehlerseite zeigt die App den letzten Stand (Stunden, offene Aufgaben) samt
+   Datum und Uhrzeit. Gemerkt wird nur die Antwort, die die App ohnehin laedt.
+
+Verifikation lokal gegen ein frisches Postgres 16 (Wegwerf-Datenbank):
+Migrationen vollstaendig, 977 Tests gruen bei 1 bewusst uebersprungenem (der
+Rundlauf ist opt-in und laeuft in der CI), tsc fehlerfrei, `docs:check` aktuell,
+`npm run build` durch, `npm run e2e` 5/5 in 6,9 s, Export-Restore-Rundlauf
+ueber die Skripte identisch. Was NICHT belegt ist: dass die GitHub-Laeufe
+gruen sind (bis zum ersten Push) und dass die Electron-Verdrahtung der
+Offline-Seite im laufenden Fenster funktioniert (nur die reine Logik ist
+getestet).
 
 ## Nachtrag 2026-09-04 abends (Branch feature/tutor, noch nicht gemergt)
 
@@ -79,9 +145,10 @@ Bot-Seite und native Android-App, Migrationen bis `0019_lernplan`
 (20 Dateien von 0000 bis 0019), 24 Tabellen (inkl. `tutor_conversations`,
 `tutor_messages`, `study_cards`, `study_reviews`, `study_topics`,
 `study_plans`, `study_plan_points`, `study_plan_checks`,
-`study_plan_items`), 61 API-Routen, rund 700 Tests gruenen Durchlauf
-(698 bestanden am 2026-09-07). Die Detailzahlen und Belege unten bleiben als
-Historie stehen und werden nicht fortgeschrieben.
+`study_plan_items`) -- und damals "61 API-Routen, rund 700 Tests". Diese
+geschaetzten Zahlen sind hier ausdruecklich nicht mehr gepflegt; die aktuellen
+stehen im Ist-Stand-Block am Kopf der Datei. Die Belege unten bleiben als
+Historie stehen.
 
 **Datenbank** (Neon, Drizzle, 11 Migrationen, alle angewendet): sieben Tabellen
 `school_blocks`, `subjects`, `subject_notes`, `assignments`, `subject_files`,
