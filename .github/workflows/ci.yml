@@ -152,6 +152,12 @@ jobs:
       - name: Schema einspielen
         run: npm run db:migrate:run
 
+      # Die Abnahmetests laufen gegen den Produktions-Build (siehe
+      # playwright.config.ts webServer) -- der Entwicklungsserver braucht das
+      # optionale lokale Paket @aiforui/lapse, das es hier nicht gibt.
+      - name: Build fuer die Abnahmetests
+        run: npm run build
+
       # Nur Chromium: die Suite prueft keine Browser-Unterschiede, und jeder
       # weitere Browser kostet Minuten.
       - name: Browser installieren

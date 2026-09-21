@@ -51,8 +51,21 @@ export default defineConfig({
 
   // Eigener Port, damit ein laufendes `npm run dev` auf 3000 nicht gestoert
   // wird und umgekehrt. Lokal wird ein bereits laufender Server benutzt.
+  //
+  // Gegen den PRODUKTIONS-Build, nicht gegen `next dev`. Zwei Gruende, der
+  // zweite ist der wichtigere:
+  //
+  // 1. Geprueft wird damit das Buendel, das auch ausgeliefert wird. Ein Fehler,
+  //    der nur im Build auftritt, faellt hier auf und nicht erst auf Vercel.
+  // 2. Der Entwicklungsserver bricht in der CI ab. components/lapse-panel.tsx
+  //    und instrumentation-client.ts laden im Entwicklungsmodus das optionale
+  //    lokale Paket @aiforui/lapse ("Make local Lapse tooling optional"); auf
+  //    Linux ist es nicht installiert, und Turbopack verweigert dann schon die
+  //    Login-Seite. Der Produktionsbuild kennt den Zweig nicht.
+  //
+  // Daraus folgt: vor `npm run e2e` muss `npm run build` gelaufen sein.
   webServer: {
-    command: "npx next dev --port 3100",
+    command: "npx next start --port 3100",
     url: "http://localhost:3100/login",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

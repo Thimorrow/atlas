@@ -106,7 +106,7 @@ einmal neu bei Microsoft an.
 | `npm run dev` | Entwicklungsserver |
 | `npm run build` | Produktions-Build |
 | `npm test` | Vitest einmal durchlaufen lassen |
-| `npm run e2e` | Abnahmetests im echten Browser (startet den Server auf Port 3100 selbst) |
+| `npm run e2e` | Abnahmetests im echten Browser (braucht vorher `npm run build`) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run docs:zahlen` | Zahlenblock in README, STATE.md und API.md aus dem Code neu schreiben |
 | `npm run docs:check` | pruefen, ob diese Zahlen noch stimmen (laufen auch im Test mit) |
@@ -295,10 +295,13 @@ auf Canvas mit Animationen, ein Pixelvergleich würde bei jedem Schriftart-
 Unterschied rot, ohne einen Fehler zu zeigen. Stattdessen prüfen die Tests das
 Gemeinte und legen im Fehlerfall Bild und Spur als Artefakt ab.
 
-Der Lauf startet seinen eigenen Entwicklungsserver auf Port 3100, damit er
-weder einen laufenden `npm run dev` auf 3000 stört noch dessen Zustand erbt.
-`ATLAS_PASSWORD` wird aus `.env.local` geladen; ohne Passwort ist das Gate
-absichtlich offen und die beiden Gate-Tests überspringen sich selbst.
+Der Lauf startet seinen eigenen Server auf Port 3100, damit er weder einen
+laufenden `npm run dev` auf 3000 stört noch dessen Zustand erbt. Er läuft gegen
+den **Produktions-Build** (also nach `npm run build`) — geprüft wird damit das
+Bündel, das auch ausgeliefert wird, und nicht eine Entwicklungsfassung, die sich
+anders verhält. `ATLAS_PASSWORD` wird aus `.env.local` geladen; ohne Passwort
+ist das Gate absichtlich offen und die beiden Gate-Tests überspringen sich
+selbst.
 
 ## Datenmodell
 
