@@ -1,0 +1,32 @@
+{
+  "name": "atlas-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atlas Schulplaner für macOS",
+  "author": "Atlas",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac --arm64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "42.2.0",
+    "electron-builder": "26.8.1"
+  },
+  "overrides": {
+    "plist": "3.1.1",
+    "@xmldom/xmldom": "0.9.12"
+  },
+  "build": {
+    "appId": "dev.atlas.schule.desktop",
+    "productName": "Atlas",
+    "directories": { "output": "../dist/mac" },
+    "files": ["main.cjs", "navigation.cjs", "offline.html", "icon.png"],
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "icon.png",
+      "identity": "-",
+      "target": ["zip"]
+    }
+  }
+}

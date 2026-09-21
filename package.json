@@ -14,7 +14,9 @@
     "db:seed": "node --env-file=.env.local scripts/seed.mjs",
     "db:seed:clear": "node --env-file=.env.local scripts/seed.mjs --clear",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "desktop:dev": "npm --prefix desktop start",
+    "desktop:build": "npm --prefix desktop run build"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",

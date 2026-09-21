@@ -203,6 +203,35 @@ Voraussetzungen sind das Android SDK mit Plattform 36 und ein JDK 21. Der Pfad
 zum JDK steht in `android/gradle.properties`, der zum SDK in
 `android/local.properties`, die nicht eingecheckt ist.
 
+## Die Mac-App (Electron)
+
+Unter `desktop/` liegt Atlas als eigene macOS-App. Sie öffnet dieselbe
+Online-Version wie die Android-App und benötigt Internet. Stundenplan und
+Daten bleiben auf dem bestehenden Server; ein lokaler Next.js-Server ist
+nicht nötig. Die Anmeldung bleibt im eigenen App-Profil gespeichert.
+Externe Links und die Microsoft-Anmeldung öffnen sich im Standardbrowser.
+
+```bash
+npm ci --prefix desktop
+npm run desktop:dev
+npm run desktop:build
+```
+
+Der Build ist für Apple Silicon (M1/M2/M3/M4 usw.). Unter `dist/mac/` liegen
+eine ZIP und `mac-arm64/Atlas.app`. Die ZIP entpacken und Atlas in den
+Programme-Ordner ziehen. Für Intel-Macs:
+`cd desktop && npx electron-builder --mac --x64 --publish never`.
+
+Der lokale Build ist ad hoc signiert, nicht mit einem Apple-Developer-Zertifikat
+signiert oder notarisiert. Für die Verteilung an andere Macs sollte das ergänzt werden.
+Es werden nur die Desktop-Dateien verpackt, keine `.env`-Dateien,
+Datenbankzugänge oder Serverpakete. Die Electron-Version steht separat in
+`desktop/package.json` und sollte regelmäßig aktualisiert werden.
+
+Bei einem Verbindungsfehler zeigt Atlas eine Seite zum erneuten Verbinden;
+das geht auch über `⌘R`. `⌘Q` beendet die App, das Schließen des Fensters
+lässt sie wie üblich auf macOS im Dock weiterlaufen.
+
 ## Datenmodell
 
 `school_blocks` kommt aus Untis und wird per `(untis_lesson_id, date)`
