@@ -1,0 +1,174 @@
+# Die drei Pruefungen, die es bisher nur gab, wenn sie jemand von Hand aufrief:
+# Typecheck, Tests, Build. Ohne CI liefen sie freiwillig -- und die
+# Integrationstests schalteten sich ab, weil DATABASE_URL fehlte (siehe
+# `describe.skipIf(!process.env.DATABASE_URL)` in lib/*.test.ts).
+#
+# Deshalb bringt dieser Workflow sein eigenes Postgres mit. Damit laufen die
+# Store-Tests gegen ein echtes Schema. Lokal nachgemessen: gegen eine frische
+# Datenbank laeuft der Testlauf komplett durch, ohne Datenbank ueberspringt er
+# die Integrationsdateien stillschweigend. (Die genaue Testzahl steht bewusst
+# nicht hier, sondern in den Kennzahlen der README.)
+#
+# Die Zugangsdaten hier sind bewusst Attrappen. Kein Secret des echten Atlas
+# landet in dieser Datei; die Attrappen existieren nur, damit der Build die
+# Variablen ueberhaupt vorfindet (der Login-Gate prueft ATLAS_PASSWORD, der Bot
+# liest ZAI_API_KEY, die Notiz-Dateien BLOB_READ_WRITE_TOKEN). Gegen die
+# Wegwerf-Datenbank des Containers ist das gefahrlos.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Ein neuer Push auf denselben Branch macht den laufenden Durchgang obsolet.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+          POSTGRES_DB: atlas_ci
+        ports:
+          - 5432:5432
+        # Ohne Health-Check startet der erste Schritt gegen ein Postgres, das
+        # noch hochfaehrt -- der Migrationslauf wuerde dann grundlos scheitern.
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # Zeigt auf gewoehnliches Postgres, nicht auf Neon -- lib/db/index.ts
+      # waehlt den Treiber anhand der URL (pg statt Neon-HTTP).
+      DATABASE_URL: postgres://atlas:atlas@127.0.0.1:5432/atlas_ci
+      # Ohne diese Schalter ueberspringt lib/bot/grade-proposals.test.ts sich
+      # selbst (Schutz gegen versehentliche Laeufe gegen fremde Datenbanken).
+      ATLAS_TEST_DB: "1"
+      ATLAS_PASSWORD: ci-passwort
+      ATLAS_SESSION_SECRET: ci-session-secret-nur-fuer-den-build
+      BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_ci_attrappe"
+      ZAI_API_KEY: "ci-attrappe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      # Vor den Tests: die Store-Tests legen echte Zeilen an und brauchen das
+      # Schema. applyMigrations() ist wiederholbar, "gibt es schon" ist kein
+      # Fehler -- derselbe Aufruf steckt auch im Build.
+      - name: Schema einspielen
+        run: npm run db:migrate:run
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Eigener Schritt, obwohl lib/doku-zahlen.test.ts dasselbe prueft: ein
+      # Fehlschlag soll hier "die Doku ist veraltet" heissen und nicht in der
+      # Testausgabe untergehen.
+      - name: Doku-Zahlen
+        run: npm run docs:check
+
+      - name: Tests
+        run: npm test
+
+      # Der Rundlauf von Export und Restore loescht die ganze Datenbank und ist
+      # deshalb im normalen Lauf opt-in (er wuerde sonst alles mitreissen, was
+      # parallel in derselben Datenbank laeuft). Hier ist die Datenbank ein
+      # Wegwerf-Container und der Testlauf vorbei, also darf er laufen -- und
+      # nur so ist bewiesen, dass ein Dump sich wirklich zurueckspielen laesst.
+      - name: Export und Restore (Rundlauf)
+        run: npx vitest run lib/backup.test.ts
+        env:
+          ATLAS_BACKUP_TEST: "1"
+
+      - name: Build
+        run: npm run build
+
+  # Eigener Job, weil er eigene Werkzeuge braucht (Browser) und deutlich
+  # laenger laeuft. Er startet seinen eigenen Entwicklungsserver auf Port 3100
+  # (siehe playwright.config.ts), die Unit-Tests bleiben davon unberuehrt.
+  abnahme:
+    runs-on: ubuntu-latest
+    # Erst wenn die schnellen Pruefungen durch sind: ein Browserlauf gegen einen
+    # Typfehler waere nur verschwendete Zeit.
+    needs: pruefen
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+          POSTGRES_DB: atlas_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://atlas:atlas@127.0.0.1:5432/atlas_ci
+      ATLAS_TEST_DB: "1"
+      # Muss gesetzt sein, sonst ueberspringen sich die Gate-Tests selbst.
+      ATLAS_PASSWORD: ci-passwort
+      ATLAS_SESSION_SECRET: ci-session-secret-nur-fuer-den-build
+      BLOB_READ_WRITE_TOKEN: "vercel_blob_rw_ci_attrappe"
+      ZAI_API_KEY: "ci-attrappe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      # Die Seiten holen ihre Daten serverseitig; ohne Schema waeren die Aufrufe
+      # Fehler statt leerer Listen.
+      - name: Schema einspielen
+        run: npm run db:migrate:run
+
+      # Nur Chromium: die Suite prueft keine Browser-Unterschiede, und jeder
+      # weitere Browser kostet Minuten.
+      - name: Browser installieren
+        run: npx playwright install --with-deps chromium
+
+      - name: Abnahmetests
+        run: npm run e2e
+
+      # Spur und Bild liegen nur bei Fehlschlag vor und sind dann das einzige,
+      # was die Ursache zeigt -- ohne sie ist ein roter CI-Lauf im Browser
+      # nicht nachvollziehbar.
+      - name: Spuren sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-spuren
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
