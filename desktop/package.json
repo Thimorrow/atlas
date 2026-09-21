@@ -21,7 +21,7 @@
     "appId": "dev.atlas.schule.desktop",
     "productName": "Atlas",
     "directories": { "output": "../dist/mac" },
-    "files": ["main.cjs", "navigation.cjs", "offline.html", "icon.png"],
+    "files": ["main.cjs", "navigation.cjs", "offline-cache.cjs", "offline.html", "icon.png"],
     "mac": {
       "category": "public.app-category.education",
       "icon": "icon.png",
